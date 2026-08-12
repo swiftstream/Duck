@@ -9,13 +9,13 @@ Unresolved choices that must not be treated as implemented architecture.
 
 ## Package Surface
 
-- Exact public module/API layout above the approved internal `Cduckdb` native target.
+- Exact public module/API layout above the implemented internal `Cduckdb` native target.
 - Exact public names for database, connection, prepared statement, result, row/value, transaction, and appender concepts.
 - Whether low-level and ergonomic APIs ship in one module or separate modules.
 
 ## Concurrency
 
-- Ownership model for database and connection handles.
+- Public ownership model for database and connection handles above the existing internal native owners.
 - Exact actor boundaries for database, connection, transaction, prepared statement, result, and appender behavior.
 - Which public value/reference types should be `Sendable` in addition to actor-isolated owners.
 - How multiple DuckDB connections are exposed without promising unsupported thread-safety.

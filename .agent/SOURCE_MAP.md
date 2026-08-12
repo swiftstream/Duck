@@ -21,13 +21,18 @@ Navigation map for the current SwiftDuckDB repository state.
 
 ## Package and Source
 
-- `Package.swift`: SwiftPM manifest for the `SwiftDuckDB` library product and target, using Swift tools 6.3, iOS 15+, macOS 12+, and Swift language mode 6. Native target integration is not implemented yet.
-- `Sources/SwiftDuckDB/SwiftDuckDB.swift`: intentionally minimal bootstrap source; no public runtime database API exists yet.
+- `Package.swift`: SwiftPM manifest for the `SwiftDuckDB` library product, the public `SwiftDuckDB` target, internal generated `Cduckdb` target, and both Swift Testing targets. It uses Swift tools 6.3, iOS 15+, macOS 12+, Swift language mode 6, and the upstream-generated C++11 setting.
+- `Sources/Cduckdb/`: exact generated DuckDB `v1.5.5` source snapshot for the internal native target; do not hand-edit it.
+- `Sources/SwiftDuckDB/Native/`: internal database/connection ownership primitives and copied native error context.
+- `Sources/SwiftDuckDB/SwiftDuckDB.swift`: intentionally minimal public bootstrap source; no public runtime database API exists yet.
+- `Tests/CDuckDBTests/CDuckDBTests.swift`: direct C lifecycle and chunk/vector contract tests.
+- `Tests/SwiftDuckDBTests/NativeOwnerTests.swift`: internal native owner lifetime and handle-seam tests.
+- `ThirdParty/DuckDB/`: DuckDB license and v1.5.5 generation provenance.
 - `.gitignore`: local build/editor artifacts.
 
-No DuckDB C target/source, SwifQL package dependency, test target, or runtime database implementation exists yet. Approved DuckDB `v1.5.5` generated-source vendoring into internal target `Cduckdb` is in progress and must not be described as implemented until it succeeds.
+The package has no external package dependencies and no public runtime database implementation yet. SwifQL is not integrated until the separately approved first query-capable API slice.
 
-Git is on `master` with audited governance and package-baseline checkpoints.
+Git is on `master` with audited governance, package-baseline, and native-foundation checkpoints.
 
 ## Transient Evidence
 

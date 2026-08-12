@@ -2,7 +2,7 @@
 
 Ideas that are not active approved implementation tasks.
 
-- Define the first public database/query API slice after the approved native foundation completes.
+- Define the first public database/query API slice following the completed native foundation.
 - Define the long-term DuckDB upgrade/version policy beyond the approved initial v1.5.5 source snapshot.
 - Evaluate optional DuckDB extensions and bundle-size tradeoffs beyond the initial generated extension set.
 - Design public ownership semantics for database, connection, result, prepared statement, and appender handles.

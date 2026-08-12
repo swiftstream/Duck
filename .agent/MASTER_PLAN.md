@@ -24,8 +24,8 @@ Shared API and semantics should remain platform-independent unless a concrete pl
 
 1. Establish repository governance and portable coding guidance. **Done.**
 2. Establish the Swift 6.3, iOS 15, macOS 12 package baseline. **Done.**
-3. Implement the approved DuckDB native foundation: generated v1.5.5 source vendoring, C lifecycle tests, and internal native ownership primitives. **In progress; paused before native vendoring while the reviewed generator-setting correction is checkpointed.**
-4. Design and review the first public database/query API slice after the native foundation proves the C boundary.
+3. Implement the approved DuckDB native foundation: generated v1.5.5 source vendoring, C lifecycle tests, and internal native ownership primitives. **Done.**
+4. Design and review the first public database/query API slice, including the public concurrency and SwifQL integration boundaries, after the native foundation proves the C boundary.
 5. Continue capability by capability through separately reviewed tasks.
 
 ## Explicit Non-Commitments
