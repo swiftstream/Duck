@@ -450,6 +450,10 @@ let package = Package(
         .testTarget(
             name: "CDuckDBTests",
             dependencies: ["Cduckdb"]
+        ),
+        .testTarget(
+            name: "SwiftDuckDBTests",
+            dependencies: ["SwiftDuckDB"]
         )
     ],
     swiftLanguageModes: [.v6],
