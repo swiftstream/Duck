@@ -447,8 +447,11 @@ let package = Package(
         .define("DUCKDB_BUILD_LIBRARY")
       ]
     ),
+        .testTarget(
+            name: "CDuckDBTests",
+            dependencies: ["Cduckdb"]
+        )
     ],
     swiftLanguageModes: [.v6],
     cxxLanguageStandard: .cxx11
 )
-

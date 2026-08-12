@@ -1,0 +1,154 @@
+import Cduckdb
+import Foundation
+import Testing
+
+@Test("Reports the linked DuckDB v1.5.5 version")
+func reportsLinkedVersion() {
+    let version = String(cString: duckdb_library_version())
+
+    #expect(version.hasPrefix("v1.5.5"))
+}
+
+@Test("Opens and closes an in-memory database connection")
+func opensInMemoryConnection() {
+    var database: duckdb_database?
+    #expect(duckdb_open(nil, &database) == DuckDBSuccess)
+    defer { duckdb_close(&database) }
+
+    var connection: duckdb_connection?
+    #expect(duckdb_connect(database, &connection) == DuckDBSuccess)
+    defer { duckdb_disconnect(&connection) }
+
+    #expect(connection != nil)
+}
+
+@Test("Fetches an integer result through a data chunk vector")
+func fetchesQueryChunk() throws {
+    var database: duckdb_database?
+    try #require(duckdb_open(nil, &database) == DuckDBSuccess)
+    defer { duckdb_close(&database) }
+
+    var connection: duckdb_connection?
+    try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
+    defer { duckdb_disconnect(&connection) }
+
+    var result = duckdb_result()
+    try #require(duckdb_query(connection, "SELECT 42::INTEGER AS answer", &result) == DuckDBSuccess)
+    defer { duckdb_destroy_result(&result) }
+
+    var chunk = duckdb_fetch_chunk(result)
+    defer { duckdb_destroy_data_chunk(&chunk) }
+
+    let chunkHandle = try #require(chunk)
+
+    #expect(duckdb_data_chunk_get_size(chunkHandle) == 1)
+
+    let vector = duckdb_data_chunk_get_vector(chunkHandle, 0)
+    let values = try #require(duckdb_vector_get_data(vector)?.assumingMemoryBound(to: Int32.self))
+    #expect(values.pointee == 42)
+}
+
+@Test("Destroys failed query results after copying their error")
+func destroysFailedQueryResult() throws {
+    var database: duckdb_database?
+    try #require(duckdb_open(nil, &database) == DuckDBSuccess)
+    defer { duckdb_close(&database) }
+
+    var connection: duckdb_connection?
+    try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
+    defer { duckdb_disconnect(&connection) }
+
+    var result = duckdb_result()
+    let state = duckdb_query(connection, "SELECT * FROM table_that_does_not_exist", &result)
+    defer { duckdb_destroy_result(&result) }
+
+    #expect(state == DuckDBError)
+    let message = String(cString: duckdb_result_error(&result))
+    #expect(message.localizedCaseInsensitiveContains("table_that_does_not_exist"))
+}
+
+@Test("Binds and executes a prepared statement through a data chunk vector")
+func executesPreparedStatement() throws {
+    var database: duckdb_database?
+    try #require(duckdb_open(nil, &database) == DuckDBSuccess)
+    defer { duckdb_close(&database) }
+
+    var connection: duckdb_connection?
+    try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
+    defer { duckdb_disconnect(&connection) }
+
+    var statement: duckdb_prepared_statement?
+    try #require(duckdb_prepare(connection, "SELECT ?::INTEGER AS answer", &statement) == DuckDBSuccess)
+    defer { duckdb_destroy_prepare(&statement) }
+
+    let prepared = try #require(statement)
+    try #require(duckdb_bind_int32(prepared, 1, 42) == DuckDBSuccess)
+
+    var result = duckdb_result()
+    try #require(duckdb_execute_prepared(prepared, &result) == DuckDBSuccess)
+    defer { duckdb_destroy_result(&result) }
+
+    var chunk = duckdb_fetch_chunk(result)
+    defer { duckdb_destroy_data_chunk(&chunk) }
+
+    let chunkHandle = try #require(chunk)
+
+    let vector = duckdb_data_chunk_get_vector(chunkHandle, 0)
+    let values = try #require(duckdb_vector_get_data(vector)?.assumingMemoryBound(to: Int32.self))
+    #expect(values.pointee == 42)
+}
+
+@Test("Destroys a failed prepared statement")
+func destroysFailedPreparedStatement() {
+    var database: duckdb_database?
+    #expect(duckdb_open(nil, &database) == DuckDBSuccess)
+    defer { duckdb_close(&database) }
+
+    var connection: duckdb_connection?
+    #expect(duckdb_connect(database, &connection) == DuckDBSuccess)
+    defer { duckdb_disconnect(&connection) }
+
+    var statement: duckdb_prepared_statement?
+    let state = duckdb_prepare(connection, "SELECT FROM", &statement)
+    defer { duckdb_destroy_prepare(&statement) }
+
+    #expect(state == DuckDBError)
+    #expect(statement != nil)
+}
+
+@Test("Persists data across a unique file-backed database reopen")
+func reopensPersistentDatabase() throws {
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("SwiftDuckDB-\(UUID().uuidString)")
+        .appendingPathExtension("duckdb")
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    var database: duckdb_database?
+    try #require(duckdb_open(databaseURL.path, &database) == DuckDBSuccess)
+    var connection: duckdb_connection?
+    try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
+
+    var writeResult = duckdb_result()
+    try #require(duckdb_query(connection, "CREATE TABLE values_table AS SELECT 42::INTEGER AS answer", &writeResult) == DuckDBSuccess)
+    duckdb_destroy_result(&writeResult)
+    duckdb_disconnect(&connection)
+    duckdb_close(&database)
+
+    try #require(duckdb_open(databaseURL.path, &database) == DuckDBSuccess)
+    defer { duckdb_close(&database) }
+    try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
+    defer { duckdb_disconnect(&connection) }
+
+    var readResult = duckdb_result()
+    try #require(duckdb_query(connection, "SELECT answer FROM values_table", &readResult) == DuckDBSuccess)
+    defer { duckdb_destroy_result(&readResult) }
+
+    var chunk = duckdb_fetch_chunk(readResult)
+    defer { duckdb_destroy_data_chunk(&chunk) }
+
+    let chunkHandle = try #require(chunk)
+
+    let vector = duckdb_data_chunk_get_vector(chunkHandle, 0)
+    let values = try #require(duckdb_vector_get_data(vector)?.assumingMemoryBound(to: Int32.self))
+    #expect(values.pointee == 42)
+}
