@@ -4,7 +4,7 @@ Git, staging, commit-message, and checkpoint rules for SwiftDuckDB.
 
 ## Repository State
 
-Git is initialized on `master` and currently has no commits. Repository history will begin on the intended `master` branch.
+Git is on `master` with audited governance and Swift package-baseline checkpoints. Continue creating audited local checkpoints on that branch.
 
 The maintainer has requested **frequent local commits at logical, audited checkpoints** so completed work does not accumulate uncommitted for long periods.
 

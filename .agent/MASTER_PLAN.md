@@ -23,16 +23,18 @@ Shared API and semantics should remain platform-independent unless a concrete pl
 ## Current Progression
 
 1. Establish repository governance and portable coding guidance. **Done.**
-2. Create the initial Swift Package Manager package. **Done.**
-3. Discuss and review the first DuckDB integration/API slice with the maintainer before implementation. **Next.**
-4. Continue capability by capability through separately reviewed tasks.
+2. Establish the Swift 6.3, iOS 15, macOS 12 package baseline. **Done.**
+3. Implement the approved DuckDB native foundation: generated v1.5.5 source vendoring, C lifecycle tests, and internal native ownership primitives. **In progress; paused before native vendoring while the reviewed generator-setting correction is checkpointed.**
+4. Design and review the first public database/query API slice after the native foundation proves the C boundary.
+5. Continue capability by capability through separately reviewed tasks.
 
 ## Explicit Non-Commitments
 
 The following are not yet approved architecture:
 
-- DuckDB vendoring or version strategy;
-- package target/module names beyond the project identity;
+- Long-term DuckDB upgrade/version policy beyond the initial v1.5.5 pin;
+- optional extension and bundle-size strategy beyond the initial generated extension set;
+- package target/module names beyond the approved internal `Cduckdb` native target and project identity;
 - static versus dynamic linking;
 - source build versus prebuilt artifacts;
 - public database/connection/result API shape;
@@ -44,4 +46,3 @@ The following are not yet approved architecture:
 - exact Linux/Android/Windows architecture and toolchain validation matrix.
 
 Record these as decisions only after discussion and review.
-

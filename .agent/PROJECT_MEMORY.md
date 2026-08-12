@@ -5,10 +5,10 @@ Durable current-state facts useful beyond immediate source inspection.
 ## Current State
 
 - An initial Swift Package Manager library package exists with package/product/target name `SwiftDuckDB`.
-- The package currently has no external dependencies and no public runtime database API.
-- DuckDB C integration and SwifQL package integration are not implemented yet.
-- The current bootstrap manifest still declares `swift-tools-version: 6.0` and no Apple minimum-platform constraints; it has not yet been synchronized with the reviewed Swift 6.3+, iOS 15+, and macOS 12+ baseline.
-- Git is initialized on `master` with no commits yet.
+- The package uses Swift tools 6.3, iOS 15+, macOS 12+, and Swift language mode 6.
+- The package currently has no external dependencies, native target, test target, or public runtime database API.
+- DuckDB C integration and SwifQL package integration are not implemented yet; approved DuckDB `v1.5.5` generated-source vendoring into internal `Cduckdb` is in progress.
+- Git is on `master` with audited governance and package-baseline checkpoints.
 
 ## Reviewed Direction
 
@@ -19,4 +19,3 @@ Durable current-state facts useful beyond immediate source inspection.
 - SwifQL is mandatory for normal Swift query construction from the first query-capable implementation; raw SQL remains an explicit escape hatch.
 - The desired database UX is concise, expressive, and Swift-native rather than a mechanical C wrapper.
 - Development proceeds incrementally rather than by prebuilding a complete ORM/database framework.
-

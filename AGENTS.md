@@ -18,7 +18,7 @@ The repository root owns `AGENTS.md`, `.agent/`, `.artifacts/`, `Package.swift`,
 - `.agent/**` contains stable governance, reviewed direction, decisions, and durable navigation/state.
 - `.artifacts/**` contains transient research, plans, task instructions, execution reports, audits, and evidence. It is never stable authority.
 
-Git is initialized on `master` and currently has no commits. The first implementation task must protect `.artifacts/**` from tracking and create the first audited governance checkpoint. Frequent audited local checkpoint commits are authorized thereafter. Push and destructive/history-rewriting Git operations still require separate explicit authorization; follow `.agent/COMMIT_RULES.md`.
+Git is on `master` with audited governance and Swift package-baseline checkpoints. `.artifacts/**` is protected from tracking. Frequent audited local checkpoint commits are authorized thereafter. Push and destructive/history-rewriting Git operations still require separate explicit authorization; follow `.agent/COMMIT_RULES.md`.
 
 ## Authority Hierarchy
 
@@ -99,4 +99,3 @@ Route dependency-source inspection and future style-learning tasks through `.age
 - Stable docs may name real SwiftDuckDB dependencies and external technologies such as DuckDB or SwifQL.
 - Stable docs must not persist machine-local checkout paths, sibling-repository assumptions, or names of repositories used only as temporary style/UX evidence.
 - Concrete reference repositories, sampled files, paths, competing examples, and provenance belong only in `.artifacts/**`; promote only self-contained reviewed engineering rules.
-

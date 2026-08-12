@@ -21,15 +21,14 @@ Navigation map for the current SwiftDuckDB repository state.
 
 ## Package and Source
 
-- `Package.swift`: current bootstrap SwiftPM manifest for the `SwiftDuckDB` library product and target. It still uses `swift-tools-version: 6.0` and has not yet been synchronized with the reviewed Swift 6.3+, iOS 15+, macOS 12+ baseline.
+- `Package.swift`: SwiftPM manifest for the `SwiftDuckDB` library product and target, using Swift tools 6.3, iOS 15+, macOS 12+, and Swift language mode 6. Native target integration is not implemented yet.
 - `Sources/SwiftDuckDB/SwiftDuckDB.swift`: intentionally minimal bootstrap source; no public runtime database API exists yet.
 - `.gitignore`: local build/editor artifacts.
 
-No DuckDB C target/dependency, SwifQL package dependency, test target, or runtime database implementation exists yet.
+No DuckDB C target/source, SwifQL package dependency, test target, or runtime database implementation exists yet. Approved DuckDB `v1.5.5` generated-source vendoring into internal target `Cduckdb` is in progress and must not be described as implemented until it succeeds.
 
-Git is initialized on `master` with no commits yet.
+Git is on `master` with audited governance and package-baseline checkpoints.
 
 ## Transient Evidence
 
 `.artifacts/**` contains research, plans, task files, execution reports, reviews, and implementation evidence. It is not stable architecture or implementation authority.
-

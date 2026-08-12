@@ -4,13 +4,12 @@ Unresolved choices that must not be treated as implemented architecture.
 
 ## DuckDB Integration
 
-- Which DuckDB version policy should the package use?
-- Vendor amalgamation/source, build DuckDB as a native target, or consume platform artifacts?
-- Which DuckDB compile-time extensions/options should be included by default?
+- Long-term DuckDB upgrade/version policy beyond the approved initial `v1.5.5` pin.
+- Optional-extension and bundle-size strategy beyond the approved initial generated set: `core_functions`, `parquet`, `icu`, and `json`.
 
 ## Package Surface
 
-- Exact module/target layout for the C boundary and Swift API.
+- Exact public module/API layout above the approved internal `Cduckdb` native target.
 - Exact public names for database, connection, prepared statement, result, row/value, transaction, and appender concepts.
 - Whether low-level and ergonomic APIs ship in one module or separate modules.
 
@@ -33,4 +32,3 @@ Unresolved choices that must not be treated as implemented architecture.
 - Linux architectures/toolchains to validate first.
 - Android architectures/toolchains to validate first.
 - Windows architectures/toolchains to validate first.
-
