@@ -22,41 +22,13 @@ func opensFileBackedDatabase() throws {
 @Test("Opens a native connection from its database")
 func opensConnection() throws {
     let database = try NativeDatabase()
-    _ = try NativeConnection(database: database)
-}
-
-@Test("Retains the database while the native connection exists")
-func retainsDatabaseWhileConnectionExists() throws {
-    weak var weakDatabase: NativeDatabase?
-    weak var weakConnection: NativeConnection?
-
-    do {
-        var database: NativeDatabase? = try NativeDatabase()
-        weakDatabase = database
-
-        var connection: NativeConnection?
-        if let database {
-            connection = try NativeConnection(database: database)
-        } else {
-            Issue.record("Expected the database to be available while creating its connection.")
-            return
-        }
-        weakConnection = connection
-        database = nil
-
-        #expect(weakDatabase != nil)
-
-        connection = nil
-    }
-
-    #expect(weakConnection == nil)
-    #expect(weakDatabase == nil)
+    _ = try database.connect()
 }
 
 @Test("Executes a real query through the internal connection handle")
 func queriesThroughConnectionHandle() throws {
     let database = try NativeDatabase()
-    let connection = try NativeConnection(database: database)
+    let connection = try database.connect()
     let sql = SwifQL
         .select(Fn.cast(42, .integer) => "answer")
         .prepare(.duck)

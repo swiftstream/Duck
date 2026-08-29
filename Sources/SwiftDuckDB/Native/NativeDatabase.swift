@@ -1,7 +1,7 @@
 import Cduckdb
 
-final class NativeDatabase {
-    private var handle: duckdb_database?
+final class NativeDatabase: @unchecked Sendable {
+    private let handle: duckdb_database
 
     convenience init() throws {
         try self.init(path: nil)
@@ -29,10 +29,21 @@ final class NativeDatabase {
     }
 
     deinit {
-        duckdb_close(&handle)
+        var database: duckdb_database? = handle
+        duckdb_close(&database)
     }
 
-    func withUnsafeHandle<Result>(_ body: (duckdb_database) throws -> Result) rethrows -> Result {
-        try body(handle!)
+    func connect() throws -> NativeConnection {
+        var connection: duckdb_connection?
+        let state = duckdb_connect(handle, &connection)
+
+        guard state == DuckDBSuccess, let connection else {
+            throw NativeDuckDBError(
+                operation: .connectionOpen,
+                message: "DuckDB failed to create a connection."
+            )
+        }
+
+        return NativeConnection(handle: connection)
     }
 }
