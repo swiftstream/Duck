@@ -15,6 +15,14 @@ A debt entry is not implementation authorization. Promote it into `TASKS.md` thr
 
 ## Current Verified Debt
 
-None recorded yet.
+### Deterministic active-pending cancellation integration coverage
 
-If the active public-query work finishes with an evidence-backed limitation such as a missing deterministic active-cancellation harness, record it here only after final audit confirms the limitation still exists and is worth durable tracking.
+**Current limitation:** the public cancellation path includes actor-owned interruption while DuckDB pending execution is active, but the automated suite has no deterministic integration harness that proves a query has actually entered the native pending loop before cancellation is requested.
+
+**Why it matters:** a future execution/native change could regress active-pending interrupt, cancellation, or post-cancellation Connection reuse while the existing deterministic cancellation test still passes because it exercises cancellation before native query work begins.
+
+**Evidence boundary:** current Swift source and vendored DuckDB audits establish the pending-task, same-owner `duckdb_interrupt`, cleanup, and interruption-reset contracts. Runtime coverage deterministically proves pre-native cancellation and subsequent Connection reuse. The public API exposes no pending-entry synchronization signal, and sleeps, timing thresholds, or production-only test hooks are not acceptable substitutes for deterministic evidence.
+
+**Closure condition:** add a production-safe or external deterministic harness that synchronizes on actual native pending entry without sleeps, timing guesses, or test-only production hooks, then verifies cancellation surfaces correctly and the same Connection remains reusable afterward.
+
+This debt entry is not implementation authorization. Do not add a flaky timing test or a production test hook; promote any proposed closure work through the normal research, planning, implementation, and audit workflow.

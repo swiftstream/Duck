@@ -93,7 +93,7 @@ A fresh root auditor is mandatory when any of these is true:
 3. a substantial implementation phase is ready for final closure, release/publication claims, or durable architecture acceptance;
 4. the coordinator identifies a high-risk cross-cutting candidate where fresh adversarial review materially reduces self-confirmation risk.
 
-For the active First Public Query API Rev 02 phase, the planned root gates are:
+For First Public Query API Rev 02, the root-gate sequence is:
 
 - **R1:** actor ownership/lifetime after Task 02 finally compiles/tests cleanly, before Task 03 proceeds. This gate is mandatory because actor ownership has already produced multiple compiler-driven architecture blockers.
 - **R2:** native prepared/pending/result resources plus async Connection execution core after Tasks 04-05, before public ergonomic expansion proceeds.
