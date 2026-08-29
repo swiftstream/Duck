@@ -11,6 +11,10 @@ final class NativeConnection {
         duckdb_disconnect(&handle)
     }
 
+    func prepare(_ sql: String) throws -> NativePreparedStatement {
+        try NativePreparedStatement(connection: self, sql: sql)
+    }
+
     func withUnsafeHandle<Result>(_ body: (duckdb_connection) throws -> Result) rethrows -> Result {
         try body(handle!)
     }
