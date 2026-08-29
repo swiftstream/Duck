@@ -6,151 +6,151 @@ Mandatory development workflow for SwiftDuckDB.
 
 Every non-trivial implementation or cross-cutting documentation task follows:
 
-1. **RESEARCH** - inspect actual repository state, relevant stable owners, exact source/package files, and external dependency/API evidence when needed.
-2. **PLAN** - write a detailed implementation-ready plan under `.artifacts/planning/**` before mutating production/test code or performing a non-trivial stable-doc migration.
-3. **IMPLEMENT** - execute only the reviewed plan/task scope without unrelated expansion.
-4. **AUDIT** - independently verify actual source/docs/build/Git state with concrete evidence and synchronize only durable stable knowledge that changed.
+1. **RESEARCH** - inspect actual repository state, relevant stable owners, exact source/package files, and dependency/API evidence when needed.
+2. **PLAN** - write a detailed implementation-ready plan under `.artifacts/planning/**` before production/test mutation or a non-trivial stable-doc migration.
+3. **IMPLEMENT** - execute only reviewed scope without unrelated expansion.
+4. **AUDIT** - independently verify actual source/docs/build/Git evidence and synchronize only durable stable knowledge.
 
 Tiny typo/format-only corrections may skip a formal persisted plan but still require scope/result verification.
 
-## CodexMCP2-First Execution
+Role/gate details are owned by `DEVELOPMENT_ORCHESTRATION.md`. Artifact/task/report/handoff mechanics are owned by `ARTIFACTS_WORKFLOW.md`.
 
-ChatGPT performs local repository work through **CodexMCP2** to the maximum extent technically possible.
+## CodexMCP2-First Repository Work
 
-- Use CodexMCP2 for repository/dependency discovery, source/docs/test/Git/history reading, file mutation, planning/review artifacts, and independent audits whenever supported by its exposed actions.
-- Do not delegate ordinary repository edits to a local coding agent merely because a task is large.
-- If a required operation is technically impossible through CodexMCP2, delegate only that narrow unavailable operation according to `.agent/CHATGPT.md`.
-- A local-agent fallback requires both a full English prompt file under `.artifacts/**` and a short copy-paste English mini-prompt for the maintainer.
-- If CodexMCP2 becomes unavailable or stops providing required local repository access, **STOP** and ask the maintainer to restart/fix CodexMCP2. Do not switch to older CodexMCP, SSH, container/Python filesystem access, or another local connector as a substitute.
+Use **CodexMCP2** for local SwiftDuckDB and relevant dependency/reference repository work to the maximum extent technically possible:
+
+- repository/dependency discovery;
+- source/docs/tests/Git/history inspection;
+- file mutation;
+- planning/review artifacts;
+- independent audits.
+
+Do not delegate ordinary repository edits to a local coding agent merely because a task is large.
+
+If a required executable operation is technically unavailable through CodexMCP2, use only the narrow fallback process defined by `DEVELOPMENT_ORCHESTRATION.md` and `ARTIFACTS_WORKFLOW.md`: full English prompt file + copy-paste mini-prompt + bounded permissions + independent CodexMCP2 inspection afterward.
+
+If CodexMCP2 becomes unavailable or stops providing required local repository access, **STOP** and ask the maintainer to restore it. Do not switch to older CodexMCP, SSH, container/Python filesystem access, or another local connector as a substitute.
 
 ## Research Gate
 
-Planning starts from current evidence, not remembered repository state.
+Planning starts from current evidence, not remembered state.
 
-Research should inspect the smallest sufficient set of:
+Inspect the smallest sufficient set of:
 
 - root `AGENTS.md` and routed stable owners;
-- current `TASKS.md`, `OPEN_DECISIONS.md`, `PROJECT_MEMORY.md`, and `SOURCE_MAP.md` when relevant;
-- exact package/source/test files and direct callers affected by the task;
-- current dependency/API/build evidence when the task depends on DuckDB, SwifQL, Swift/platform toolchains, or another external surface;
+- `MASTER_PLAN.md` before transient artifacts when resuming substantial roadmap/feature/correction work;
+- current `TASKS.md`, `OPEN_DECISIONS.md`, `PROJECT_MEMORY.md`, `SOURCE_MAP.md` when relevant;
+- exact package/source/test files and direct callers;
+- current DuckDB/SwifQL/Swift/platform evidence when required;
 - current Git state.
 
-External/local sibling repositories remain zero by default and follow `REFERENCE_PROJECTS.md`.
+External/local sibling repositories are zero by default and follow `REFERENCE_PROJECTS.md`.
 
 ## Persisted Planning Gate
 
-A non-trivial plan under `.artifacts/planning/**` must include, as applicable:
+A non-trivial plan must include, as applicable:
 
-- exact goal and non-goals;
-- verified current-state facts;
-- relevant stable owners/decisions;
+- exact goal/non-goals;
+- verified current facts;
+- relevant stable decisions;
 - exact allowed mutation scope;
 - forbidden/deferred scope;
-- ordered implementation steps/batches;
+- ordered implementation batches;
 - API/ownership/concurrency/native-boundary constraints;
-- dependency/platform assumptions that require evidence;
+- dependency/platform assumptions;
 - validation/completion evidence;
-- risks and stop conditions;
-- required stable-document synchronization.
+- risks/stop conditions;
+- required stable-doc synchronization.
 
-Reject vague language such as "update as needed", "handle edge cases", or "finish the integration" when requirements can be made concrete from current evidence.
-
-If implementation proves a material plan assumption wrong, stop the affected path, update/review the plan, and only then resume.
+If implementation disproves a material plan assumption, stop that path, correct/re-audit the plan, then resume.
 
 ## Large-Task Decomposition
 
-Large work may be split into ordered task files when that improves reviewability, stop conditions, checkpointing, or handoff:
+Use numbered task/correction files when there are multiple independently verifiable behaviors, multiple owners, distinct validation phases, or a middle blocker should prevent later work.
 
-```text
-.artifacts/planning/<PLAN>.md
-.artifacts/implementation/<task-set>/TASK-01_....md
-.artifacts/implementation/<task-set>/TASK-02_....md
-...
-.artifacts/implementation/<task-set>/EXECUTION_REPORT.md
-```
+Task decomposition is a reviewability/stop-condition mechanism, not automatic authorization to delegate implementation.
 
-Each task should contain:
-
-- one narrow goal;
-- exact files/docs to read;
-- exact allowed mutation paths;
-- explicit forbidden/deferred work;
-- concrete behavioral/architecture requirements;
-- focused validation;
-- completion evidence and stop conditions.
-
-Task decomposition does not imply Luna/Codex delegation. ChatGPT executes the task directly through CodexMCP2 where possible; only technically unavailable executable steps use the fallback policy.
+Detailed task conventions are owned by `ARTIFACTS_WORKFLOW.md`.
 
 ## Incremental Library Development
 
-Build SwiftDuckDB capability by capability.
+Build capability by capability.
 
-Prefer a narrow real end-to-end slice over a large speculative framework. A slice may cross the C adapter, Swift ownership/API, error mapping, concurrency, SwifQL execution, and focused tests when those pieces are all required to prove one real capability.
+Prefer the smallest real end-to-end slice that proves one behavior over a speculative database framework. A slice may cross C/native ownership, public API, concurrency, SwifQL execution, result copying, and focused tests when all are needed to prove that capability.
 
-Do not require an entire future database framework before implementing one reviewed behavior. Do not prebuild future ORM, migration, observation, repository, or replacement-engine layers merely because they may become useful later.
+Do not prebuild ORM, migrations, observation, repositories, pooling, or replacement-engine abstractions merely because they might become useful later.
 
-## SQL Construction Verification
+## SQL / Safety Verification
 
-All SwiftDuckDB-owned SQL construction follows the SwifQL-only policy in `LIBRARY_CODE_GUIDELINES.md`.
+All SwiftDuckDB-owned SQL/value/raw safety policy is owned by `SAFETY_RULES.md`.
 
-Verification should reject:
+Verification rejects:
 
-- handwritten SQL query strings in production/test/example code when the query can be represented by SwifQL;
-- Duck execution prepared through `.psql` instead of `.duck`;
-- a parallel `Connection.query(String)` ordinary construction path;
-- string interpolation replacing SwifQL bindings.
+- handwritten ordinary SQL construction bypassing SwifQL;
+- `.psql` used as Duck rendering;
+- a normal public String query API;
+- dynamic/user values interpolated into raw structural SQL;
+- adapter value coercion that guesses arbitrary Encodable semantics.
 
-Intentional malformed/unsupported SQL tests use `SwifQL.raw(...)` and still prepare through `.duck`.
+## Testing / Validation
 
-## Verification
+Testing policy is owned by `TESTING_RULES.md`.
 
-Start with the smallest evidence that can confirm or reject the requested behavior, then expand when scope/risk requires it.
+Use the smallest evidence that can confirm/reject behavior, escalating when required:
 
-Examples:
+- focused source/package inspection;
+- compiler fixture;
+- focused real-engine test;
+- full build/test;
+- native resource audit;
+- concurrency/cancellation scenario;
+- external consumer/platform validation;
+- exact Git diff/status review.
 
-- package manifest/dependency inspection;
-- targeted host/platform build;
-- focused unit/integration test;
-- minimal executable smoke test;
-- native resource-lifetime audit;
-- concurrency/cancellation/transaction scenario;
-- SwifQL `.duck` preparation/bind-order/runtime execution evidence;
-- complete changed-file inspection;
-- platform packaging/runtime validation for a claimed platform;
-- exact Git diff/status inspection.
+When compiler/runtime execution is unavailable through CodexMCP2, use the narrow fallback process. Validators report failures and do not opportunistically fix source.
 
-Production behavior, ownership, and API design come before test scaffolding. SwiftDuckDB does not use a TDD mandate or broad coverage target; focused testing policy is owned by `LIBRARY_CODE_GUIDELINES.md`.
-
-When compiler/runtime execution is required but CodexMCP2 exposes no command-execution surface, create the narrowly scoped local-agent fallback prompt required by `CHATGPT.md`, then independently inspect the resulting evidence/state through CodexMCP2.
-
-## Independent Audit
+## Independent Coordinator Audit
 
 Implementation reports are navigation aids, not proof.
 
-The reviewer verifies through CodexMCP2 at least the material claims relevant to the task:
+After every material task/checkpoint, independently inspect through CodexMCP2:
 
-- changed path set matches approved scope;
-- complete changed files and relevant direct callers are coherent;
-- public API/native resource/concurrency boundaries follow stable policy and reviewed plan;
-- generated/package/dependency/platform changes are intentional and evidenced;
-- all SwiftDuckDB-owned SQL follows SwifQL `.duck` construction policy;
-- required validation actually proves the requested behavior;
-- forbidden/deferred work did not leak into the batch;
-- stable documentation reflects durable changes without becoming a task diary;
-- user work/Git state remains preserved.
+- changed path set;
+- complete changed source and direct callers;
+- public API/native lifetime/concurrency boundaries;
+- package/dependency/platform changes;
+- SwifQL `.duck` construction/binding safety;
+- required validation evidence;
+- forbidden/deferred scope;
+- stable-doc synchronization;
+- user/Git preservation.
 
-If defects exist, issue the smallest correction batch, then audit again.
+If defects remain, create the smallest correction wave.
+
+## Fresh Root Audit Gates
+
+Root-audit cadence and prompt contract are owned by `DEVELOPMENT_ORCHESTRATION.md` and `ARTIFACTS_WORKFLOW.md`.
+
+Coordinator audit occurs after every task. A fresh independent root auditor is additionally required at material architecture/public-API/native/concurrency phase gates, after corrections that close prior root blockers, and before substantial final phase closure.
+
+A root-audit BLOCKED verdict cannot be closed by coordinator self-acceptance alone; after correction, another fresh root audit is required.
+
+## Public Documentation
+
+Root README/public-writing rules are owned by `PUBLIC_WRITING_STYLE.md`.
+
+Public docs use only current implemented/validated API and do not expose internal task/audit/evidence process as product documentation.
 
 ## Documentation Synchronization
 
-Update stable documentation only when a task changes durable facts, reviewed direction, source/navigation ownership, active decisions, or task state.
+Update stable docs only when durable facts, reviewed direction, source/navigation ownership, decisions, or task state changed.
 
-Do not touch unrelated docs ceremonially. Keep research notes, detailed provenance, plans, debugging history, task execution results, benchmark evidence, and one-off migration notes in `.artifacts/**`.
+Keep research provenance, plans, diagnostics, execution reports, hashes, and task history in `.artifacts/**`.
 
 ## Commit Gate
 
-The maintainer has standing authorization for frequent local checkpoint commits after successful independent audit and required validation.
+The maintainer has standing authorization for frequent local logical checkpoint commits after successful required validation and independent audit.
 
-Follow `COMMIT_RULES.md` for exact staging, commit composition, and semantic subject style. Prefer performing supported Git operations through CodexMCP2. If a required exact Git mutation is not exposed by CodexMCP2, use a narrowly scoped local-agent fallback only for that unavailable operation.
+Follow `COMMIT_RULES.md` for exact staging, semantic subject style, and Git safety.
 
 Never push, amend, rewrite history, or perform destructive/unrelated Git operations unless the maintainer separately authorizes the exact operation and scope.

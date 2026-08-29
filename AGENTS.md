@@ -25,16 +25,15 @@ Git is on `master` with audited governance, package-baseline, and native-foundat
 When stable documents conflict, higher authority wins:
 
 1. `.agent/SYSTEM_RULES.md` - global project invariants
-2. `.agent/WORKFLOW.md` and `.agent/COMMIT_RULES.md` - development and Git/file-safety workflow
-3. `.agent/STYLE_GUIDELINES.md` and `.agent/LIBRARY_CODE_GUIDELINES.md` - common Swift conventions and SwiftDuckDB-specific implementation policy
+2. `.agent/WORKFLOW.md`, `.agent/DEVELOPMENT_ORCHESTRATION.md`, `.agent/ARTIFACTS_WORKFLOW.md`, and `.agent/COMMIT_RULES.md` - development, delegation/audit, transient-evidence, and Git/file-safety workflow
+3. `.agent/STYLE_GUIDELINES.md`, `.agent/LIBRARY_CODE_GUIDELINES.md`, `.agent/SAFETY_RULES.md`, and `.agent/TESTING_RULES.md` - Swift conventions, library implementation policy, SQL/native safety, and test/validation policy
 4. `.agent/MASTER_PLAN.md` - reviewed high-level product/library direction
 5. `.agent/OPEN_DECISIONS.md` - unresolved choices only
-6. `.agent/PROJECT_MEMORY.md` and `.agent/SOURCE_MAP.md` - durable current-state and navigation facts
+6. `.agent/PROJECT_MEMORY.md`, `.agent/SOURCE_MAP.md`, `.agent/TECH_DEBT.md`, and `.agent/TASKS_ARCHIVE.md` - durable current state, navigation, verified debt, and compact completed milestones
 7. `.agent/TASKS.md` and `.agent/TODO.md` - approved active work and non-approved future ideas
-8. `.agent/REFERENCE_PROJECTS.md` and `.agent/CONTEXT_LOADING_RULES.md` - dependency/evidence and context-routing guidance
-9. `.agent/CHATGPT.md` - ChatGPT-specific orchestration workflow
+8. `.agent/REFERENCE_PROJECTS.md`, `.agent/CONTEXT_LOADING_RULES.md`, and `.agent/PUBLIC_WRITING_STYLE.md` - dependency/evidence routing, progressive context loading, and public documentation style
 
-Common style and the focused library code guide govern implementation style within reviewed system/product boundaries. `CHATGPT.md` applies only when ChatGPT coordinates work for the maintainer and cannot override higher-authority rules.
+Model-specific stable orchestration owners are intentionally avoided. Session/tool constraints that are transient belong in `.artifacts/NEW_CHAT.md`; durable model-independent orchestration belongs in `DEVELOPMENT_ORCHESTRATION.md`.
 
 ## Mandatory Workflow
 
@@ -47,14 +46,19 @@ Use **RESEARCH -> PLAN -> IMPLEMENT -> AUDIT** for every non-trivial task.
 - If implementation invalidates a material reviewed assumption, stop that path and revise/review the plan.
 - Independently verify actual source/docs/build/Git evidence after implementation; do not accept an implementation report as proof.
 
-Full process: `.agent/WORKFLOW.md`. ChatGPT orchestration is CodexMCP2-first and is owned by `.agent/CHATGPT.md`; if CodexMCP2 becomes unavailable, repository work stops until the maintainer restores it.
+Full process: `.agent/WORKFLOW.md`. Model-independent role/audit gates are owned by `.agent/DEVELOPMENT_ORCHESTRATION.md`; transient artifact/task/handoff mechanics are owned by `.agent/ARTIFACTS_WORKFLOW.md`. Repository work is CodexMCP2-first; if CodexMCP2 becomes unavailable, repository work stops until the maintainer restores it.
 
 ## Swift Code Policy Routing
 
-For every Swift production or test edit, load both:
+For every Swift production edit, load:
 
 - `.agent/STYLE_GUIDELINES.md` - common Swift source conventions;
-- `.agent/LIBRARY_CODE_GUIDELINES.md` - SwiftDuckDB-specific implementation, native-boundary, concurrency, query, test, and review policy.
+- `.agent/LIBRARY_CODE_GUIDELINES.md` - SwiftDuckDB-specific implementation/native/concurrency/API policy;
+- `.agent/SAFETY_RULES.md` when SQL construction, binding, raw SQL, native handles, or unsafe ownership boundaries are involved.
+
+For every Swift test edit, also load `.agent/TESTING_RULES.md`.
+
+For README/public documentation work, load `.agent/PUBLIC_WRITING_STYLE.md`.
 
 Do not treat generated or unreviewed source as style authority.
 

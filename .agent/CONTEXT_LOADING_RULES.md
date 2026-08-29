@@ -1,38 +1,71 @@
 # Context Loading Rules
 
-Mandatory progressive-loading discipline for SwiftDuckDB coding agents and reviewers.
+Mandatory progressive-loading discipline for SwiftDuckDB coordinators, executors, validators, and auditors.
 
 ## Default Sequence
 
 1. Read root `AGENTS.md`.
-2. For every Swift production/test edit, load both `STYLE_GUIDELINES.md` and `LIBRARY_CODE_GUIDELINES.md`.
-3. Read `TASKS.md` and only the project state/decision documents genuinely needed for the active task.
-4. Use `SOURCE_MAP.md` before broad source discovery, then inspect only the smallest relevant source/test/package subset.
-5. Read the active `.artifacts/planning/**` plan and task artifact(s) when implementation work is already planned.
+2. When resuming substantial roadmap/feature/correction work, read `MASTER_PLAN.md` before transient task artifacts so stale artifact lineages cannot override stable direction.
+3. Read `TASKS.md` plus only the current state/decision documents genuinely needed for the active task.
+4. Use `SOURCE_MAP.md` before broad source discovery, then inspect the smallest relevant source/test/package subset.
+5. Load the active `.artifacts/**` research/plan/task/correction/review files only when that work is current.
 6. Use `REFERENCE_PROJECTS.md` only when exact dependency source/API inspection or deliberate external style/UX evidence is needed.
 
 Stop loading once scope, ownership, implementation constraints, and required evidence are clear. Do not re-read already loaded documents without a concrete reason.
 
-## Code-Policy Load
+## Code Policy Loading
 
-`STYLE_GUIDELINES.md` owns common Swift conventions.
+For Swift production work:
 
-`LIBRARY_CODE_GUIDELINES.md` owns SwiftDuckDB-specific implementation policy, including public database API shape constraints, DuckDB C/native boundaries, resource lifetime, SwifQL usage, platform neutrality, Swift 6.3 concurrency discipline, tests, and review smells.
+- `STYLE_GUIDELINES.md` - common Swift conventions;
+- `LIBRARY_CODE_GUIDELINES.md` - SwiftDuckDB implementation/native/concurrency/API policy.
 
-Both are mandatory for any Swift production/test mutation. Neither overrides a higher-authority reviewed system/product rule.
+Additionally load:
+
+- `SAFETY_RULES.md` for SQL construction, bindings, raw SQL, native handle transfer, unsafe ownership/lifetime, and C-boundary safety;
+- `TESTING_RULES.md` for every test/validation change or regression strategy;
+- `PUBLIC_WRITING_STYLE.md` for README/public docs.
+
+Operational workflow owners (`WORKFLOW.md`, `DEVELOPMENT_ORCHESTRATION.md`, `ARTIFACTS_WORKFLOW.md`, `COMMIT_RULES.md`) do not consume a technical architecture/context budget. Load them when the current role/gate requires them.
+
+## Task / Artifact Routing
+
+When active work is already planned:
+
+- coordinator/reviewer loads only the current plan, relevant task/correction/report, and source/evidence needed for the current decision;
+- implementation/validation executor reads its exact prompt/task immediately before work;
+- fresh root auditor starts from its frozen entrypoint/package, then independently inspects the actual candidate source/diff/evidence.
+
+Do not bulk-load an entire old artifact tree.
+
+If several plausible executor lineages exist, treat that as artifact hygiene debt and resolve the active lineage through current stable docs/Git/maintainer instruction before execution.
+
+`ARTIFACTS_WORKFLOW.md` owns `NEW_CHAT.md`, correction waves, append-only reports, and root-audit package conventions.
+
+## State Owners
+
+Load only when needed:
+
+- `PROJECT_MEMORY.md` for durable current implementation facts;
+- `OPEN_DECISIONS.md` for unresolved choices;
+- `TECH_DEBT.md` for verified current limitations;
+- `TASKS_ARCHIVE.md` only when compact completed milestone history materially helps;
+- `TODO.md` for non-approved future ideas.
+
+Do not confuse any of these with active executable approval in `TASKS.md`.
 
 ## External Context
 
 External repositories are **zero by default**.
 
-When the maintainer explicitly supplies repositories for dependency inspection, comparison, or style/UX learning:
+When the maintainer supplies repositories for dependency inspection, comparison, or style/UX learning:
 
-- sample the smallest representative surface rather than bulk-loading the repository;
+- sample the smallest representative surface;
 - treat generated/vendor/framework-forced code as weaker evidence;
-- keep repository names, local paths, sampled files, competing evidence, and extraction notes in `.artifacts/**`;
-- promote only reviewed self-contained rules into stable `.agent/**` documentation.
+- keep local paths, sampled files, competing evidence, and provenance in `.artifacts/**`;
+- promote only reviewed self-contained rules into stable `.agent/**`.
 
-Real SwiftDuckDB dependencies such as DuckDB or SwifQL may be named in stable docs, but their machine-local checkout locations are never stable authority.
+Real dependencies such as DuckDB or SwifQL may be named in stable docs, but machine-local checkout locations are never stable authority.
 
 ## Escalation
 
@@ -40,10 +73,10 @@ Broader context is allowed deliberately for genuinely cross-cutting work such as
 
 - public API redesign;
 - concurrency/ownership model changes;
-- native C integration or package/platform restructuring;
-- stable-document governance audits/migrations.
+- native C integration/package/platform restructuring;
+- stable-governance migration;
+- fresh full root audits.
 
-State why broad context is required in the plan/evidence, then restore focused loading after the cross-cutting work.
+State why the broader context is required in the plan/audit package, then return to focused loading afterward.
 
-Do not create architecture/skill context budgets before those governance layers actually exist.
-
+Do not create architecture-index/skill context budgets before those governance layers actually exist.

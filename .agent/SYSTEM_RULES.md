@@ -7,14 +7,14 @@ Global invariants for SwiftDuckDB development.
 - Every non-trivial implementation or cross-cutting stable-document mutation requires current repository evidence and a reviewed persisted plan according to `WORKFLOW.md`.
 - Planned behavior must never be documented as already implemented behavior.
 - Stable docs record verified implementation state and reviewed durable decisions, not transient task history.
-- Research notes, experiments, benchmarks, comparison evidence, local reference-repository provenance, task instructions, execution reports, and audits belong in `.artifacts/**`.
+- Research notes, experiments, benchmarks, comparison evidence, local reference-repository provenance, task instructions, execution reports, and audits belong in `.artifacts/**`; their lifecycle is owned by `ARTIFACTS_WORKFLOW.md`.
 
 ## Native Integration Boundary
 
 - DuckDB integration uses the public DuckDB C API unless a separately reviewed task proves a different native boundary is required.
 - Consumer-facing Swift API must not make raw DuckDB C handles/pointers or native cleanup mechanics the normal abstraction.
 - Resource ownership/lifetime and unsafe native operations must remain explicit and auditable.
-- Detailed source rules for the C boundary, lifetime, errors/results, and unsafe code are owned by `LIBRARY_CODE_GUIDELINES.md`.
+- Detailed C-boundary implementation policy is owned by `LIBRARY_CODE_GUIDELINES.md`; SQL/value/native-handle safety and unsafe-boundary rules are owned by `SAFETY_RULES.md`.
 
 ## Cross-Platform Direction
 
