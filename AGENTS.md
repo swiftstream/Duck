@@ -4,7 +4,7 @@
 
 SwiftDuckDB is a Swift-native embedded database library built around the DuckDB C API.
 
-The package includes the internal `Cduckdb` target generated from DuckDB `v1.5.5` and internal native resource owners. A public runtime database API has not been implemented yet.
+The package includes the internal `Cduckdb` target generated from DuckDB `v1.5.5`, internal native resource owners, and an implemented public runtime API built around `Database`, actor-isolated `Connection`, `QueryResult`, `Row`, `Value`, `DatabaseError`, and SwifQL execution conveniences.
 
 Reviewed target direction: Swift 6.3+, iOS 15+, macOS 12+, Linux, Android, and Windows. A target is not considered validated merely because it is listed here; platform support claims require actual build/runtime evidence for the relevant toolchain.
 
@@ -18,7 +18,7 @@ The repository root owns `AGENTS.md`, `.agent/`, `.artifacts/`, `Package.swift`,
 - `.agent/**` contains stable governance, reviewed direction, decisions, and durable navigation/state.
 - `.artifacts/**` contains transient research, plans, task instructions, execution reports, audits, and evidence. It is never stable authority.
 
-Git is on `master` with audited governance, package-baseline, and native-foundation checkpoints. `.artifacts/**` is protected from tracking. Frequent audited local checkpoint commits are authorized thereafter. Push and destructive/history-rewriting Git operations still require separate explicit authorization; follow `.agent/COMMIT_RULES.md`.
+Git is on `master` with audited governance, package/native-foundation, SwifQL, and first-public-query checkpoints. `.artifacts/**` is protected from tracking. Frequent audited local checkpoint commits are authorized thereafter. Push and destructive/history-rewriting Git operations still require separate explicit authorization; follow `.agent/COMMIT_RULES.md`.
 
 ## Authority Hierarchy
 

@@ -17,8 +17,8 @@ Navigation map for the current accepted SwiftDuckDB repository state.
 - `.agent/PUBLIC_WRITING_STYLE.md`: README/public developer-writing policy.
 - `.agent/REFERENCE_PROJECTS.md`: dependency and external-evidence policy.
 - `.agent/CONTEXT_LOADING_RULES.md`: progressive context-loading rules.
-- `.agent/MASTER_PLAN.md`: reviewed high-level progression.
-- `.agent/OPEN_DECISIONS.md`: unresolved architecture/API choices.
+- `.agent/MASTER_PLAN.md`: reviewed high-level progression and implemented first public slice.
+- `.agent/OPEN_DECISIONS.md`: unresolved future architecture/API choices only.
 - `.agent/PROJECT_MEMORY.md`: durable current-state facts.
 - `.agent/TECH_DEBT.md`: evidence-backed current debt only.
 - `.agent/TASKS.md`: active approved executable work only.
@@ -27,18 +27,49 @@ Navigation map for the current accepted SwiftDuckDB repository state.
 
 There is intentionally no model-specific stable `CHATGPT.md`. Session-specific continuation/tool details belong in transient `.artifacts/NEW_CHAT.md`; model-independent orchestration belongs in `DEVELOPMENT_ORCHESTRATION.md`.
 
-## Package and Accepted Source Baseline
+## Package / Public Surface
 
-- `Package.swift`: SwiftPM manifest for the `SwiftDuckDB` library product, public `SwiftDuckDB` target, internal generated `Cduckdb` target, SwifQL `2.0.0-beta.5.0.0` dependency, and both Swift Testing targets. It uses Swift tools 6.3, iOS 15+, macOS 12+, Swift language mode 6, and the upstream-generated C++11 setting.
+- `Package.swift`: SwiftPM manifest for the `SwiftDuckDB` library product, public `SwiftDuckDB` target, internal generated `Cduckdb` target, exact SwifQL `2.0.0-beta.5.0.0` dependency, and both Swift Testing targets. It uses Swift tools 6.3, iOS 15+, macOS 12+, Swift language mode 6, and the upstream-generated C++11 setting.
+- `Package.resolved`: exact dependency resolution, including SwifQL revision `348c851b9017b07f67431ba0adac3c7596c3c760`.
+- `.swift-version`: tracked exact Swift `6.3.3` toolchain pin.
+- `README.md`: public first-query-slice documentation. Executable query examples use SwifQL; ordinary String execution is not taught.
+
+## Public SwiftDuckDB Source
+
+- `Sources/SwiftDuckDB/Database.swift`: public actor-free `Sendable` database lifetime owner; in-memory/file-backed open and explicit Connection creation.
+- `Sources/SwiftDuckDB/Connection.swift`: public actor-isolated native execution owner, caller-local SwifQL `.duck` preparation/binding normalization, per-Connection FIFO gate, pending execution, cancellation handling, error mapping, and Swift-owned result assembly.
+- `Sources/SwiftDuckDB/DatabaseError.swift`: public typed query/database error cases.
+- `Sources/SwiftDuckDB/Value.swift`: public primitive/NULL/BLOB result value model.
+- `Sources/SwiftDuckDB/Row.swift`: public row value with positional and named lookup.
+- `Sources/SwiftDuckDB/QueryResult.swift`: public columns/rows/rowsChanged result value.
+- `Sources/SwiftDuckDB/SwifQLable+Execution.swift`: query-centered `.query(on:)` / `.execute(on:)` convenience delegating to `Connection`.
+- `Sources/SwiftDuckDB/TableSelector+Selection.swift`: heterogeneous typed selected-column parameter-pack convenience for SwifQL `TableSelector`.
+- `Sources/SwiftDuckDB/SwiftDuckDB.swift`: minimal package/module bootstrap comment only; public declarations live in focused files.
+
+## Internal Native Adapter
+
+- `Sources/SwiftDuckDB/Native/NativeDatabase.swift`: internal DuckDB database owner and fresh native connection factory; narrow reviewed `@unchecked Sendable` boundary.
+- `Sources/SwiftDuckDB/Native/NativeConnection.swift`: non-Sendable native connection owner, prepare/interrupt/raw-handle scoped access.
+- `Sources/SwiftDuckDB/Native/NativeDuckDBError.swift`: internal operation-tagged native error transport.
+- `Sources/SwiftDuckDB/Native/NativePreparedStatement.swift`: prepared-statement RAII owner and first-slice binding implementation.
+- `Sources/SwiftDuckDB/Native/NativePendingResult.swift`: pending-result RAII owner and pending task/final execution bridge.
+- `Sources/SwiftDuckDB/Native/NativeResult.swift`: result RAII owner, chunk/vector materialization, NULL handling, and Swift-owned primitive/String/BLOB copying.
+
+## Vendored DuckDB
+
 - `Sources/Cduckdb/`: exact generated DuckDB `v1.5.5` source snapshot for the internal native target; do not hand-edit it.
-- `Sources/SwiftDuckDB/Native/`: accepted internal native database/connection ownership foundation. Active public-actor refactoring is tracked through `TASKS.md`/`NEW_CHAT.md` until independently accepted; do not promote WIP shapes here.
-- `Sources/SwiftDuckDB/SwiftDuckDB.swift`: original minimal bootstrap source.
-- `Tests/CDuckDBTests/CDuckDBTests.swift`: direct C lifecycle/chunk-vector contracts with SQL constructed through SwifQL `.duck`.
-- `Tests/SwiftDuckDBTests/NativeOwnerTests.swift`: accepted internal native-owner/handle tests; active actor-ownership corrections may modify this file until Task 02 is accepted.
 - `ThirdParty/DuckDB/`: DuckDB license and v1.5.5 generation provenance.
-- `.gitignore`: build/editor/artifact/package-resolution exclusions.
 
-Current accepted package baseline includes published SwifQL `2.0.0-beta.5.0.0`. The first public Database/Connection actor layer is active WIP and is not treated as accepted architecture until its compiler/test/root-audit gates pass.
+## Tests
+
+- `Tests/CDuckDBTests/CDuckDBTests.swift`: direct C lifecycle/version/persistence/chunk-vector/prepared contracts with repository-owned SQL built through SwifQL `.duck` except explicit raw negative cases.
+- `Tests/SwiftDuckDBTests/NativeOwnerTests.swift`: internal database/connection ownership and direct native-handle contract coverage.
+- `Tests/SwiftDuckDBTests/NativeQueryResourceTests.swift`: prepared/pending/result RAII, first-slice binding/materialization, failure cleanup/reuse, and unsupported-result coverage.
+- `Tests/SwiftDuckDBTests/PublicActorTests.swift`: public Database/Connection opening, independent Connections, and parent lifetime retention.
+- `Tests/SwiftDuckDBTests/QueryValueTests.swift`: Row/Value/QueryResult/DatabaseError value semantics and Sendability coverage.
+- `Tests/SwiftDuckDBTests/AsyncConnectionExecutionTests.swift`: public async execution, mutation rowsChanged, error/reuse, and deterministic pre-native cancellation coverage.
+- `Tests/SwiftDuckDBTests/QueryConvenienceTests.swift`: typed-table selected-column and query-centered convenience coverage.
+- `Tests/SwiftDuckDBTests/PublicRuntimeScenarioTests.swift`: broad real-DuckDB CRUD, primitive matrix, error/reuse, same-Connection concurrency/cancellation, and multiple-Connection runtime scenarios.
 
 ## Transient Evidence
 

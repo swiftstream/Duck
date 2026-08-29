@@ -4,21 +4,19 @@ Unresolved choices that must not be treated as implemented architecture.
 
 ## DuckDB Integration
 
-- Long-term DuckDB upgrade/version policy beyond the approved initial `v1.5.5` pin.
-- Optional-extension and bundle-size strategy beyond the approved initial generated set: `core_functions`, `parquet`, `icu`, and `json`.
+- Long-term DuckDB upgrade/version policy beyond the approved current `v1.5.5` pin.
+- Optional-extension and bundle-size strategy beyond the approved current generated set: `core_functions`, `parquet`, `icu`, and `json`.
 
-## Package Surface
+## Future Public Resource APIs
 
-- Exact public module/API layout above the implemented internal `Cduckdb` native target.
-- Exact public names for database, connection, prepared statement, result, row/value, transaction, and appender concepts.
-- Whether low-level and ergonomic APIs ship in one module or separate modules.
+The current `Database` / `Connection` / `QueryResult` / `Row` / `Value` slice is implemented and is no longer an open design question.
 
-## Concurrency
+Still unresolved for future separately reviewed capabilities:
 
-- Public ownership model for database and connection handles above the existing internal native owners.
-- Exact actor boundaries for database, connection, transaction, prepared statement, result, and appender behavior.
-- Which public value/reference types should be `Sendable` in addition to actor-isolated owners.
-- How multiple DuckDB connections are exposed without promising unsupported thread-safety.
+- public reusable prepared-statement identity, ownership, invalidation, and concurrency semantics;
+- public transaction ownership/isolation/nesting semantics;
+- Appender ownership/lifetime/concurrency semantics;
+- whether a future connection-pool capability is justified and, if so, its ownership/backpressure semantics.
 
 ## Higher-Level Features
 
@@ -26,17 +24,22 @@ Resolved query-construction rules are not open decisions:
 
 - all SwiftDuckDB-owned SQL is constructed through SwifQL;
 - Duck execution uses `prepare(.duck)`;
-- explicit raw SQL is represented through `SwifQL.raw(...)`, not a parallel ordinary String construction path.
+- explicit raw SQL is represented through `SwifQL.raw(...)`, not a parallel ordinary String construction path;
+- the first public execution/result slice uses explicit `Database` and actor-isolated `Connection` ownership;
+- query-centered conveniences delegate to the same Connection engine;
+- typed-table selected-column convenience remains ordinary SwifQL construction sugar.
 
 Still open:
 
-- Codable decoding/encoding strategy.
-- Observation/reactive query strategy.
-- Migration strategy.
-- Exact first public execution/result API shape above SwifQL preparation and native execution.
+- Codable/model decoding and encoding strategy beyond the current explicit `Row` / `Value` surface;
+- observation/reactive query strategy;
+- migration strategy;
+- expansion policy for unsupported complex, temporal, Decimal, UUID, and 128-bit result families.
 
 ## Platform Packaging
 
 - Linux architectures/toolchains to validate first.
 - Android architectures/toolchains to validate first.
 - Windows architectures/toolchains to validate first.
+
+None of these open decisions is implementation authorization. Promote a concrete capability through research and reviewed planning before source changes.

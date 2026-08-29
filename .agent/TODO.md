@@ -2,12 +2,16 @@
 
 Ideas that are not active approved implementation tasks.
 
-- Define the long-term DuckDB upgrade/version policy beyond the approved initial v1.5.5 source snapshot.
-- Evaluate optional DuckDB extensions and bundle-size tradeoffs beyond the initial generated extension set.
-- Design public ownership semantics for database, connection, result, prepared statement, transaction, and appender handles.
-- Design exact actor ownership/isolation around DuckDB's documented threading and connection model.
-- Evaluate typed row/value decoding.
+- Define the long-term DuckDB upgrade/version policy beyond the approved current v1.5.5 source snapshot.
+- Evaluate optional DuckDB extensions and bundle-size tradeoffs beyond the current generated extension set.
+- Research a public reusable prepared-statement API, including identity, lifetime, invalidation, binding reuse, cancellation, and actor ownership.
+- Research public transaction semantics, including ownership, isolation, nesting policy, cancellation, and connection lifetime.
+- Research Appender support and its native lifetime/concurrency boundary.
+- Evaluate Codable/model decoding and encoding beyond the current explicit `Row` / `Value` result surface.
+- Evaluate expansion of result/binding support into currently unsupported temporal, Decimal, UUID, 128-bit, and complex DuckDB families.
 - Evaluate observation/reactive query support for application UI consumers.
-- Establish platform build validation for iOS 15+, macOS 12+, Linux, Android, and Windows under Swift 6.3+.
+- Evaluate whether connection pooling is justified and, if so, define ownership/backpressure semantics before implementation.
+- Research migration support only if a concrete consumer requirement justifies it.
+- Establish real platform build/runtime validation for the intended iOS 15+, macOS 12+, Linux, Android, and Windows environments under supported Swift 6.3+ toolchains.
 
-Items here require promotion to `.agent/TASKS.md` through discussion/review before executable implementation.
+Items here require promotion to `.agent/TASKS.md` through discussion, fresh research, and reviewed planning before executable implementation.
