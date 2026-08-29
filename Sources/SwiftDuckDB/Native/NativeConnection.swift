@@ -15,6 +15,10 @@ final class NativeConnection {
         try NativePreparedStatement(connection: self, sql: sql)
     }
 
+    func interrupt() {
+        duckdb_interrupt(handle!)
+    }
+
     func withUnsafeHandle<Result>(_ body: (duckdb_connection) throws -> Result) rethrows -> Result {
         try body(handle!)
     }
