@@ -17,7 +17,7 @@ Navigation map for the current SwiftDuckDB repository state.
 - `.agent/PROJECT_MEMORY.md`: durable current-state facts.
 - `.agent/TASKS.md`: active approved executable work only.
 - `.agent/TODO.md`: non-approved future ideas.
-- `.agent/CHATGPT.md`: ChatGPT/Codex/Luna-Max orchestration guidance.
+- `.agent/CHATGPT.md`: CodexMCP2-first ChatGPT execution/orchestration policy and narrow local-agent fallback rules.
 
 ## Package and Source
 

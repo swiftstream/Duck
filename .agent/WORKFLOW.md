@@ -13,6 +13,16 @@ Every non-trivial implementation or cross-cutting documentation task follows:
 
 Tiny typo/format-only corrections may skip a formal persisted plan but still require scope/result verification.
 
+## CodexMCP2-First Execution
+
+ChatGPT performs local repository work through **CodexMCP2** to the maximum extent technically possible.
+
+- Use CodexMCP2 for repository/dependency discovery, source/docs/test/Git/history reading, file mutation, planning/review artifacts, and independent audits whenever supported by its exposed actions.
+- Do not delegate ordinary repository edits to a local coding agent merely because a task is large.
+- If a required operation is technically impossible through CodexMCP2, delegate only that narrow unavailable operation according to `.agent/CHATGPT.md`.
+- A local-agent fallback requires both a full English prompt file under `.artifacts/**` and a short copy-paste English mini-prompt for the maintainer.
+- If CodexMCP2 becomes unavailable or stops providing required local repository access, **STOP** and ask the maintainer to restart/fix CodexMCP2. Do not switch to older CodexMCP, SSH, container/Python filesystem access, or another local connector as a substitute.
+
 ## Research Gate
 
 Planning starts from current evidence, not remembered repository state.
@@ -23,13 +33,13 @@ Research should inspect the smallest sufficient set of:
 - current `TASKS.md`, `OPEN_DECISIONS.md`, `PROJECT_MEMORY.md`, and `SOURCE_MAP.md` when relevant;
 - exact package/source/test files and direct callers affected by the task;
 - current dependency/API/build evidence when the task depends on DuckDB, SwifQL, Swift/platform toolchains, or another external surface;
-- current Git state when Git exists.
+- current Git state.
 
-External repositories remain zero by default and follow `REFERENCE_PROJECTS.md`.
+External/local sibling repositories remain zero by default and follow `REFERENCE_PROJECTS.md`.
 
 ## Persisted Planning Gate
 
-A non-trivial plan under `.artifacts/planning/**` must be implementation-ready for a weaker implementation model and include, as applicable:
+A non-trivial plan under `.artifacts/planning/**` must include, as applicable:
 
 - exact goal and non-goals;
 - verified current-state facts;
@@ -43,15 +53,13 @@ A non-trivial plan under `.artifacts/planning/**` must be implementation-ready f
 - risks and stop conditions;
 - required stable-document synchronization.
 
-Reject vague plan language such as "update as needed", "handle edge cases", or "finish the integration" when the coding agent would have to invent requirements.
+Reject vague language such as "update as needed", "handle edge cases", or "finish the integration" when requirements can be made concrete from current evidence.
 
 If implementation proves a material plan assumption wrong, stop the affected path, update/review the plan, and only then resume.
 
 ## Large-Task Decomposition
 
-When one implementation prompt would contain several separable concerns or too much room for agent inference, treat it as too large for Luna-Max.
-
-Use this structure:
+Large work may be split into ordered task files when that improves reviewability, stop conditions, checkpointing, or handoff:
 
 ```text
 .artifacts/planning/<PLAN>.md
@@ -61,7 +69,7 @@ Use this structure:
 .artifacts/implementation/<task-set>/EXECUTION_REPORT.md
 ```
 
-Each task file must be surgically precise and contain:
+Each task should contain:
 
 - one narrow goal;
 - exact files/docs to read;
@@ -71,15 +79,28 @@ Each task file must be surgically precise and contain:
 - focused validation;
 - completion evidence and stop conditions.
 
-The task sequence is ordered. A task is complete only after its required validation/result is recorded in the dedicated execution report.
+Task decomposition does not imply Luna/Codex delegation. ChatGPT executes the task directly through CodexMCP2 where possible; only technically unavailable executable steps use the fallback policy.
 
 ## Incremental Library Development
 
 Build SwiftDuckDB capability by capability.
 
-Prefer a narrow real end-to-end slice over a large speculative framework. A slice may cross the C adapter, Swift ownership/API, error mapping, concurrency, query execution, and focused tests when those pieces are all required to prove one real capability.
+Prefer a narrow real end-to-end slice over a large speculative framework. A slice may cross the C adapter, Swift ownership/API, error mapping, concurrency, SwifQL execution, and focused tests when those pieces are all required to prove one real capability.
 
-Do not require an entire future database framework to be designed before implementing a narrow reviewed behavior. Conversely, do not prebuild future ORM, migration, observation, repository, or replacement-engine layers simply because they may become useful later.
+Do not require an entire future database framework before implementing one reviewed behavior. Do not prebuild future ORM, migration, observation, repository, or replacement-engine layers merely because they may become useful later.
+
+## SQL Construction Verification
+
+All SwiftDuckDB-owned SQL construction follows the SwifQL-only policy in `LIBRARY_CODE_GUIDELINES.md`.
+
+Verification should reject:
+
+- handwritten SQL query strings in production/test/example code when the query can be represented by SwifQL;
+- Duck execution prepared through `.psql` instead of `.duck`;
+- a parallel `Connection.query(String)` ordinary construction path;
+- string interpolation replacing SwifQL bindings.
+
+Intentional malformed/unsupported SQL tests use `SwifQL.raw(...)` and still prepare through `.duck`.
 
 ## Verification
 
@@ -87,35 +108,38 @@ Start with the smallest evidence that can confirm or reject the requested behavi
 
 Examples:
 
-- package manifest parsing/build;
+- package manifest/dependency inspection;
 - targeted host/platform build;
 - focused unit/integration test;
 - minimal executable smoke test;
 - native resource-lifetime audit;
 - concurrency/cancellation/transaction scenario;
-- SwifQL/raw-SQL execution comparison where relevant;
+- SwifQL `.duck` preparation/bind-order/runtime execution evidence;
 - complete changed-file inspection;
 - platform packaging/runtime validation for a claimed platform;
-- exact Git diff/status inspection when Git exists.
+- exact Git diff/status inspection.
 
 Production behavior, ownership, and API design come before test scaffolding. SwiftDuckDB does not use a TDD mandate or broad coverage target; focused testing policy is owned by `LIBRARY_CODE_GUIDELINES.md`.
+
+When compiler/runtime execution is required but CodexMCP2 exposes no command-execution surface, create the narrowly scoped local-agent fallback prompt required by `CHATGPT.md`, then independently inspect the resulting evidence/state through CodexMCP2.
 
 ## Independent Audit
 
 Implementation reports are navigation aids, not proof.
 
-The reviewer must inspect the actual repository state and verify at least the material claims relevant to the task:
+The reviewer verifies through CodexMCP2 at least the material claims relevant to the task:
 
 - changed path set matches approved scope;
 - complete changed files and relevant direct callers are coherent;
 - public API/native resource/concurrency boundaries follow stable policy and reviewed plan;
 - generated/package/dependency/platform changes are intentional and evidenced;
+- all SwiftDuckDB-owned SQL follows SwifQL `.duck` construction policy;
 - required validation actually proves the requested behavior;
 - forbidden/deferred work did not leak into the batch;
 - stable documentation reflects durable changes without becoming a task diary;
 - user work/Git state remains preserved.
 
-If defects exist, issue the smallest correction batch that fixes the proven defect, then audit again.
+If defects exist, issue the smallest correction batch, then audit again.
 
 ## Documentation Synchronization
 
@@ -125,7 +149,8 @@ Do not touch unrelated docs ceremonially. Keep research notes, detailed provenan
 
 ## Commit Gate
 
-Implementation/audit and commit are separate phases.
+The maintainer has standing authorization for frequent local checkpoint commits after successful independent audit and required validation.
 
-The maintainer has standing authorization for the initial Git setup and frequent local checkpoint commits after successful independent audit. Follow `COMMIT_RULES.md` for exact staging, commit composition, and semantic subject style. Never push, amend, rewrite history, or perform destructive/unrelated Git operations unless the maintainer separately authorizes the exact operation and scope.
+Follow `COMMIT_RULES.md` for exact staging, commit composition, and semantic subject style. Prefer performing supported Git operations through CodexMCP2. If a required exact Git mutation is not exposed by CodexMCP2, use a narrowly scoped local-agent fallback only for that unavailable operation.
 
+Never push, amend, rewrite history, or perform destructive/unrelated Git operations unless the maintainer separately authorizes the exact operation and scope.

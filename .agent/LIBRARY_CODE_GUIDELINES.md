@@ -56,15 +56,24 @@ Inherit `STYLE_GUIDELINES.md`. Higher-authority system/product decisions govern 
 
 ## SwifQL and SQL Execution
 
-- SwifQL is the required Swift query-construction layer for normal high-level SQL composition.
-- Integrate SwifQL from the first query-capable implementation slice even when DuckDB-dialect support is evolving in parallel.
-- Do not block SwiftDuckDB development waiting for every DuckDB-specific SwifQL feature; use the available compatible surface and add narrow compatibility paths only when a concrete query requires them.
-- Raw SQL remains a first-class explicit escape hatch for unsupported SQL, diagnostics, migrations/experiments when later approved, and advanced callers.
-- Do not make raw string concatenation the normal way consumers construct parameterized queries.
+- SwifQL is the mandatory SQL-construction layer for **all SwiftDuckDB-owned SQL**, not only the preferred high-level path.
+- Production code, integration tests, native/C lifecycle tests, examples, fixtures, and future root `README.md` executable Swift examples must construct queries through SwifQL.
+- Duck queries prepare through the first-class `SQLDialect.duck` / `.duck` dialect. Never use `.psql` as a Duck compatibility renderer now that Duck is a built-in dialect.
+- The execution boundary may consume the generated SQL `String` and bind values from `query.prepare(.duck).splitted`; handwritten SQL strings must not bypass that SwifQL preparation boundary.
+- Explicit raw SQL remains available only as a deliberate escape hatch **inside SwifQL**, e.g. `SwifQL.raw(...)` / `.raw(...)`. Even negative/error-path tests should use a SwifQL raw construct when intentionally malformed SQL is required.
+- Do not expose or normalize a second ordinary `Connection.query(String)`/`execute(String)` construction path merely for convenience. The public query surface should accept SwifQL query values; any lower-level generated-string execution primitive stays internal to the adapter.
 - Do not create a competing SQL DSL/query builder inside SwiftDuckDB.
-- SwifQL and raw SQL should converge on shared execution/result/error/resource paths rather than grow separate database engines inside the wrapper.
-- Parameter binding and escaping must preserve native safety/correctness. Never turn a typed/bound value path back into string interpolation merely for convenience.
-- DuckDB-specific syntax support belongs in SwifQL when it is fundamentally query-construction dialect knowledge; SwiftDuckDB should not permanently fork duplicate dialect semantics unless a narrow execution-layer requirement genuinely belongs here.
+- Provide concise table-centered conveniences that remain pure SwifQL construction sugar. Typed call sites such as `User.select(\.$email, \.$name, \.$role).orderBy(...).limit(...)` are a required UX direction when the underlying `User` is a SwifQL `Table`; the helper must produce normal SwifQL-composable state and must not introduce repository/ORM identity or a separate execution engine.
+- Table-centered conveniences should preserve SwifQL key-path typing and fluent composition (`where`, `orderBy`, `limit`, joins/aliases where supported) and converge on the same SwifQL `.duck` preparation/execution path as explicit `SwifQL.select(...)` queries.
+- Parameter binding and escaping must preserve SwifQL bind order and native safety/correctness. Never turn a typed/bound value path back into string interpolation merely for convenience.
+- DuckDB-specific syntax support belongs in SwifQL. SwiftDuckDB must not fork duplicate dialect semantics.
+- SwifQL's query/bind graph is intentionally not blanket `Sendable` even though SwifQL itself is Swift 6 strict-concurrency clean. Normalize/prepare on caller isolation and send only SwiftDuckDB-owned checked-Sendable execution snapshots across actor boundaries.
+
+### README SQL Presentation
+
+- Root README usage examples must be SwifQL-first and executable Swift snippets must use SwifQL only.
+- A section may begin with a short plain-SQL block solely to show the SQL goal, immediately followed by the declarative SwifQL equivalent. The plain SQL block is explanatory comparison, not an alternative SwiftDuckDB API path.
+- Do not teach direct raw string query execution in README examples. If raw escape-hatch documentation is later necessary, show it explicitly as `SwifQL.raw(...)`, not `connection.query("...")`.
 
 ## Platform Neutrality
 
@@ -134,7 +143,7 @@ Use the smallest layer that proves the contract, while keeping meaningful end-to
 
 1. **Native bridge contract tests**: prove `CDuckDB` is actually linked and core C lifecycle operations work against the real engine, including failure cleanup.
 2. **Swift API integration tests**: open a real in-memory or temporary-file database through the public Swift API, execute real queries, and verify consumer-visible results/errors.
-3. **Query/binding/type scenario tests**: exercise realistic SwifQL and raw-SQL execution, parameter binding, NULLs, type conversion, repeated prepared execution, and later decoding behavior using real SQL.
+3. **Query/binding/type scenario tests**: exercise realistic SwifQL `.duck` execution, parameter binding, NULLs, type conversion, repeated prepared execution, and later decoding behavior against the real engine. If a raw-SQL escape case is required, construct it through `SwifQL.raw(...)` rather than bypassing SwifQL.
 4. **Concurrency/lifetime regression tests**: prove independent connections can progress independently where supported, actor ownership is correct, cancellation does not leak/corrupt resources, and parent/child lifetime contracts hold.
 5. **Platform validation tests/builds**: prove packaging and runtime behavior on each platform before claiming support.
 
@@ -160,7 +169,7 @@ Prioritize tests for failure-prone semantics, including:
 - prepared statement/binding correctness and repeated execution once implemented;
 - result/null/type conversion and decoding once implemented;
 - appender flush/close/destroy behavior once implemented;
-- SwifQL/raw-SQL execution parity where both paths exist;
+- SwifQL `.duck` execution parity across declarative and explicit `SwifQL.raw(...)` escape-hatch queries where both are relevant;
 - platform packaging/build/runtime boundaries for each claimed platform.
 
 A platform-support claim requires targeted validation on that platform/toolchain, not only host-unit tests.
@@ -177,7 +186,7 @@ Treat these as prompts for focused review, not automatic proof of a bug:
 - `@MainActor` appears on shared database code without a UI-only responsibility.
 - `@unchecked Sendable`, `nonisolated(unsafe)`, `Task.detached`, unsafe continuation, semaphore, custom executor, or lock appears without a concrete documented/reviewed need.
 - A callback/future/publisher API becomes the primary asynchronous API despite the Swift 6.3 async/await baseline.
-- Raw SQL/string interpolation becomes the ordinary query-construction path instead of SwifQL/bound values.
+- Handwritten SQL strings appear in SwiftDuckDB production/tests/examples instead of being constructed through SwifQL `.duck` (except explanatory README comparison blocks or the payload passed explicitly to `SwifQL.raw(...)`).
 - SwiftDuckDB starts growing its own SQL DSL that competes with SwifQL.
 - Generic `Manager`, `Repository`, `Factory`, `Service`, `Helper`, `Utils`, DTO/model buckets, or engine-abstraction layers appear without a real semantic boundary.
 - A protocol exists only for mocking/tests or hypothetical database replacement.

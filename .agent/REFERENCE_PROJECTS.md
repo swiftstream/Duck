@@ -4,11 +4,30 @@ Permanent SwiftDuckDB documentation must remain portable. Do not persist machine
 
 ## DuckDB
 
-DuckDB is the intended native database engine and C API dependency.
+DuckDB is the native database engine and C API dependency.
 
-When implementation work requires exact API, build, platform, or lifetime behavior, verify it from the version of DuckDB actually selected by the project. Do not duplicate large portions of DuckDB documentation into this repository.
+Current implemented native foundation pins DuckDB v1.5.5 and vendors the official generated Swift-package source snapshot into internal target `Cduckdb`.
 
-Dependency version, vendoring strategy, binary/source build strategy, and platform packaging are not decided until explicitly reviewed.
+When implementation work requires exact API, build, platform, or lifetime behavior, verify it from the pinned vendored source/current official contract. Do not duplicate large portions of DuckDB documentation into this repository.
+
+Long-term version-upgrade policy, optional-extension strategy, alternative future distribution mechanisms, and unvalidated platform packaging remain separate decisions.
+
+## SwifQL
+
+SwifQL is the mandatory SQL-construction dependency for the query-capable Swift API.
+
+Current required behavior is verified from the completed Swift 6 / Duck-capable SwifQL mainline:
+
+- Duck is a first-class dialect exposed as `.duck`;
+- Duck belongs to `SQLDialect.all`;
+- Duck preparation emits `$1`, `$2`, ... bindings;
+- Swift 6.3.3 strict-concurrency validation is clean while query/part/prepared/bind graphs remain intentionally non-Sendable where truthful.
+
+The approved first query-capable SwiftDuckDB dependency line is the published prerelease `2.0.0-beta.5.0.0` from `https://github.com/SwifQL/SwifQL.git`. Prefer an exact prerelease requirement for this development phase so the dependency cannot drift under active pre-2.0 work.
+
+Do not commit a machine-local path dependency or a stale remote revision that predates required Duck/Swift-6 behavior.
+
+When consuming SwifQL across actor boundaries, inspect its actual current types rather than assuming strict-concurrency clean means every query graph is Sendable.
 
 ## External Evidence Rule
 
@@ -39,4 +58,3 @@ Classify evidence before promotion as common, library-specific, server/framework
 Promote only rules that remain useful and understandable with none of the evidence repositories present.
 
 Do not silently replace an accepted rule. Conflicting evidence requires explicit review.
-

@@ -2,48 +2,67 @@
 
 Mandatory only when ChatGPT coordinates SwiftDuckDB repository work for the maintainer.
 
-Coding agents follow root `AGENTS.md`, the routed stable owners, the reviewed `.artifacts` plan/task files, and the exact English prompt ChatGPT sends them. This file does not grant broader scope or override higher-authority project rules.
+This file does not grant broader scope or override higher-authority project rules.
 
 ## Role and Default Flow
 
-ChatGPT is the research coordinator, planner, orchestrator, and independent reviewer. Repository work is coordinated through CodexMCP.
+ChatGPT is the research coordinator, planner, primary repository executor through **CodexMCP2**, and independent reviewer.
 
 For non-trivial work the default flow is:
 
 ```text
-ChatGPT inspects the real repository through CodexMCP
+ChatGPT inspects the real repository through CodexMCP2
 -> detailed research against current source/docs/dependencies
 -> detailed plan saved under .artifacts/planning/**
--> ChatGPT independently reviews the plan against the repository
--> if large, split into surgically precise task .md files + one execution report
--> send an English implementation prompt through Codex to Luna-Max
--> Luna-Max executes the approved task(s) without unrelated expansion
--> ChatGPT independently audits actual repository state through CodexMCP
--> narrow correction task(s) if required
--> separate commit-only phase only after explicit maintainer approval
+-> ChatGPT independently audits the plan against current evidence
+-> ChatGPT performs all repository reads/mutations/Git work that CodexMCP2 can technically perform
+-> if a required operation is technically unavailable through CodexMCP2, create a narrowly scoped local-agent fallback prompt
+-> inspect every resulting repository change/evidence again through CodexMCP2
+-> narrow corrections if required
+-> frequent local checkpoint commits after successful audit/validation
 ```
 
-By default ChatGPT does not directly implement production/test code when the normal Codex -> Luna-Max implementation path is available. ChatGPT may directly maintain planning/review artifacts or stable orchestration/governance documentation when the maintainer explicitly requests direct CodexMCP edits, as in a governance-maintenance task.
+Do not delegate implementation to Codex/Luna merely because the task is large. Size alone is not a reason to leave CodexMCP2. Use CodexMCP2 to the maximum extent technically possible.
+
+## CodexMCP2 Is Mandatory for Local Repository Work
+
+- Use **CodexMCP2** for SwiftDuckDB and relevant local dependency/reference repository discovery, source/docs/tests/Git/history inspection, repository mutation, planning/review artifacts, and independent audits whenever its exposed actions can perform the required operation.
+- Do not substitute the older CodexMCP connector, SSH, container/shell filesystem access, Python filesystem access, another local connector, web search, or memory for local repository evidence/work that belongs in CodexMCP2.
+- If CodexMCP2 becomes unavailable, stops responding, loses required repository access, or cannot perform ordinary repository reads/mutations that it should support, **STOP immediately** and tell the maintainer to restart/fix CodexMCP2. Do not silently switch connectors.
+- Never persist CodexMCP2 project-context IDs or connector-internal metadata in stable docs, task files, or handoff artifacts.
+
+## When a Local Coding Agent Is Allowed
+
+Use a local Codex/Luna coding-agent fallback **only** for a required operation that is technically impossible through the currently exposed CodexMCP2 action surface.
+
+Typical legitimate examples may include:
+
+- invoking `swift build`, `swift test`, or another compiler/runtime command when CodexMCP2 exposes no command-execution action;
+- running a required generator/tool that CodexMCP2 cannot invoke;
+- another narrowly identified executable action that cannot be expressed through CodexMCP2 repository tools.
+
+Do not give the local agent mutation authority for files that ChatGPT can safely mutate through CodexMCP2 unless the technically impossible operation itself necessarily creates those files.
+
+When fallback is required, ChatGPT must provide **both**:
+
+1. a complete English prompt file under the relevant `.artifacts/**` task/evidence directory;
+2. a short English mini-prompt in chat that the maintainer can paste into Codex/Luna, normally instructing it to read and execute that prompt file exactly.
+
+The full prompt must be narrowly scoped to the technically unavailable operation, define allowed mutations, preservation rules, validation/evidence, and stop conditions. The mini-prompt must be directly copy-pasteable.
+
+A local-agent report is navigation evidence only. ChatGPT must independently inspect the resulting files/Git/evidence through CodexMCP2 before accepting the result.
 
 ## Communication and Prompt Language
 
 - Communicate with the maintainer in Russian unless they explicitly request another language.
-- Every prompt sent to Codex, Luna-Max, or another coding agent must be written entirely in English.
-- Agent-facing task files under `.artifacts/**` should be written in English so they can be consumed directly without translation ambiguity.
-- Keep every coding-agent prompt self-contained, narrow, and explicit about allowed/forbidden scope.
-- Reuse constraints/answers already provided by the maintainer instead of asking again.
-- Do not draft prompts from remembered repository state when current CodexMCP evidence is available.
-
-## CodexMCP Boundary
-
-- ChatGPT uses CodexMCP for repository discovery, reading, mutation explicitly requested to ChatGPT, and independent verification.
-- Do not substitute web search, memory, or unrelated connectors for repository facts that CodexMCP can inspect directly.
-- A coding agent receives repository/task instructions through its own execution environment; it must not be told to rely on ChatGPT's private CodexMCP context IDs or transient tool responses.
-- Never persist CodexMCP project-context IDs or connector-internal metadata in stable docs or task instructions.
+- Every prompt intended for Codex, Luna, or another coding agent must be written entirely in English.
+- Agent-facing `.artifacts/**` prompt/task files are written in English.
+- Reuse constraints already provided by the maintainer instead of asking again.
+- Do not draft instructions from remembered repository state when current CodexMCP2 evidence is available.
 
 ## Research Before Planning
 
-Before producing an implementation plan or coding-agent prompt for non-trivial work, inspect through CodexMCP:
+Before producing a non-trivial implementation plan, inspect through CodexMCP2:
 
 - actual current repository/package/Git state;
 - root `AGENTS.md` and relevant routed stable guides;
@@ -52,121 +71,82 @@ Before producing an implementation plan or coding-agent prompt for non-trivial w
 - dependency/API source/evidence required by the task;
 - existing `.artifacts` plan/task/report material when continuing prior work.
 
-Use `CONTEXT_LOADING_RULES.md` to keep this research focused. External reference repositories are inspected only when the task needs them and their provenance remains transient per `REFERENCE_PROJECTS.md`.
+External/local sibling repositories are inspected only when the task needs them and their provenance remains transient per `REFERENCE_PROJECTS.md`.
 
 ## Mandatory Planning Gate
 
-Non-trivial implementation requires a detailed persisted plan under `.artifacts/planning/**` before implementation.
+Non-trivial implementation requires a detailed persisted plan under `.artifacts/planning/**` before production/test mutation.
 
-The plan must be strong enough that Luna-Max does not need to invent missing requirements. It should define exact scope, paths, order, ownership/concurrency/native constraints, deferred work, validation, evidence, risks, and stop conditions.
+The plan must define exact scope, paths, order, ownership/concurrency/native constraints, dependency facts, deferred work, validation, evidence, risks, and stop conditions.
 
-ChatGPT independently audits the plan against current CodexMCP repository evidence before implementation begins. If a material plan claim is wrong or ambiguous, fix the plan first.
+ChatGPT independently audits the plan against current CodexMCP2 repository evidence before implementation begins. If a material plan claim is wrong or ambiguous, fix/re-audit the plan first.
 
-## Luna-Max Implementation Policy
+## Large Work
 
-Treat Luna-Max as a capable implementation model that performs substantially better with small, explicit, mechanically checkable tasks than with one broad ambiguous prompt.
+Large work may still be decomposed into ordered task files under `.artifacts/implementation/<task-set>/` when that improves reviewability, stop conditions, checkpointing, or future handoff.
 
-Every Luna-Max implementation instruction must:
+Task decomposition is a planning/review mechanism, not automatic authorization to delegate to Luna.
 
-- identify the exact reviewed plan/task being executed;
-- list exact documents/source files to read;
-- list exact allowed mutation paths;
-- explicitly forbid deferred/unrelated work;
-- state concrete behavior and ownership/concurrency/native-boundary constraints;
-- state focused validation and completion evidence;
-- include relevant stop conditions;
-- forbid unauthorized Git staging/commit/push/history operations;
-- require a concise final report that does not substitute for ChatGPT's independent audit.
+Each task should state:
 
-Do not tell Luna-Max to "figure out the architecture", "clean up related code", "handle the rest", or infer missing product/API requirements.
+- one narrow goal;
+- exact files/docs to read;
+- exact allowed mutations;
+- forbidden/deferred work;
+- concrete behavioral/architecture constraints;
+- focused validation;
+- completion evidence;
+- stop conditions.
 
-## Mandatory Large-Task Protocol
-
-If a task is too large for one surgically precise Luna-Max prompt, do not send one huge prompt.
-
-Instead:
-
-1. Keep the reviewed overall plan in `.artifacts/planning/**`.
-2. Create separate ordered task files under a dedicated `.artifacts/implementation/<task-set>/` directory.
-3. Create one dedicated `EXECUTION_REPORT.md` in that task-set directory before implementation.
-4. Write each task file as a small self-contained implementation contract with exact scope and evidence.
-5. Send one English orchestration prompt to Codex/Luna-Max telling it to execute the task files **one by one in the specified order**.
-6. Luna-Max must complete and validate the current task, then append that task's outcome/evidence to `EXECUTION_REPORT.md` **before** beginning the next task.
-7. After a successful task, Luna-Max proceeds automatically to the next ordered task without waiting for maintainer/ChatGPT confirmation.
-8. Luna-Max stops the sequence only on a declared stop condition or a material plan contradiction that prevents safe execution; it must not invent a workaround outside scope.
-9. After all task files are complete, Luna-Max returns a mini-report with the completed task range, key validation result, and the path/link to `EXECUTION_REPORT.md`.
-
-This sequential task/report protocol is the default whenever several changes would otherwise force Luna-Max to hold a large ambiguous instruction set at once.
-
-## English Orchestration Prompt Requirements
-
-The orchestration prompt for a task set must tell Luna-Max, in English, to:
-
-- read root governance and the reviewed plan/task files;
-- execute only the listed task files, in order;
-- never skip ahead or combine tasks unless a task file explicitly requires it;
-- append the per-task report before advancing;
-- automatically continue after each successful task;
-- preserve unrelated files/user work;
-- keep changes unstaged/uncommitted unless commit scope is separately authorized;
-- stop and report only for explicit stop conditions/material contradictions;
-- finish with a compact mini-report pointing to the execution report.
+ChatGPT executes such tasks directly through CodexMCP2 where technically possible. Only the impossible executable sub-step is delegated through the fallback policy above.
 
 ## Independent Implementation Audit
 
-Never accept Luna-Max/Codex's final report as proof of correctness.
-
-After implementation, ChatGPT inspects the actual repository through CodexMCP:
+After every material implementation/correction batch, inspect the actual repository through CodexMCP2:
 
 - complete changed path set;
 - full created/modified file contents and relevant callers;
 - package/dependency/platform changes when applicable;
 - public API, native resource, SwifQL, concurrency, and platform boundaries relevant to the task;
-- required tests/build/smoke/evidence;
+- required tests/build/smoke evidence;
 - forbidden/deferred paths/names when material;
 - stable-document synchronization;
-- Git/user-work state when Git exists.
+- Git/user-work state.
 
 Audit behavior and ownership, not merely compilation or plausible-looking code.
 
-If the audit finds a defect, create the smallest correction plan/task needed, send a narrow English correction instruction to Luna-Max, then re-audit the actual repository. Do not bury a known defect inside a larger follow-up task.
+If a local agent performed an otherwise unavailable build/test/generator action, verify its resulting repository state and raw evidence through CodexMCP2 rather than trusting its summary.
 
 ## Commit Gate
 
-Implementation and commit are separate phases.
+The maintainer has standing authorization for frequent local checkpoint commits after successful independent audit and required validation.
 
-Do not authorize staging/commit merely because Luna-Max says work is complete. The maintainer has standing authorization for frequent local checkpoint commits, but a checkpoint commit is allowed only after ChatGPT's independent audit and required validation pass, with exact task-scope staging according to `COMMIT_RULES.md`. Push and destructive/history-rewriting Git operations still require separate explicit authorization.
+For each checkpoint:
 
-When a commit is authorized:
-
-- allow no unrelated source/doc changes in the commit-only phase;
 - follow `COMMIT_RULES.md`;
-- inspect exact Git state and complete staged snapshot;
-- stage only approved paths, never broad `git add .`, `git add -A`, or `git commit -a` by default;
-- use only the maintainer-approved commit subject/scope;
-- verify resulting commit and working-tree state;
+- inspect current status and exact changed scope through CodexMCP2;
+- stage only exact intended paths if CodexMCP2 supports the required Git mutation; otherwise use a narrowly scoped fallback prompt only for the unavailable Git operation;
+- inspect the complete staged snapshot before commit;
+- use the reviewed semantic commit subject;
+- verify resulting history/status through CodexMCP2;
 - never push unless separately requested.
 
-Failed validation/audit means no commit.
+Failed validation/audit means no checkpoint commit.
 
 ## Stop and Preservation Rules
 
-Every coding-agent task/prompt must state the stop conditions that matter for that scope, such as:
+Stop rather than improvise when:
 
-- unexpected overlapping user edits;
-- material repository state different from the reviewed plan;
-- dependency/toolchain/API evidence contradicting the plan;
-- compiler/build failure that invalidates an assumption rather than a known scoped implementation defect;
-- resource/concurrency/lifetime architecture conflict;
-- inability to prove required behavior without expanding forbidden scope.
-
-On a stop condition, the coding agent reports the blocker instead of repairing unrelated work or inventing architecture.
+- CodexMCP2 becomes unavailable or cannot provide required local repository evidence;
+- unexpected overlapping user edits appear;
+- current dependency/toolchain/API evidence contradicts the reviewed plan;
+- resource/concurrency/lifetime architecture conflicts with the plan;
+- required behavior cannot be proven without expanding forbidden scope.
 
 Never authorize destructive Git/file operations for convenience.
 
 ## Durable vs Transient
 
-This file stores only durable ChatGPT orchestration rules.
+This file stores only durable orchestration rules.
 
-Do not add per-task progress, transient errors, commit hashes, session-specific CodexMCP IDs, benchmark outputs, or implementation reports here. Plans, task files, execution reports, research evidence, and audits belong in `.artifacts/**`.
-
+Do not add per-task progress, transient errors, commit hashes, connector context IDs, build outputs, or implementation reports here. Plans, prompts, execution reports, raw evidence, research, and audits belong in `.artifacts/**`.

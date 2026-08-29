@@ -28,9 +28,10 @@ Global invariants for SwiftDuckDB development.
 - Public asynchronous database APIs use Swift structured concurrency and `async`/`await`.
 - Actors are the primary isolation mechanism for genuine shared mutable database execution/resource owners; exact ownership/isolation follows verified DuckDB semantics and reviewed API behavior.
 - Independent database work must not be serialized accidentally by oversized global ownership. Detailed strict-concurrency policy is owned by `LIBRARY_CODE_GUIDELINES.md`.
-- SwifQL is the required Swift query-construction layer for normal high-level SQL composition from the first query-capable implementation slice.
-- Raw SQL remains an explicit escape hatch. SwiftDuckDB must not create a competing SQL DSL.
-- Detailed SwifQL/raw-SQL execution policy is owned by `LIBRARY_CODE_GUIDELINES.md`.
+- SwifQL is the mandatory SQL-construction layer for all SwiftDuckDB-owned SQL from the first query-capable implementation slice, including production code, tests, examples, and README usage.
+- Duck SQL preparation uses the first-class `SQLDialect.duck` / `.duck` dialect. Do not route Duck queries through PostgreSQL compatibility rendering.
+- Direct handwritten SQL strings are not an ordinary repository construction path. Explicit raw SQL is represented through SwifQL raw constructs such as `SwifQL.raw(...)`, then prepared/bound through `.duck` like any other SwifQL query.
+- SwiftDuckDB must not create a competing SQL DSL. Detailed SwifQL execution policy is owned by `LIBRARY_CODE_GUIDELINES.md`.
 
 ## Concrete Before Speculative
 

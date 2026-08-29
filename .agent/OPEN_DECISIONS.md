@@ -22,10 +22,18 @@ Unresolved choices that must not be treated as implemented architecture.
 
 ## Higher-Level Features
 
+Resolved query-construction rules are not open decisions:
+
+- all SwiftDuckDB-owned SQL is constructed through SwifQL;
+- Duck execution uses `prepare(.duck)`;
+- explicit raw SQL is represented through `SwifQL.raw(...)`, not a parallel ordinary String construction path.
+
+Still open:
+
 - Codable decoding/encoding strategy.
 - Observation/reactive query strategy.
 - Migration strategy.
-- Exact SwifQL integration surface and how raw SQL and SwifQL queries share execution/decoding APIs.
+- Exact first public execution/result API shape above SwifQL preparation and native execution.
 
 ## Platform Packaging
 

@@ -8,7 +8,7 @@ The package includes the internal `Cduckdb` target generated from DuckDB `v1.5.5
 
 Reviewed target direction: Swift 6.3+, iOS 15+, macOS 12+, Linux, Android, and Windows. A target is not considered validated merely because it is listed here; platform support claims require actual build/runtime evidence for the relevant toolchain.
 
-SwifQL is the required Swift query-construction dependency for high-level query APIs once query execution is implemented. Raw SQL remains an explicit escape hatch.
+SwifQL is the mandatory SQL-construction layer for all SwiftDuckDB-owned SQL, including production code, tests, examples, and future README usage. Duck queries prepare through `SQLDialect.duck`. Direct handwritten SQL strings are not a normal construction path inside this repository; the explicit raw escape hatch is expressed through SwifQL raw constructs such as `SwifQL.raw(...)`, so execution still flows through SwifQL preparation/binding.
 
 ## Physical Layout
 
@@ -47,7 +47,7 @@ Use **RESEARCH -> PLAN -> IMPLEMENT -> AUDIT** for every non-trivial task.
 - If implementation invalidates a material reviewed assumption, stop that path and revise/review the plan.
 - Independently verify actual source/docs/build/Git evidence after implementation; do not accept an implementation report as proof.
 
-Full process: `.agent/WORKFLOW.md`. ChatGPT/coding-agent orchestration: `.agent/CHATGPT.md`.
+Full process: `.agent/WORKFLOW.md`. ChatGPT orchestration is CodexMCP2-first and is owned by `.agent/CHATGPT.md`; if CodexMCP2 becomes unavailable, repository work stops until the maintainer restores it.
 
 ## Swift Code Policy Routing
 
