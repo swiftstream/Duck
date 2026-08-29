@@ -124,6 +124,7 @@ func publicPrimitiveResultMatrix() async throws {
     let shortText = "short"
     let longText = "this string is deliberately longer than twelve bytes"
     let blob = Data([0x00, 0x01, 0x7F, 0x80, 0xFE, 0xFF])
+    let emptyBlob = Data()
 
     let result = try await SwifQL
         .select(
@@ -141,6 +142,7 @@ func publicPrimitiveResultMatrix() async throws {
             Fn.cast(Task07BoundValue(shortText), .varchar) => "short_text",
             Fn.cast(Task07BoundValue(longText), .varchar) => "long_text",
             Fn.cast(Task07BoundValue(blob), .blob) => "blob_value",
+            Fn.cast(Task07BoundValue(emptyBlob), .blob) => "empty_blob_value",
             Fn.cast(Task07BoundValue(Optional<Int32>.none), .integer) => "null_value"
         )
         .query(on: connection)
@@ -160,6 +162,7 @@ func publicPrimitiveResultMatrix() async throws {
     #expect(row["short_text"] == Value.string(shortText))
     #expect(row["long_text"] == Value.string(longText))
     #expect(row["blob_value"] == Value.blob(blob))
+    #expect(row["empty_blob_value"] == Value.blob(emptyBlob))
     #expect(row["null_value"] == Value.null)
 }
 

@@ -10,6 +10,7 @@ func bindsAndMaterializesPrimitiveResultSlice() throws {
     let shortText = "short"
     let longText = "this string is longer than twelve bytes"
     let blob = Data([0x00, 0x01, 0x7F, 0x80, 0xFF])
+    let emptyBlob = Data()
     let sql = SwifQL
         .raw(
             """
@@ -28,7 +29,8 @@ func bindsAndMaterializesPrimitiveResultSlice() throws {
                 CAST($12 AS VARCHAR) AS short_text,
                 CAST($13 AS VARCHAR) AS long_text,
                 CAST($14 AS BLOB) AS blob_value,
-                CAST($15 AS INTEGER) AS null_value
+                CAST($15 AS BLOB) AS empty_blob_value,
+                CAST($16 AS INTEGER) AS null_value
             """
         )
         .prepare(.duck)
@@ -50,6 +52,7 @@ func bindsAndMaterializesPrimitiveResultSlice() throws {
         .string(shortText),
         .string(longText),
         .blob(blob),
+        .blob(emptyBlob),
         .null
     ]
 
@@ -79,6 +82,7 @@ func bindsAndMaterializesPrimitiveResultSlice() throws {
     #expect(row["short_text"] == Value.string(shortText))
     #expect(row["long_text"] == Value.string(longText))
     #expect(row["blob_value"] == Value.blob(blob))
+    #expect(row["empty_blob_value"] == Value.blob(emptyBlob))
     #expect(row["null_value"] == Value.null)
     #expect(try result.materializeNextChunk() == nil)
 }

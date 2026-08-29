@@ -85,8 +85,25 @@ final class NativePreparedStatement {
                 )
             }
         case .blob(let value):
-            state = value.withUnsafeBytes { buffer in
-                duckdb_bind_blob(handle, parameterIndex, buffer.baseAddress, idx_t(buffer.count))
+            if value.isEmpty {
+                var emptyBlobSentinel: UInt8 = 0
+                state = withUnsafePointer(to: &emptyBlobSentinel) { pointer in
+                    duckdb_bind_blob(
+                        handle,
+                        parameterIndex,
+                        UnsafeRawPointer(pointer),
+                        0
+                    )
+                }
+            } else {
+                state = value.withUnsafeBytes { buffer in
+                    duckdb_bind_blob(
+                        handle,
+                        parameterIndex,
+                        buffer.baseAddress!,
+                        idx_t(buffer.count)
+                    )
+                }
             }
         }
 
