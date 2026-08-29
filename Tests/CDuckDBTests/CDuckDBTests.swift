@@ -1,5 +1,6 @@
 import Cduckdb
 import Foundation
+import SwifQL
 import Testing
 
 @Test("Reports the linked DuckDB v1.5.5 version")
@@ -32,8 +33,13 @@ func fetchesQueryChunk() throws {
     try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
     defer { duckdb_disconnect(&connection) }
 
+    let sql = SwifQL
+        .select(Fn.cast(42, .integer) => "answer")
+        .prepare(.duck)
+        .plain
+
     var result = duckdb_result()
-    try #require(duckdb_query(connection, "SELECT 42::INTEGER AS answer", &result) == DuckDBSuccess)
+    try #require(duckdb_query(connection, sql, &result) == DuckDBSuccess)
     defer { duckdb_destroy_result(&result) }
 
     var chunk = duckdb_fetch_chunk(result)
@@ -58,8 +64,15 @@ func destroysFailedQueryResult() throws {
     try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
     defer { duckdb_disconnect(&connection) }
 
+    let missingTable = Path.Table("table_that_does_not_exist")
+    let sql = SwifQL
+        .select(SwifQL.asterisk)
+        .from(missingTable)
+        .prepare(.duck)
+        .plain
+
     var result = duckdb_result()
-    let state = duckdb_query(connection, "SELECT * FROM table_that_does_not_exist", &result)
+    let state = duckdb_query(connection, sql, &result)
     defer { duckdb_destroy_result(&result) }
 
     #expect(state == DuckDBError)
@@ -77,12 +90,19 @@ func executesPreparedStatement() throws {
     try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
     defer { duckdb_disconnect(&connection) }
 
+    let query = SwifQL
+        .select(Fn.cast(42, .integer) => "answer")
+        .prepare(.duck)
+        .splitted
+    try #require(query.values.count == 1)
+    let boundValue = try #require(query.values.first as? Int)
+
     var statement: duckdb_prepared_statement?
-    try #require(duckdb_prepare(connection, "SELECT ?::INTEGER AS answer", &statement) == DuckDBSuccess)
+    try #require(duckdb_prepare(connection, query.query, &statement) == DuckDBSuccess)
     defer { duckdb_destroy_prepare(&statement) }
 
     let prepared = try #require(statement)
-    try #require(duckdb_bind_int32(prepared, 1, 42) == DuckDBSuccess)
+    try #require(duckdb_bind_int64(prepared, 1, Int64(boundValue)) == DuckDBSuccess)
 
     var result = duckdb_result()
     try #require(duckdb_execute_prepared(prepared, &result) == DuckDBSuccess)
@@ -108,8 +128,13 @@ func destroysFailedPreparedStatement() {
     #expect(duckdb_connect(database, &connection) == DuckDBSuccess)
     defer { duckdb_disconnect(&connection) }
 
+    let sql = SwifQL
+        .raw("SELECT FROM")
+        .prepare(.duck)
+        .plain
+
     var statement: duckdb_prepared_statement?
-    let state = duckdb_prepare(connection, "SELECT FROM", &statement)
+    let state = duckdb_prepare(connection, sql, &statement)
     defer { duckdb_destroy_prepare(&statement) }
 
     #expect(state == DuckDBError)
@@ -123,16 +148,31 @@ func reopensPersistentDatabase() throws {
         .appendingPathExtension("duckdb")
     defer { try? FileManager.default.removeItem(at: databaseURL) }
 
+    let valuesTable = Path.Table("values_table")
+    let writeSQL = SwifQL
+        .create
+        .table[any: valuesTable]
+        .as
+        .select(Fn.cast(42, .integer) => "answer")
+        .prepare(.duck)
+        .plain
+
     var database: duckdb_database?
     try #require(duckdb_open(databaseURL.path, &database) == DuckDBSuccess)
     var connection: duckdb_connection?
     try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
 
     var writeResult = duckdb_result()
-    try #require(duckdb_query(connection, "CREATE TABLE values_table AS SELECT 42::INTEGER AS answer", &writeResult) == DuckDBSuccess)
+    try #require(duckdb_query(connection, writeSQL, &writeResult) == DuckDBSuccess)
     duckdb_destroy_result(&writeResult)
     duckdb_disconnect(&connection)
     duckdb_close(&database)
+
+    let readSQL = SwifQL
+        .select(valuesTable.column("answer"))
+        .from(valuesTable)
+        .prepare(.duck)
+        .plain
 
     try #require(duckdb_open(databaseURL.path, &database) == DuckDBSuccess)
     defer { duckdb_close(&database) }
@@ -140,7 +180,7 @@ func reopensPersistentDatabase() throws {
     defer { duckdb_disconnect(&connection) }
 
     var readResult = duckdb_result()
-    try #require(duckdb_query(connection, "SELECT answer FROM values_table", &readResult) == DuckDBSuccess)
+    try #require(duckdb_query(connection, readSQL, &readResult) == DuckDBSuccess)
     defer { duckdb_destroy_result(&readResult) }
 
     var chunk = duckdb_fetch_chunk(readResult)

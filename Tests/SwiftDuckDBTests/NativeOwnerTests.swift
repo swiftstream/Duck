@@ -1,6 +1,7 @@
 @testable import SwiftDuckDB
 import Cduckdb
 import Foundation
+import SwifQL
 import Testing
 
 @Test("Opens an in-memory native database")
@@ -56,10 +57,14 @@ func retainsDatabaseWhileConnectionExists() throws {
 func queriesThroughConnectionHandle() throws {
     let database = try NativeDatabase()
     let connection = try NativeConnection(database: database)
+    let sql = SwifQL
+        .select(Fn.cast(42, .integer) => "answer")
+        .prepare(.duck)
+        .plain
 
     try connection.withUnsafeHandle { handle in
         var result = duckdb_result()
-        try #require(duckdb_query(handle, "SELECT 42::INTEGER AS answer", &result) == DuckDBSuccess)
+        try #require(duckdb_query(handle, sql, &result) == DuckDBSuccess)
         defer { duckdb_destroy_result(&result) }
 
         var chunk = duckdb_fetch_chunk(result)

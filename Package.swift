@@ -14,10 +14,19 @@ let package = Package(
             targets: ["SwiftDuckDB"]
         )
     ],
+    dependencies: [
+        .package(
+            url: "https://github.com/SwifQL/SwifQL.git",
+            exact: "2.0.0-beta.5.0.0"
+        )
+    ],
     targets: [
         .target(
             name: "SwiftDuckDB",
-            dependencies: ["Cduckdb"]
+            dependencies: [
+                "Cduckdb",
+                .product(name: "SwifQL", package: "SwifQL")
+            ]
         ),
     .target(
       name: "Cduckdb",
@@ -449,11 +458,17 @@ let package = Package(
     ),
         .testTarget(
             name: "CDuckDBTests",
-            dependencies: ["Cduckdb"]
+            dependencies: [
+                "Cduckdb",
+                .product(name: "SwifQL", package: "SwifQL")
+            ]
         ),
         .testTarget(
             name: "SwiftDuckDBTests",
-            dependencies: ["SwiftDuckDB"]
+            dependencies: [
+                "SwiftDuckDB",
+                .product(name: "SwifQL", package: "SwifQL")
+            ]
         )
     ],
     swiftLanguageModes: [.v6],
