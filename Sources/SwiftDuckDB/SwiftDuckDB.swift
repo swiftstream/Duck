@@ -1,3 +1,3 @@
 // SwiftDuckDB package bootstrap.
-// Public API will be introduced only through reviewed implementation tasks.
+// Public API is defined in focused source files within this module.
 
