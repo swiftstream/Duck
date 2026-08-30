@@ -39,6 +39,10 @@ User
 
 should be preferred when they best demonstrate the intended concise declarative UX and are actually implemented.
 
+## Safe Executable Examples
+
+Executable Swift examples must model the same non-trapping safety rules as production library code. Do not use optional force unwraps (`value!`), `try!`, `as!`, or process traps merely to shorten documentation. Prefer `guard`, `if let`, optional chaining, or throwing APIs so copy-pasted examples do not teach crash-prone usage.
+
 ## Truthful Current API Only
 
 Public docs must match current validated source.

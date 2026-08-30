@@ -71,6 +71,12 @@ Use a focused compiler/native probe before promoting such a pattern into product
 
 Native resources must be cleaned up on success, failure, cancellation, and failed Swift initialization according to DuckDB contracts.
 
+SwiftDuckDB-owned production code must not use trap-prone force operations as state handling: no optional force unwrap (`value!`), `try!`, or `as!`. Represent required invariants with non-optional owned state where possible; otherwise use `guard`/optional binding and return, throw, or fail-close through a reviewed typed path. A library-controlled invalid/native-lifetime state must not crash the consumer process.
+
+Do not use `fatalError`, `preconditionFailure`, or equivalent process traps for user-triggerable/recoverable production states. Assertions may support debug-only developer diagnostics only when the same production path remains safe without relying on the assertion.
+
+These rules also apply to SwiftDuckDB-owned tests/examples when an equally clear non-trapping form exists, so examples and regression code reinforce the same safety model. Historical frozen `.artifacts/**`, generated build output, vendored DuckDB, and dependency source are evidence/external code and are not retroactively rewritten merely to satisfy this project-owned source rule.
+
 Copy borrowed diagnostic strings before destroying the owner that backs them.
 
 Do not skip destruction on C error results merely because an API call failed.

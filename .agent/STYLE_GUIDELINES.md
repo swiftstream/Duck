@@ -14,6 +14,8 @@ Common Swift source conventions for all SwiftDuckDB-owned production and test co
 - Use `Id` / `Ids`, not `ID` / `IDs`, for project-owned Swift symbols. Preserve exact external API/schema/C spellings at boundaries.
 - Avoid snake_case except where an external API, serialized format, environment variable, build setting, C interface, or OS interface requires it.
 - Prefer the shortest semantic name that remains unambiguous.
+- Public methods should name the direct domain operation, not the ceremony used to implement it. Do not add prefixes such as `with`, `perform`, `run`, `make`, or `do` merely because an API uses a closure or scoped lifetime when the domain operation itself is already clear. Prefer `connection.transaction { ... }` over `connection.withTransaction { ... }`.
+- Avoid repeating owner/type context in a member name when the receiver already provides that context.
 - Avoid product prefixes and generic terms such as `Data`, `Model`, `State`, `Manager`, `Repository`, `Factory`, or `Service` when they add no semantic value.
 - Those words are not banned: use them when they identify a real role or boundary.
 
