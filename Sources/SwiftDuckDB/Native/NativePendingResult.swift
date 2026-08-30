@@ -7,7 +7,7 @@ enum NativePendingState: Equatable {
 
 final class NativePendingResult {
     private let statement: NativePreparedStatement
-    private var handle: duckdb_pending_result?
+    private let handle: duckdb_pending_result
 
     init(statement: NativePreparedStatement) throws {
         self.statement = statement
@@ -33,11 +33,12 @@ final class NativePendingResult {
     }
 
     deinit {
+        var handle: duckdb_pending_result? = handle
         duckdb_destroy_pending(&handle)
     }
 
     func executeTask() throws -> NativePendingState {
-        let state = duckdb_pending_execute_task(handle!)
+        let state = duckdb_pending_execute_task(handle)
 
         if state == DUCKDB_PENDING_RESULT_READY {
             return .ready

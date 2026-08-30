@@ -3,7 +3,7 @@ import Foundation
 
 final class NativePreparedStatement {
     let connection: NativeConnection
-    private var handle: duckdb_prepared_statement?
+    private let handle: duckdb_prepared_statement
 
     init(connection: NativeConnection, sql: String) throws {
         self.connection = connection
@@ -31,11 +31,12 @@ final class NativePreparedStatement {
     }
 
     deinit {
+        var handle: duckdb_prepared_statement? = handle
         duckdb_destroy_prepare(&handle)
     }
 
     var parameterCount: Int {
-        Int(duckdb_nparams(handle!))
+        Int(duckdb_nparams(handle))
     }
 
     func bind(_ value: Value, at index: Int) throws {
@@ -97,10 +98,13 @@ final class NativePreparedStatement {
                 }
             } else {
                 state = value.withUnsafeBytes { buffer in
-                    duckdb_bind_blob(
+                    guard let baseAddress = buffer.baseAddress else {
+                        return DuckDBError
+                    }
+                    return duckdb_bind_blob(
                         handle,
                         parameterIndex,
-                        buffer.baseAddress!,
+                        baseAddress,
                         idx_t(buffer.count)
                     )
                 }
@@ -121,6 +125,6 @@ final class NativePreparedStatement {
     }
 
     func withUnsafeHandle<Result>(_ body: (duckdb_prepared_statement) throws -> Result) rethrows -> Result {
-        try body(handle!)
+        try body(handle)
     }
 }

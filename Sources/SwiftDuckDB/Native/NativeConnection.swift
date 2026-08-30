@@ -1,13 +1,14 @@
 import Cduckdb
 
 final class NativeConnection {
-    private var handle: duckdb_connection?
+    private let handle: duckdb_connection
 
     init(handle: duckdb_connection) {
         self.handle = handle
     }
 
     deinit {
+        var handle: duckdb_connection? = handle
         duckdb_disconnect(&handle)
     }
 
@@ -16,10 +17,10 @@ final class NativeConnection {
     }
 
     func interrupt() {
-        duckdb_interrupt(handle!)
+        duckdb_interrupt(handle)
     }
 
     func withUnsafeHandle<Result>(_ body: (duckdb_connection) throws -> Result) rethrows -> Result {
-        try body(handle!)
+        try body(handle)
     }
 }
