@@ -35,6 +35,10 @@ final class NativePreparedStatement {
         duckdb_destroy_prepare(&handle)
     }
 
+    var isTransactionStatement: Bool {
+        duckdb_prepared_statement_type(handle) == DUCKDB_STATEMENT_TYPE_TRANSACTION
+    }
+
     var parameterCount: Int {
         Int(duckdb_nparams(handle))
     }

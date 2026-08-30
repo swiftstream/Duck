@@ -141,6 +141,10 @@ public actor Connection {
             try Task.checkCancellation()
 
             let statement = try nativeConnection.prepare(snapshot.sql)
+            guard !statement.isTransactionStatement else {
+                throw DatabaseError.transactionControlNotAllowed
+            }
+
             for (offset, binding) in snapshot.bindings.enumerated() {
                 try statement.bind(binding, at: offset + 1)
             }
