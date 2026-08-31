@@ -7,5 +7,12 @@ public enum DatabaseError: Error, Sendable, Equatable {
     case unsupportedBindingType(String)
     case unsupportedResultType(String)
     case invalidResult(String)
+    case transactionAlreadyActive
+    case transactionScopeViolation
+    case transactionEnded
     case transactionControlNotAllowed
+    case transactionBegin(String)
+    case transactionCommit(String)
+    case transactionRollback(String)
+    case connectionUnusable(String)
 }
