@@ -81,6 +81,7 @@ private actor TransactionBoolBox {
 private enum TransactionAttemptResult: Equatable, Sendable {
     case committed(tag: Int, value: Int32)
     case alreadyActive(tag: Int)
+    case connectionUnusable(tag: Int, message: String)
     case cancelled(tag: Int)
     case failed(tag: Int, description: String)
 }
@@ -122,8 +123,15 @@ private func startTransactionAttempt(
                 return Int32(tag + 1)
             }
             await channel.send(.committed(tag: tag, value: value))
-        } catch let error as DatabaseError where error == .transactionAlreadyActive {
-            await channel.send(.alreadyActive(tag: tag))
+        } catch let error as DatabaseError {
+            switch error {
+            case .transactionAlreadyActive:
+                await channel.send(.alreadyActive(tag: tag))
+            case .connectionUnusable(let message):
+                await channel.send(.connectionUnusable(tag: tag, message: message))
+            default:
+                await channel.send(.failed(tag: tag, description: String(describing: error)))
+            }
         } catch is CancellationError {
             await channel.send(.cancelled(tag: tag))
         } catch {
@@ -811,4 +819,76 @@ func cancelledTransactionWaiterExitsAtBeginPreflight() async throws {
         .select(Fn.cast(Int32(12), .integer) => "value")
         .query(on: connection)
     #expect(reused.rows.first?["value"] == .int32(12))
+}
+
+@Test("Terminal fail-close drains a proven pending transaction reservation")
+func failCloseDrainsPendingTransactionReservation() async throws {
+    let database = try Database()
+    let connection = try database.connect()
+    let otherConnection = try database.connect()
+    let bodyRan = TransactionBoolBox()
+    let channel = TransactionAttemptChannel()
+    let failureMessage = "batch03 terminal fail-close"
+
+    try await connection.acquireOrdinaryLease()
+
+    let first = startTransactionAttempt(
+        tag: 0,
+        on: connection,
+        bodyRan: bodyRan,
+        channel: channel
+    )
+    let second = startTransactionAttempt(
+        tag: 1,
+        on: connection,
+        bodyRan: bodyRan,
+        channel: channel
+    )
+
+    let firstOutcome = await channel.next()
+    let pendingTag: Int
+    if case .alreadyActive(let rejectedTag) = firstOutcome {
+        pendingTag = rejectedTag == 0 ? 1 : 0
+    } else {
+        Issue.record("Expected one request to prove the other reservation is pending, got \(firstOutcome).")
+        pendingTag = 0
+    }
+
+    await connection.enterFailClosed(failureMessage)
+
+    let pendingOutcome = await channel.next()
+    #expect(
+        pendingOutcome == .connectionUnusable(
+            tag: pendingTag,
+            message: failureMessage
+        )
+    )
+
+    await connection.releaseOrdinaryLease()
+    await first.value
+    await second.value
+
+    let bodyDidRun = await bodyRan.value()
+    #expect(bodyDidRun == false)
+
+    do {
+        _ = try await SwifQL
+            .select(Fn.cast(Int32(13), .integer) => "value")
+            .query(on: connection)
+        Issue.record("Expected fail-closed Connection to reject later ordinary work.")
+    } catch let error as DatabaseError {
+        #expect(error == .connectionUnusable(failureMessage))
+    }
+
+    do {
+        _ = try await connection.transaction { _ in Int32(14) }
+        Issue.record("Expected fail-closed Connection to reject later transaction work.")
+    } catch let error as DatabaseError {
+        #expect(error == .connectionUnusable(failureMessage))
+    }
+
+    let otherResult = try await SwifQL
+        .select(Fn.cast(Int32(15), .integer) => "value")
+        .query(on: otherConnection)
+    #expect(otherResult.rows.first?["value"] == .int32(15))
 }

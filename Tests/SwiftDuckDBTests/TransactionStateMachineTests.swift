@@ -440,3 +440,113 @@ func failCloseDrainsQueuedAndRejectsFutureAdmission() async throws {
         .query(on: otherConnection)
     #expect(otherResult.rows.first?["value"] == .int32(4))
 }
+
+@Test("Reservation state serializes queued native operations in FIFO order")
+func reservationStateSerializesQueuedOperationsFIFO() throws {
+    let reservationId = TransactionReservationId()
+    var state = TransactionReservationState(id: reservationId)
+    state.openBody()
+
+    let first = try state.registerOperation()
+    let second = try state.registerOperation()
+    let third = try state.registerOperation()
+
+    let firstAdmission = try state.requestNativeAdmission(first)
+    let secondAdmission = try state.requestNativeAdmission(second)
+    let thirdAdmission = try state.requestNativeAdmission(third)
+
+    #expect(firstAdmission == .admitted)
+    #expect(secondAdmission == .queued)
+    #expect(thirdAdmission == .queued)
+    #expect(state.operations[first.operationId] == .nativeActive)
+    #expect(state.operations[second.operationId] == .queued)
+    #expect(state.operations[third.operationId] == .queued)
+
+    let firstCompletion = state.completeNativeOperation(first, failure: nil)
+    #expect(firstCompletion?.nextNativeOperationId == second.operationId)
+    #expect(firstCompletion?.schedulerInconsistencyOperationId == nil)
+    #expect(state.operations[first.operationId] == nil)
+    #expect(state.operations[second.operationId] == .nativeActive)
+    #expect(state.operations[third.operationId] == .queued)
+
+    let secondCompletion = state.completeNativeOperation(second, failure: nil)
+    #expect(secondCompletion?.nextNativeOperationId == third.operationId)
+    #expect(secondCompletion?.schedulerInconsistencyOperationId == nil)
+    #expect(state.operations[second.operationId] == nil)
+    #expect(state.operations[third.operationId] == .nativeActive)
+
+    let thirdCompletion = state.completeNativeOperation(third, failure: nil)
+    #expect(thirdCompletion?.nextNativeOperationId == nil)
+    #expect(thirdCompletion?.schedulerInconsistencyOperationId == nil)
+    #expect(state.operations[third.operationId] == nil)
+}
+
+@Test("COMMIT C0 classification failure rolls back and keeps Connection reusable")
+func commitC0ClassificationFailureRollsBackAndReusesConnection() async throws {
+    let database = try Database()
+    let connection = try database.connect()
+    let table = Path.Table("transaction c0 cleanup items")
+
+    try await SwifQL
+        .create
+        .table[any: table]
+        .tableDefinitions(NewColumn("id", .integer))
+        .execute(on: connection)
+
+    let reservationId = try await connection.acquireTransactionReservation()
+    let begin = try PreparedQuerySnapshot(SwifQL.begin)
+    let rollback = try PreparedQuerySnapshot(SwifQL.rollback)
+
+    let beginOutcome = await connection.beginTransaction(
+        reservationId,
+        begin: begin,
+        rollback: rollback
+    )
+    guard case .started = beginOutcome else {
+        Issue.record("Expected real BEGIN to start before deterministic C0 failure coverage.")
+        return
+    }
+
+    let transaction = Transaction(connection: connection, reservationId: reservationId)
+    try await SwifQL
+        .insertInto(table, fields: "id")
+        .values
+        .values(Int32(1))
+        .execute(on: transaction)
+
+    _ = try await connection.beginTransactionFinalization(reservationId)
+
+    let nonTransactionCommit = try PreparedQuerySnapshot(
+        SwifQL.select(Fn.cast(Int32(1), .integer) => "value")
+    )
+    let outcome = await connection.commitTransaction(
+        reservationId,
+        commit: nonTransactionCommit,
+        rollback: rollback
+    )
+
+    switch outcome {
+    case .failed(let primary, let rollbackFailure):
+        if case .transactionCommit = primary {
+            // Expected: lifecycle classification failed during C0 before pending creation.
+        } else {
+            Issue.record("Expected transactionCommit C0 failure, got \(primary).")
+        }
+        #expect(rollbackFailure == nil)
+    case .committed:
+        Issue.record("Expected non-transaction COMMIT snapshot to fail classification during C0.")
+    case .cancelledBeforeStart:
+        Issue.record("Expected deterministic C0 classification failure, not cancellation.")
+    }
+
+    let rows = try await SwifQL
+        .select(table.column("id"))
+        .from(table)
+        .query(on: connection)
+    #expect(rows.rows.isEmpty)
+
+    let reused = try await SwifQL
+        .select(Fn.cast(Int32(16), .integer) => "value")
+        .query(on: connection)
+    #expect(reused.rows.first?["value"] == .int32(16))
+}
