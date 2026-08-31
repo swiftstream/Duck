@@ -24,7 +24,8 @@ Additionally load:
 
 - `SAFETY_RULES.md` for SQL construction, bindings, raw SQL, native handle transfer, unsafe ownership/lifetime, and C-boundary safety;
 - `TESTING_RULES.md` for every test/validation change or regression strategy;
-- `PUBLIC_WRITING_STYLE.md` for README/public docs.
+- `PUBLIC_WRITING_STYLE.md` for README/public docs;
+- `FUTURE_PUBLICATIONS.md` when planning README expansions, articles, launch/release posts, or other future public writing so explicitly preserved publication topics are not forgotten.
 
 Operational workflow owners (`WORKFLOW.md`, `DEVELOPMENT_ORCHESTRATION.md`, `ARTIFACTS_WORKFLOW.md`, `COMMIT_RULES.md`) do not consume a technical architecture/context budget. Load them when the current role/gate requires them.
 

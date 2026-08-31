@@ -15,6 +15,7 @@ Navigation map for the current accepted SwiftDuckDB repository state.
 - `.agent/SAFETY_RULES.md`: SwifQL/raw/binding/native-handle safety boundaries.
 - `.agent/TESTING_RULES.md`: Swift Testing, real-engine, regression, compiler-fixture, and validation policy.
 - `.agent/PUBLIC_WRITING_STYLE.md`: README/public developer-writing policy.
+- `.agent/FUTURE_PUBLICATIONS.md`: durable backlog of explicitly preserved README/article/publication topics and source material; entries are not implementation authorization or current API claims.
 - `.agent/REFERENCE_PROJECTS.md`: dependency and external-evidence policy.
 - `.agent/CONTEXT_LOADING_RULES.md`: progressive context-loading rules.
 - `.agent/MASTER_PLAN.md`: reviewed high-level progression and implemented first public slice.
