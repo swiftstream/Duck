@@ -27,3 +27,7 @@ Integrated published SwifQL 2.0.0-beta.5.0.0 and migrated repository-owned SQL c
 ### First public query API
 
 Introduced public `Database` and actor-isolated `Connection` ownership, SwifQL-only async query/execute, Swift-owned primitive query results and typed errors, native prepared/pending/result execution resources, typed query conveniences, deterministic structured-concurrency/runtime coverage, bounded cooperative cancellation semantics, and the root public README.
+
+### Scoped transaction API
+
+Introduced caller-isolated `Connection.transaction` with an explicit Sendable `Transaction` capability for same-Connection scoped work, one pending/active transaction reservation per Connection, FIFO transaction-operation execution, rollback-only first-failure semantics, cancellation/finalization and escaped-capability handling, independent Connections, conservative fail-close behavior after cleanup or ambiguous post-scheduling COMMIT failures, and durable deterministic runtime/state-machine coverage without timing or test-only production hooks.

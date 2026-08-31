@@ -32,17 +32,18 @@ There is intentionally no model-specific stable `CHATGPT.md`. Session-specific c
 - `Package.swift`: SwiftPM manifest for the `SwiftDuckDB` library product, public `SwiftDuckDB` target, internal generated `Cduckdb` target, exact SwifQL `2.0.0-beta.5.0.0` dependency, and both Swift Testing targets. It uses Swift tools 6.3, iOS 15+, macOS 12+, Swift language mode 6, and the upstream-generated C++11 setting.
 - `Package.resolved`: exact dependency resolution, including SwifQL revision `348c851b9017b07f67431ba0adac3c7596c3c760`.
 - `.swift-version`: tracked exact Swift `6.3.3` toolchain pin.
-- `README.md`: public first-query-slice documentation. Executable query examples use SwifQL; ordinary String execution is not taught.
+- `README.md`: public query + scoped-transaction documentation. Executable examples use SwifQL; ordinary String execution is not taught.
 
 ## Public SwiftDuckDB Source
 
 - `Sources/SwiftDuckDB/Database.swift`: public actor-free `Sendable` database lifetime owner; in-memory/file-backed open and explicit Connection creation.
-- `Sources/SwiftDuckDB/Connection.swift`: public actor-isolated native execution owner, caller-local SwifQL `.duck` preparation/binding normalization, per-Connection FIFO gate, pending execution, cancellation handling, error mapping, and Swift-owned result assembly.
-- `Sources/SwiftDuckDB/DatabaseError.swift`: public typed query/database error cases.
+- `Sources/SwiftDuckDB/Connection.swift`: public actor-isolated native execution owner for ordinary query/execute and scoped transactions; owns per-Connection outer admission, transaction lifecycle/finalization, fail-close state, pending execution, cancellation handling, error mapping, and Swift-owned result assembly.
+- `Sources/SwiftDuckDB/Transaction.swift`: public `Transaction` scoped capability plus internal Sendable connection-admission, transaction-reservation, operation-token, rollback-only, and lifecycle state-machine values used by `Connection`.
+- `Sources/SwiftDuckDB/DatabaseError.swift`: public typed query/database/transaction/fail-close error cases.
 - `Sources/SwiftDuckDB/Value.swift`: public primitive/NULL/BLOB result value model.
 - `Sources/SwiftDuckDB/Row.swift`: public row value with positional and named lookup.
 - `Sources/SwiftDuckDB/QueryResult.swift`: public columns/rows/rowsChanged result value.
-- `Sources/SwiftDuckDB/SwifQLable+Execution.swift`: query-centered `.query(on:)` / `.execute(on:)` convenience delegating to `Connection`.
+- `Sources/SwiftDuckDB/SwifQLable+Execution.swift`: query-centered `.query(on:)` / `.execute(on:)` conveniences for both `Connection` and `Transaction`, delegating to the same owned execution engine.
 - `Sources/SwiftDuckDB/TableSelector+Selection.swift`: heterogeneous typed selected-column parameter-pack convenience for SwifQL `TableSelector`.
 - `Sources/SwiftDuckDB/SwiftDuckDB.swift`: minimal package/module bootstrap comment only; public declarations live in focused files.
 
@@ -69,6 +70,9 @@ There is intentionally no model-specific stable `CHATGPT.md`. Session-specific c
 - `Tests/SwiftDuckDBTests/QueryValueTests.swift`: Row/Value/QueryResult/DatabaseError value semantics and Sendability coverage.
 - `Tests/SwiftDuckDBTests/AsyncConnectionExecutionTests.swift`: public async execution, mutation rowsChanged, error/reuse, and deterministic pre-native cancellation coverage.
 - `Tests/SwiftDuckDBTests/QueryConvenienceTests.swift`: typed-table selected-column and query-centered convenience coverage.
+- `Tests/SwiftDuckDBTests/TransactionControlTests.swift`: prepared-statement transaction classification and rejection of user BEGIN/COMMIT/ROLLBACK on ordinary public execution routes.
+- `Tests/SwiftDuckDBTests/TransactionTests.swift`: public/real-engine scoped transaction behavior, rollback-only/error precedence, cancellation, nesting/scope guards, pending/active exclusion, escaped capability, ordinary-work queueing, fail-close, and independent-Connection coverage.
+- `Tests/SwiftDuckDBTests/TransactionStateMachineTests.swift`: production-used transaction lifecycle/admission/reservation state-machine coverage, FIFO operation scheduling, rollback-only/finalization disposition, deterministic C0 cleanup/reuse, and fail-close invariants.
 - `Tests/SwiftDuckDBTests/PublicRuntimeScenarioTests.swift`: broad real-DuckDB CRUD, primitive matrix, error/reuse, same-Connection concurrency/cancellation, and multiple-Connection runtime scenarios.
 
 ## Transient Evidence

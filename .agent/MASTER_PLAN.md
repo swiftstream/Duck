@@ -30,7 +30,9 @@ Shared API and semantics remain platform-independent unless a concrete platform 
 4. Integrate the completed SwifQL Duck/Swift-6 line and make SwifQL the repository-wide SQL-construction layer. **Done.**
 5. Implement and validate the first public database/query slice. **Done.**
 6. Document the first public API in the root README using only implemented and validated behavior. **Done.**
-7. Continue capability by capability only through separately researched, reviewed, implemented, and audited work. **Next direction; no new capability is implicitly authorized.**
+7. Implement, validate, and independently audit the first public scoped transaction capability. **Done.**
+8. Document the scoped transaction API and synchronize its durable project state. **Done.**
+9. Continue capability by capability only through separately researched, reviewed, implemented, and audited work. **Next direction; no new capability is implicitly authorized.**
 
 ## Implemented First Public Query Slice
 
@@ -51,6 +53,23 @@ The current public slice includes:
 
 This is query-construction/execution sugar over SwifQL and DuckDB, not an ORM or repository layer.
 
+## Implemented Scoped Transaction Slice
+
+The current public transaction capability includes:
+
+- caller-isolated `Connection.transaction` with an explicit `Transaction` capability for same-Connection scoped work;
+- one pending or active transaction reservation per `Connection`, while separate Connections remain independent;
+- caller-local SwifQL preparation with actor registration before transaction query preparation can fail;
+- reservation-local FIFO serialization with at most one native-active transaction operation at a time;
+- rollback-only semantics that retain the first database/cancellation failure, wake non-active siblings, and prevent a later successful body return from false-committing;
+- transaction finalization that invalidates non-active/escaped work and waits only for already-native-active work to drain;
+- body-error/cancellation rollback and conservative fail-close behavior when mandatory cleanup fails;
+- COMMIT setup failure rollback/reuse behavior before native scheduling and terminal Connection fail-close after an ambiguous post-scheduling COMMIT error;
+- rejection of user-issued BEGIN/COMMIT/ROLLBACK through the normal public execution routes;
+- durable deterministic runtime/state-machine coverage for the supported transaction semantics without timing tests or test-only production hooks.
+
+The current transaction slice does not add savepoints, custom isolation/READ ONLY modes, manual transaction lifecycle control, or pooling. Verified debt for deterministic active-pending cancellation integration and post-COMMIT Connection recovery remains tracked separately in `TECH_DEBT.md`.
+
 ## Current Native Packaging Decision
 
 The current architecture uses generated DuckDB v1.5.5 source vendored into internal target `Cduckdb`. This is implemented current state, not an open source-vs-prebuilt decision.
@@ -63,7 +82,6 @@ The following are not yet approved/implemented architecture unless later resolve
 
 - long-term DuckDB upgrade/version policy beyond the current v1.5.5 pin;
 - optional extension and bundle-size strategy beyond the current generated extension set;
-- public transaction API and transaction isolation/lifetime semantics;
 - public reusable prepared-statement identity/lifetime API;
 - Appender API;
 - Codable/model decoding or encoding;

@@ -5,7 +5,6 @@ Ideas that are not active approved implementation tasks.
 - Define the long-term DuckDB upgrade/version policy beyond the approved current v1.5.5 source snapshot.
 - Evaluate optional DuckDB extensions and bundle-size tradeoffs beyond the current generated extension set.
 - Research a public reusable prepared-statement API, including identity, lifetime, invalidation, binding reuse, cancellation, and actor ownership.
-- Research public transaction semantics, including ownership, isolation, nesting policy, cancellation, and connection lifetime.
 - Research Appender support and its native lifetime/concurrency boundary.
 - Evaluate Codable/model decoding and encoding beyond the current explicit `Row` / `Value` result surface.
 - Evaluate expansion of result/binding support into currently unsupported temporal, Decimal, UUID, 128-bit, and complex DuckDB families.

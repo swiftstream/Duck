@@ -152,6 +152,37 @@ let rowsChanged = try await SwifQL
 
 `rowsChanged` is a `UInt64`.
 
+## Transactions
+
+Use `Connection.transaction` for a scoped transaction. Work on that same connection that should participate in the transaction must use the supplied `Transaction` capability:
+
+```swift
+let users = Path.Table("users")
+
+let result = try await connection.transaction { transaction in
+    try await SwifQL
+        .insertInto(users, fields: "email", "name", "role")
+        .values
+        .values("mira@example.com", "Mira", "admin")
+        .execute(on: transaction)
+
+    return try await SwifQL
+        .select(users.column("email"), users.column("name"))
+        .from(users)
+        .query(on: transaction)
+}
+```
+
+A successful body commits only after COMMIT succeeds. A thrown body error or cancellation rolls the transaction back. A database operation failure also marks the transaction rollback-only even if you catch that error inside the body; returning successfully afterward still rolls back and surfaces the stored first database failure.
+
+Use the supplied `Transaction` for same-Connection work inside the scope. Calling ordinary query/execute APIs on that same `Connection` from a live transaction body is rejected rather than silently joining the transaction. Transaction work that should participate in the scope must be awaited before the body returns.
+
+A `Transaction` is scoped capability, not a reusable connection mode. Work attempted through an escaped transaction after finalization is rejected with `.transactionEnded`. Starting another transaction on the same `Connection` while one is pending or active is rejected with `.transactionAlreadyActive`. Separate `Connection` values remain independent.
+
+If mandatory rollback cleanup fails while another error is already being handled, SwiftDuckDB throws `TransactionRollbackError`, preserving both `originalError` and the typed `rollbackError`. That `Connection` is fail-closed; later work receives `.connectionUnusable`, and callers should create a fresh connection. A COMMIT failure after native execution scheduling has begun is also treated conservatively: SwiftDuckDB does not retry or issue a compensating rollback because the native commit postcondition is no longer safe to infer, and that connection is fail-closed. A COMMIT setup failure that occurs before native scheduling runs mandatory rollback cleanup and may leave the connection reusable when cleanup succeeds. Do not parse diagnostic strings to infer which internal failure stage occurred.
+
+The current transaction API does not advertise READ ONLY modes, custom isolation levels, savepoints, manual BEGIN/COMMIT/ROLLBACK lifecycle control, or transaction pooling.
+
 ## Reading results
 
 `QueryResult` contains ordered column names, rows, and `rowsChanged`:
@@ -213,7 +244,7 @@ Cancellation is cooperative at those boundaries. SwiftDuckDB does not promise in
 
 ## Errors
 
-Public database/query failures use `DatabaseError` cases for database opening, connection opening, preparation, binding, execution, unsupported bind/result types, and invalid native result state.
+Public database/query/transaction failures use `DatabaseError` cases for database opening, connection opening, preparation, binding, execution, unsupported bind/result types, invalid native result state, transaction scope/lifecycle failures, and terminal `.connectionUnusable` state.
 
 Native diagnostic strings are useful diagnostics, but their exact text is not a stable symbolic-type contract.
 
@@ -231,6 +262,6 @@ Treat `SwifQL.raw(...)` as an escape hatch. Normal SwiftDuckDB examples should p
 
 ## Current scope
 
-The current public slice covers database/connection ownership, SwifQL query execution, primitive binding/result values, mutation row counts, typed-table selected-column convenience, structured connection concurrency, and cancellation-aware execution.
+The current public slice covers database/connection ownership, SwifQL query execution, scoped transactions, primitive binding/result values, mutation row counts, typed-table selected-column convenience, structured connection concurrency, and cancellation-aware execution.
 
-The current API does not yet advertise transactions, public prepared-statement reuse, Appender, Codable model decoding, ORM/repository semantics, connection pooling, observation/reactive queries, migrations, or complex/temporal/Decimal/UUID/128-bit result families.
+The current API does not yet advertise public prepared-statement reuse, Appender, Codable model decoding, ORM/repository semantics, connection pooling, observation/reactive queries, migrations, savepoints/manual transaction lifecycle controls, custom transaction isolation modes, or complex/temporal/Decimal/UUID/128-bit result families.

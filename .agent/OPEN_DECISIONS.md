@@ -9,12 +9,11 @@ Unresolved choices that must not be treated as implemented architecture.
 
 ## Future Public Resource APIs
 
-The current `Database` / `Connection` / `QueryResult` / `Row` / `Value` slice is implemented and is no longer an open design question.
+The current `Database` / `Connection` / `Transaction` / `QueryResult` / `Row` / `Value` slice is implemented and is no longer an open design question. Scoped transaction ownership, same-Connection execution, nesting rejection, rollback-only/finalization behavior, and independent-Connection semantics are reviewed current state.
 
 Still unresolved for future separately reviewed capabilities:
 
 - public reusable prepared-statement identity, ownership, invalidation, and concurrency semantics;
-- public transaction ownership/isolation/nesting semantics;
 - Appender ownership/lifetime/concurrency semantics;
 - whether a future connection-pool capability is justified and, if so, its ownership/backpressure semantics.
 

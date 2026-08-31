@@ -18,12 +18,22 @@ Durable current-state facts useful beyond immediate source inspection.
 - Async execution uses DuckDB pending execution, cooperative Swift cancellation checks, and same-owner `duckdb_interrupt` when cancellation is observed at the implemented active-pending boundaries. Cancellation surfaces as Swift `CancellationError`; no instantaneous preemption guarantee is made for a synchronous native C call already in progress.
 - Public result memory is Swift-owned. `QueryResult` contains columns, rows, and `rowsChanged`; `Row` supports positional and named lookup; SQL NULL is explicit `Value.null` while a missing named column returns `nil`.
 - Current public `Value` result cases are null, Bool, signed/unsigned 8/16/32/64-bit integers, Float, Double, String, and Foundation Data BLOB.
-- Public `DatabaseError` distinguishes database/connection opening, preparation, binding, execution, unsupported binding/result type, and invalid-result failures.
+- Public `DatabaseError` distinguishes database/connection opening, preparation, binding, execution, unsupported binding/result type, invalid-result failures, transaction lifecycle/scope failures, and terminal `.connectionUnusable` state.
 - Query-centered `SwifQLable.query(on:)` / `.execute(on:)` are thin delegates to the same Connection engine.
 - Typed-table selected-column syntax such as `User.select(\.$email, \.$name, \.$role)` is implemented as SwifQL `TableSelector` construction sugar and preserves ordinary SwifQL `where`, `orderBy`, `limit`, alias, and related composition.
+- Public `Connection.transaction` is implemented as a caller-isolated async scoped capability. The supplied `Transaction` is `Sendable` and represents exact same-Connection transaction authority without owning native handles.
+- Each `Connection` permits at most one pending or active transaction reservation. Separate Connections retain independent transaction/admission/fail-close state.
+- Transaction query/execute registers operation state on the Connection actor before caller-local SwifQL preparation; reservation-local native execution is FIFO with at most one native-active operation.
+- A transaction operation failure makes the scope rollback-only even when the body catches that error; the first rollback-only reason is retained, non-active siblings are terminally resolved, and a later successful body return cannot false-commit.
+- Finalization closes new transaction work, invalidates escaped/non-active capability use with `.transactionEnded`, and waits only for already-native-active work to drain.
+- Successful body completion commits only after COMMIT succeeds. Body error/cancellation rolls back; mandatory rollback cleanup failure fail-closes the Connection.
+- User BEGIN/COMMIT/ROLLBACK is rejected through the normal Connection and Transaction query/execute routes using prepared-statement transaction classification.
+- COMMIT setup failure before native scheduling performs mandatory rollback cleanup and can leave the Connection reusable when cleanup succeeds. Any surfaced COMMIT error after native scheduling has been attempted receives no compensating rollback/retry and terminally fail-closes that Connection because a safe native transaction postcondition is not publicly machine-readable.
+- The accepted transaction regression matrix contains 29 focused transaction tests. The current transaction README/durable-state candidate passes exact Swift 6.3.3 build and the complete 64-test suite with no first-party compiler warnings/errors.
+- Both verified transaction-adjacent debt entries remain open: deterministic active-pending cancellation integration evidence and post-COMMIT scheduling Connection recovery.
 - SwifQL is mandatory for all SwiftDuckDB-owned SQL construction in production code, tests, examples, and README executable Swift. Explicit raw SQL is represented through `SwifQL.raw(...)`; there is no normal public handwritten-String query/execute API.
 - Direct C lifecycle/resource tests may call DuckDB C functions directly, but repository-owned normal SQL for those tests is still constructed through SwifQL `.duck`; raw negative/native-contract cases remain explicit.
-- The full final Swift 6.3.3 validation after README and the final comment-only source cleanup passes a fresh build and the complete unfiltered 33-test suite with no first-party compiler warnings/errors. Existing warnings are confined to vendored Cduckdb/ICU code.
+- The historical first-public-query 33-test count is superseded by the current scoped-transaction 64-test validation state. Existing non-first-party warnings remain confined to vendored Cduckdb/ICU code.
 
 ## Reviewed Direction
 
@@ -34,5 +44,5 @@ Durable current-state facts useful beyond immediate source inspection.
 - SwifQL remains the mandatory query-construction layer. SwiftDuckDB must not grow a competing SQL DSL or ordinary String execution API.
 - README executable usage uses SwifQL only; plain SQL may appear only as explanatory comparison, and raw SQL is documented only as an explicit escape hatch.
 - The desired database UX is concise and Swift-native while keeping concrete database/connection ownership visible.
-- Development proceeds capability by capability. Transactions, reusable prepared statements, Appender, Codable/model decoding, pooling, observation/reactivity, migrations, unsupported result-family expansion, and additional platform validation all require separate research/planning before implementation.
+- Development proceeds capability by capability. Scoped transactions are implemented current state; reusable prepared statements, Appender, Codable/model decoding, pooling, observation/reactivity, migrations, unsupported result-family expansion, and additional platform validation still require separate research/planning before implementation.
 - Local repository work is CodexMCP2-first to the maximum technically possible extent. If CodexMCP2 becomes unavailable, repository work stops until it is restored. A local Codex/Luna executor is only a fallback for required executable operations that the exposed CodexMCP2 surface cannot technically perform.
