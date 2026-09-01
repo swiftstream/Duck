@@ -43,6 +43,15 @@ final class NativePreparedStatement {
         Int(duckdb_nparams(handle))
     }
 
+    func clearBindings() throws {
+        guard duckdb_clear_bindings(handle) == DuckDBSuccess else {
+            throw NativeDuckDBError(
+                operation: .binding,
+                message: "DuckDB failed to clear prepared statement bindings."
+            )
+        }
+    }
+
     func bind(_ value: Value, at index: Int) throws {
         guard index > 0, index <= parameterCount else {
             throw NativeDuckDBError(
