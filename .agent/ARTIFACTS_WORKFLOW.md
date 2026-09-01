@@ -102,10 +102,19 @@ Do not grow an old correction prompt indefinitely.
 
 ## Validation Fallback Prompts
 
-When CodexMCP2 cannot technically run a required compiler/runtime/generator command:
+When CodexMCP2 cannot technically run a required compiler/runtime/generator command, delegate that command execution to a **local Codex/Luna executor**.
+
+The tooling contract is mandatory and role-specific:
+
+- the local Codex/Luna executor must use its **own built-in local repository/filesystem/Git/shell/command tools** on the developer machine;
+- every Codex/Luna executor/validator prompt must explicitly **forbid CodexMCP2** and must not make CodexMCP2 availability a precondition;
+- do not copy the ChatGPT Sol-auditor `CodexMCP2-only` rule into a local executor prompt;
+- conversely, fresh Sol-auditor prompts under `.artifacts/reviews/**` remain **CodexMCP2-only** because those auditors run in ChatGPT rather than as local agents.
+
+For the fallback itself:
 
 - create a narrow English prompt file under the active artifact lineage;
-- give the maintainer a short copy-paste English mini-prompt;
+- give the maintainer a short copy-paste English mini-prompt preserving `local own tools required; CodexMCP2 forbidden`;
 - normally forbid tracked source/Git mutation;
 - allow only necessary generated artifacts/report paths;
 - validator stops on failure and does not fix code;
@@ -201,7 +210,13 @@ A reconstructed handoff should normally contain:
 - active dependency/API facts;
 - active artifact index;
 - exact next action;
-- CodexMCP2/fallback/root-audit rules needed for continuation.
+- the explicit role/tool split, repeated even when it already exists in stable governance:
+  - **coordinator/reviewer in ChatGPT:** CodexMCP2 for local repository evidence/mutation;
+  - **local Codex/Luna implementation/validation executor:** own local repository/filesystem/Git/shell tools required; **CodexMCP2 forbidden and never a precondition**;
+  - **fresh Sol auditor in ChatGPT:** **CodexMCP2-only** local evidence; STOP if it is unavailable;
+- any additional fallback/root-audit constraints needed for continuation.
+
+This role/tool split is continuity-critical and must not be omitted from `.artifacts/NEW_CHAT.md`; preserving it prevents a fresh coordinator from generating an executor prompt with the auditor's connector contract or vice versa.
 
 After a major release/phase closure, consolidate historical artifacts worth retaining into a compact archive/rationale, refresh `NEW_CHAT.md`, and ensure no completed old executor packages look like active lineages.
 

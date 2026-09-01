@@ -32,21 +32,27 @@ A local Codex/Luna or other executor is a fallback, not the default repository e
 
 Use it only for a required operation that the exposed CodexMCP2 action surface cannot technically perform, for example compiler/build/test commands.
 
+**Tooling is role-specific and must never be inverted:** a local Codex/Luna executor runs on the developer machine and must use its **own built-in local repository/filesystem/Git/shell/command tools**. Its prompt must explicitly **forbid CodexMCP2** and must not require any ChatGPT-only connector. CodexMCP2 availability is irrelevant to whether a local Codex/Luna executor may inspect the repository or run commands.
+
 The fallback executor:
 
 - receives a narrow English prompt file under `.artifacts/**`;
+- is explicitly told to use its own local Codex/Luna file, repository, Git, and shell/command capabilities;
+- is explicitly forbidden from using or depending on CodexMCP2, old CodexMCP, ChatGPT connectors, SSH connectors, AlexLaptop, or another remote/local proxy when its own local tools are sufficient;
 - modifies only the explicitly allowed scope, often no tracked source at all for validation-only tasks;
 - stops instead of inventing architecture/workarounds when the reviewed operation fails;
 - records exact raw evidence/report;
 - never earns acceptance merely by reporting PASS.
 
-The coordinator independently inspects resulting repository/evidence through CodexMCP2.
+The coordinator independently inspects resulting repository/evidence through CodexMCP2 after the executor returns.
 
-When a fallback is required, also give the maintainer a short copy-paste English mini-prompt that tells the executor to read and execute the full prompt file exactly.
+When a fallback is required, also give the maintainer a short copy-paste English mini-prompt that tells the executor to read and execute the full prompt file exactly. That mini-prompt must preserve the same role/tool split: **local Codex/Luna own tools required; CodexMCP2 forbidden**.
 
 ### Fresh Root Auditor
 
 A root auditor is a **fresh independent adversarial review session**, separate from the implementation executor and from the coordinator's own implementation reasoning.
+
+Unlike a local Codex/Luna executor, the fresh Sol auditor runs in ChatGPT where the approved local-repository bridge is CodexMCP2. **Sol-auditor prompts therefore require CodexMCP2-only local evidence and must not inherit the local-executor CodexMCP2 prohibition.**
 
 The root auditor:
 
