@@ -11,12 +11,12 @@ This file owns roles, delegation, review, root-audit cadence, and gates. Detaile
 For non-trivial work, the coordinator/reviewer:
 
 - restores current context from actual Git, source, stable docs, and current dependency evidence;
-- uses CodexMCP2 for local repository/source/tests/Git/history/.agent/.artifacts work to the maximum technically possible extent;
+- uses the role/session's configured approved repository interface for local repository/source/tests/Git/history/.agent/.artifacts work to the maximum technically possible extent;
 - performs or directs focused research;
 - writes a detailed implementation plan and independently audits it before production mutation;
 - surfaces unresolved architecture/API decisions before implementation rather than letting an executor invent them;
 - decomposes substantial work into numbered surgical tasks/correction waves when that improves stop conditions and reviewability;
-- directly performs repository mutations through CodexMCP2 where technically possible;
+- directly performs repository mutations through the configured approved repository interface where technically possible and authorized;
 - independently inspects actual source, diff, Git state, and validation evidence after every task/logical checkpoint;
 - converts findings into the smallest correction scope rather than broad workaround prompts;
 - synchronizes durable stable documentation after accepted work;
@@ -24,46 +24,46 @@ For non-trivial work, the coordinator/reviewer:
 
 Executor/validator reports are evidence, never proof.
 
-If CodexMCP2 becomes unavailable, stops responding, or cannot provide ordinary repository access that it should support, **STOP immediately** and ask the maintainer to restore it. Do not silently switch to another local connector.
+If the configured repository interface becomes unavailable, stops responding, or cannot provide ordinary repository access that it should support, **STOP that role/session immediately** and ask the maintainer to restore or explicitly reconfigure it. Do not silently switch to an unreviewed substitute interface.
 
 ### Implementation / Validation Executor
 
-A local Codex/Luna or other executor is a fallback, not the default repository editor.
+A direct local implementation/validation executor is a fallback, not the default repository editor.
 
-Use it only for a required operation that the exposed CodexMCP2 action surface cannot technically perform, for example compiler/build/test commands.
+Use it only for a required operation that the coordinator's configured repository interface cannot technically perform, for example compiler/build/test commands.
 
-**Tooling is role-specific and must never be inverted:** a local Codex/Luna executor runs on the developer machine and must use its **own built-in local repository/filesystem/Git/shell/command tools**. Its prompt must explicitly **forbid CodexMCP2** and must not require any ChatGPT-only connector. CodexMCP2 availability is irrelevant to whether a local Codex/Luna executor may inspect the repository or run commands.
+**Tooling is role-specific and must never be inverted:** the local executor runs on the developer machine and must use its **own direct local repository/filesystem/Git/shell/command tools**. Its prompt must not require or depend on a repository bridge that exists only in the coordinator or auditor environment. Availability of such a bridge is irrelevant to whether the local executor may inspect the repository or run commands directly.
 
 The fallback executor:
 
 - receives a narrow English prompt file under `.artifacts/**`;
-- is explicitly told to use its own local Codex/Luna file, repository, Git, and shell/command capabilities;
-- is explicitly forbidden from using or depending on CodexMCP2, old CodexMCP, ChatGPT connectors, SSH connectors, AlexLaptop, or another remote/local proxy when its own local tools are sufficient;
+- is explicitly told to use its own direct local file, repository, Git, and shell/command capabilities;
+- is explicitly forbidden from depending on coordinator-only, auditor-only, remote, or proxy repository interfaces when its own direct local tools are sufficient;
 - modifies only the explicitly allowed scope, often no tracked source at all for validation-only tasks;
 - stops instead of inventing architecture/workarounds when the reviewed operation fails;
 - records exact raw evidence/report;
 - never earns acceptance merely by reporting PASS.
 
-The coordinator independently inspects resulting repository/evidence through CodexMCP2 after the executor returns.
+The coordinator independently inspects resulting repository/evidence through the coordinator's configured repository interface after the executor returns.
 
-When a fallback is required, also give the maintainer a short copy-paste English mini-prompt that tells the executor to read and execute the full prompt file exactly. That mini-prompt must preserve the same role/tool split: **local Codex/Luna own tools required; CodexMCP2 forbidden**.
+When a fallback is required, also give the maintainer a short copy-paste English mini-prompt that tells the executor to read and execute the full prompt file exactly. That mini-prompt must preserve the same role/tool split: **direct local executor tools required; coordinator/auditor-only repository bridges are not executor preconditions**.
 
 ### Fresh Root Auditor
 
 A root auditor is a **fresh independent adversarial review session**, separate from the implementation executor and from the coordinator's own implementation reasoning.
 
-Unlike a local Codex/Luna executor, the fresh Sol auditor runs in ChatGPT where the approved local-repository bridge is CodexMCP2. **Sol-auditor prompts therefore require CodexMCP2-only local evidence and must not inherit the local-executor CodexMCP2 prohibition.**
+The auditor uses the **configured approved repository interface for that independent audit session**, which may differ from the local executor's direct-tool environment. Auditor prompts must freeze the concrete session-specific interface requirement in transient `.artifacts/**`; stable governance records only this role/capability boundary.
 
 The root auditor:
 
 - receives a frozen/reviewed English audit package under `.artifacts/reviews/**`;
-- uses CodexMCP2 only for local repository/source/tests/Git/history/.agent/.artifacts/evidence inspection;
+- uses only the configured approved audit-session repository interface for local repository/source/tests/Git/history/.agent/.artifacts/evidence inspection;
 - independently reads actual source/diff/evidence instead of trusting coordinator/executor summaries;
 - treats green tests as necessary evidence, not proof of correct architecture;
 - may write only the explicitly authorized audit report path;
 - never edits candidate source/tests/stable docs/index/history/refs;
 - returns a compact verdict plus report path/hash when practical;
-- STOPs if CodexMCP2 is unavailable or the frozen candidate/audit preconditions differ materially.
+- STOPs if its configured repository interface is unavailable or the frozen candidate/audit preconditions differ materially.
 
 A root-audit PASS/CLEAN is still reviewed by the coordinator before the next gate opens.
 
@@ -75,7 +75,7 @@ verify actual repository state
 -> detailed persisted plan
 -> independent plan audit
 -> surgical implementation tasks
--> CodexMCP2-first implementation
+-> configured-interface-first implementation
 -> required validation
 -> coordinator source/diff/Git audit
 -> fresh root audit at material phase gate
@@ -90,7 +90,7 @@ Detailed task/report/handoff mechanics are owned by `ARTIFACTS_WORKFLOW.md`.
 
 ## Root Audit Cadence
 
-Do **not** invoke a fresh root auditor after every tiny task. Coordinator CodexMCP2 audit + required validation is the normal per-task gate.
+Do **not** invoke a fresh root auditor after every tiny task. Coordinator audit through the configured repository interface + required validation is the normal per-task gate.
 
 A fresh root auditor is mandatory when any of these is true:
 
@@ -127,7 +127,7 @@ Known plan defects are corrected before implementation.
 
 ## Independent Coordinator Audit
 
-After each material implementation/correction batch, inspect through CodexMCP2:
+After each material implementation/correction batch, inspect through the coordinator's configured repository interface:
 
 - complete Git status and changed paths;
 - full changed/created source and direct callers;
@@ -154,7 +154,7 @@ The prompt must specify:
 - repository and role;
 - exact candidate/baseline;
 - dimensions to audit;
-- CodexMCP2-only local evidence rule;
+- exact configured audit-session repository-interface rule;
 - only authorized write;
 - Git/source/stable-doc mutation prohibitions;
 - stop conditions;

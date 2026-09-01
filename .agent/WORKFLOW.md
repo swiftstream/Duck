@@ -15,21 +15,21 @@ Tiny typo/format-only corrections may skip a formal persisted plan but still req
 
 Role/gate details are owned by `DEVELOPMENT_ORCHESTRATION.md`. Artifact/task/report/handoff mechanics are owned by `ARTIFACTS_WORKFLOW.md`.
 
-## CodexMCP2-First Repository Work
+## Configured Repository Interface
 
-Use **CodexMCP2** for local SwiftDuckDB and relevant dependency/reference repository work to the maximum extent technically possible:
+Coordinator/reviewer and independent-auditor work must use the **configured approved repository interface for that role/session** to the maximum extent technically possible:
 
 - repository/dependency discovery;
 - source/docs/tests/Git/history inspection;
-- file mutation;
+- file mutation when that role is authorized to mutate;
 - planning/review artifacts;
 - independent audits.
 
-Do not delegate ordinary repository edits to a local coding agent merely because a task is large.
+Do not delegate ordinary repository edits to a separate local executor merely because a task is large.
 
-If a required executable operation is technically unavailable through CodexMCP2, use only the narrow fallback process defined by `DEVELOPMENT_ORCHESTRATION.md` and `ARTIFACTS_WORKFLOW.md`: full English prompt file + copy-paste mini-prompt + bounded permissions + independent CodexMCP2 inspection afterward.
+If a required executable operation is technically unavailable through the coordinator's configured repository interface, use only the narrow local-executor fallback process defined by `DEVELOPMENT_ORCHESTRATION.md` and `ARTIFACTS_WORKFLOW.md`: full English prompt file + copy-paste mini-prompt + bounded permissions + independent coordinator inspection afterward through the coordinator's configured repository interface.
 
-If CodexMCP2 becomes unavailable or stops providing required local repository access, **STOP** and ask the maintainer to restore it. Do not switch to older CodexMCP, SSH, container/Python filesystem access, or another local connector as a substitute.
+If the configured repository interface becomes unavailable or stops providing required ordinary repository access, **STOP that role/session** and ask the maintainer to restore or explicitly reconfigure it. Do not silently switch to an unreviewed substitute interface.
 
 ## Research Gate
 
@@ -107,13 +107,13 @@ Use the smallest evidence that can confirm/reject behavior, escalating when requ
 - external consumer/platform validation;
 - exact Git diff/status review.
 
-When compiler/runtime execution is unavailable through CodexMCP2, use the narrow fallback process. Validators report failures and do not opportunistically fix source.
+When compiler/runtime execution is unavailable through the coordinator's configured repository interface, use the narrow local-executor fallback process. Validators report failures and do not opportunistically fix source.
 
 ## Independent Coordinator Audit
 
 Implementation reports are navigation aids, not proof.
 
-After every material task/checkpoint, independently inspect through CodexMCP2:
+After every material task/checkpoint, independently inspect through the coordinator's configured repository interface:
 
 - changed path set;
 - complete changed source and direct callers;

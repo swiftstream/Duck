@@ -7,7 +7,7 @@ Navigation map for the current accepted SwiftDuckDB repository state.
 - `AGENTS.md`: root routing, authority, repository identity, and mandatory workflow.
 - `.agent/SYSTEM_RULES.md`: global project invariants.
 - `.agent/WORKFLOW.md`: top-level research/plan/implement/audit workflow.
-- `.agent/DEVELOPMENT_ORCHESTRATION.md`: model-independent coordinator/executor/root-auditor roles, CodexMCP2-first delegation, audit cadence, and gates.
+- `.agent/DEVELOPMENT_ORCHESTRATION.md`: model-independent coordinator/executor/root-auditor roles, role-specific repository-interface delegation, audit cadence, and gates.
 - `.agent/ARTIFACTS_WORKFLOW.md`: transient `.artifacts/**`, numbered tasks/corrections, append-only reports, root-audit packages, and `NEW_CHAT.md` handoff rules.
 - `.agent/COMMIT_RULES.md`: Git/file-safety and commit-subject policy.
 - `.agent/STYLE_GUIDELINES.md`: common Swift source conventions.
@@ -26,7 +26,7 @@ Navigation map for the current accepted SwiftDuckDB repository state.
 - `.agent/TASKS_ARCHIVE.md`: compact completed milestone history.
 - `.agent/TODO.md`: non-approved future ideas.
 
-There is intentionally no model-specific stable `CHATGPT.md`. Session-specific continuation/tool details belong in transient `.artifacts/NEW_CHAT.md`; model-independent orchestration belongs in `DEVELOPMENT_ORCHESTRATION.md`.
+There is intentionally no model/provider/tool-specific stable session-orchestration file. Session-specific continuation/tool details belong in transient `.artifacts/NEW_CHAT.md`; model-independent orchestration belongs in `DEVELOPMENT_ORCHESTRATION.md`.
 
 ## Package / Public Surface
 

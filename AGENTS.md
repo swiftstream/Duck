@@ -46,7 +46,7 @@ Use **RESEARCH -> PLAN -> IMPLEMENT -> AUDIT** for every non-trivial task.
 - If implementation invalidates a material reviewed assumption, stop that path and revise/review the plan.
 - Independently verify actual source/docs/build/Git evidence after implementation; do not accept an implementation report as proof.
 
-Full process: `.agent/WORKFLOW.md`. Model-independent role/audit gates are owned by `.agent/DEVELOPMENT_ORCHESTRATION.md`; transient artifact/task/handoff mechanics are owned by `.agent/ARTIFACTS_WORKFLOW.md`. Repository work is CodexMCP2-first; if CodexMCP2 becomes unavailable, repository work stops until the maintainer restores it.
+Full process: `.agent/WORKFLOW.md`. Model-independent role/audit gates are owned by `.agent/DEVELOPMENT_ORCHESTRATION.md`; transient artifact/task/handoff mechanics are owned by `.agent/ARTIFACTS_WORKFLOW.md`. Repository work uses the current role/session's configured approved repository interface; if that interface becomes unavailable for required ordinary work, stop that role until it is restored or explicitly reconfigured rather than silently switching to an unreviewed substitute.
 
 ## Swift Code Policy Routing
 

@@ -23,7 +23,7 @@ restore current repository context
 -> IMPLEMENTATION_PLAN
 -> independent PLAN_AUDIT
 -> numbered implementation tasks when useful
--> CodexMCP2-first execution
+-> configured-interface-first execution
 -> append execution evidence after each task
 -> coordinator source/diff/Git audit
 -> root audit at material phase gate
@@ -102,23 +102,23 @@ Do not grow an old correction prompt indefinitely.
 
 ## Validation Fallback Prompts
 
-When CodexMCP2 cannot technically run a required compiler/runtime/generator command, delegate that command execution to a **local Codex/Luna executor**.
+When the coordinator's configured repository interface cannot technically run a required compiler/runtime/generator command, delegate that command execution to a **direct local implementation/validation executor**.
 
 The tooling contract is mandatory and role-specific:
 
-- the local Codex/Luna executor must use its **own built-in local repository/filesystem/Git/shell/command tools** on the developer machine;
-- every Codex/Luna executor/validator prompt must explicitly **forbid CodexMCP2** and must not make CodexMCP2 availability a precondition;
-- do not copy the ChatGPT Sol-auditor `CodexMCP2-only` rule into a local executor prompt;
-- conversely, fresh Sol-auditor prompts under `.artifacts/reviews/**` remain **CodexMCP2-only** because those auditors run in ChatGPT rather than as local agents.
+- the local executor must use its **own direct local repository/filesystem/Git/shell/command tools** on the developer machine;
+- executor/validator prompts must not require or depend on repository bridges that exist only in coordinator/auditor environments and must not make such bridge availability a precondition;
+- do not copy an auditor-session repository-interface requirement into a local executor prompt;
+- conversely, independent-auditor prompts under `.artifacts/reviews/**` must freeze the exact approved repository interface for that audit session rather than assuming the local executor's direct-tool environment.
 
 For the fallback itself:
 
 - create a narrow English prompt file under the active artifact lineage;
-- give the maintainer a short copy-paste English mini-prompt preserving `local own tools required; CodexMCP2 forbidden`;
+- give the maintainer a short copy-paste English mini-prompt preserving `direct local executor tools required; coordinator/auditor-only bridges are not executor preconditions`;
 - normally forbid tracked source/Git mutation;
 - allow only necessary generated artifacts/report paths;
 - validator stops on failure and does not fix code;
-- coordinator inspects the report/repository through CodexMCP2 afterward.
+- coordinator inspects the report/repository afterward through the coordinator's configured repository interface.
 
 ## Root Audit Packages
 
@@ -148,7 +148,7 @@ It is routing/preparation evidence, never proof.
 
 ### `ROOT_AUDIT_PROMPT.md`
 
-Full English independent-auditor contract. It must require actual source/diff/evidence inspection through CodexMCP2 and forbid candidate mutations.
+Full English independent-auditor contract. It must require actual source/diff/evidence inspection through the exact configured approved repository interface for that audit session and forbid candidate mutations.
 
 ### `ROOT_AUDIT_ENTRYPOINT_FROZEN.md`
 
@@ -189,12 +189,12 @@ Refresh it after continuity-critical transitions such as:
 
 Replace stale continuation instructions instead of appending history forever.
 
-A fresh chat should:
+A fresh coordinator/reviewer session should:
 
-1. open SwiftDuckDB through CodexMCP2;
+1. open SwiftDuckDB through that session's configured approved repository interface;
 2. read `.artifacts/NEW_CHAT.md` if present;
 3. read `AGENTS.md` + `CONTEXT_LOADING_RULES.md` and only relevant stable owners;
-4. re-verify actual Git/source/task state through CodexMCP2;
+4. re-verify actual Git/source/task state through the configured repository interface;
 5. continue only the clearly active lineage.
 
 If `NEW_CHAT.md` or all artifacts are missing, reconstruct from stable docs + actual Git/source + current maintainer instruction. Never invent lost uncommitted evidence.
@@ -211,12 +211,12 @@ A reconstructed handoff should normally contain:
 - active artifact index;
 - exact next action;
 - the explicit role/tool split, repeated even when it already exists in stable governance:
-  - **coordinator/reviewer in ChatGPT:** CodexMCP2 for local repository evidence/mutation;
-  - **local Codex/Luna implementation/validation executor:** own local repository/filesystem/Git/shell tools required; **CodexMCP2 forbidden and never a precondition**;
-  - **fresh Sol auditor in ChatGPT:** **CodexMCP2-only** local evidence; STOP if it is unavailable;
+  - **coordinator/reviewer:** use that session's configured approved repository interface for local repository evidence/mutation;
+  - **direct local implementation/validation executor:** own direct local repository/filesystem/Git/shell tools required; coordinator/auditor-only repository bridges are not executor preconditions;
+  - **fresh independent auditor:** use only the configured approved repository interface for that audit session and STOP if it is unavailable;
 - any additional fallback/root-audit constraints needed for continuation.
 
-This role/tool split is continuity-critical and must not be omitted from `.artifacts/NEW_CHAT.md`; preserving it prevents a fresh coordinator from generating an executor prompt with the auditor's connector contract or vice versa.
+This role/tool split is continuity-critical and must not be omitted from `.artifacts/NEW_CHAT.md`; preserving it prevents a fresh coordinator from generating an executor prompt with the auditor's repository-interface contract or vice versa. The transient handoff may name the concrete tools/interfaces used by the current environment; stable governance must remain provider/tool-name independent.
 
 After a major release/phase closure, consolidate historical artifacts worth retaining into a compact archive/rationale, refresh `NEW_CHAT.md`, and ensure no completed old executor packages look like active lineages.
 

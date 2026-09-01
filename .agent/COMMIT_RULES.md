@@ -79,7 +79,7 @@ Rules:
 - One logical change per commit.
 - Prefer a subject-only commit message. Add a body only when non-obvious context is genuinely required for future archaeology.
 - Do not invent decorative emoji prefixes when one of the canonical semantic prefixes fits.
-- Do not add ChatGPT, Codex, Luna-Max, AI, or coding-agent attribution.
+- Do not add model, provider, tool, agent, or automated-assistance attribution.
 
 Examples:
 

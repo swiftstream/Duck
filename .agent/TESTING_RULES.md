@@ -97,6 +97,6 @@ Prioritize:
 
 ## Validation Executor Boundary
 
-CodexMCP2 remains the primary repository inspector/editor. When it cannot execute compiler/test commands, use the narrow fallback process in `DEVELOPMENT_ORCHESTRATION.md` and `ARTIFACTS_WORKFLOW.md`.
+The coordinator/reviewer uses its configured approved repository interface as the primary repository inspection/editing path. When that interface cannot execute compiler/test commands, use the narrow direct-local-executor fallback process in `DEVELOPMENT_ORCHESTRATION.md` and `ARTIFACTS_WORKFLOW.md`.
 
-A validation executor must not opportunistically fix source. It reports the exact failure; coordinator diagnoses and edits through CodexMCP2 unless the required operation itself is technically unavailable there.
+A validation executor must not opportunistically fix source. It reports the exact failure; the coordinator diagnoses and edits through the coordinator's configured repository interface unless the required operation itself is technically unavailable there.
