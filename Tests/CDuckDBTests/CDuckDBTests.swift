@@ -118,6 +118,40 @@ func executesPreparedStatement() throws {
     #expect(values.pointee == 42)
 }
 
+@Test("Clears, rebinds, and reuses one C prepared statement")
+func clearsRebindsAndReusesCPreparedStatement() throws {
+    var database: duckdb_database?
+    try #require(duckdb_open(nil, &database) == DuckDBSuccess)
+    defer { duckdb_close(&database) }
+
+    var connection: duckdb_connection?
+    try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
+    defer { duckdb_disconnect(&connection) }
+
+    let query = SwifQL
+        .select(Fn.cast(Int32(1), .integer) => "value")
+        .prepare(.duck)
+        .splitted
+    try #require(query.values.count == 1)
+
+    var statement: duckdb_prepared_statement?
+    try #require(duckdb_prepare(connection, query.query, &statement) == DuckDBSuccess)
+    defer { duckdb_destroy_prepare(&statement) }
+
+    let prepared = try #require(statement)
+    try #require(duckdb_bind_int32(prepared, 1, 11) == DuckDBSuccess)
+    #expect(try executeInt32(prepared) == 11)
+
+    try #require(duckdb_clear_bindings(prepared) == DuckDBSuccess)
+
+    var clearedResult = duckdb_result()
+    #expect(duckdb_execute_prepared(prepared, &clearedResult) == DuckDBError)
+    duckdb_destroy_result(&clearedResult)
+
+    try #require(duckdb_bind_int32(prepared, 1, 22) == DuckDBSuccess)
+    #expect(try executeInt32(prepared) == 22)
+}
+
 @Test("Destroys a failed prepared statement")
 func destroysFailedPreparedStatement() {
     var database: duckdb_database?
@@ -191,4 +225,18 @@ func reopensPersistentDatabase() throws {
     let vector = duckdb_data_chunk_get_vector(chunkHandle, 0)
     let values = try #require(duckdb_vector_get_data(vector)?.assumingMemoryBound(to: Int32.self))
     #expect(values.pointee == 42)
+}
+
+private func executeInt32(_ statement: duckdb_prepared_statement) throws -> Int32 {
+    var result = duckdb_result()
+    try #require(duckdb_execute_prepared(statement, &result) == DuckDBSuccess)
+    defer { duckdb_destroy_result(&result) }
+
+    var chunk = duckdb_fetch_chunk(result)
+    defer { duckdb_destroy_data_chunk(&chunk) }
+
+    let chunkHandle = try #require(chunk)
+    let vector = duckdb_data_chunk_get_vector(chunkHandle, 0)
+    let values = try #require(duckdb_vector_get_data(vector)?.assumingMemoryBound(to: Int32.self))
+    return values.pointee
 }

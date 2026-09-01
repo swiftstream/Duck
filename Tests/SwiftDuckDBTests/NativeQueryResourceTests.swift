@@ -153,10 +153,80 @@ func unsupportedResultTypesFailExplicitly() throws {
     }
 }
 
+@Test("Clears, rebinds, and reuses one native statement through pending execution")
+func clearsRebindsAndReusesNativeStatementThroughPendingExecution() throws {
+    let database = try NativeDatabase()
+    let connection = try database.connect()
+    let query = SwifQL
+        .select(Fn.cast(Int32(1), .integer) => "value")
+        .prepare(.duck)
+        .splitted
+    let statement = try connection.prepare(query.query)
+
+    try statement.bind(.int32(11), at: 1)
+    #expect(try executeInt32(statement) == 11)
+
+    try statement.clearBindings()
+    do {
+        _ = try executeInt32(statement)
+        Issue.record("Expected cleared bindings to prevent stale-value reuse.")
+    } catch let error as NativeDuckDBError {
+        #expect(
+            error.operation.rawValue == NativeDuckDBOperation.pendingCreation.rawValue
+                || error.operation.rawValue == NativeDuckDBOperation.execution.rawValue
+        )
+    }
+
+    try statement.bind(.int32(22), at: 1)
+    #expect(try executeInt32(statement) == 22)
+}
+
+@Test("Native statement remains reusable after a non-terminal execution failure")
+func nativeStatementRemainsReusableAfterNonTerminalExecutionFailure() throws {
+    let database = try NativeDatabase()
+    let connection = try database.connect()
+    let query = SwifQL
+        .select(Fn.cast("seed", .integer) => "value")
+        .prepare(.duck)
+        .splitted
+    let statement = try connection.prepare(query.query)
+
+    try statement.bind(.string("not-an-integer"), at: 1)
+    do {
+        _ = try executeInt32(statement)
+        Issue.record("Expected the invalid integer cast to fail during pending execution.")
+    } catch let error as NativeDuckDBError {
+        #expect(
+            error.operation.rawValue == NativeDuckDBOperation.pendingCreation.rawValue
+                || error.operation.rawValue == NativeDuckDBOperation.execution.rawValue
+        )
+    }
+
+    try statement.clearBindings()
+    try statement.bind(.string("42"), at: 1)
+    #expect(try executeInt32(statement) == 42)
+}
+
 private func execute(_ statement: NativePreparedStatement) throws -> NativeResult {
     let pending = try statement.pending()
 
     while try pending.executeTask() == .notReady {}
 
     return try pending.execute()
+}
+
+private func executeInt32(_ statement: NativePreparedStatement) throws -> Int32 {
+    let result = try execute(statement)
+    let materializedRows = try result.materializeNextChunk()
+    let rows = try #require(materializedRows)
+    let row = try #require(rows.first)
+    let value = try #require(row["value"])
+
+    guard case .int32(let int32) = value else {
+        Issue.record("Expected an Int32 result from the prepared statement.")
+        return 0
+    }
+
+    #expect(try result.materializeNextChunk() == nil)
+    return int32
 }
