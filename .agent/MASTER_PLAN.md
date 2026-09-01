@@ -32,7 +32,7 @@ Shared API and semantics remain platform-independent unless a concrete platform 
 6. Document the first public API in the root README using only implemented and validated behavior. **Done.**
 7. Implement, validate, and independently audit the first public scoped transaction capability. **Done.**
 8. Document the scoped transaction API and synchronize its durable project state. **Done.**
-9. Continue capability by capability only through separately researched, reviewed, implemented, and audited work. **Next direction; no new capability is implicitly authorized.**
+9. Implement the first public reusable prepared-statement capability through the independently accepted corrected plan, beginning with the native reusable prepared-statement contract and its R0 root gate. **Active approved implementation; no later capability is implicitly authorized.**
 
 ## Implemented First Public Query Slice
 
@@ -82,7 +82,7 @@ The following are not yet approved/implemented architecture unless later resolve
 
 - long-term DuckDB upgrade/version policy beyond the current v1.5.5 pin;
 - optional extension and bundle-size strategy beyond the current generated extension set;
-- public reusable prepared-statement identity/lifetime API;
+- any reusable prepared-statement behavior beyond the currently approved first-slice implementation plan;
 - Appender API;
 - Codable/model decoding or encoding;
 - observation/reactivity;

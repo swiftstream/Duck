@@ -4,14 +4,24 @@ Only active approved executable implementation work belongs here.
 
 ## Current State
 
-Active approved implementation work: **none**.
+Active approved implementation work: **Public Reusable Prepared Statements API**.
 
-The scoped Transactions Public API implementation, runtime/concurrency matrix, README, and durable-state synchronization are complete in the current reviewed candidate. Final closure evidence is handled through transient `.artifacts/**`; it does not authorize another implementation capability.
+The corrected implementation plan passed fresh independent Plan Re-audit 01 with blocker count 0. Implementation may proceed only through that accepted plan's ordered Tasks 01-06 and root gates R0-R3.
 
-The current public scoped API spelling is `Connection.transaction`; do not add a `withTransaction` compatibility API.
+Current executable task: **Task 01 — Native reusable prepared-statement contract**.
 
-Preserve verified TECH_DEBT entries, especially deterministic active-pending cancellation integration evidence and post-COMMIT scheduling Connection recovery. Neither closure condition was satisfied by the transaction implementation slice.
+Task 01 is limited to:
 
-Do not begin reusable prepared statements, Appender, Codable/model decoding, observation/reactivity, migrations, pooling, unsupported result-family expansion, or new platform work without maintainer approval and a fresh research -> plan -> implement -> audit cycle.
+- `Sources/SwiftDuckDB/Native/NativePreparedStatement.swift`;
+- `Tests/CDuckDBTests/CDuckDBTests.swift`;
+- `Tests/SwiftDuckDBTests/NativeQueryResourceTests.swift`.
 
-When a future implementation capability is approved, add only that concrete active executable work here and remove it again when its durable state has been synchronized.
+Task 01 must prove/wrap the pinned DuckDB v1.5.5 reusable lifecycle around `duckdb_clear_bindings`, complete rebind, repeated `duckdb_pending_prepared` execution, and correct native ownership/error cleanup. It must not add the public `Statement` API, a second execution engine, a SwifQL change, or any adjacent capability.
+
+After Task 01 validation, fresh independent **R0** root audit is mandatory before Task 02 may begin.
+
+The scoped Transactions Public API remains accepted current state. Preserve its exact semantics, including the public spelling `Connection.transaction`; do not add a `withTransaction` compatibility API or redesign its state machine as part of prepared statements.
+
+Preserve verified TECH_DEBT entries, especially deterministic active-pending cancellation integration evidence and post-COMMIT scheduling Connection recovery. Neither item is authorized or closed by this capability.
+
+Do not begin Appender, Codable/model decoding, observation/reactivity, migrations, pooling, unsupported result-family expansion, new platform work, or any prepared-statement behavior outside the accepted first-slice plan without separate maintainer approval and the required research/planning/audit cycle.
