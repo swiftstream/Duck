@@ -15,4 +15,8 @@ public enum DatabaseError: Error, Sendable, Equatable {
     case transactionCommit(String)
     case transactionRollback(String)
     case connectionUnusable(String)
+    case invalidStatementTemplate(String)
+    case statementArgumentCount(expected: Int, actual: Int)
+    case statementConnectionMismatch
+    case statementUnusable(String)
 }

@@ -46,7 +46,7 @@ private func exactCast<ValueType>(_ value: Any, as type: ValueType.Type) -> Valu
     return value as? ValueType
 }
 
-private func normalizeBinding(_ value: Any) throws -> Value {
+func normalizeBinding(_ value: Any) throws -> Value {
     if let optional = value as? OptionalBindingValue {
         guard let wrapped = optional.wrappedBindingValue else {
             return .null
@@ -136,6 +136,12 @@ private enum NativeCancellationPolicy: Equatable {
     case definitive
 }
 
+private struct PreparedStatementEntry {
+    let statement: NativePreparedStatement
+    let bindingLayout: [StatementBindingSource]
+    let dynamicArgumentCount: Int
+}
+
 public actor Connection {
     nonisolated let id: ConnectionId
 
@@ -148,6 +154,7 @@ public actor Connection {
     private var transactionOperationWaiters: [TransactionOperationId: CheckedContinuation<Void, Error>] = [:]
     private var transactionDrainWaiter: CheckedContinuation<Void, Never>?
     private var lifecycleStateMachine = TransactionLifecycleStateMachine()
+    private var preparedStatements: [StatementId: PreparedStatementEntry] = [:]
 
     init(database: Database, nativeDatabase: NativeDatabase) throws {
         self.id = ConnectionId()
@@ -166,6 +173,24 @@ public actor Connection {
         try await rejectLiveTransactionBodyMisuse(asTransaction: false)
         let snapshot = try PreparedQuerySnapshot(query)
         return try await executeOrdinaryStatement(snapshot)
+    }
+
+    public nonisolated(nonsending) func prepare(
+        _ query: any SwifQLable
+    ) async throws -> Statement {
+        try await rejectLiveTransactionBodyMisuse(asTransaction: false)
+        let snapshot = try StatementTemplateSnapshot(query)
+        return try await installPreparedStatement(snapshot)
+    }
+
+    public nonisolated(nonsending) func prepare(
+        _ build: (Statement.Parameters) throws -> any SwifQLable
+    ) async throws -> Statement {
+        try await rejectLiveTransactionBodyMisuse(asTransaction: false)
+        let parameters = Statement.Parameters()
+        let query = try build(parameters)
+        let snapshot = try StatementTemplateSnapshot(query, parameters: parameters)
+        return try await installPreparedStatement(snapshot)
     }
 
     public nonisolated(nonsending) func transaction<Result>(
@@ -295,6 +320,58 @@ public actor Connection {
         try await acquireOrdinaryLease()
         defer { releaseOrdinaryLease() }
         return try await executeUserSnapshot(snapshot, materializeRows: false).rowsChanged
+    }
+
+    private func installPreparedStatement(
+        _ snapshot: StatementTemplateSnapshot
+    ) async throws -> Statement {
+        try await acquireOrdinaryLease()
+        defer { releaseOrdinaryLease() }
+
+        do {
+            try Task.checkCancellation()
+            try ensureUsable()
+            let nativeStatement = try prepareNativeStatement(
+                sql: snapshot.sql,
+                policy: .user
+            )
+
+            guard nativeStatement.parameterCount == snapshot.bindingLayout.count else {
+                throw DatabaseError.invalidResult(
+                    "Reusable statement binding layout count does not match DuckDB parameter count."
+                )
+            }
+
+            let id = StatementId()
+            preparedStatements[id] = PreparedStatementEntry(
+                statement: nativeStatement,
+                bindingLayout: snapshot.bindingLayout,
+                dynamicArgumentCount: snapshot.dynamicArgumentCount
+            )
+            return Statement(
+                connection: self,
+                id: id,
+                dynamicArgumentCount: snapshot.dynamicArgumentCount
+            )
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as NativeDuckDBError {
+            throw mapNativeError(error)
+        }
+    }
+
+    func removePreparedStatement(_ id: StatementId) {
+        preparedStatements.removeValue(forKey: id)
+    }
+
+    func preparedStatementBindingLayout(
+        _ id: StatementId
+    ) -> [StatementBindingSource]? {
+        preparedStatements[id]?.bindingLayout
+    }
+
+    func preparedStatementDynamicArgumentCount(_ id: StatementId) -> Int? {
+        preparedStatements[id]?.dynamicArgumentCount
     }
 
     func acquireOrdinaryLease() async throws {
@@ -717,7 +794,20 @@ public actor Connection {
         _ snapshot: PreparedQuerySnapshot,
         policy: NativeStatementPolicy
     ) throws -> NativePreparedStatement {
-        let statement = try nativeConnection.prepare(snapshot.sql)
+        let statement = try prepareNativeStatement(sql: snapshot.sql, policy: policy)
+
+        for (offset, binding) in snapshot.bindings.enumerated() {
+            try statement.bind(binding, at: offset + 1)
+        }
+
+        return statement
+    }
+
+    private func prepareNativeStatement(
+        sql: String,
+        policy: NativeStatementPolicy
+    ) throws -> NativePreparedStatement {
+        let statement = try nativeConnection.prepare(sql)
 
         switch policy {
         case .user:
@@ -730,10 +820,6 @@ public actor Connection {
                     "Internal transaction lifecycle statement was not classified as a DuckDB transaction statement."
                 )
             }
-        }
-
-        for (offset, binding) in snapshot.bindings.enumerated() {
-            try statement.bind(binding, at: offset + 1)
         }
 
         return statement
@@ -964,7 +1050,9 @@ public actor Connection {
                  .transactionBegin(let message),
                  .transactionCommit(let message),
                  .transactionRollback(let message),
-                 .connectionUnusable(let message):
+                 .connectionUnusable(let message),
+                 .invalidStatementTemplate(let message),
+                 .statementUnusable(let message):
                 return message
             case .binding(_, let message):
                 return message
@@ -976,6 +1064,10 @@ public actor Connection {
                 return "The transaction reservation has ended."
             case .transactionControlNotAllowed:
                 return "User transaction-control execution is not allowed."
+            case .statementArgumentCount(let expected, let actual):
+                return "Reusable statement expected \(expected) dynamic arguments but received \(actual)."
+            case .statementConnectionMismatch:
+                return "Reusable statement and transaction belong to different Connections."
             }
         }
 
