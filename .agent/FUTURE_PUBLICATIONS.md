@@ -4,6 +4,37 @@ Durable backlog of concrete README/article/publication topics that the maintaine
 
 These entries are **not implementation authorization**. Implemented examples below reflect current source truth, but a publication trigger may still require final acceptance/release/publication before external use.
 
+## Capability publication coverage register
+
+Every public capability requires detailed publication source material under the mandatory closure rule in `WORKFLOW.md`.
+
+Current coverage/backfill state:
+
+```text
+Database / Connection / public query execution
+- README: implemented
+- detailed social/article source: BACKFILL REQUIRED
+- public Agent Skill coverage: BACKFILL REQUIRED
+
+Scoped Transactions
+- README: implemented
+- detailed social/article source: BACKFILL REQUIRED
+- public Agent Skill coverage: BACKFILL REQUIRED (`swiftduckdb-transactions` minimum)
+
+Reusable prepared Statements
+- README: implemented
+- detailed social/article source: PRESENT below; may be expanded into channel variants later
+- public Agent Skill coverage: BACKFILL REQUIRED (`swiftduckdb-reusable-statements` minimum)
+
+Scoped Appender
+- implementation: active, not yet public current API
+- README: required at final Appender documentation closure
+- detailed social/article source: required at final Appender documentation closure
+- public Agent Skill coverage: required at final Appender documentation closure (`swiftduckdb-appender` minimum)
+```
+
+All future public capabilities automatically enter this register/closure model. Completing implementation without README + detailed publication source + skill coverage is not considered full public-capability closure.
+
 ## 001 — Public Reusable Prepared Statements API: what it is and why it matters
 
 Status: **implemented source material / future article-publication candidate**

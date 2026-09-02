@@ -57,6 +57,25 @@ Do not advertise:
 - platform support not actually validated;
 - unpublished package versions.
 
+## Detailed Social / Article Posts
+
+Every completed public capability must also have detailed public/social source material, not only a terse release-note sentence.
+
+A capability post should normally cover:
+
+- the concrete user problem and why the capability exists;
+- the smallest real SwiftDuckDB + SwifQL example;
+- the main practical usage patterns;
+- ownership/lifetime/concurrency semantics that affect correct use;
+- important error/cancellation/transaction boundaries;
+- realistic performance or workflow motivation without unsupported benchmark claims;
+- explicit non-goals and sharp edges when omitting them would mislead users;
+- a short comparison with the nearest alternative API when that helps users choose correctly.
+
+Prefer one technically complete source package that can be adapted for a long-form article, LinkedIn, X/Threads, Mastodon, release announcement, or similar channels without losing correctness. Channel-specific shortening may happen later; the durable source material should retain the full technical explanation.
+
+Posts may be prepared before external publication, but they must clearly distinguish implemented/validated API from planned work and must not imply a release, package version, platform guarantee, or publication event that has not happened.
+
 ## No Internal Process Prose
 
 Normal README/public docs should not expose internal workflow language such as:

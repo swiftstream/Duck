@@ -33,6 +33,8 @@ Shared API and semantics remain platform-independent unless a concrete platform 
 7. Implement, validate, and independently audit the first public scoped transaction capability. **Done.**
 8. Document the scoped transaction API and synchronize its durable project state. **Done.**
 9. Implement the first public reusable prepared-statement capability with reusable native ownership, ordinary and explicit-Transaction execution, deterministic concurrency/lifetime coverage, and public documentation. **Implemented current capability boundary; no later capability is implicitly authorized.**
+10. Implement the first public scoped Appender capability under the independently accepted corrected plan, beginning with native Appender ownership/finalization. **Active approved capability; later Appender transaction/advanced features remain unapproved.**
+11. Enforce a public-capability closure contract for every implemented user-facing feature: README coverage, detailed article/social-post source material, and source-owned Agent Skill coverage following `swiftstream/skills` standards. **Mandatory ongoing rule; historical public capabilities must be backfilled.**
 
 ## Implemented First Public Query Slice
 
@@ -86,6 +88,22 @@ The current reusable prepared-statement capability includes:
 
 The public slice does not add manual native parameter indices, named-parameter dictionaries, public close/finalize, statement caching/pooling, or automatic reprepare. DuckDB may still internally rebind/replan when its own engine semantics require it.
 
+## Public Capability Communication and Skill Coverage Contract
+
+Every public user-facing capability must finish with three durable deliverables:
+
+- root README coverage that teaches the implemented API and its correctness-relevant boundaries;
+- detailed example-first article/social-post source material preserved for later publication;
+- source-owned Agent Skill coverage under `.agent/skills` following the canonical `swiftstream/skills` source-package standard.
+
+This is a completion requirement for the existing Database/Connection/query surface, scoped Transactions, reusable prepared Statements, the approved Appender capability, and all future public features. Older capabilities that were completed before this rule must be backfilled rather than treated as exempt.
+
+Public SwiftDuckDB skills use the intended `swiftduckdb-` namespace, canonical lower-hyphen package directories, real `SKILL.md` entrypoints, and package-local `LICENSE.txt` files following the established SwifQL public-skill precedent. Packages must remain useful when copied independently into the central skills collection; essential instructions cannot depend only on unbundled repository siblings.
+
+Source package preparation does not itself authorize central federation registration. Trust/onboarding in `swiftstream/skills` remains a separate explicit maintainer decision.
+
+A future feature plan is incomplete unless its final closure phase explicitly budgets README synchronization, detailed public/social source material, relevant skill package creation/update, routing/index synchronization, and validation/audit of those outputs against the actual implemented API.
+
 ## Current Native Packaging Decision
 
 The current architecture uses generated DuckDB v1.5.5 source vendored into internal target `Cduckdb`. This is implemented current state, not an open source-vs-prebuilt decision.
@@ -99,7 +117,7 @@ The following are not yet approved/implemented architecture unless later resolve
 - long-term DuckDB upgrade/version policy beyond the current v1.5.5 pin;
 - optional extension and bundle-size strategy beyond the current generated extension set;
 - any reusable prepared-statement behavior beyond the implemented first-slice capability;
-- Appender API;
+- any Appender behavior beyond the approved first scoped slice, including Appender-in-Transaction and advanced selected-column/default/query/data-chunk surfaces;
 - Codable/model decoding or encoding;
 - observation/reactivity;
 - migrations;

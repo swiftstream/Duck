@@ -29,6 +29,16 @@ Do not commit a machine-local path dependency or a stale remote revision that pr
 
 When consuming SwifQL across actor boundaries, inspect its actual current types rather than assuming strict-concurrency clean means every query graph is Sendable.
 
+## Swift Stream Skills
+
+Swift Stream Skills is the central federation/distribution collection for public Agent Skills owned semantically by source repositories.
+
+SwiftDuckDB prepares its own source-owned skills under `.agent/skills` and follows the central source-package contract: direct-child package directories, real `SKILL.md` frontmatter, lower-hyphen names, standalone public-package content, and package-local licensing for SwiftDuckDB public skills. Public SwiftDuckDB packages use the intended `swiftduckdb-` namespace.
+
+Skill semantics remain owned and edited in SwiftDuckDB. Central generated package/catalog/lock output is not hand-edited from SwiftDuckDB work.
+
+Source package preparation does not itself establish central trust. Federation onboarding/namespace registration is a separate explicit maintainer decision and must not be inferred from the presence of `swiftduckdb-*` source packages.
+
 ## External Evidence Rule
 
 External repositories supplied for research, comparison, API inspection, or style extraction are task input, not permanent project context.

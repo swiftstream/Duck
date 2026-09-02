@@ -141,6 +141,39 @@ Root README/public-writing rules are owned by `PUBLIC_WRITING_STYLE.md`.
 
 Public docs use only current implemented/validated API and do not expose internal task/audit/evidence process as product documentation.
 
+## Public Capability Closure Gate
+
+Every completed public user-facing capability must close three communication/distribution obligations before the capability is considered fully finished:
+
+1. **README coverage** — the root README must teach the implemented API with copyable examples, ownership/lifetime/concurrency/error boundaries, important caveats, and explicit non-goals where they affect correct use.
+2. **Detailed public/social publication material** — preserve a detailed example-first article/social-post source package in the durable publication backlog. It must explain why the capability exists, how to use it, the important design/behavior boundaries, and realistic use cases without exposing internal audit/process prose.
+3. **Agent Skill coverage** — create or update source-owned Agent Skill package(s) so the capability can be used correctly by downstream coding agents without rediscovering the API from source.
+
+This gate applies to Transactions, reusable Statements, Appender, the existing public query/database/Connection surface, and every future public capability. Historical capabilities that predate this rule must be backfilled rather than grandfathered out.
+
+A capability does not need exactly one skill per method. It must have enough stable reusable skill coverage that every coherent public workflow is represented without forcing agents to infer undocumented ownership, safety, concurrency, or integration rules.
+
+### Swift Stream Skills standard
+
+SwiftDuckDB skill packages must follow the canonical source-repository rules from the central `swiftstream/skills` repository, especially `AGENTS.md` and `docs/HOW-TO-PREPARE-SOURCE.md`:
+
+- canonical source root: `.agent/skills` unless a separately reviewed repository decision changes it;
+- every skill is a direct-child directory package with a real `SKILL.md`;
+- lower-hyphen package names and matching `name` frontmatter;
+- nonempty `description` frontmatter explaining when to use the skill;
+- public/downstream SwiftDuckDB skills use the intended `swiftduckdb-` prefix;
+- public packages are standalone enough to survive package-only federation copying and keep essential supporting material inside the package;
+- no symlink/gitlink/path-traversal/non-canonical package content;
+- package-local `LICENSE.txt` is required for SwiftDuckDB public skills, following the established SwifQL public-skill practice, and `SKILL.md` must reference it with `license: LICENSE.txt`;
+- repository skill routing (`AGENTS.md` / `SKILL_INDEX.md` once present) must be synchronized with package paths;
+- semantic skill edits happen in SwiftDuckDB, never in generated central `swiftstream/skills/skills/**` output.
+
+Central federation onboarding/registration is a separate manual trust decision. Source capability work may prepare valid `swiftduckdb-*` packages but must not silently mutate central `federation.json`, invent source IDs/prefix registration, or claim publication before that separate process occurs.
+
+### Planning and audit requirement
+
+Every new public-capability implementation plan must explicitly include README, detailed social/publication material, and Agent Skill creation/update in its final documentation/closure phase. Final validation/root audit must verify those deliverables against actual implemented API before capability closure.
+
 ## Documentation Synchronization
 
 Update stable docs only when durable facts, reviewed direction, source/navigation ownership, decisions, or task state changed.
