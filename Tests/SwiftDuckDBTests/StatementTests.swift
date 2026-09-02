@@ -10,7 +10,81 @@ private struct UnsupportedStatementBinding: Encodable, SwifQLable {
     }
 }
 
+private final class StatefulStatementTemplateValue: SwifQLable {
+    private let builder: (Int) -> [SwifQLPart]
+    private(set) var evaluationCount = 0
+
+    init(builder: @escaping (Int) -> [SwifQLPart]) {
+        self.builder = builder
+    }
+
+    var parts: [SwifQLPart] {
+        evaluationCount += 1
+        return builder(evaluationCount)
+    }
+}
+
+private struct StatementTemplateProbeArray: SwifQLPartArray {
+    let elements: [SwifQLable]
+}
+
 private func requireSendable<ValueType: Sendable>(_: ValueType.Type) {}
+
+@Test("Stateful top-level template graph is rendered once")
+func statefulTopLevelStatementTemplateUsesOneRender() throws {
+    let parameters = Statement.Parameters()
+    let parameter = parameters.parameter()
+    let query = StatefulStatementTemplateValue { evaluation in
+        if evaluation == 1 {
+            return SwifQL.select(Fn.cast(parameter, .integer) => "value").parts
+        }
+        return SwifQL.select(Fn.cast(Int32(99), .integer) => "value").parts
+    }
+
+    let snapshot = try StatementTemplateSnapshot(query, parameters: parameters)
+
+    #expect(query.evaluationCount == 1)
+    #expect(snapshot.dynamicArgumentCount == 1)
+    #expect(snapshot.bindingLayout == [.dynamic(0)])
+}
+
+@Test("Stateful nested template value is rendered once")
+func statefulNestedStatementTemplateUsesOneRender() throws {
+    let parameters = Statement.Parameters()
+    let parameter = parameters.parameter()
+    let child = StatefulStatementTemplateValue { evaluation in
+        if evaluation == 1 {
+            return parameter.parts
+        }
+        return [SwifQLPartUnsafeValue(Int32(99))]
+    }
+    let arrayPart: SwifQLPart = StatementTemplateProbeArray(elements: [child])
+    let query = SwifQL.select(SwifQLableParts(parts: [arrayPart]))
+
+    let snapshot = try StatementTemplateSnapshot(query, parameters: parameters)
+
+    #expect(child.evaluationCount == 1)
+    #expect(snapshot.dynamicArgumentCount == 1)
+    #expect(snapshot.bindingLayout == [.dynamic(0)])
+}
+
+@Test("Direct template rejects an escaped bound Statement.Parameter")
+func directStatementTemplateRejectsEscapedBoundParameter() throws {
+    let parameters = Statement.Parameters()
+    let escaped = parameters.parameter()
+
+    do {
+        _ = try StatementTemplateSnapshot(
+            SwifQL.select(Fn.cast(escaped, .integer) => "value")
+        )
+        Issue.record("Expected direct prepare of an escaped bound Statement.Parameter to be rejected.")
+    } catch let error as DatabaseError {
+        guard case .invalidStatementTemplate = error else {
+            Issue.record("Expected invalidStatementTemplate, got \(error).")
+            return
+        }
+    }
+}
 
 @Test("Statement is truthfully Sendable and installs one dynamic parameter")
 func statementSendabilityAndSingleParameter() async throws {
