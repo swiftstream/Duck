@@ -282,6 +282,40 @@ func concurrentReusableStatementCallsKeepBindingsIsolated() async throws {
     #expect(try statementResultValue(secondResult, column: "value") == .int32(202))
 }
 
+@Test("Many concurrent calls to one Statement preserve every binding without sleeps")
+func manyConcurrentReusableStatementCallsPreserveBindings() async throws {
+    let connection = try Database().connect()
+    let statement = try await connection.prepare { parameters in
+        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+    }
+
+    let observed = try await withThrowingTaskGroup(of: Int32.self, returning: [Int32].self) { group in
+        for value in 1...32 {
+            group.addTask {
+                let expected = Int32(value)
+                let result = try await statement.query(expected)
+                guard case .int32(let actual) = try statementResultValue(result, column: "value") else {
+                    throw DatabaseError.invalidResult("Expected integer reusable Statement result.")
+                }
+                guard actual == expected else {
+                    throw DatabaseError.invalidResult(
+                        "Reusable Statement returned a value from another concurrent binding."
+                    )
+                }
+                return actual
+            }
+        }
+
+        var values: [Int32] = []
+        for try await value in group {
+            values.append(value)
+        }
+        return values.sorted()
+    }
+
+    #expect(observed == (1...32).map { Int32($0) })
+}
+
 @Test("Different Statements on one Connection execute safely through one scheduler")
 func differentReusableStatementsShareConnectionSchedulerSafely() async throws {
     let connection = try Database().connect()
@@ -359,4 +393,22 @@ func alreadyCancelledReusableStatementCallLeavesStatementReusable() async throws
 
     let result = try await statement.query(Int32(808))
     #expect(try statementResultValue(result, column: "value") == .int32(808))
+}
+
+@Test("Fail-closed Connection dominates reusable Statement execution")
+func failClosedConnectionDominatesReusableStatement() async throws {
+    let connection = try Database().connect()
+    let statement = try await connection.prepare { parameters in
+        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+    }
+    let message = "task05 fail-closed statement proof"
+
+    await connection.enterFailClosed(message)
+
+    do {
+        _ = try await statement.query(Int32(909))
+        Issue.record("Expected fail-closed Connection to reject reusable Statement execution.")
+    } catch let error as DatabaseError {
+        #expect(error == .connectionUnusable(message))
+    }
 }
