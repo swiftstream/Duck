@@ -384,7 +384,7 @@ public actor Connection {
         _ id: StatementId,
         dynamicBindings: [Value]
     ) async throws -> QueryResult {
-        try await executeReusablePreparedStatement(
+        try await executeOrdinaryReusablePreparedStatement(
             id,
             dynamicBindings: dynamicBindings,
             materializeRows: true
@@ -395,7 +395,7 @@ public actor Connection {
         _ id: StatementId,
         dynamicBindings: [Value]
     ) async throws -> UInt64 {
-        let result = try await executeReusablePreparedStatement(
+        let result = try await executeOrdinaryReusablePreparedStatement(
             id,
             dynamicBindings: dynamicBindings,
             materializeRows: false
@@ -403,14 +403,81 @@ public actor Connection {
         return result.rowsChanged
     }
 
-    private func executeReusablePreparedStatement(
+    func executeTransactionPreparedStatementQuery(
+        _ id: StatementId,
+        dynamicBindings: [Value],
+        token: TransactionOperationToken
+    ) async throws -> QueryResult {
+        try await executeTransactionReusablePreparedStatement(
+            id,
+            dynamicBindings: dynamicBindings,
+            token: token,
+            materializeRows: true
+        )
+    }
+
+    func executeTransactionPreparedStatementMutation(
+        _ id: StatementId,
+        dynamicBindings: [Value],
+        token: TransactionOperationToken
+    ) async throws -> UInt64 {
+        let result = try await executeTransactionReusablePreparedStatement(
+            id,
+            dynamicBindings: dynamicBindings,
+            token: token,
+            materializeRows: false
+        )
+        return result.rowsChanged
+    }
+
+    private func executeOrdinaryReusablePreparedStatement(
         _ id: StatementId,
         dynamicBindings: [Value],
         materializeRows: Bool
     ) async throws -> QueryResult {
         try await acquireOrdinaryLease()
         defer { releaseOrdinaryLease() }
+        return try await executeReusablePreparedStatementNative(
+            id,
+            dynamicBindings: dynamicBindings,
+            materializeRows: materializeRows
+        )
+    }
 
+    private func executeTransactionReusablePreparedStatement(
+        _ id: StatementId,
+        dynamicBindings: [Value],
+        token: TransactionOperationToken,
+        materializeRows: Bool
+    ) async throws -> QueryResult {
+        try await acquireTransactionNativeAdmission(token)
+
+        do {
+            let result = try await executeReusablePreparedStatementNative(
+                id,
+                dynamicBindings: dynamicBindings,
+                materializeRows: materializeRows
+            )
+            completeTransactionOperation(token, failure: nil)
+            return result
+        } catch is CancellationError {
+            completeTransactionOperation(token, failure: .cancelled)
+            throw CancellationError()
+        } catch let error as DatabaseError {
+            completeTransactionOperation(token, failure: .database(error))
+            throw error
+        } catch {
+            let mapped = DatabaseError.invalidResult(String(describing: error))
+            completeTransactionOperation(token, failure: .database(mapped))
+            throw mapped
+        }
+    }
+
+    private func executeReusablePreparedStatementNative(
+        _ id: StatementId,
+        dynamicBindings: [Value],
+        materializeRows: Bool
+    ) async throws -> QueryResult {
         do {
             try Task.checkCancellation()
             try ensureUsable()

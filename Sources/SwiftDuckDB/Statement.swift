@@ -241,6 +241,41 @@ public final class Statement: Sendable {
         }
     }
 
+    public func query(
+        on transaction: Transaction,
+        _ values: any Sendable...
+    ) async throws -> QueryResult {
+        try await withTransactionOperation(on: transaction, values: values) {
+            connection,
+            id,
+            bindings,
+            token in
+            try await connection.executeTransactionPreparedStatementQuery(
+                id,
+                dynamicBindings: bindings,
+                token: token
+            )
+        }
+    }
+
+    @discardableResult
+    public func execute(
+        on transaction: Transaction,
+        _ values: any Sendable...
+    ) async throws -> UInt64 {
+        try await withTransactionOperation(on: transaction, values: values) {
+            connection,
+            id,
+            bindings,
+            token in
+            try await connection.executeTransactionPreparedStatementMutation(
+                id,
+                dynamicBindings: bindings,
+                token: token
+            )
+        }
+    }
+
     deinit {
         let connection = connection
         let id = id
@@ -255,6 +290,47 @@ public final class Statement: Sendable {
         let retainedSelf = self
         defer { withExtendedLifetime(retainedSelf) {} }
         return try await operation(connection, id)
+    }
+
+    private func withTransactionOperation<Result>(
+        on transaction: Transaction,
+        values: [any Sendable],
+        operation: (
+            Connection,
+            StatementId,
+            [Value],
+            TransactionOperationToken
+        ) async throws -> Result
+    ) async throws -> Result {
+        try await withOperationLifetime { connection, id in
+            guard connection.id == transaction.connection.id else {
+                throw DatabaseError.statementConnectionMismatch
+            }
+
+            let token = try await connection.registerTransactionOperation(
+                transaction.reservationId
+            )
+            let bindings: [Value]
+
+            do {
+                bindings = try normalizeDynamicBindings(values)
+            } catch let error as DatabaseError {
+                try await connection.resolveTransactionPreparationFailure(
+                    token,
+                    error: error
+                )
+                throw error
+            } catch {
+                let descriptor = DatabaseError.invalidResult(String(describing: error))
+                try await connection.resolveTransactionPreparationFailure(
+                    token,
+                    error: descriptor
+                )
+                throw error
+            }
+
+            return try await operation(connection, id, bindings, token)
+        }
     }
 
     private func normalizeDynamicBindings(
