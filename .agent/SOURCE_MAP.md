@@ -30,8 +30,8 @@ There is intentionally no model/provider/tool-specific stable session-orchestrat
 
 ## Package / Public Surface
 
-- `Package.swift`: SwiftPM manifest for the `SwiftDuckDB` library product, public `SwiftDuckDB` target, internal generated `Cduckdb` target, exact SwifQL `2.0.0-beta.5.0.0` dependency, and both Swift Testing targets. It uses Swift tools 6.3, iOS 15+, macOS 12+, Swift language mode 6, and the upstream-generated C++11 setting.
-- `Package.resolved`: exact dependency resolution, including SwifQL revision `348c851b9017b07f67431ba0adac3c7596c3c760`.
+- `Package.swift`: SwiftPM manifest for the `SwiftDuckDB` library product, public `SwiftDuckDB` target, internal generated `Cduckdb` target, exact SwifQL `2.0.0-beta.5.1.0` dependency, and both Swift Testing targets. It uses Swift tools 6.3, iOS 15+, macOS 12+, Swift language mode 6, and the upstream-generated C++11 setting.
+- `Package.resolved`: exact dependency resolution, including SwifQL revision `849931d048905abbf10d31b73eef14d8a64568cb`.
 - `.swift-version`: tracked exact Swift `6.3.3` toolchain pin.
 - `README.md`: public query + scoped-transaction documentation. Executable examples use SwifQL; ordinary String execution is not taught.
 

@@ -23,7 +23,7 @@ Current required behavior is verified from the completed Swift 6 / Duck-capable 
 - Duck preparation emits `$1`, `$2`, ... bindings;
 - Swift 6.3.3 strict-concurrency validation is clean while query/part/prepared/bind graphs remain intentionally non-Sendable where truthful.
 
-The approved first query-capable SwiftDuckDB dependency line is the published prerelease `2.0.0-beta.5.0.0` from `https://github.com/SwifQL/SwifQL.git`. Prefer an exact prerelease requirement for this development phase so the dependency cannot drift under active pre-2.0 work.
+The approved query-capable SwiftDuckDB dependency line is the published prerelease `2.0.0-beta.5.1.0` from `https://github.com/SwifQL/SwifQL.git`. This release adds the same-render unsafe-value provenance required by reusable Statement template validation while preserving established preparation behavior and custom-dialect compatibility. Prefer an exact prerelease requirement for this development phase so the dependency cannot drift under active pre-2.0 work.
 
 Do not commit a machine-local path dependency or a stale remote revision that predates required Duck/Swift-6 behavior.
 
