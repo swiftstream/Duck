@@ -147,6 +147,12 @@ private struct PreparedStatementEntry {
     var unusableMessage: String?
 }
 
+private struct AppenderEntry {
+    var appender: NativeAppender?
+    let expectedArgumentCount: Int
+    var terminalFailure: AppenderStoredFailure?
+}
+
 public actor Connection {
     nonisolated let id: ConnectionId
 
@@ -160,6 +166,7 @@ public actor Connection {
     private var transactionDrainWaiter: CheckedContinuation<Void, Never>?
     private var lifecycleStateMachine = TransactionLifecycleStateMachine()
     private var preparedStatements: [StatementId: PreparedStatementEntry] = [:]
+    private var appenders: [AppenderId: AppenderEntry] = [:]
 
     init(database: Database, nativeDatabase: NativeDatabase) throws {
         self.id = ConnectionId()
@@ -169,6 +176,7 @@ public actor Connection {
 
     public nonisolated(nonsending) func query(_ query: any SwifQLable) async throws -> QueryResult {
         try await rejectLiveTransactionBodyMisuse(asTransaction: false)
+        try await rejectLiveAppenderBodyMisuse()
         let snapshot = try PreparedQuerySnapshot(query)
         return try await executeOrdinaryQuery(snapshot)
     }
@@ -176,6 +184,7 @@ public actor Connection {
     @discardableResult
     public nonisolated(nonsending) func execute(_ query: any SwifQLable) async throws -> UInt64 {
         try await rejectLiveTransactionBodyMisuse(asTransaction: false)
+        try await rejectLiveAppenderBodyMisuse()
         let snapshot = try PreparedQuerySnapshot(query)
         return try await executeOrdinaryStatement(snapshot)
     }
@@ -184,6 +193,7 @@ public actor Connection {
         _ query: any SwifQLable
     ) async throws -> Statement {
         try await rejectLiveTransactionBodyMisuse(asTransaction: false)
+        try await rejectLiveAppenderBodyMisuse()
         let snapshot = try StatementTemplateSnapshot(query)
         return try await installPreparedStatement(snapshot)
     }
@@ -192,6 +202,7 @@ public actor Connection {
         _ build: (Statement.Parameters) throws -> any SwifQLable
     ) async throws -> Statement {
         try await rejectLiveTransactionBodyMisuse(asTransaction: false)
+        try await rejectLiveAppenderBodyMisuse()
         let parameters = Statement.Parameters()
         let query = try build(parameters)
         let snapshot = try StatementTemplateSnapshot(query, parameters: parameters)
@@ -203,6 +214,7 @@ public actor Connection {
     ) async throws -> Result {
         try Task.checkCancellation()
         try await rejectLiveTransactionBodyMisuse(asTransaction: true)
+        try await rejectLiveAppenderBodyMisuse()
 
         let lifecycle = try TransactionLifecycleSnapshots()
         let reservationId = try await acquireTransactionReservation()
@@ -315,6 +327,20 @@ public actor Connection {
         outerAdmissionState.isTransactionLive(reservationId)
     }
 
+    nonisolated func rejectLiveAppenderBodyMisuse() async throws {
+        guard let scope = AppenderBodyContext.scopes.reversed().first(where: { $0.connectionId == id }) else {
+            return
+        }
+        guard await isAppenderScopeLive(scope.appenderId) else {
+            return
+        }
+        throw DatabaseError.appenderScopeViolation
+    }
+
+    func isAppenderScopeLive(_ id: AppenderId) -> Bool {
+        appenders[id] != nil
+    }
+
     private func executeOrdinaryQuery(_ snapshot: PreparedQuerySnapshot) async throws -> QueryResult {
         try await acquireOrdinaryLease()
         defer { releaseOrdinaryLease() }
@@ -378,6 +404,242 @@ public actor Connection {
 
     func preparedStatementDynamicArgumentCount(_ id: StatementId) -> Int? {
         preparedStatements[id]?.dynamicArgumentCount
+    }
+
+    func acquireAndInstallAppenderScope(
+        _ target: AppenderTarget
+    ) async throws -> AppenderScopeStart {
+        try await acquireOrdinaryLease()
+        var transfersLeaseToLiveScope = false
+        defer {
+            if !transfersLeaseToLiveScope {
+                releaseOrdinaryLease()
+            }
+        }
+
+        try Task.checkCancellation()
+        try ensureUsable()
+
+        let nativeAppender: NativeAppender
+        do {
+            nativeAppender = try NativeAppender(
+                connection: nativeConnection,
+                catalog: target.catalog,
+                schema: target.schema,
+                table: target.table
+            )
+        } catch let error as NativeAppenderError {
+            throw mapNativeAppenderError(error)
+        } catch {
+            throw DatabaseError.appenderCreation(String(describing: error))
+        }
+
+        let id = AppenderId()
+        appenders[id] = AppenderEntry(
+            appender: nativeAppender,
+            expectedArgumentCount: nativeAppender.columnCount,
+            terminalFailure: nil
+        )
+        transfersLeaseToLiveScope = true
+        return AppenderScopeStart(
+            id: id,
+            expectedArgumentCount: nativeAppender.columnCount
+        )
+    }
+
+    func appendAppenderRow(
+        _ id: AppenderId,
+        bindings: [Value]
+    ) throws {
+        try ensureUsable()
+
+        guard var entry = appenders[id] else {
+            throw DatabaseError.appenderEnded
+        }
+        if let terminalFailure = entry.terminalFailure {
+            try terminalFailure.throwStored()
+        }
+        guard bindings.count == entry.expectedArgumentCount else {
+            throw DatabaseError.invalidResult(
+                "Appender argument count diverged from its registered table width."
+            )
+        }
+        guard let nativeAppender = entry.appender else {
+            throw DatabaseError.appenderEnded
+        }
+
+        try Task.checkCancellation()
+
+        do {
+            try nativeAppender.appendRow(bindings)
+        } catch let error as NativeAppenderError {
+            let primary = mapNativeAppenderError(error)
+            let cleanup = discardAppenderForScope(nativeAppender)
+            entry.appender = nil
+
+            if let cleanup {
+                let terminal = AppenderStoredFailure.cleanup(
+                    original: primary,
+                    cleanup: cleanup
+                )
+                entry.terminalFailure = terminal
+                appenders[id] = entry
+                try terminal.throwStored()
+            }
+
+            entry.terminalFailure = .database(primary)
+            appenders[id] = entry
+            throw primary
+        } catch {
+            let primary = DatabaseError.appenderRowCompletion(String(describing: error))
+            let cleanup = discardAppenderForScope(nativeAppender)
+            entry.appender = nil
+
+            if let cleanup {
+                let terminal = AppenderStoredFailure.cleanup(
+                    original: primary,
+                    cleanup: cleanup
+                )
+                entry.terminalFailure = terminal
+                appenders[id] = entry
+                try terminal.throwStored()
+            }
+
+            entry.terminalFailure = .database(primary)
+            appenders[id] = entry
+            throw primary
+        }
+    }
+
+    func abortAppenderScope(_ id: AppenderId) -> AppenderAbortOutcome {
+        defer { releaseOrdinaryLease() }
+
+        guard let entry = appenders.removeValue(forKey: id) else {
+            let cleanup = DatabaseError.appenderCleanup(
+                "Appender scope registry entry disappeared before abort cleanup."
+            )
+            enterFailClosed("Appender scope registry entry disappeared before abort cleanup.")
+            return .cleanup(cleanup)
+        }
+
+        if let terminal = entry.terminalFailure {
+            if let nativeAppender = entry.appender,
+               let cleanup = discardAppenderForScope(nativeAppender) {
+                switch terminal {
+                case .database(let original):
+                    return .terminal(.cleanup(original: original, cleanup: cleanup))
+                case .cleanup:
+                    return .terminal(terminal)
+                }
+            }
+            return .terminal(terminal)
+        }
+
+        guard let nativeAppender = entry.appender else {
+            let cleanup = DatabaseError.appenderCleanup(
+                "Live Appender scope lost its native owner before abort cleanup."
+            )
+            enterFailClosed("Live Appender scope lost its native owner before abort cleanup.")
+            return .cleanup(cleanup)
+        }
+
+        if let cleanup = discardAppenderForScope(nativeAppender) {
+            return .cleanup(cleanup)
+        }
+        return .cleaned
+    }
+
+    func finishAppenderScopeSuccess(_ id: AppenderId) throws {
+        defer { releaseOrdinaryLease() }
+
+        guard let entry = appenders.removeValue(forKey: id) else {
+            let message = "Appender scope registry entry disappeared before finalization."
+            enterFailClosed(message)
+            throw DatabaseError.appenderCleanup(message)
+        }
+
+        if let terminal = entry.terminalFailure {
+            if let nativeAppender = entry.appender,
+               let cleanup = discardAppenderForScope(nativeAppender) {
+                switch terminal {
+                case .database(let original):
+                    throw AppenderCleanupError(
+                        originalError: original,
+                        cleanupError: cleanup
+                    )
+                case .cleanup:
+                    try terminal.throwStored()
+                }
+            }
+            try terminal.throwStored()
+        }
+
+        guard let nativeAppender = entry.appender else {
+            let message = "Live Appender scope lost its native owner before finalization."
+            enterFailClosed(message)
+            throw DatabaseError.appenderCleanup(message)
+        }
+
+        do {
+            try ensureUsable()
+        } catch {
+            if let cleanup = discardAppenderForScope(nativeAppender) {
+                throw AppenderCleanupError(
+                    originalError: error,
+                    cleanupError: cleanup
+                )
+            }
+            throw error
+        }
+
+        do {
+            try Task.checkCancellation()
+        } catch {
+            let cancellation = CancellationError()
+            if let cleanup = discardAppenderForScope(nativeAppender) {
+                throw AppenderCleanupError(
+                    originalError: cancellation,
+                    cleanupError: cleanup
+                )
+            }
+            throw cancellation
+        }
+
+        do {
+            try nativeAppender.close()
+        } catch let error as NativeAppenderError {
+            throw mapNativeAppenderError(error)
+        } catch {
+            let primary = DatabaseError.appenderFinalization(String(describing: error))
+            if let cleanup = discardAppenderForScope(nativeAppender) {
+                throw AppenderCleanupError(
+                    originalError: primary,
+                    cleanupError: cleanup
+                )
+            }
+            throw primary
+        }
+    }
+
+    private func discardAppenderForScope(
+        _ nativeAppender: NativeAppender
+    ) -> DatabaseError? {
+        do {
+            try nativeAppender.discard()
+            return nil
+        } catch let error as NativeAppenderError {
+            let cleanup = mapNativeAppenderError(error)
+            if error.bufferedDataOutcomeAmbiguous {
+                enterFailClosed(
+                    "Appender cleanup left buffered-data outcome ambiguous: \(error.message)"
+                )
+            }
+            return cleanup
+        } catch {
+            let message = "Unexpected Appender cleanup failure: \(String(describing: error))"
+            enterFailClosed(message)
+            return .appenderCleanup(message)
+        }
     }
 
     func executePreparedStatementQuery(
@@ -1173,6 +1435,21 @@ public actor Connection {
         throw CancellationError()
     }
 
+    private func mapNativeAppenderError(_ error: NativeAppenderError) -> DatabaseError {
+        switch error.stage {
+        case .creation:
+            return .appenderCreation(error.message)
+        case .appendColumn(let column):
+            return .appenderAppend(column: column, message: error.message)
+        case .rowCompletion:
+            return .appenderRowCompletion(error.message)
+        case .finalization:
+            return .appenderFinalization(error.message)
+        case .cleanup:
+            return .appenderCleanup(error.message)
+        }
+    }
+
     private func mapNativeError(_ error: NativeDuckDBError) -> DatabaseError {
         switch error.operation {
         case .databaseOpen:
@@ -1214,7 +1491,11 @@ public actor Connection {
                  .transactionRollback(let message),
                  .connectionUnusable(let message),
                  .invalidStatementTemplate(let message),
-                 .statementUnusable(let message):
+                 .statementUnusable(let message),
+                 .appenderCreation(let message),
+                 .appenderRowCompletion(let message),
+                 .appenderFinalization(let message),
+                 .appenderCleanup(let message):
                 return message
             case .binding(_, let message):
                 return message
@@ -1230,6 +1511,14 @@ public actor Connection {
                 return "Reusable statement expected \(expected) dynamic arguments but received \(actual)."
             case .statementConnectionMismatch:
                 return "Reusable statement and transaction belong to different Connections."
+            case .appenderScopeViolation:
+                return "Ordinary same-Connection execution is not allowed inside its active Appender body."
+            case .appenderEnded:
+                return "The Appender scope has ended."
+            case .appenderArgumentCount(let expected, let actual):
+                return "Appender expected \(expected) row values but received \(actual)."
+            case .appenderAppend(_, let message):
+                return message
             }
         }
 

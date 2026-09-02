@@ -221,6 +221,7 @@ public final class Statement: Sendable {
     public func query(_ values: any Sendable...) async throws -> QueryResult {
         try await withOperationLifetime { connection, id in
             try await connection.rejectLiveTransactionBodyMisuse(asTransaction: false)
+            try await connection.rejectLiveAppenderBodyMisuse()
             let bindings = try normalizeDynamicBindings(values)
             return try await connection.executePreparedStatementQuery(
                 id,
@@ -233,6 +234,7 @@ public final class Statement: Sendable {
     public func execute(_ values: any Sendable...) async throws -> UInt64 {
         try await withOperationLifetime { connection, id in
             try await connection.rejectLiveTransactionBodyMisuse(asTransaction: false)
+            try await connection.rejectLiveAppenderBodyMisuse()
             let bindings = try normalizeDynamicBindings(values)
             return try await connection.executePreparedStatementMutation(
                 id,

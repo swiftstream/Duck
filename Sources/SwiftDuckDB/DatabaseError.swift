@@ -19,4 +19,12 @@ public enum DatabaseError: Error, Sendable, Equatable {
     case statementArgumentCount(expected: Int, actual: Int)
     case statementConnectionMismatch
     case statementUnusable(String)
+    case appenderScopeViolation
+    case appenderEnded
+    case appenderArgumentCount(expected: Int, actual: Int)
+    case appenderCreation(String)
+    case appenderAppend(column: Int, message: String)
+    case appenderRowCompletion(String)
+    case appenderFinalization(String)
+    case appenderCleanup(String)
 }
