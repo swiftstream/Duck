@@ -6,56 +6,50 @@ Only active approved executable implementation work belongs here.
 
 The first public Appender capability is the current approved implementation objective.
 
-Task 01 native Appender ownership/finalization is accepted and checkpointed. The active task is now the scoped public Appender lifecycle/API integration.
+Task 01 native Appender ownership/finalization and Task 02 scoped public lifecycle/API are accepted and checkpointed. The active task is now whole-row failure/concurrency hardening.
 
-### Current executable task — Task 02: scoped public Appender lifecycle/API
+### Current executable task — Task 03: whole-row failure/concurrency hardening
 
-Implement the reviewed first public Appender slice exactly as a scoped, Connection-owned whole-row bulk writer.
+Task 03 must harden the accepted public Appender architecture without opportunistic redesign.
 
-Required public surface:
+Required behavior matrix:
 
-- `public final class Appender: Sendable`;
-- `Appender.append(_ values: any Sendable...) async throws`;
-- `Connection.appender(to: Path.Table, _:)`;
-- `Connection.appender(to: Path.SchemaWithTable, _:)`;
-- `Connection.appender(to: Path.CatalogWithSchemaAndTable, _:)`.
+- many complete rows persist after successful scope;
+- wrong argument count then later valid row succeeds;
+- unsupported Swift type then later valid row succeeds;
+- full current `Value` / Optional / NULL / Data family remains supported;
+- native primitive/type/cast failure terminalizes Appender immediately;
+- end-row/auto-flush failure maps truthfully to `.appenderRowCompletion` without a fake column;
+- catching any terminal native Appender failure cannot make the scope return success;
+- close/constraint finalization failure surfaces while Connection remains usable when native cleanup is non-ambiguous;
+- body error discards still-buffered small batch and releases the outer lease;
+- cancellation before row mutation or before close routes through abort and releases scope;
+- escaped Appender remains rejected;
+- inherited same-Connection query/execute/prepare/ordinary Statement/transaction/nested-Appender misuse rejects immediately before re-admission;
+- different Connection work remains independent;
+- 32-way concurrent public `Appender.append` calls preserve complete-row atomicity without sleeps or timing thresholds;
+- fail-closed Connection state dominates Appender actor entry;
+- existing Connection/Statement/Transaction/native/public regression behavior remains unchanged.
 
-Task 02 must implement:
+Primary production allowlist remains the Task 02 Appender owners:
 
-- Connection actor ownership through `AppenderId` + live Appender registry;
-- one outer ordinary Connection admission held for the complete Appender scope;
-- the accepted exactly-once admission ownership transfer: setup owns release until registry install, then live scope owns release until cleanup/finalization completes;
-- actor-side post-admission cancellation/usability preflight before native creation;
-- no throwing post-create/pre-transfer setup step;
-- TaskLocal Appender-body identity for same-Connection self-deadlock prevention;
-- whole-row caller-local count/type normalization before actor/native mutation;
-- actor-side cancellation recheck immediately before native row mutation;
-- immediate actor-owned terminal cleanup on the first native `.appendColumn` / `.rowCompletion` failure, preserving first-terminal truth even if the body catches it;
-- explicit success close/destroy and explicit abort clear/destroy;
-- public mapping for Appender scope/count/creation/append/row-completion/finalization/cleanup errors;
-- Connection fail-close before lease release only when native clear failure leaves buffered-data outcome ambiguous;
-- deterministic escaped-Appender rejection after scope end;
-- same-Connection ordinary Connection/Statement/transaction/nested-Appender body misuse rejection before outer re-admission;
-- different-Connection independence;
-- Path table/schema/catalog target plumbing without raw SQL construction.
-
-Task 02 production mutation is restricted to:
-
-- `Sources/SwiftDuckDB/Appender.swift` [new];
+- `Sources/SwiftDuckDB/Appender.swift`;
 - `Sources/SwiftDuckDB/Connection.swift`;
 - `Sources/SwiftDuckDB/Statement.swift`;
-- `Sources/SwiftDuckDB/DatabaseError.swift`;
-- already accepted `NativeAppender.swift` may be called but not semantically redesigned without a bounded correction.
+- `Sources/SwiftDuckDB/DatabaseError.swift`.
 
-Task 02 test mutation is restricted to:
+Production mutation is authorized only for concrete Task 03 hardening findings. Do not redesign already accepted Appender ownership/lifecycle merely to simplify tests.
 
-- `Tests/SwiftDuckDBTests/AppenderTests.swift` [new].
+Task 03 tests may add:
 
-`Transaction.swift`, `NativeDuckDBError.swift`, Package/dependency files, vendored DuckDB, README/publication/skills files, and `.agent/TECH_DEBT.md` are protected during Task 02.
+- `Tests/SwiftDuckDBTests/AppenderConcurrencyTests.swift` [new if separate coverage improves clarity];
+- bounded additions to existing `AppenderTests.swift` only where the behavior is inseparable from its current lifecycle coverage.
 
-Task 02 does **not** authorize Appender-in-Transaction, implicit atomic Appender transactions, free-standing/manual-close public Appenders, per-column public mutation/endRow, selected columns, DEFAULT, QueryAppender, public DataChunk, new value families, caching/pooling, scheduler redesign, custom executors, or native interruption machinery.
+The accepted `NativeAppender.swift`, `Transaction.swift`, `NativeDuckDBError.swift`, Package/dependency files, vendored DuckDB, README/publication/skills files, and `.agent/TECH_DEBT.md` remain protected unless a bounded correction and required re-review explicitly reopens them.
 
-After Task 02 focused validation, proceed only to the separately planned Task 03 hardening matrix. The later R1 root gate remains mandatory before README/publication/skill closure.
+Do not add Appender-in-Transaction, implicit atomic Appender transactions, manual-close Appenders, per-column public mutation/endRow, selected columns, DEFAULT, QueryAppender, public DataChunk, new value families, caching/pooling, scheduler redesign, custom executors, locks/semaphores, unsafe Sendability, native interruption, sleeps, or test-only production fault hooks.
+
+After Task 03 focused validation and coordinator acceptance, proceed to Task 04 cross-cutting compiler/consumer/final implementation validation. R1 root audit remains closed until Task 04 is complete.
 
 The scoped Transactions and reusable prepared-statements capabilities remain accepted current state. Preserve their exact reviewed behavior.
 
