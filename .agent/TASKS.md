@@ -2,26 +2,39 @@
 
 Only active approved executable implementation work belongs here.
 
-## Current State
+## Active Capability — Public Appender API
 
-There is currently **no active reusable-prepared-statements implementation task**.
+The first public Appender capability is the current approved implementation objective.
 
-The first public reusable prepared-statements capability is implemented in the current tracked candidate: native prepared-statement reuse, public `Statement` template/ordinary execution, same-render SwifQL provenance validation, explicit owning-`Transaction` execution, cross-cutting lifetime/concurrency/error hardening, README usage, and durable-state synchronization are complete implementation work.
+The approved first slice is a scoped, Connection-owned bulk-row writer. It must preserve the existing Connection scheduler, Transaction state machine, reusable Statement architecture, remote SwifQL dependency, current value-family boundary, vendored DuckDB source, and both existing TECH_DEBT entries.
 
-The implemented public boundary includes:
+### Current executable task — Task 01: native Appender ownership/finalization
 
-- `Connection.prepare(_:)` fixed-only and builder forms;
-- reusable `Statement.query(_:)` / `execute(_:)`;
-- explicit `Statement.query(on:_:)` / `execute(on:_:)` for the owning `Transaction`;
-- Connection-owned serialization and native prepared-statement lifetime;
-- full clear/rebind on every reusable execution;
-- same-Connection owner enforcement, rollback-only transaction participation, and fail-close precedence;
-- no public close/finalize, manual native parameter-index API, cache/pool, or automatic reprepare.
+Task 01 is limited to the native wrapper contract:
 
-Final validation/root-closure evidence for this capability lives only in transient `.artifacts/**`. That evidence does not authorize another capability, and this stable file intentionally contains no transient audit/hash/process diary.
+- add internal `NativeAppender` ownership around DuckDB's public Appender C API;
+- strongly retain the owning `NativeConnection` because the native Appender only weakly retains its client context;
+- use `duckdb_appender_create_ext` with correct failed-create wrapper cleanup and owned error-data destruction;
+- append one complete normalized `[Value]` row and call `duckdb_appender_end_row` in one native operation;
+- preserve truthful native error stages for creation, per-column append, row completion, finalization, and cleanup;
+- explicitly close before destroy on normal success;
+- clear before destroy on explicit abort and keep deinit as best-effort leak prevention only;
+- preserve the reviewed clear-failure ambiguity boundary rather than claiming discard succeeded;
+- cover native lifecycle, failed create, NULL/empty BLOB, cleanup, and parent-lifetime behavior with focused tests.
 
-The scoped Transactions Public API remains accepted current state. Preserve its exact semantics, including the public spelling `Connection.transaction`; do not add a `withTransaction` compatibility API or redesign its state machine as part of later work.
+Task 01 production mutation is restricted to:
 
-Preserve verified TECH_DEBT entries, especially deterministic active-pending cancellation integration evidence and post-COMMIT scheduling Connection recovery. Neither item is authorized or closed by the reusable Statement capability.
+- `Sources/SwiftDuckDB/Native/NativeAppender.swift`;
+- `Sources/SwiftDuckDB/Native/NativeConnection.swift` only if the wrapper needs the minimum native-owner integration already approved.
 
-Any next implementation capability must be explicitly promoted from future/open work through fresh discussion, research, reviewed planning, and the normal execution gates before source mutation begins.
+Task 01 tests are restricted to `Tests/SwiftDuckDBTests/NativeAppenderTests.swift`.
+
+Do not mutate `Connection.swift`, `DatabaseError.swift`, `Statement.swift`, `Transaction.swift`, `NativeDuckDBError.swift`, Package/dependency files, vendored DuckDB, README, or other stable documentation in Task 01.
+
+After Task 01 implementation and focused validation, a fresh native Appender R0 root audit is mandatory before any public Appender Task 02 work begins.
+
+The later approved first-slice direction remains scoped-only whole-row Appender execution under one ordinary Connection admission for the complete scope. Public Appender-in-Transaction support, free-standing/manual-close Appenders, per-column public mutation, selected columns, DEFAULT, QueryAppender, public data chunks, new value families, pooling/cache, scheduler redesign, and Transaction-state-machine changes are not authorized by Task 01.
+
+The scoped Transactions and reusable prepared-statements capabilities remain accepted current state. Preserve their exact reviewed behavior.
+
+Preserve verified TECH_DEBT entries, especially deterministic active-pending cancellation integration evidence and post-COMMIT scheduling Connection recovery. Neither item is authorized or closed by Appender work.
