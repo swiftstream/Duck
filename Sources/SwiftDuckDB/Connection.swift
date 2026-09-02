@@ -47,6 +47,10 @@ private func exactCast<ValueType>(_ value: Any, as type: ValueType.Type) -> Valu
 }
 
 func normalizeBinding(_ value: Any) throws -> Value {
+    if let value = exactCast(value, as: Value.self) {
+        return value
+    }
+
     if let optional = value as? OptionalBindingValue {
         guard let wrapped = optional.wrappedBindingValue else {
             return .null
@@ -137,9 +141,10 @@ private enum NativeCancellationPolicy: Equatable {
 }
 
 private struct PreparedStatementEntry {
-    let statement: NativePreparedStatement
+    var statement: NativePreparedStatement?
     let bindingLayout: [StatementBindingSource]
     let dynamicArgumentCount: Int
+    var unusableMessage: String?
 }
 
 public actor Connection {
@@ -290,7 +295,7 @@ public actor Connection {
         }
     }
 
-    private nonisolated func rejectLiveTransactionBodyMisuse(
+    nonisolated func rejectLiveTransactionBodyMisuse(
         asTransaction: Bool
     ) async throws {
         guard let scope = TransactionBodyContext.scopes.reversed().first(where: { $0.connectionId == id }) else {
@@ -346,7 +351,8 @@ public actor Connection {
             preparedStatements[id] = PreparedStatementEntry(
                 statement: nativeStatement,
                 bindingLayout: snapshot.bindingLayout,
-                dynamicArgumentCount: snapshot.dynamicArgumentCount
+                dynamicArgumentCount: snapshot.dynamicArgumentCount,
+                unusableMessage: nil
             )
             return Statement(
                 connection: self,
@@ -372,6 +378,95 @@ public actor Connection {
 
     func preparedStatementDynamicArgumentCount(_ id: StatementId) -> Int? {
         preparedStatements[id]?.dynamicArgumentCount
+    }
+
+    func executePreparedStatementQuery(
+        _ id: StatementId,
+        dynamicBindings: [Value]
+    ) async throws -> QueryResult {
+        try await executeReusablePreparedStatement(
+            id,
+            dynamicBindings: dynamicBindings,
+            materializeRows: true
+        )
+    }
+
+    func executePreparedStatementMutation(
+        _ id: StatementId,
+        dynamicBindings: [Value]
+    ) async throws -> UInt64 {
+        let result = try await executeReusablePreparedStatement(
+            id,
+            dynamicBindings: dynamicBindings,
+            materializeRows: false
+        )
+        return result.rowsChanged
+    }
+
+    private func executeReusablePreparedStatement(
+        _ id: StatementId,
+        dynamicBindings: [Value],
+        materializeRows: Bool
+    ) async throws -> QueryResult {
+        try await acquireOrdinaryLease()
+        defer { releaseOrdinaryLease() }
+
+        do {
+            try Task.checkCancellation()
+            try ensureUsable()
+
+            guard var entry = preparedStatements[id] else {
+                throw DatabaseError.statementUnusable(
+                    "Reusable statement is no longer registered on its originating Connection."
+                )
+            }
+            guard let statement = entry.statement else {
+                throw DatabaseError.statementUnusable(
+                    entry.unusableMessage ?? "Reusable statement is no longer usable."
+                )
+            }
+            guard dynamicBindings.count == entry.dynamicArgumentCount else {
+                throw DatabaseError.invalidResult(
+                    "Reusable statement dynamic argument count diverged from its registered template."
+                )
+            }
+
+            do {
+                try statement.clearBindings()
+            } catch let error as NativeDuckDBError {
+                let message = error.message
+                entry.statement = nil
+                entry.unusableMessage = message
+                preparedStatements[id] = entry
+                throw DatabaseError.statementUnusable(message)
+            }
+
+            for (offset, source) in entry.bindingLayout.enumerated() {
+                let binding: Value
+                switch source {
+                case .fixed(let value):
+                    binding = value
+                case .dynamic(let index):
+                    guard dynamicBindings.indices.contains(index) else {
+                        throw DatabaseError.invalidResult(
+                            "Reusable statement binding layout referenced an unavailable dynamic argument."
+                        )
+                    }
+                    binding = dynamicBindings[index]
+                }
+                try statement.bind(binding, at: offset + 1)
+            }
+
+            return try await executePreparedStatement(
+                statement,
+                materializeRows: materializeRows,
+                cancellationPolicy: .cooperative
+            )
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as NativeDuckDBError {
+            throw mapNativeError(error)
+        }
     }
 
     func acquireOrdinaryLease() async throws {

@@ -34,14 +34,28 @@ struct StatementTemplateSnapshot: Sendable {
         _ query: any SwifQLable,
         builderState: StatementParameterBuilderState?
     ) throws {
-        // Diagnostic only: pinned SwifQL keeps unsafe values bound in its default/PSQL
-        // rendering, so this census exposes Parameter occurrences that Duck may inline.
-        // The executable SQL and native slot layout still come only from `.duck` below.
-        let markerCensus = query.prepare(.psql).splitted
-        var expectedDynamicOccurrences: [Int: Int] = [:]
+        let observed = query.prepareObservingUnsafeValues(.duck)
+        guard case .complete(let occurrences) = observed.unsafeValueTrace else {
+            throw DatabaseError.invalidStatementTemplate(
+                "Duck preparation did not provide complete Statement.Parameter provenance."
+            )
+        }
 
-        for value in markerCensus.values {
-            guard let marker = value as? StatementParameterMarker else {
+        let prepared = observed.prepared.splitted
+        var tracedMarkersByBindingIndex: [Int: StatementParameterMarker] = [:]
+        var boundArgumentIndices: Set<Int> = []
+
+        func sameMarker(
+            _ lhs: StatementParameterMarker,
+            _ rhs: StatementParameterMarker
+        ) -> Bool {
+            lhs.builderId == rhs.builderId
+                && lhs.argumentIndex == rhs.argumentIndex
+                && lhs.occurrenceId == rhs.occurrenceId
+        }
+
+        for occurrence in occurrences {
+            guard let marker = occurrence.value as? StatementParameterMarker else {
                 continue
             }
             guard let builderState else {
@@ -59,14 +73,28 @@ struct StatementTemplateSnapshot: Sendable {
                     "Statement.Parameter marker identity became inconsistent while building the template."
                 )
             }
-            expectedDynamicOccurrences[marker.argumentIndex, default: 0] += 1
+
+            switch occurrence.disposition {
+            case .notBound:
+                throw DatabaseError.invalidStatementTemplate(
+                    "Every Statement.Parameter occurrence must remain a native bind slot in the Duck template."
+                )
+            case .bound(let index):
+                guard prepared.values.indices.contains(index),
+                      let boundMarker = prepared.values[index] as? StatementParameterMarker,
+                      sameMarker(boundMarker, marker),
+                      tracedMarkersByBindingIndex[index] == nil else {
+                    throw DatabaseError.invalidStatementTemplate(
+                        "Statement.Parameter provenance did not match the prepared binding layout."
+                    )
+                }
+                tracedMarkersByBindingIndex[index] = marker
+                boundArgumentIndices.insert(marker.argumentIndex)
+            }
         }
 
-        let prepared = query.prepare(.duck).splitted
         var bindingLayout: [StatementBindingSource] = []
-        var boundDynamicOccurrences: [Int: Int] = [:]
-
-        for value in prepared.values {
+        for (index, value) in prepared.values.enumerated() {
             if let marker = value as? StatementParameterMarker {
                 guard let builderState else {
                     throw DatabaseError.invalidStatementTemplate(
@@ -83,8 +111,13 @@ struct StatementTemplateSnapshot: Sendable {
                         "Statement.Parameter marker identity became inconsistent while building the template."
                     )
                 }
+                guard let tracedMarker = tracedMarkersByBindingIndex[index],
+                      sameMarker(tracedMarker, marker) else {
+                    throw DatabaseError.invalidStatementTemplate(
+                        "Statement.Parameter provenance did not match the prepared binding layout."
+                    )
+                }
 
-                boundDynamicOccurrences[marker.argumentIndex, default: 0] += 1
                 bindingLayout.append(.dynamic(marker.argumentIndex))
                 continue
             }
@@ -94,15 +127,9 @@ struct StatementTemplateSnapshot: Sendable {
 
         if let builderState {
             for index in 0..<builderState.parameterCount {
-                let expectedCount = expectedDynamicOccurrences[index, default: 0]
-                guard expectedCount > 0 else {
+                guard boundArgumentIndices.contains(index) else {
                     throw DatabaseError.invalidStatementTemplate(
                         "Every Statement.Parameter created by the builder must be used in the final template."
-                    )
-                }
-                guard boundDynamicOccurrences[index, default: 0] == expectedCount else {
-                    throw DatabaseError.invalidStatementTemplate(
-                        "Every Statement.Parameter occurrence must remain a native bind slot in the Duck template."
                     )
                 }
             }
@@ -191,6 +218,29 @@ public final class Statement: Sendable {
         self.dynamicArgumentCount = dynamicArgumentCount
     }
 
+    public func query(_ values: any Sendable...) async throws -> QueryResult {
+        try await withOperationLifetime { connection, id in
+            try await connection.rejectLiveTransactionBodyMisuse(asTransaction: false)
+            let bindings = try normalizeDynamicBindings(values)
+            return try await connection.executePreparedStatementQuery(
+                id,
+                dynamicBindings: bindings
+            )
+        }
+    }
+
+    @discardableResult
+    public func execute(_ values: any Sendable...) async throws -> UInt64 {
+        try await withOperationLifetime { connection, id in
+            try await connection.rejectLiveTransactionBodyMisuse(asTransaction: false)
+            let bindings = try normalizeDynamicBindings(values)
+            return try await connection.executePreparedStatementMutation(
+                id,
+                dynamicBindings: bindings
+            )
+        }
+    }
+
     deinit {
         let connection = connection
         let id = id
@@ -205,5 +255,17 @@ public final class Statement: Sendable {
         let retainedSelf = self
         defer { withExtendedLifetime(retainedSelf) {} }
         return try await operation(connection, id)
+    }
+
+    private func normalizeDynamicBindings(
+        _ values: [any Sendable]
+    ) throws -> [Value] {
+        guard values.count == dynamicArgumentCount else {
+            throw DatabaseError.statementArgumentCount(
+                expected: dynamicArgumentCount,
+                actual: values.count
+            )
+        }
+        return try values.map { try normalizeBinding($0) }
     }
 }
