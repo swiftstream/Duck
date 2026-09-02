@@ -10,33 +10,38 @@ The corrected implementation plan passed fresh independent Plan Re-audit 01 with
 
 Task 01 — native reusable prepared-statement contract — is complete, independently accepted at R0, and committed.
 
-Task 02 — Statement template model, identity, Connection registry ownership, prepare installation, and ARC cleanup — is complete, validated through Task 02 Validation Rerun 02, and committed.
+Task 02 — Statement template model, identity, Connection registry ownership, prepare installation, and ARC cleanup — is complete, validated, independently accepted, and committed.
 
-Current executable task: **Task 03 — Ordinary reusable Statement query/execute**.
+Task 03 — ordinary reusable Statement query/execute plus the RB-01 same-render template-provenance correction — is complete, validated, independently accepted at fresh R1 Re-audit 01, and committed. Original RB-01 is closed.
 
-Task 03 production scope is limited to:
+Current executable task: **Task 04 — Explicit reusable Statement Transaction integration**.
+
+Task 04 production scope is limited to:
 
 - `Sources/SwiftDuckDB/Statement.swift`;
 - `Sources/SwiftDuckDB/Connection.swift`;
-- `Sources/SwiftDuckDB/DatabaseError.swift`.
+- `Sources/SwiftDuckDB/Transaction.swift` only for the accepted narrow local-failure helper integration/rename if required;
+- `Sources/SwiftDuckDB/DatabaseError.swift` only if the already accepted Statement/Transaction error surface requires integration work.
 
-Task 03 must add ordinary reusable execution only through the already accepted Statement/Connection ownership model and existing Connection scheduler/pending engine:
+Task 04 must add only the accepted explicit `Statement` transaction execution path:
 
-- public `Statement.query(_ values: any Sendable...) async throws -> QueryResult`;
-- public `Statement.execute(_ values: any Sendable...) async throws -> UInt64`;
-- exact dynamic argument count validation and existing binding normalization;
-- same-Connection live transaction-body misuse rejection before argument normalization;
-- outer FIFO ordinary admission and Connection usability checks;
-- Statement registry lookup/usability checks;
-- `clearBindings()` followed by complete fixed/dynamic rebind on every execution;
-- existing pending/cancellation/result engine only;
-- Statement-local terminal tombstone/removal and `.statementUnusable` after clear failure;
-- ordinary bind/execution failures remain reusable where the native engine permits and never silently preserve stale bindings;
-- no automatic reprepare.
+- public `Statement.query(on: Transaction, _ values: any Sendable...) async throws -> QueryResult`;
+- public `Statement.execute(on: Transaction, _ values: any Sendable...) async throws -> UInt64`;
+- Statement/Transaction originating-Connection mismatch rejection before operation registration and without poisoning the unrelated Transaction;
+- for matching owners, register the transaction operation before dynamic argument-count validation and normalization;
+- caller-local count/normalization failure records the same `DatabaseError` as rollback-only and resolves/removes the registered operation;
+- send only `StatementId`, Sendable normalized `Value` bindings, and the existing transaction operation token across actor isolation;
+- use the existing transaction operation FIFO and existing pending/cancellation/result engine only;
+- do not acquire the ordinary outer lease for explicit transaction Statement execution;
+- ensure Connection and Statement entry usability, then `clearBindings()` and fully rebind every immutable fixed/dynamic layout slot;
+- native bind/pending/execution failure participates in existing rollback-only first-reason semantics;
+- caught Statement failure must not allow a false commit;
+- finalization, queued/not-native-active invalidation, cancellation, and cross-Connection independence must preserve the accepted transaction state machine exactly;
+- no ambient Statement transaction path, scheduler redesign, automatic reprepare, public close/finalize, or new binding families.
 
-Task 03 tests must cover the accepted plan's ordinary reusable execution matrix, including repeated SELECT/INSERT/UPDATE, repeated parameters, fixed+dynamic bindings, wrong count then reuse, unsupported type then reuse, Optional/Value/Data coverage, reusable native failure recovery, transaction-scope rejection, same-Statement concurrency, same-Connection serialization, separate-Connection independence, and execution after external Connection references are dropped while Statement remains alive.
+Task 04 tests must cover the accepted transaction Statement matrix: commit/visibility/reuse, owner mismatch without poisoning, wrong-count and unsupported-type rollback-only, native failure rollback-only, caught failure preventing false commit, transaction FIFO/one-native-active behavior, finalization invalidation, cancellation participation, and different-Connection independence.
 
-After Task 03 validation, fresh independent **R1** root audit is mandatory before Task 04 may begin.
+After Task 04 implementation/validation, proceed only through the accepted Task 05 cross-cutting matrix and then fresh independent **R2** before README/final durable Task 06.
 
 The scoped Transactions Public API remains accepted current state. Preserve its exact semantics, including the public spelling `Connection.transaction`; do not add a `withTransaction` compatibility API or redesign its state machine as part of prepared statements.
 
