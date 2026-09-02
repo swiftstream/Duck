@@ -31,3 +31,7 @@ Introduced public `Database` and actor-isolated `Connection` ownership, SwifQL-o
 ### Scoped transaction API
 
 Introduced caller-isolated `Connection.transaction` with an explicit Sendable `Transaction` capability for same-Connection scoped work, one pending/active transaction reservation per Connection, FIFO transaction-operation execution, rollback-only first-failure semantics, cancellation/finalization and escaped-capability handling, independent Connections, conservative fail-close behavior after cleanup or ambiguous post-scheduling COMMIT failures, and durable deterministic runtime/state-machine coverage without timing or test-only production hooks.
+
+### Reusable prepared statements API
+
+Introduced public Connection-owned reusable `Statement` preparation with fixed and builder-created dynamic parameters, same-render SwifQL provenance validation, full clear/rebind native reuse, ordinary and explicit owning-Transaction query/execute, rollback-only transaction integration, strong async operation lifetime, fail-close precedence, deterministic same-Statement/multi-Statement/cross-Connection coverage, and normal-import public consumer validation.

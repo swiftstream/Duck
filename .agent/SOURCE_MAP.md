@@ -33,14 +33,15 @@ There is intentionally no model/provider/tool-specific stable session-orchestrat
 - `Package.swift`: SwiftPM manifest for the `SwiftDuckDB` library product, public `SwiftDuckDB` target, internal generated `Cduckdb` target, exact SwifQL `2.0.0-beta.5.1.0` dependency, and both Swift Testing targets. It uses Swift tools 6.3, iOS 15+, macOS 12+, Swift language mode 6, and the upstream-generated C++11 setting.
 - `Package.resolved`: exact dependency resolution, including SwifQL revision `849931d048905abbf10d31b73eef14d8a64568cb`.
 - `.swift-version`: tracked exact Swift `6.3.3` toolchain pin.
-- `README.md`: public query + scoped-transaction documentation. Executable examples use SwifQL; ordinary String execution is not taught.
+- `README.md`: public query, reusable-Statement, and scoped-transaction documentation. Executable examples use SwifQL; ordinary String execution and manual `$1` placeholder APIs are not taught.
 
 ## Public SwiftDuckDB Source
 
 - `Sources/SwiftDuckDB/Database.swift`: public actor-free `Sendable` database lifetime owner; in-memory/file-backed open and explicit Connection creation.
-- `Sources/SwiftDuckDB/Connection.swift`: public actor-isolated native execution owner for ordinary query/execute and scoped transactions; owns per-Connection outer admission, transaction lifecycle/finalization, fail-close state, pending execution, cancellation handling, error mapping, and Swift-owned result assembly.
-- `Sources/SwiftDuckDB/Transaction.swift`: public `Transaction` scoped capability plus internal Sendable connection-admission, transaction-reservation, operation-token, rollback-only, and lifecycle state-machine values used by `Connection`.
-- `Sources/SwiftDuckDB/DatabaseError.swift`: public typed query/database/transaction/fail-close error cases.
+- `Sources/SwiftDuckDB/Connection.swift`: public actor-isolated native execution owner for ordinary query/execute, reusable Statement registry/execution, and scoped transactions; owns per-Connection outer admission, transaction lifecycle/finalization, fail-close state, Statement clear/full-rebind execution, pending execution, cancellation handling, error mapping, and Swift-owned result assembly.
+- `Sources/SwiftDuckDB/Statement.swift`: public reusable prepared-statement capability, private dynamic Parameter markers/layout validation, originating-Connection ownership, ordinary and explicit-Transaction query/execute APIs, operation-lifetime retention, and actor-routed registry cleanup.
+- `Sources/SwiftDuckDB/Transaction.swift`: public `Transaction` scoped capability plus internal Sendable connection-admission, transaction-reservation, operation-token, rollback-only, and lifecycle state-machine values used by `Connection` and explicit Statement transaction execution.
+- `Sources/SwiftDuckDB/DatabaseError.swift`: public typed query/database/reusable-Statement/transaction/fail-close error cases.
 - `Sources/SwiftDuckDB/Value.swift`: public primitive/NULL/BLOB result value model.
 - `Sources/SwiftDuckDB/Row.swift`: public row value with positional and named lookup.
 - `Sources/SwiftDuckDB/QueryResult.swift`: public columns/rows/rowsChanged result value.
@@ -66,7 +67,10 @@ There is intentionally no model/provider/tool-specific stable session-orchestrat
 
 - `Tests/CDuckDBTests/CDuckDBTests.swift`: direct C lifecycle/version/persistence/chunk-vector/prepared contracts with repository-owned SQL built through SwifQL `.duck` except explicit raw negative cases.
 - `Tests/SwiftDuckDBTests/NativeOwnerTests.swift`: internal database/connection ownership and direct native-handle contract coverage.
-- `Tests/SwiftDuckDBTests/NativeQueryResourceTests.swift`: prepared/pending/result RAII, first-slice binding/materialization, failure cleanup/reuse, and unsupported-result coverage.
+- `Tests/SwiftDuckDBTests/NativeQueryResourceTests.swift`: prepared/pending/result RAII, reusable binding reset, first-slice binding/materialization, failure cleanup/reuse, and unsupported-result coverage.
+- `Tests/SwiftDuckDBTests/StatementTests.swift`: reusable Statement template/provenance, Parameter ownership/occurrence, fixed/dynamic layout, invalid-template, Sendability, and prepare-installation coverage.
+- `Tests/SwiftDuckDBTests/StatementExecutionTests.swift`: ordinary reusable SELECT/INSERT/UPDATE, argument/type/null/BLOB/error reuse, transaction-scope guard, lifetime, fail-close, and deterministic same-Statement/multi-Statement/cross-Connection concurrency coverage.
+- `Tests/SwiftDuckDBTests/StatementTransactionTests.swift`: explicit reusable Statement Transaction ownership, rollback-only/error precedence, repeated transaction execution/visibility, cancellation/finalization, same-Statement transaction concurrency, and cross-Connection independence coverage.
 - `Tests/SwiftDuckDBTests/PublicActorTests.swift`: public Database/Connection opening, independent Connections, and parent lifetime retention.
 - `Tests/SwiftDuckDBTests/QueryValueTests.swift`: Row/Value/QueryResult/DatabaseError value semantics and Sendability coverage.
 - `Tests/SwiftDuckDBTests/AsyncConnectionExecutionTests.swift`: public async execution, mutation rowsChanged, error/reuse, and deterministic pre-native cancellation coverage.

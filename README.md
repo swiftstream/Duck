@@ -15,7 +15,7 @@ These are manifest facts, not a claim of broader platform/runtime validation bey
 
 The repository toolchain pin is Swift 6.3.3.
 
-SwiftDuckDB currently depends on SwifQL `2.0.0-beta.5.0.0` exactly.
+SwiftDuckDB currently depends on SwifQL `2.0.0-beta.5.1.0` exactly.
 
 ## Installation
 
@@ -28,7 +28,7 @@ dependencies: [
     .package(path: "../SwiftDuckDB"),
     .package(
         url: "https://github.com/SwifQL/SwifQL.git",
-        exact: "2.0.0-beta.5.0.0"
+        exact: "2.0.0-beta.5.1.0"
     )
 ],
 targets: [
@@ -152,6 +152,91 @@ let rowsChanged = try await SwifQL
 
 `rowsChanged` is a `UInt64`.
 
+## Reusable prepared statements
+
+Use `Connection.prepare` when the same query shape will execute repeatedly with different values. The builder form creates dynamic `Statement.Parameter` values while ordinary SwifQL values remain fixed in the prepared template.
+
+### Prepare once, execute many
+
+```swift
+let users = Path.Table("users")
+
+let insertUser = try await connection.prepare { parameters in
+    let email = parameters.parameter()
+    let name = parameters.parameter()
+
+    return SwifQL
+        .insertInto(users, fields: "email", "name", "role")
+        .values
+        .values(email, name, "member")
+}
+
+try await insertUser.execute("mike@example.com", "Mike")
+try await insertUser.execute("olga@example.com", "Olga")
+try await insertUser.execute("alex@example.com", "Alex")
+```
+
+The `"member"` value is fixed when the statement is prepared. `email` and `name` are dynamic parameters supplied on each execution. Every execution clears the previous native bindings and fully rebinds the prepared statement before running it.
+
+A reusable `SELECT` uses the same model:
+
+```swift
+let findUser = try await connection.prepare { parameters in
+    let email = parameters.parameter()
+
+    return SwifQL
+        .select(users.column("id"), users.column("name"))
+        .from(users)
+        .where(users.column("email") == email)
+}
+
+let mike = try await findUser.query("mike@example.com")
+let olga = try await findUser.query("olga@example.com")
+```
+
+For a query with no dynamic parameters, prepare the SwifQL query directly and call `query()` or `execute()` with no arguments:
+
+```swift
+let admins = try await connection.prepare(
+    SwifQL
+        .select(users.column("id"))
+        .from(users)
+        .where(users.column("role") == "admin")
+)
+
+let result = try await admins.query()
+```
+
+### Reuse inside a transaction
+
+A `Statement` belongs to the `Connection` that prepared it. To execute that same statement inside a transaction on its owner connection, pass the explicit `Transaction` capability:
+
+```swift
+try await connection.transaction { transaction in
+    try await insertUser.execute(
+        on: transaction,
+        "transaction@example.com",
+        "Transaction User"
+    )
+
+    let result = try await findUser.query(
+        on: transaction,
+        "transaction@example.com"
+    )
+
+    // Use result here before the transaction body returns.
+    _ = result
+}
+```
+
+A `Statement` cannot execute on a `Transaction` from another `Connection`; that fails with `.statementConnectionMismatch` without poisoning the unrelated transaction. An ordinary `statement.query(...)` or `statement.execute(...)` call made from the live transaction body on the same connection is rejected with `.transactionScopeViolation`. Use the explicit `on: transaction` overload when the statement should participate in that transaction.
+
+`Statement` is `Sendable` and may be called from multiple tasks. Native execution still belongs to the originating `Connection`: ordinary calls are serialized by that connection, transaction calls participate in that transaction's FIFO execution, and separate connections remain independent. A `Statement` strongly retains its originating `Connection`, so it remains usable while the statement itself is alive unless that connection becomes unusable or the statement is terminally invalidated.
+
+Supported dynamic arguments use the same current binding normalization as ordinary execution: `Value`, Optional values whose wrapped type is also supported, `Bool`, signed and unsigned 8/16/32/64-bit integers, `Int`, `UInt`, `Float`, `Double`, `String`, and Foundation `Data`. Optional `nil` becomes SQL `NULL`; `Data()` is a valid empty BLOB. Unsupported types fail with `.unsupportedBindingType`, and the statement remains reusable when the failure is caller-local.
+
+Reusable preparation means SwiftDuckDB retains and reuses one native prepared-statement owner across executions. It does not promise that DuckDB will never internally rebind or replan when native engine conditions require it. SwiftDuckDB also does not expose a manual `$1` / `$2` placeholder API; dynamic parameters are created only through `Statement.Parameters` in the builder closure.
+
 ## Transactions
 
 Use `Connection.transaction` for a scoped transaction. Work on that same connection that should participate in the transaction must use the supplied `Transaction` capability:
@@ -244,7 +329,7 @@ Cancellation is cooperative at those boundaries. SwiftDuckDB does not promise in
 
 ## Errors
 
-Public database/query/transaction failures use `DatabaseError` cases for database opening, connection opening, preparation, binding, execution, unsupported bind/result types, invalid native result state, transaction scope/lifecycle failures, and terminal `.connectionUnusable` state.
+Public database/query/transaction/statement failures use `DatabaseError` cases for database opening, connection opening, preparation, binding, execution, unsupported bind/result types, invalid native result state, reusable-statement template/argument/ownership/usability failures, transaction scope/lifecycle failures, and terminal `.connectionUnusable` state.
 
 Native diagnostic strings are useful diagnostics, but their exact text is not a stable symbolic-type contract.
 
@@ -262,6 +347,6 @@ Treat `SwifQL.raw(...)` as an escape hatch. Normal SwiftDuckDB examples should p
 
 ## Current scope
 
-The current public slice covers database/connection ownership, SwifQL query execution, scoped transactions, primitive binding/result values, mutation row counts, typed-table selected-column convenience, structured connection concurrency, and cancellation-aware execution.
+The current public slice covers database/connection ownership, SwifQL query execution, reusable prepared statements, scoped transactions, primitive binding/result values, mutation row counts, typed-table selected-column convenience, structured connection concurrency, and cancellation-aware execution.
 
-The current API does not yet advertise public prepared-statement reuse, Appender, Codable model decoding, ORM/repository semantics, connection pooling, observation/reactive queries, migrations, savepoints/manual transaction lifecycle controls, custom transaction isolation modes, or complex/temporal/Decimal/UUID/128-bit result families.
+The current API does not yet advertise Appender, Codable model decoding, ORM/repository semantics, connection pooling, observation/reactive queries, migrations, savepoints/manual transaction lifecycle controls, custom transaction isolation modes, or complex/temporal/Decimal/UUID/128-bit result families.

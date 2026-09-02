@@ -32,7 +32,7 @@ Shared API and semantics remain platform-independent unless a concrete platform 
 6. Document the first public API in the root README using only implemented and validated behavior. **Done.**
 7. Implement, validate, and independently audit the first public scoped transaction capability. **Done.**
 8. Document the scoped transaction API and synchronize its durable project state. **Done.**
-9. Implement the first public reusable prepared-statement capability through the independently accepted corrected plan, beginning with the native reusable prepared-statement contract and its R0 root gate. **Active approved implementation; no later capability is implicitly authorized.**
+9. Implement the first public reusable prepared-statement capability with reusable native ownership, ordinary and explicit-Transaction execution, deterministic concurrency/lifetime coverage, and public documentation. **Implemented current capability boundary; no later capability is implicitly authorized.**
 
 ## Implemented First Public Query Slice
 
@@ -70,6 +70,22 @@ The current public transaction capability includes:
 
 The current transaction slice does not add savepoints, custom isolation/READ ONLY modes, manual transaction lifecycle control, or pooling. Verified debt for deterministic active-pending cancellation integration and post-COMMIT Connection recovery remains tracked separately in `TECH_DEBT.md`.
 
+## Implemented Reusable Prepared Statement Slice
+
+The current reusable prepared-statement capability includes:
+
+- public `Statement` values created by `Connection.prepare`, with dynamic `Statement.Parameter` values created only by the builder overload;
+- one native prepared-statement owner retained in the originating `Connection` actor registry and reused through clear + complete rebind + pending execution;
+- immutable fixed/dynamic binding layout derived from one SwifQL Duck preparation with same-render unsafe-value provenance;
+- ordinary `Statement.query` / `execute` serialized through the existing Connection ordinary scheduler;
+- explicit `Statement.query(on:)` / `execute(on:)` for the owning `Transaction`, using the existing transaction FIFO rather than the ordinary outer lease;
+- owner-mismatch rejection before transaction registration and matching-owner registration before caller-local count/type normalization;
+- rollback-only first-failure semantics for Statement transaction setup/native/cancellation failures;
+- truthful `Sendable` Statement ownership with no native handle escape and operation-lifetime retention across async execution;
+- deterministic same-Statement, multi-Statement, cross-Connection, fail-close, lifetime, and external normal-import consumer coverage.
+
+The public slice does not add manual native parameter indices, named-parameter dictionaries, public close/finalize, statement caching/pooling, or automatic reprepare. DuckDB may still internally rebind/replan when its own engine semantics require it.
+
 ## Current Native Packaging Decision
 
 The current architecture uses generated DuckDB v1.5.5 source vendored into internal target `Cduckdb`. This is implemented current state, not an open source-vs-prebuilt decision.
@@ -82,7 +98,7 @@ The following are not yet approved/implemented architecture unless later resolve
 
 - long-term DuckDB upgrade/version policy beyond the current v1.5.5 pin;
 - optional extension and bundle-size strategy beyond the current generated extension set;
-- any reusable prepared-statement behavior beyond the currently approved first-slice implementation plan;
+- any reusable prepared-statement behavior beyond the implemented first-slice capability;
 - Appender API;
 - Codable/model decoding or encoding;
 - observation/reactivity;

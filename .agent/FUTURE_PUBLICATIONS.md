@@ -2,428 +2,203 @@
 
 Durable backlog of concrete README/article/publication topics that the maintainer explicitly wants preserved for future public writing.
 
-These entries are **not implementation authorization** and are **not current API claims**. Any code using an unimplemented capability is illustrative until that capability has completed research, planning, implementation, validation, audit, and public-documentation acceptance.
+These entries are **not implementation authorization**. Implemented examples below reflect current source truth, but a publication trigger may still require final acceptance/release/publication before external use.
 
 ## 001 — Public Reusable Prepared Statements API: what it is and why it matters
 
-Status: **future publication / future README material**
+Status: **implemented source material / future article-publication candidate**
 
-Trigger for publication: after a Public Reusable Prepared Statements API is actually implemented, validated, independently audited, and accepted for public documentation.
+Trigger for publication: after the reusable prepared-statements capability completes final project acceptance and any intended public release/publication gate.
 
-Preserve the following explanation and examples as source material.
+### Core explanation
 
-`Public Reusable Prepared Statements API` — это когда ты один раз подготавливаешь SQL-запрос, а потом много раз выполняешь его с разными параметрами, не заставляя DuckDB каждый раз заново разбирать SQL и создавать новый prepared statement.
+A reusable prepared statement lets SwiftDuckDB prepare one query shape once and execute the same native prepared-statement owner repeatedly with different dynamic values.
 
-Сейчас у нас API примерно такого уровня:
-
-```swift
-let users = Path.Table("users")
-
-try await SwifQL
-    .insertInto(users, fields: "email", "name")
-    .values
-    .values("mike@example.com", "Mike")
-    .execute(on: connection)
-```
-
-Если нужно вставить 10 000 пользователей, ты вызываешь `.execute(on:)` 10 000 раз. Внутри каждый вызов проходит путь примерно:
+The normal one-shot path conceptually does:
 
 ```text
 SwifQL
-→ render SQL
-→ duckdb_prepare(...)
-→ bind parameters
-→ execute
-→ destroy prepared statement
+-> render/prepare
+-> bind
+-> execute
+-> release prepared statement
 ```
 
-Reusable prepared statement позволил бы сделать подготовку **один раз**.
+The reusable `Statement` path keeps the prepared-statement owner in the originating `Connection` and repeats:
 
-Например, будущий API мог бы выглядеть примерно так:
+```text
+clear prior bindings
+-> fully rebind fixed + dynamic layout
+-> execute through the existing pending engine
+```
+
+SwiftDuckDB does not expose manual `$1` / `$2` placeholder construction. Dynamic values are created only through `Statement.Parameters` in the `Connection.prepare` builder.
+
+### Prepare once, execute many INSERTs
 
 ```swift
 let users = Path.Table("users")
 
-let insertUser = try await connection.prepare(
-    SwifQL
-        .insertInto(users, fields: "email", "name")
+let insertUser = try await connection.prepare { parameters in
+    let email = parameters.parameter()
+    let name = parameters.parameter()
+
+    return SwifQL
+        .insertInto(users, fields: "email", "name", "role")
         .values
-        .values(Parameter(1), Parameter(2))
-)
-
-try await insertUser.execute(
-    "mike@example.com",
-    "Mike"
-)
-
-try await insertUser.execute(
-    "olga@example.com",
-    "Olga"
-)
-
-try await insertUser.execute(
-    "alex@example.com",
-    "Alex"
-)
-```
-
-Здесь `INSERT INTO ...` компилируется DuckDB только один раз, а дальше меняются только значения.
-
-### Более жизненный пример
-
-Представь локальную аналитику:
-
-```swift
-let events = Path.Table("events")
-
-let insertEvent = try await connection.prepare(
-    SwifQL
-        .insertInto(
-            events,
-            fields: "timestamp", "name", "payload"
-        )
-        .values
-        .values(
-            Parameter(1),
-            Parameter(2),
-            Parameter(3)
-        )
-)
-```
-
-После этого:
-
-```swift
-for event in incomingEvents {
-    try await insertEvent.execute(
-        event.timestamp,
-        event.name,
-        event.payload
-    )
+        .values(email, name, "member")
 }
+
+try await insertUser.execute("mike@example.com", "Mike")
+try await insertUser.execute("olga@example.com", "Olga")
+try await insertUser.execute("alex@example.com", "Alex")
 ```
 
-Вместо:
+`"member"` is a fixed binding captured by the prepared template. `email` and `name` are dynamic arguments supplied on each execution.
+
+This is the clearest batch-workload example: mass INSERT/UPDATE without rebuilding the prepared statement for every row.
+
+### Repeated SELECT
 
 ```swift
-for event in incomingEvents {
-    try await SwifQL
-        .insertInto(
-            events,
-            fields: "timestamp", "name", "payload"
-        )
-        .values
-        .values(
-            event.timestamp,
-            event.name,
-            event.payload
-        )
-        .execute(on: connection)
-}
-```
+let findUser = try await connection.prepare { parameters in
+    let email = parameters.parameter()
 
-Главное различие не столько в количестве строк Swift-кода, сколько в native lifecycle.
-
-Prepared statements полезны не только для `INSERT`.
-
-Например, один часто повторяемый `SELECT`:
-
-```swift
-let users = Path.Table("users")
-
-let findUser = try await connection.prepare(
-    SwifQL
+    return SwifQL
         .select(users.column("id"), users.column("name"))
         .from(users)
-        .where(users.column("email") == Parameter(1))
-)
-```
+        .where(users.column("email") == email)
+}
 
-И дальше:
-
-```swift
 let mike = try await findUser.query("mike@example.com")
 let olga = try await findUser.query("olga@example.com")
 let alex = try await findUser.query("alex@example.com")
 ```
 
-То есть `findUser` становится фактически готовой reusable query.
+The `Statement` is a ready reusable query whose owner `Connection` remains explicit in the lifetime model even though the connection is not passed at every ordinary call site.
 
-Есть ещё более интересный вопрос — как это должно работать с нашими `Transaction`.
+### Fixed-only reusable query
 
-Например, пользователь мог бы захотеть:
+A query with no dynamic parameters can be prepared directly:
 
 ```swift
-let insertUser = try await connection.prepare(
+let admins = try await connection.prepare(
     SwifQL
-        .insertInto(users, fields: "email", "name")
-        .values
-        .values(Parameter(1), Parameter(2))
+        .select(users.column("id"), users.column("name"))
+        .from(users)
+        .where(users.column("role") == "admin")
 )
 
-try await connection.transaction { transaction in
-    try await insertUser.execute(
-        "mike@example.com",
-        "Mike",
-        on: transaction
-    )
-
-    try await insertUser.execute(
-        "olga@example.com",
-        "Olga",
-        on: transaction
-    )
-}
+let result = try await admins.query()
 ```
 
-И вот здесь начинается архитектурно важная часть.
+### Explicit Transaction use
 
-Нам нужно решить: prepared statement физически привязан к `Connection`. Следовательно, он не должен внезапно выполняться на другой Connection:
-
-```swift
-let statement = try await connectionA.prepare(...)
-
-// Скорее всего, такое должно быть запрещено:
-try await statement.execute(..., on: connectionB)
-```
-
-Иначе ломается ownership native `duckdb_prepared_statement`.
-
-### Ещё один возможный вариант API
-
-Можно вообще не передавать connection повторно:
-
-```swift
-let statement = try await connection.prepare(...)
-
-try await statement.execute(
-    "mike@example.com",
-    "Mike"
-)
-```
-
-Потому что statement уже знает своего owner:
-
-```text
-PreparedStatement
-       │
-       ▼
- Connection
-       │
-       ▼
-duckdb_connection
-```
-
-Но тогда надо определить, что произойдёт, если сам `Connection` станет unusable.
-
-Например после нашего ambiguous COMMIT:
-
-```swift
-let statement = try await connection.prepare(...)
-
-do {
-    try await connection.transaction { transaction in
-        // какой-то terminal COMMIT failure
-    }
-} catch {
-    // connection теперь fail-closed
-}
-
-try await statement.execute(...)
-```
-
-Очевидно, reusable statement тоже должен получить что-то вроде:
-
-```swift
-DatabaseError.connectionUnusable
-```
-
-а не пытаться работать с native handle.
-
-Ещё один вопрос — concurrent use.
-
-Допустим:
-
-```swift
-let statement = try await connection.prepare(...)
-
-async let a = statement.execute(1)
-async let b = statement.execute(2)
-async let c = statement.execute(3)
-
-try await (a, b, c)
-```
-
-Что мы хотим?
-
-Вариант A — это разрешено, а `Connection` сериализует вызовы:
-
-```text
-A
-↓
-B
-↓
-C
-```
-
-Вариант B — один prepared statement нельзя одновременно использовать из нескольких задач:
-
-```swift
-DatabaseError.preparedStatementAlreadyExecuting
-```
-
-Вариант C — каждый execution получает собственную binding/execution state поверх одного reusable native statement.
-
-Но это уже зависит от реальных гарантий DuckDB C API, поэтому и нужна отдельная research phase.
-
-Ещё одна важная вещь — lifetime.
-
-Например:
-
-```swift
-var statement: PreparedStatement?
-
-do {
-    let connection = try database.connect()
-
-    statement = try await connection.prepare(...)
-}
-
-// connection больше нигде не используется
-
-try await statement!.execute(...)
-```
-
-Надо решить, кто кого удерживает.
-
-### Модель 1
-
-`PreparedStatement` strongly retains `Connection`.
-
-Тогда:
-
-```text
-PreparedStatement
-   └── Connection
-        └── NativeConnection
-```
-
-Statement может продолжать работать.
-
-### Модель 2
-
-Statement не владеет Connection.
-
-Тогда после окончания lifetime Connection:
-
-```swift
-try await statement.execute(...)
-```
-
-получит:
-
-```swift
-.preparedStatementInvalidated
-```
-
-Для Swift API это очень существенная разница.
-
-Prepared statement также позволяет сделать удобный API для batch workloads:
-
-```swift
-let insert = try await connection.prepare(
-    SwifQL
-        .insertInto(metrics, fields: "name", "value")
-        .values
-        .values(Parameter(1), Parameter(2))
-)
-
-for metric in metrics {
-    try await insert.execute(metric.name, metric.value)
-}
-```
-
-Или:
+A prepared `Statement` is physically owned by the `Connection` that created it. To use it inside a transaction on that same owner, pass the explicit `Transaction` capability:
 
 ```swift
 try await connection.transaction { transaction in
-    for metric in metrics {
-        try await insert.execute(
-            metric.name,
-            metric.value,
-            on: transaction
-        )
-    }
+    try await insertUser.execute(
+        on: transaction,
+        "transaction@example.com",
+        "Transaction User"
+    )
+
+    let result = try await findUser.query(
+        on: transaction,
+        "transaction@example.com"
+    )
+
+    _ = result
 }
 ```
 
-Вот **это** наиболее очевидный user-facing use case.
+A `Statement` cannot execute on a `Transaction` from another `Connection`; that fails with `.statementConnectionMismatch` before the unrelated transaction is registered/poisoned.
 
-При этом reusable prepared statements — это **не ORM**.
+An ordinary `statement.query(...)` / `statement.execute(...)` call from the live same-Connection transaction body is rejected with `.transactionScopeViolation`. Transaction participation is explicit through the `on: transaction` overloads.
 
-Не такое:
+### Ownership and lifetime
 
-```swift
-try await User
-    .where(...)
-    .save()
-```
-
-И не такое:
-
-```swift
-let user: User = try await db.find(...)
-```
-
-Это гораздо более низкоуровневый capability:
+The implemented ownership model is:
 
 ```text
-SwifQL query
-    ↓
-PreparedStatement
-    ↓
-bind
-    ↓
-execute/query
+Statement
+  -> Connection actor
+       -> PreparedStatementEntry
+            -> NativePreparedStatement
+                 -> NativeConnection
 ```
 
-То есть архитектурно это следующий слой непосредственно над уже существующим query engine.
+`Statement` strongly retains its originating `Connection` and stores no native handle itself. A statement can therefore remain usable after external lexical references to the `Database` / `Connection` are dropped, while the `Statement` remains alive.
 
-### Если упростить до одного примера
+All public Statement async operations retain the Statement through queued/native-active completion. Deinit cleanup only schedules idempotent registry removal back on the owner Connection actor.
 
-**То, что есть сейчас:**
+### Concurrency
+
+Concurrent calls are supported. Native execution is still Connection-owned:
 
 ```swift
-for id in ids {
-    let result = try await SwifQL
-        .select(users.column("name"))
-        .from(users)
-        .where(users.column("id") == id)
-        .query(on: connection)
-}
+async let a = statement.query(Int32(1))
+async let b = statement.query(Int32(2))
+async let c = statement.query(Int32(3))
+
+let results = try await (a, b, c)
 ```
 
-**То, что потенциально даст reusable prepared statement:**
+Ordinary calls serialize through the existing Connection FIFO. Explicit transaction calls serialize through the existing transaction operation FIFO. Different Statements on one Connection share those schedulers; separate Connections remain independent.
 
-```swift
-let findUser = try await connection.prepare(
-    SwifQL
-        .select(users.column("name"))
-        .from(users)
-        .where(users.column("id") == Parameter(1))
-)
+This avoids concurrent clear/rebind/execution on one native prepared-statement handle without adding a Statement-local lock or second executor.
 
-for id in ids {
-    let result = try await findUser.query(id)
-}
+### Failure behavior
+
+Each admitted execution clears bindings and fully rebinds the immutable layout, preventing stale values from carrying into later executions.
+
+Caller-local wrong-count/unsupported-type failures do not poison an ordinary Statement. Native execution failures are reusable where the pinned engine permits; later execution begins from clear + complete rebind.
+
+A clear-bindings failure terminally tombstones only that Statement. SwiftDuckDB does not automatically reprepare a replacement handle.
+
+If the originating Connection is fail-closed, Statement execution receives `.connectionUnusable` rather than bypassing Connection state.
+
+Inside an explicit Transaction, setup/native/cancellation failures participate in existing rollback-only first-reason semantics. Catching a Statement failure inside the transaction body cannot turn the transaction back into a successful COMMIT.
+
+### Supported dynamic value families
+
+Dynamic arguments use the same current normalization as ordinary query execution:
+
+```text
+Value
+Optional<supported value>
+Bool
+Int8 / Int16 / Int32 / Int64 / Int
+UInt8 / UInt16 / UInt32 / UInt64 / UInt
+Float / Double
+String
+Foundation.Data
 ```
 
-Вот в этом вся идея.
+Optional `nil` becomes SQL NULL. Empty `Data()` is a valid empty BLOB. Unsupported future temporal/Decimal/UUID/complex families are not implied by this API.
 
-И важный момент: **конкретный синтаксис выше — только пример возможного дизайна. У нас этого API ещё нет и он ещё не спроектирован.** Именно поэтому будущая research phase должна решить, хотим ли мы вообще такой API и каким он должен быть.
+### Important native nuance
 
-Для SwiftDuckDB prepared statements в первую очередь стоит рассматривать ради трёх сценариев:
+Reusable preparation means SwiftDuckDB reuses the native prepared-statement owner. It does **not** promise that DuckDB internally keeps one immutable physical plan forever. Pinned DuckDB may rebind/replan when type/catalog/native engine conditions require it.
 
-1. массовые `INSERT` / `UPDATE`;
-2. часто повторяемые `SELECT` с разными параметрами;
-3. использование одного заранее подготовленного запроса внутри `Transaction`.
+### Why this is not an ORM
+
+Reusable prepared statements remain a low-level query-execution capability:
+
+```text
+SwifQL query template
+-> Statement
+-> bind/rebind
+-> query/execute
+```
+
+They do not imply model persistence, repositories, automatic Codable mapping, migrations, or observation/reactive semantics.
+
+### Best publication angles
+
+Preserve these three user-facing motivations:
+
+1. high-volume repeated INSERT / UPDATE;
+2. frequently repeated SELECT with changing values;
+3. reuse of one already-prepared query inside an explicit owning `Transaction`.
