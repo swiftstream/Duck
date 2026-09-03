@@ -27,10 +27,10 @@ Reusable prepared Statements
 - public Agent Skill coverage: BACKFILL REQUIRED (`swiftduckdb-reusable-statements` minimum)
 
 Scoped Appender
-- implementation: active, not yet public current API
-- README: required at final Appender documentation closure
-- detailed social/article source: required at final Appender documentation closure
-- public Agent Skill coverage: required at final Appender documentation closure (`swiftduckdb-appender` minimum)
+- implementation: implemented scoped public API
+- README: PRESENT
+- detailed social/article source: PRESENT below
+- public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-appender`; central federation onboarding/publication remains separate
 ```
 
 All future public capabilities automatically enter this register/closure model. Completing implementation without README + detailed publication source + skill coverage is not considered full public-capability closure.
@@ -233,3 +233,265 @@ Preserve these three user-facing motivations:
 1. high-volume repeated INSERT / UPDATE;
 2. frequently repeated SELECT with changing values;
 3. reuse of one already-prepared query inside an explicit owning `Transaction`.
+
+## 002 — Scoped Appender: bulk ingestion without pretending the closure is a transaction
+
+Status: **implemented source material / future article-publication candidate**
+
+Trigger for publication: after the scoped Appender capability completes final project acceptance and any intended public release/publication gate.
+
+### The practical problem
+
+When an application already has many complete rows in memory or arriving from an import pipeline, expressing every row as another INSERT statement is not always the clearest ingestion model.
+
+SwiftDuckDB now exposes DuckDB's Appender mechanism through a deliberately small Swift surface:
+
+```swift
+let events = Path.Table("events")
+
+try await connection.appender(to: events) { appender in
+    try await appender.append(Int32(1), "opened", Data([0x01]))
+    try await appender.append(Int32(2), "closed", Data())
+}
+```
+
+The public contract is intentionally row-shaped: one `append(...)` call is one complete table row. SwiftDuckDB owns the native Appender and its finalization behind the scope rather than asking application code to manage a native handle.
+
+### Why DuckDB calls this Appender
+
+DuckDB's Appender is a native bulk-ingestion path for feeding rows directly into an existing table. It buffers data and can flush batches internally instead of treating every row as a separately prepared Swift-side statement execution.
+
+SwiftDuckDB preserves that character without exposing DuckDB's lower-level per-column mutation lifecycle. Callers provide complete rows; the Connection owns native sequencing and cleanup.
+
+### Appender versus one-shot INSERT versus reusable Statement
+
+There are three distinct choices in the current API.
+
+**One-shot query/execute** is the simplest choice for occasional mutations:
+
+```swift
+try await SwifQL
+    .insertInto(events, fields: "id", "kind", "payload")
+    .values
+    .values(Int32(1), "opened", Data([0x01]))
+    .execute(on: connection)
+```
+
+**Reusable `Statement`** is appropriate when one SQL shape repeats with changing values, including INSERT/UPDATE/SELECT, or when the same prepared statement must participate explicitly in a supported `Transaction`:
+
+```swift
+let insertEvent = try await connection.prepare { parameters in
+    let id = parameters.parameter()
+    let kind = parameters.parameter()
+    let payload = parameters.parameter()
+
+    return SwifQL
+        .insertInto(events, fields: "id", "kind", "payload")
+        .values
+        .values(id, kind, payload)
+}
+
+try await insertEvent.execute(Int32(1), "opened", Data([0x01]))
+try await insertEvent.execute(Int32(2), "closed", Data())
+```
+
+**Appender** is the focused choice when the job is bulk complete-row ingestion into one existing table and SQL-expression flexibility is not needed for each row:
+
+```swift
+try await connection.appender(to: events) { appender in
+    for event in importedEvents {
+        try await appender.append(event.id, event.kind, event.payload)
+    }
+}
+```
+
+This distinction is semantic, not a benchmark claim. The durable message should be “pick the API that matches the workload,” not an unsupported universal performance ranking.
+
+### Scoped lifetime instead of a free-standing handle
+
+The first public SwiftDuckDB Appender is scoped:
+
+```text
+Connection.appender(to:) {
+    Appender
+}
+```
+
+There is no public Appender initializer and no public `close`, `flush`, `clear`, or native handle.
+
+That design gives SwiftDuckDB one place to own the correctness-sensitive lifetime:
+
+```text
+public Appender
+-> owning Connection actor
+-> actor registry entry
+-> NativeAppender
+-> NativeConnection
+```
+
+Application code only supplies rows and awaits the body. Successful body completion explicitly finalizes the native Appender. Body failure or observed cancellation takes the discard/cleanup path instead of relying on deinit to decide correctness.
+
+An Appender should not escape for later use. Normal use after its scope has ended fails with `.appenderEnded`. If the owning Connection has been conservatively fail-closed, `.connectionUnusable` may dominate instead.
+
+### Complete rows are the concurrency boundary
+
+The public API intentionally omits per-column append and `endRow`.
+
+That matters because complete rows can be serialized as one Connection-owned operation. Structured child tasks may concurrently submit rows through the same `Sendable` Appender as long as the parent waits for them before leaving the scope:
+
+```swift
+try await connection.appender(to: events) { appender in
+    try await withThrowingTaskGroup(of: Void.self) { group in
+        for event in importedEvents {
+            group.addTask {
+                try await appender.append(event.id, event.kind, event.payload)
+            }
+        }
+        try await group.waitForAll()
+    }
+}
+```
+
+SwiftDuckDB normalizes the whole row before actor/native mutation and runs the complete native row append synchronously on the owning Connection actor. Columns from two public row calls therefore cannot interleave.
+
+The article should not turn this into a promise that parallel submission makes one DuckDB connection execute native row writes in parallel. The important property is safe complete-row serialization and structured caller concurrency.
+
+### Same Connection versus another Connection
+
+A live Appender scope holds the owning Connection's ordinary admission for the complete awaited body.
+
+Ordinary same-Connection work inherited from that Appender body is rejected instead of silently queueing behind itself. The rejected family includes Connection query/execute, both prepare forms, transaction start, nested Appender, and ordinary reusable Statement query/execute.
+
+Independent work should use another Connection:
+
+```swift
+let database = try Database()
+let ingestConnection = try database.connect()
+let lookupConnection = try database.connect()
+
+try await ingestConnection.appender(to: events) { appender in
+    async let lookup = lookupConnection.query(
+        SwifQL.select(Int32(1) => "value")
+    )
+
+    try await appender.append(Int32(1), "opened", Data())
+    _ = try await lookup
+}
+```
+
+There is one subtle boundary worth stating accurately. If application code deliberately moves same-Connection work into a context that no longer inherits the Appender scope context, SwiftDuckDB treats it as external. That work can queue behind the Appender's held admission. If the still-live Appender body waits for that queued work before returning, the caller has created a dependency cycle. The API prevents the normal inherited misuse path; it does not claim every unstructured task topology is impossible to deadlock.
+
+### Supported row values
+
+The first Appender slice accepts the current binding families:
+
+```text
+Value
+recursive Optional<supported value>
+Bool
+Int8 / Int16 / Int32 / Int64 / Int
+UInt8 / UInt16 / UInt32 / UInt64 / UInt
+Float / Double
+String
+Foundation.Data
+```
+
+Optional `nil` becomes SQL NULL. Empty `Data()` is a valid empty BLOB.
+
+A wrong row width or unsupported Swift value fails before native mutation, so it is a caller-local error rather than a poisoned Appender:
+
+```swift
+try await connection.appender(to: events) { appender in
+    do {
+        try await appender.append(Int32(1)) // wrong width for a three-column table
+    } catch {
+        // Caller can correct the row and continue within this live scope.
+    }
+
+    try await appender.append(Int32(1), "opened", Data())
+}
+```
+
+The first slice does not imply temporal, Decimal, UUID, 128-bit, list/struct/map, or other complex family support.
+
+### Native failures are different from caller-local validation
+
+Once native row mutation begins, failure semantics become terminal for that Appender scope.
+
+A primitive append failure surfaces as `.appenderAppend(column:message:)` with a 1-based column. A failure while completing the row — including a real automatic-flush failure — surfaces as `.appenderRowCompletion` without inventing a column number.
+
+Catching the immediate terminal error inside the closure cannot make the scope succeed. SwiftDuckDB stores the first terminal failure and surfaces that truth again when the scope finalizes.
+
+This is an important difference from a wrong row width or unsupported Swift value, which fails before native mutation and remains recoverable.
+
+### Cancellation is cooperative, not magic preemption
+
+SwiftDuckDB checks cancellation before caller-side row work and again on the Connection actor immediately before synchronous native row mutation.
+
+There is intentionally no post-native cancellation check that would report cancellation after a row had already been successfully mutated, and Swift cannot promise to interrupt a C call that is already running synchronously.
+
+If cancellation is observed before successful final close, SwiftDuckDB discards data still buffered in that Appender rather than intentionally flushing it. That leads directly to the most important caveat of the API.
+
+### The closure is not an atomic transaction
+
+A normal Appender scope is **not** an all-or-nothing transaction.
+
+DuckDB buffers Appender data and may automatically flush earlier batches before the Swift closure ends. As a result:
+
+```text
+earlier rows -> DuckDB auto-flush -> persisted
+later row/body -> error or cancellation
+still-buffered rows -> discard
+```
+
+The later error/cancellation does not promise rollback of rows that were already auto-flushed.
+
+This means code like the following must not be described as an atomic import unit merely because it uses one Swift closure:
+
+```swift
+try await connection.appender(to: events) { appender in
+    for event in veryLargeImport {
+        try await appender.append(event.id, event.kind, event.payload)
+    }
+}
+```
+
+The closure is a **lifetime boundary**, not a transaction boundary.
+
+The first slice intentionally does not expose Appender-in-Transaction. If a workflow requires rollback across the complete operation, use the currently supported Transaction/query/reusable-Statement APIs or wait for a separately designed Appender/Transaction capability rather than assuming hidden atomicity.
+
+### Why Appender-in-Transaction is separate future work
+
+The current Transaction API has explicit reservation, operation FIFO, rollback-only, finalization, and fail-close semantics. The Appender has its own complete-scope ordinary Connection admission, native buffering, auto-flush, terminal cleanup, and cancellation boundaries.
+
+Combining those models is not a spelling exercise such as adding an `on: transaction` parameter. It needs an explicit ownership/scheduler/rollback design and independent evidence. That is why the first Appender slice refuses to imply Transaction participation.
+
+### Current non-goals
+
+Keep the future boundary explicit:
+
+```text
+free-standing/manual-close Appender
+manual flush/clear
+public per-column append/endRow
+selected columns
+DEFAULT append
+QueryAppender
+public DataChunk/vector append
+Appender-in-Transaction
+implicit atomic Appender transaction
+new temporal/Decimal/UUID/128-bit/complex value families
+Appender pooling/cache
+```
+
+These may be researched separately when a concrete consumer requirement justifies them. They are not hidden features of the current API.
+
+### Best publication angles
+
+Preserve these user-facing angles:
+
+1. importing many complete rows without expressing each one as another INSERT call;
+2. choosing correctly among one-shot execute, reusable prepared Statement, and Appender;
+3. why scoped lifetime plus complete-row serialization is a Swift-concurrency-friendly public boundary;
+4. the crucial difference between a closure lifetime boundary and an atomic transaction boundary;
+5. why Appender-in-Transaction deserves its own design instead of being implied by the first release.

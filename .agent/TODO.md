@@ -7,7 +7,7 @@ Ideas that are not active approved implementation tasks.
 - Backfill the mandatory public-capability closure gate for already implemented Database/Connection/query execution: detailed article/social-post source material plus public `swiftduckdb-*` Agent Skill coverage.
 - Backfill the mandatory public-capability closure gate for scoped Transactions with a detailed transaction post and a public `swiftduckdb-transactions` skill package.
 - Backfill the mandatory public-capability closure gate for reusable prepared Statements with a public `swiftduckdb-reusable-statements` skill package and retain/expand its existing detailed publication source material as needed.
-- Establish SwiftDuckDB's canonical `.agent/skills` root and routing/index together with the first backfill skill wave, following `swiftstream/skills` source-package rules and package-local `LICENSE.txt` practice. Central federation onboarding remains a separate manual trust decision.
+- Decide when to request central `swiftstream/skills` onboarding for SwiftDuckDB after source-owned public packages are ready. Source preparation under the established `.agent/skills` root and `.agent/SKILL_INDEX.md` does not itself authorize central federation registration.
 - Evaluate Codable/model decoding and encoding beyond the current explicit `Row` / `Value` result surface.
 - Evaluate expansion of result/binding support into currently unsupported temporal, Decimal, UUID, 128-bit, and complex DuckDB families.
 - Evaluate observation/reactive query support for application UI consumers.

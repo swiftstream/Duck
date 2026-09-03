@@ -33,7 +33,7 @@ Shared API and semantics remain platform-independent unless a concrete platform 
 7. Implement, validate, and independently audit the first public scoped transaction capability. **Done.**
 8. Document the scoped transaction API and synchronize its durable project state. **Done.**
 9. Implement the first public reusable prepared-statement capability with reusable native ownership, ordinary and explicit-Transaction execution, deterministic concurrency/lifetime coverage, and public documentation. **Implemented current capability boundary; no later capability is implicitly authorized.**
-10. Implement the first public scoped Appender capability under the independently accepted corrected plan, beginning with native Appender ownership/finalization. **Active approved capability; later Appender transaction/advanced features remain unapproved.**
+10. Implement and document the first public scoped Appender capability with complete-row ingestion, Connection-owned lifetime/concurrency, truthful failure/cancellation semantics, explicit non-atomic auto-flush boundaries, and source-owned public skill coverage. **Implemented and documented current capability boundary; later Appender transaction/advanced features remain unapproved.**
 11. Enforce a public-capability closure contract for every implemented user-facing feature: README coverage, detailed article/social-post source material, and source-owned Agent Skill coverage following `swiftstream/skills` standards. **Mandatory ongoing rule; historical public capabilities must be backfilled.**
 
 ## Implemented First Public Query Slice
@@ -87,6 +87,23 @@ The current reusable prepared-statement capability includes:
 - deterministic same-Statement, multi-Statement, cross-Connection, fail-close, lifetime, and external normal-import consumer coverage.
 
 The public slice does not add manual native parameter indices, named-parameter dictionaries, public close/finalize, statement caching/pooling, or automatic reprepare. DuckDB may still internally rebind/replan when its own engine semantics require it.
+
+## Implemented Scoped Appender Slice
+
+The current public Appender capability includes:
+
+- scoped `Connection.appender(to:)` entrypoints for table, schema+table, and catalog+schema+table SwifQL `Path` targets;
+- one complete-row `Appender.append(...)` operation with current `Value`/Optional/primitive/String/Data normalization, including SQL NULL and empty BLOB;
+- no public native handle, initializer, manual close/flush/clear, per-column append/endRow, selected columns, DEFAULT, QueryAppender, or DataChunk surface;
+- one ordinary Connection admission held for the complete awaited Appender scope, with setup ownership transferring to actor-registered live Appender state only after native creation succeeds;
+- inherited same-Connection Connection/ordinary-Statement/transaction/nested-Appender work rejected while the scope is live, while separate Connections remain independent;
+- complete-row actor serialization for concurrent public append calls so native columns from different public rows cannot interleave;
+- caller-local count/type failures before native row mutation and first-terminal native append/end-row failure semantics that cannot be hidden by catching the immediate body error;
+- explicit success finalization plus discard-oriented body-error/cancellation cleanup, conservative Connection fail-close when buffered-data cleanup outcome is ambiguous, and normal escaped-use rejection;
+- cooperative cancellation checks before native row mutation/final close without promising preemption of a synchronous native call already running;
+- an explicit non-atomic ordinary-scope contract: DuckDB may auto-flush prior rows before a later error/cancellation, so the complete Appender closure is not a rollback unit.
+
+The first Appender slice deliberately excludes Appender-in-Transaction. Deliberately externalized same-Connection work that no longer inherits the Appender body scope is treated as external and may queue behind the held ordinary admission; if the body awaits that work, the caller can create a dependency cycle. The API therefore does not claim that every unstructured task topology is deadlock-proof.
 
 ## Public Capability Communication and Skill Coverage Contract
 

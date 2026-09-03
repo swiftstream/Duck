@@ -42,9 +42,10 @@ targets: [
 ]
 ```
 
-Then import both modules where you build and execute queries:
+Then import SwiftDuckDB and SwifQL where you build and execute queries. Import Foundation as well when using values such as `Data`:
 
 ```swift
+import Foundation
 import SwiftDuckDB
 import SwifQL
 ```
@@ -237,6 +238,104 @@ Supported dynamic arguments use the same current binding normalization as ordina
 
 Reusable preparation means SwiftDuckDB retains and reuses one native prepared-statement owner across executions. It does not promise that DuckDB will never internally rebind or replan when native engine conditions require it. SwiftDuckDB also does not expose a manual `$1` / `$2` placeholder API; dynamic parameters are created only through `Statement.Parameters` in the builder closure.
 
+## Bulk ingestion with Appender
+
+Use `Connection.appender(to:)` when you already have many complete rows to load into one existing table. Appender avoids rebuilding an INSERT statement for each row and keeps row ingestion scoped to the owning `Connection`.
+
+```swift
+let users = Path.Table("users")
+
+try await connection.appender(to: users) { appender in
+    try await appender.append(
+        Int32(1),
+        "Mike",
+        Optional<String>.none,
+        Data([0x01, 0x02])
+    )
+
+    try await appender.append(
+        Int32(2),
+        "Olga",
+        Optional("active"),
+        Data()
+    )
+}
+```
+
+Each `append(...)` call supplies one **complete row** in table-column order. The public API does not expose per-column append, `endRow`, manual flush, clear, or close.
+
+Appender is a good fit for bulk row ingestion into one table. Prefer a reusable prepared `Statement` when you need a repeated SQL shape such as INSERT/UPDATE/SELECT, fixed and dynamic query values, or explicit participation in a supported `Transaction`.
+
+### Appender targets
+
+The scoped API supports the three current SwifQL path forms:
+
+```swift
+let table = Path.Table("events")
+
+let schemaTable = Path.SchemaWithTable(
+    schema: "analytics",
+    table: "events"
+)
+
+let catalogSchemaTable = Path.CatalogWithSchemaAndTable(
+    catalog: "your_catalog",
+    schema: "analytics",
+    table: "events"
+)
+```
+
+Pass the matching value to `connection.appender(to:)`. SwiftDuckDB does not currently expose selected-column Appender configuration or DEFAULT-column filling, so every public row must match the target table's complete active column width.
+
+### Supported Appender values
+
+Appender uses the same current binding normalization family as ordinary/reusable execution:
+
+```text
+Value
+recursive Optional<supported value>
+Bool
+Int8 / Int16 / Int32 / Int64 / Int
+UInt8 / UInt16 / UInt32 / UInt64 / UInt
+Float / Double
+String
+Foundation.Data
+```
+
+Optional `nil` becomes SQL `NULL`. `Data()` is a valid empty BLOB. Unsupported temporal, Decimal, UUID, 128-bit, list/struct/map, and other complex families are not implied by this first slice.
+
+Wrong row width and unsupported Swift argument types fail before native row mutation, so a later valid row may still be appended within the same live scope.
+
+### Lifetime and same-Connection rules
+
+Treat the supplied `Appender` as scoped authority. Await all Appender work before the body returns and do not save it for later use. Normal use after the scope has ended fails with `.appenderEnded`; if the owning Connection has become fail-closed, `.connectionUnusable` may take precedence.
+
+The `Appender` is `Sendable`, so structured child tasks may capture it while the scope remains live and the parent waits for those tasks before returning. Concurrent public `append(...)` calls are serialized by the owning `Connection` at the complete-row boundary, so columns from separate public rows do not interleave.
+
+While an Appender body is live, ordinary work on that **same Connection** is rejected rather than being admitted behind the scope. This includes Connection query/execute, both prepare forms, transaction start, nested Appender, and ordinary `Statement.query` / `Statement.execute`. Use another `Connection` for independent concurrent work.
+
+Do not try to bypass that rule by deliberately moving same-Connection work into a context that does not inherit the Appender body's scope context and then awaiting it from the still-live Appender body. Such externalized work is treated as external and queues behind the Appender's held Connection admission, so the caller can create a dependency cycle. The API does not claim every unstructured task topology is deadlock-proof.
+
+### Errors, cancellation, and finalization
+
+A native primitive append failure is terminal and surfaces as `.appenderAppend(column:message:)` with a 1-based column. Native row-completion or automatic-flush failure surfaces as `.appenderRowCompletion` without inventing a column number.
+
+Catching a terminal native row error inside the body does not make the scope successful: SwiftDuckDB remembers the first terminal failure and surfaces it again during scope finalization.
+
+Cancellation is cooperative. SwiftDuckDB checks cancellation before caller-side row work and again on the owning actor immediately before synchronous native row mutation. It does not promise to preempt a native C operation that is already running synchronously.
+
+On a successful body return, SwiftDuckDB checks terminal state, Connection usability, and cancellation before explicitly closing/finalizing the native Appender. If cancellation or a body error is observed before successful final close, still-buffered Appender data is discarded rather than intentionally flushed. If cleanup itself fails with an ambiguous buffered-data outcome, the owning Connection is conservatively fail-closed.
+
+### Appender scopes are not atomic transactions
+
+**A normal Appender scope is not an all-or-nothing transaction.** DuckDB buffers rows and may automatically flush earlier batches before the Swift closure finishes.
+
+That means a later body error or cancellation can discard rows that are still buffered, but it cannot promise rollback of rows that DuckDB already auto-flushed. Successful closure completion finalizes the Appender; it does not retroactively turn the whole scope into one atomic commit unit.
+
+The current first slice intentionally does not support Appender-in-Transaction. If a workload requires atomic transaction semantics, use the currently supported Transaction/query/reusable-Statement APIs rather than assuming Appender provides rollback.
+
+The current Appender API also does not advertise free-standing/manual-close Appenders, manual flush/clear, per-column mutation/endRow, selected columns, DEFAULT append, QueryAppender, public DataChunk/vector append, new value families, or Appender pooling/cache.
+
 ## Transactions
 
 Use `Connection.transaction` for a scoped transaction. Work on that same connection that should participate in the transaction must use the supplied `Transaction` capability:
@@ -329,7 +428,7 @@ Cancellation is cooperative at those boundaries. SwiftDuckDB does not promise in
 
 ## Errors
 
-Public database/query/transaction/statement failures use `DatabaseError` cases for database opening, connection opening, preparation, binding, execution, unsupported bind/result types, invalid native result state, reusable-statement template/argument/ownership/usability failures, transaction scope/lifecycle failures, and terminal `.connectionUnusable` state.
+Public database/query/transaction/statement/Appender failures use `DatabaseError` cases for database opening, connection opening, preparation, binding, execution, unsupported bind/result types, invalid native result state, reusable-statement template/argument/ownership/usability failures, transaction scope/lifecycle failures, Appender scope/row/finalization/cleanup failures, and terminal `.connectionUnusable` state.
 
 Native diagnostic strings are useful diagnostics, but their exact text is not a stable symbolic-type contract.
 
@@ -347,6 +446,6 @@ Treat `SwifQL.raw(...)` as an escape hatch. Normal SwiftDuckDB examples should p
 
 ## Current scope
 
-The current public slice covers database/connection ownership, SwifQL query execution, reusable prepared statements, scoped transactions, primitive binding/result values, mutation row counts, typed-table selected-column convenience, structured connection concurrency, and cancellation-aware execution.
+The current public slice covers database/connection ownership, SwifQL query execution, reusable prepared statements, scoped transactions, scoped complete-row Appender ingestion, primitive binding/result values, mutation row counts, typed-table selected-column convenience, structured connection concurrency, and cancellation-aware execution.
 
-The current API does not yet advertise Appender, Codable model decoding, ORM/repository semantics, connection pooling, observation/reactive queries, migrations, savepoints/manual transaction lifecycle controls, custom transaction isolation modes, or complex/temporal/Decimal/UUID/128-bit result families.
+The current API does not yet advertise Appender-in-Transaction or advanced Appender selected-column/DEFAULT/query/data-chunk/manual-lifecycle surfaces, Codable model decoding, ORM/repository semantics, connection pooling, observation/reactive queries, migrations, savepoints/manual transaction lifecycle controls, custom transaction isolation modes, or complex/temporal/Decimal/UUID/128-bit result families.

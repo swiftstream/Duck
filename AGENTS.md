@@ -4,7 +4,7 @@
 
 SwiftDuckDB is a Swift-native embedded database library built around the DuckDB C API.
 
-The package includes the internal `Cduckdb` target generated from DuckDB `v1.5.5`, internal native resource owners, and an implemented public runtime API built around `Database`, actor-isolated `Connection`, `QueryResult`, `Row`, `Value`, `DatabaseError`, and SwifQL execution conveniences.
+The package includes the internal `Cduckdb` target generated from DuckDB `v1.5.5`, internal native resource owners, and an implemented public runtime API built around `Database`, actor-isolated `Connection`, scoped `Transaction`, reusable `Statement`, scoped `Appender`, `QueryResult`, `Row`, `Value`, `DatabaseError`, and SwifQL execution conveniences.
 
 Reviewed target direction: Swift 6.3+, iOS 15+, macOS 12+, Linux, Android, and Windows. A target is not considered validated merely because it is listed here; platform support claims require actual build/runtime evidence for the relevant toolchain.
 
@@ -31,7 +31,7 @@ When stable documents conflict, higher authority wins:
 5. `.agent/OPEN_DECISIONS.md` - unresolved choices only
 6. `.agent/PROJECT_MEMORY.md`, `.agent/SOURCE_MAP.md`, `.agent/TECH_DEBT.md`, and `.agent/TASKS_ARCHIVE.md` - durable current state, navigation, verified debt, and compact completed milestones
 7. `.agent/TASKS.md` and `.agent/TODO.md` - approved active work and non-approved future ideas
-8. `.agent/REFERENCE_PROJECTS.md`, `.agent/CONTEXT_LOADING_RULES.md`, and `.agent/PUBLIC_WRITING_STYLE.md` - dependency/evidence routing, progressive context loading, and public documentation style
+8. `.agent/REFERENCE_PROJECTS.md`, `.agent/CONTEXT_LOADING_RULES.md`, `.agent/PUBLIC_WRITING_STYLE.md`, and `.agent/SKILL_INDEX.md` - dependency/evidence routing, progressive context loading, public documentation style, and source-owned Agent Skill routing
 
 Model-specific stable orchestration owners are intentionally avoided. Session/tool constraints that are transient belong in `.artifacts/NEW_CHAT.md`; durable model-independent orchestration belongs in `DEVELOPMENT_ORCHESTRATION.md`.
 
@@ -59,6 +59,8 @@ For every Swift production edit, load:
 For every Swift test edit, also load `.agent/TESTING_RULES.md`.
 
 For README/public documentation work, load `.agent/PUBLIC_WRITING_STYLE.md`.
+
+For a reusable downstream workflow covered by a source-owned Agent Skill, route through `.agent/SKILL_INDEX.md` and load the single matching `.agent/skills/*/SKILL.md` package. Skills are procedures, not architecture authority; stable governance and current source remain higher authority.
 
 Do not treat generated or unreviewed source as style authority.
 

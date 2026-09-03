@@ -1,61 +1,47 @@
 # Active Tasks
 
-Only active approved executable implementation work belongs here.
+Only active approved executable implementation/closure work belongs here.
 
 ## Active Capability — Public Appender API
 
-The first public Appender capability is the current approved closure objective.
+The first public scoped Appender implementation is accepted through R1. Tasks 01–04 are checkpointed/validated, and the Task 05 README/durable/publication/source-owned Agent Skill candidate is complete and coordinator-reviewed.
 
-Tasks 01–04 are accepted and checkpointed/validated: native Appender ownership/finalization, scoped public lifecycle/API, whole-row failure/concurrency hardening, and cross-cutting compiler/public-consumer validation are complete.
+Task 05 changed documentation/governance/source-skill owners only. Production source, tests, Package files, vendored DuckDB, SwifQL dependency state, `Transaction.swift`, accepted `NativeAppender.swift`, and `.agent/TECH_DEBT.md` remain protected.
 
-The fresh R1 Appender Public/Lifetime/Concurrency Root Audit is CLEAN and coordinator-accepted with zero blockers. No production/test/package correction is required before documentation closure.
+### Current gate — Task 06: final immutable validation + R2 Final Appender Root Audit
 
-### Current executable task — Task 05: README / durable-state / publication / Agent Skill closure
+Task 06 validates the exact final Appender candidate before any Task 05 docs/stable staging or commit.
 
-Task 05 synchronizes the accepted Appender behavior into public and durable project truth. It is not a new production implementation wave.
+Freeze and validate the exact current candidate bytes, including:
 
-Required closure work:
+- accepted Appender production/tests/package/native/dependency bytes from Tasks 01–04;
+- root README Appender examples and boundaries;
+- durable Appender current-state/navigation/open-decision/archive/TODO/publication synchronization;
+- `.agent/PUBLIC_WRITING_STYLE.md` removal of the now-stale pre-Appender publication prohibition;
+- source-owned `.agent/SKILL_INDEX.md` routing;
+- `.agent/skills/swiftduckdb-appender/SKILL.md` and package-local `LICENSE.txt`;
+- root `AGENTS.md` source-skill routing;
+- no central `swiftstream/skills` federation/lock/generated-output mutation.
 
-- add root README coverage for the accepted scoped Appender API and its correctness-relevant boundaries;
-- synchronize only the natural durable owners whose Appender state/routing is now stale, including current capability state, source navigation, resolved/open decisions, task archive, TODO/publication routing, and master-plan wording where actually required;
-- preserve detailed example-first article/social-post source material for later publication;
-- create source-owned public Agent Skill coverage under `.agent/skills`, with at minimum `swiftduckdb-appender/SKILL.md` and package-local `LICENSE.txt`;
-- establish/synchronize `.agent/SKILL_INDEX.md` and root `AGENTS.md` routing only as required by the first SwiftDuckDB source-owned skill wave;
-- before public writing, follow current `PUBLIC_WRITING_STYLE.md` and `FUTURE_PUBLICATIONS.md`;
-- before skill mutation, re-read the actual current central `swiftstream/skills` source-package preparation/add-source rules and current SwifQL public skill packages as packaging precedent rather than relying on remembered rules;
-- do not mutate central federation/generated skills during this source-package closure; central onboarding remains a separate explicit maintainer trust decision.
+Final Luna validation under exact `/Users/imike/.swiftly/bin/swift` Swift 6.3.3 must verify at minimum:
 
-Task 05 public material must explicitly teach:
+- all frozen tracked candidate hashes before substantive execution;
+- native/public/concurrency Appender focused tests;
+- existing Statement/Transaction/native/public regression suites;
+- full package test suite and `swift build`;
+- normal-import external consumer with exact remote SwifQL `2.0.0-beta.5.1.0` / `849931d048905abbf10d31b73eef14d8a64568cb`;
+- README examples/current API truth and stale-symbol/claim scans;
+- Appender documentation explicitly teaches complete rows, all three target forms, supported values/NULL/empty BLOB, same-Connection restrictions, different-Connection independence, escaped capability, terminal/finalization/cancellation behavior, and first-slice non-goals;
+- README/publication/skill all explicitly preserve the ordinary-scope **non-atomic** boundary, including that previously auto-flushed rows may persist after a later error/cancellation and that Appender-in-Transaction is not supported;
+- `swiftduckdb-appender` package structure/frontmatter/license/standalone semantics against current central source-package rules;
+- `AGENTS.md` / `.agent/SKILL_INDEX.md` routing synchronization;
+- no symlink/gitlink/path-traversal/non-canonical public skill content;
+- `.agent/TECH_DEBT.md` unchanged with both existing entries open;
+- `Transaction.swift`, accepted `NativeAppender.swift`, Package/dependency/vendor bytes preserved;
+- SwiftDuckDB/SwifQL Git state and no unauthorized staging/mutation.
 
-- scoped complete-row `Connection.appender(to:)` use for table, schema+table, and catalog+schema+table targets;
-- the current supported Swift/`Value` row families, recursive Optional/NULL behavior, and valid empty BLOB handling;
-- whole-row serialization for concurrent public append calls;
-- inherited same-Connection Connection/Statement/Transaction/nested-Appender work is rejected while the Appender scope is live;
-- different Connection work remains independent;
-- deliberately TaskLocal-erased/externalized same-Connection work is external and can participate in a caller-created dependency cycle if awaited from the still-live exclusive scope; do not claim every unstructured topology is deadlock-proof;
-- escaped Appender behavior and fail-closed Connection precedence;
-- body-error, cancellation, terminal native error, finalization, and ambiguous-cleanup semantics without promising preemption of an already-running synchronous native call;
-- the ordinary Appender scope is **non-atomic**;
-- prior DuckDB auto-flushed data may persist after a later body error/cancellation;
-- there is no implicit transaction and Appender-in-Transaction is excluded from this first slice;
-- first-slice non-goals including free-standing/manual-close Appenders, public flush/clear/endRow/per-column mutation, selected columns, DEFAULT, QueryAppender, public DataChunk/vector append, new value families, pooling/cache, scheduler redesign, and Transaction state-machine redesign.
+If final Luna validation PASSes, **no tracked candidate byte may change** before the fresh independent R2 Final Appender Root Audit.
 
-Protected during Task 05 unless a separately reviewed blocker proves otherwise:
+R2 must independently audit the immutable production/tests/README/stable/publication/skill candidate and the frozen final validation evidence. A correction that changes any tracked candidate byte after validation requires re-freezing/revalidation before a fresh R2 attempt.
 
-```text
-Sources/SwiftDuckDB/** production behavior
-Tests/SwiftDuckDBTests/**
-Package.swift
-Package.resolved
-Sources/Cduckdb/**
-local/remote SwifQL dependency state
-Transaction.swift
-accepted NativeAppender.swift
-.agent/TECH_DEBT.md
-```
-
-Historical README/publication/Agent Skill backfill for Database/Connection/query, scoped Transactions, and reusable Statements remains mandatory but belongs in separate reviewable waves rather than being mixed into this Appender closure.
-
-After the Task 05 candidate is complete and independently reviewed, follow the accepted Appender plan with the immutable Task 06 validation gate and a fresh R2 Final Appender Root Audit before final capability closure.
-
-No push, tag, release, publication, central federation registration, or later capability work is authorized by Task 05.
+Only R2 CLEAN + coordinator acceptance may open exact final staging/commit of the Task 05 documentation/stable/source-skill candidate. No production/test/package correction, central federation registration, push, tag, release, publication, or later capability work is authorized by this gate.

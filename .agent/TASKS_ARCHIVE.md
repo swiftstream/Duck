@@ -35,3 +35,7 @@ Introduced caller-isolated `Connection.transaction` with an explicit Sendable `T
 ### Reusable prepared statements API
 
 Introduced public Connection-owned reusable `Statement` preparation with fixed and builder-created dynamic parameters, same-render SwifQL provenance validation, full clear/rebind native reuse, ordinary and explicit owning-Transaction query/execute, rollback-only transaction integration, strong async operation lifetime, fail-close precedence, deterministic same-Statement/multi-Statement/cross-Connection coverage, and normal-import public consumer validation.
+
+### Scoped Appender API
+
+Introduced public scoped complete-row `Appender` ingestion for table/schema/catalog targets with Connection-owned native lifetime and one complete-scope ordinary admission, complete-row actor serialization, caller-local row validation, terminal native failure retention, explicit success/abort cleanup, cooperative cancellation, same-Connection scope guards, different-Connection independence, conservative fail-close on ambiguous cleanup, normal-import consumer validation, and an explicit non-atomic DuckDB auto-flush boundary. Appender-in-Transaction and advanced selected-column/default/query/data-chunk/manual-lifecycle surfaces remain separate future work.

@@ -9,11 +9,12 @@ Unresolved choices that must not be treated as implemented architecture.
 
 ## Future Public Resource APIs
 
-The current `Database` / `Connection` / `Transaction` / `Statement` / `QueryResult` / `Row` / `Value` slice is implemented and is no longer an open design question. Scoped transaction ownership, reusable Statement identity/lifetime/concurrency, same-Connection execution, rollback-only/finalization behavior, and independent-Connection semantics are reviewed current state.
+The current `Database` / `Connection` / `Transaction` / `Statement` / `Appender` / `QueryResult` / `Row` / `Value` slice is implemented and is no longer an open design question. Scoped transaction ownership, reusable Statement identity/lifetime/concurrency, scoped Appender complete-row/lifetime/concurrency/error semantics, same-Connection restrictions, non-atomic Appender auto-flush boundary, rollback-only/finalization behavior, and independent-Connection semantics are reviewed current state.
 
 Still unresolved for future separately reviewed capabilities:
 
-- Appender ownership/lifetime/concurrency semantics;
+- whether and how Appender should participate in an explicit `Transaction`, including any atomicity/rollback contract and scheduler interaction;
+- advanced Appender surfaces such as selected columns/DEFAULT, QueryAppender, public DataChunk/vector append, manual lifecycle controls, new value families, or pooling/cache;
 - whether a future connection-pool capability is justified and, if so, its ownership/backpressure semantics.
 
 ## Higher-Level Features

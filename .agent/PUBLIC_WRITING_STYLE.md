@@ -49,9 +49,8 @@ Public docs must match current validated source.
 
 Do not advertise:
 
-- planned transactions;
+- planned transaction features beyond the implemented scoped Transaction API;
 - Codable/model decoding;
-- Appender;
 - migrations/ORM/repositories;
 - observation/reactivity;
 - platform support not actually validated;
