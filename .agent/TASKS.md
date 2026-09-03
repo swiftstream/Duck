@@ -6,50 +6,35 @@ Only active approved executable implementation work belongs here.
 
 The first public Appender capability is the current approved implementation objective.
 
-Task 01 native Appender ownership/finalization and Task 02 scoped public lifecycle/API are accepted and checkpointed. The active task is now whole-row failure/concurrency hardening.
+Tasks 01–03 are accepted and checkpointed: native Appender ownership/finalization, scoped public lifecycle/API, and whole-row failure/concurrency hardening are complete implementation work. The active task is now cross-cutting validation before the R1 public/lifetime/concurrency root gate.
 
-### Current executable task — Task 03: whole-row failure/concurrency hardening
+### Current executable task — Task 04: cross-cutting compiler/consumer/final implementation validation
 
-Task 03 must harden the accepted public Appender architecture without opportunistic redesign.
+Task 04 is a validation gate, not a new implementation wave.
 
-Required behavior matrix:
+Required validation:
 
-- many complete rows persist after successful scope;
-- wrong argument count then later valid row succeeds;
-- unsupported Swift type then later valid row succeeds;
-- full current `Value` / Optional / NULL / Data family remains supported;
-- native primitive/type/cast failure terminalizes Appender immediately;
-- end-row/auto-flush failure maps truthfully to `.appenderRowCompletion` without a fake column;
-- catching any terminal native Appender failure cannot make the scope return success;
-- close/constraint finalization failure surfaces while Connection remains usable when native cleanup is non-ambiguous;
-- body error discards still-buffered small batch and releases the outer lease;
-- cancellation before row mutation or before close routes through abort and releases scope;
-- escaped Appender remains rejected;
-- inherited same-Connection query/execute/prepare/ordinary Statement/transaction/nested-Appender misuse rejects immediately before re-admission;
-- different Connection work remains independent;
-- 32-way concurrent public `Appender.append` calls preserve complete-row atomicity without sleeps or timing thresholds;
-- fail-closed Connection state dominates Appender actor entry;
-- existing Connection/Statement/Transaction/native/public regression behavior remains unchanged.
+- exact Swift 6.3.3 toolchain via `/Users/imike/.swiftly/bin/swift`;
+- normal-import external consumer under `.artifacts/**` using `import SwiftDuckDB` only, never `@testable import SwiftDuckDB`;
+- public compilation/use of all three scoped Appender Path target overload families that can be exercised safely in a standalone consumer;
+- public whole-row `Appender.append` with current supported Swift values, Optional NULL, non-empty Data, and empty Data;
+- proof that public consumer code does not require access to `AppenderId`, registry/setup helpers, NativeAppender, TaskLocal scope internals, or other internal symbols;
+- focused Appender public/native/hardening suites;
+- adjacent reusable Statement, Transaction, Connection/native, actor/runtime scenario regressions;
+- full package suite and `swift build`;
+- zero new first-party diagnostics;
+- frozen hashes for accepted Appender/Connection/Statement/DatabaseError/NativeAppender/Transaction/TECH_DEBT state;
+- local SwifQL preservation at the accepted published dependency state.
 
-Primary production allowlist remains the Task 02 Appender owners:
+No tracked production/test/stable-doc mutation is planned or authorized by Task 04. If validation reveals a defect, STOP and prepare the smallest bounded correction; do not opportunistically redesign Appender.
 
-- `Sources/SwiftDuckDB/Appender.swift`;
-- `Sources/SwiftDuckDB/Connection.swift`;
-- `Sources/SwiftDuckDB/Statement.swift`;
-- `Sources/SwiftDuckDB/DatabaseError.swift`.
+R1 root audit may begin only after Task 04 validation PASS and coordinator acceptance.
 
-Production mutation is authorized only for concrete Task 03 hardening findings. Do not redesign already accepted Appender ownership/lifecycle merely to simplify tests.
+R1 is the mandatory fresh independent public/lifetime/concurrency gate before Appender README/publication/Agent Skill closure. Documentation/skills work must not start before R1 CLEAN.
 
-Task 03 tests may add:
+The accepted Appender first slice still excludes Appender-in-Transaction, implicit atomic Appender transactions, manual-close/free-standing public Appenders, per-column mutation/endRow, selected columns, DEFAULT, QueryAppender, public DataChunk, new value families, pooling/cache, scheduler redesign, custom executors, native interruption, and Transaction state-machine changes.
 
-- `Tests/SwiftDuckDBTests/AppenderConcurrencyTests.swift` [new if separate coverage improves clarity];
-- bounded additions to existing `AppenderTests.swift` only where the behavior is inseparable from its current lifecycle coverage.
-
-The accepted `NativeAppender.swift`, `Transaction.swift`, `NativeDuckDBError.swift`, Package/dependency files, vendored DuckDB, README/publication/skills files, and `.agent/TECH_DEBT.md` remain protected unless a bounded correction and required re-review explicitly reopens them.
-
-Do not add Appender-in-Transaction, implicit atomic Appender transactions, manual-close Appenders, per-column public mutation/endRow, selected columns, DEFAULT, QueryAppender, public DataChunk, new value families, caching/pooling, scheduler redesign, custom executors, locks/semaphores, unsafe Sendability, native interruption, sleeps, or test-only production fault hooks.
-
-After Task 03 focused validation and coordinator acceptance, proceed to Task 04 cross-cutting compiler/consumer/final implementation validation. R1 root audit remains closed until Task 04 is complete.
+`Transaction.swift`, accepted `NativeAppender.swift`, Package/dependency files, vendored DuckDB, README/publication/skills files, and `.agent/TECH_DEBT.md` remain protected during Task 04.
 
 The scoped Transactions and reusable prepared-statements capabilities remain accepted current state. Preserve their exact reviewed behavior.
 
