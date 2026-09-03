@@ -6,35 +6,38 @@ Only active approved executable implementation work belongs here.
 
 The first public Appender capability is the current approved implementation objective.
 
-Tasks 01–03 are accepted and checkpointed: native Appender ownership/finalization, scoped public lifecycle/API, and whole-row failure/concurrency hardening are complete implementation work. The active task is now cross-cutting validation before the R1 public/lifetime/concurrency root gate.
+Tasks 01–04 are accepted and checkpointed/validated: native Appender ownership/finalization, scoped public lifecycle/API, whole-row failure/concurrency hardening, and cross-cutting compiler/public-consumer validation are complete.
 
-### Current executable task — Task 04: cross-cutting compiler/consumer/final implementation validation
+### Current gate — R1 Appender Public/Lifetime/Concurrency Root Audit
 
-Task 04 is a validation gate, not a new implementation wave.
+R1 is the mandatory fresh independent source/root gate before README/publication/Agent Skill closure.
 
-Required validation:
+R1 must independently audit the accepted immutable Appender implementation/tests and frozen Task 04 evidence, including:
 
-- exact Swift 6.3.3 toolchain via `/Users/imike/.swiftly/bin/swift`;
-- normal-import external consumer under `.artifacts/**` using `import SwiftDuckDB` only, never `@testable import SwiftDuckDB`;
-- public compilation/use of all three scoped Appender Path target overload families that can be exercised safely in a standalone consumer;
-- public whole-row `Appender.append` with current supported Swift values, Optional NULL, non-empty Data, and empty Data;
-- proof that public consumer code does not require access to `AppenderId`, registry/setup helpers, NativeAppender, TaskLocal scope internals, or other internal symbols;
-- focused Appender public/native/hardening suites;
-- adjacent reusable Statement, Transaction, Connection/native, actor/runtime scenario regressions;
-- full package suite and `swift build`;
-- zero new first-party diagnostics;
-- frozen hashes for accepted Appender/Connection/Statement/DatabaseError/NativeAppender/Transaction/TECH_DEBT state;
-- local SwifQL preservation at the accepted published dependency state.
+- scoped-only public Appender lifecycle;
+- strong lifetime chain `Appender -> Connection -> NativeAppender -> NativeConnection` without public native handles;
+- one ordinary Connection admission owned for the complete Appender scope with exactly-once release across setup failure, body failure, terminal native failure, cancellation, finalization, and cleanup;
+- inherited same-Connection TaskLocal guard coverage before re-admission for Connection query/execute/prepare, ordinary Statement query/execute, transaction start, and nested Appender;
+- different-Connection independence;
+- whole-row actor serialization and 32-way complete-row concurrency safety;
+- caller-local wrong-count/unsupported-type recovery before native mutation;
+- truthful primitive `.appenderAppend(column:)` versus end-row/auto-flush `.appenderRowCompletion` errors;
+- immediate first-terminal native cleanup and prevention of caught-error false success;
+- body-error and cancellation cleanup precedence;
+- fail-closed Connection precedence when cleanup outcome is ambiguous;
+- escaped Appender behavior;
+- ordinary Appender scope non-atomicity across DuckDB auto-flush boundaries;
+- explicit first-slice exclusion of Appender-in-Transaction and other advanced Appender surfaces;
+- preservation of `Transaction.swift`, reusable Statement behavior, remote SwifQL dependency, vendored DuckDB, and open TECH_DEBT;
+- normal downstream consumer truth using ordinary `import SwiftDuckDB` and `import SwifQL` as required by the public `Path.*` target types, never `@testable` or private/native APIs.
 
-No tracked production/test/stable-doc mutation is planned or authorized by Task 04. If validation reveals a defect, STOP and prepare the smallest bounded correction; do not opportunistically redesign Appender.
+No production/test/package mutation is authorized during R1. If R1 finds a blocker, stop and prepare the smallest bounded correction with the required revalidation/re-audit path.
 
-R1 root audit may begin only after Task 04 validation PASS and coordinator acceptance.
-
-R1 is the mandatory fresh independent public/lifetime/concurrency gate before Appender README/publication/Agent Skill closure. Documentation/skills work must not start before R1 CLEAN.
+Only R1 CLEAN + coordinator acceptance opens Task 05 README/durable/publication/Agent Skill closure.
 
 The accepted Appender first slice still excludes Appender-in-Transaction, implicit atomic Appender transactions, manual-close/free-standing public Appenders, per-column mutation/endRow, selected columns, DEFAULT, QueryAppender, public DataChunk, new value families, pooling/cache, scheduler redesign, custom executors, native interruption, and Transaction state-machine changes.
 
-`Transaction.swift`, accepted `NativeAppender.swift`, Package/dependency files, vendored DuckDB, README/publication/skills files, and `.agent/TECH_DEBT.md` remain protected during Task 04.
+`Transaction.swift`, accepted `NativeAppender.swift`, Package/dependency files, vendored DuckDB, README/publication/skills files, and `.agent/TECH_DEBT.md` remain protected during R1.
 
 The scoped Transactions and reusable prepared-statements capabilities remain accepted current state. Preserve their exact reviewed behavior.
 
