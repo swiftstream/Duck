@@ -1295,10 +1295,11 @@ public actor Connection {
         }
 
         guard materializeRows else {
-            return QueryResult(columns: [], rows: [], rowsChanged: result.rowsChanged)
+            return QueryResult(columns: [], resultColumns: [], rows: [], rowsChanged: result.rowsChanged)
         }
 
-        let columns = try result.columnNames()
+        let resultColumns = try result.resultColumns()
+        let columns = resultColumns.map(\.name)
         var rows: [Row] = []
 
         while true {
@@ -1315,7 +1316,12 @@ public actor Connection {
         if cancellationPolicy == .cooperative {
             try Task.checkCancellation()
         }
-        return QueryResult(columns: columns, rows: rows, rowsChanged: result.rowsChanged)
+        return QueryResult(
+            columns: columns,
+            resultColumns: resultColumns,
+            rows: rows,
+            rowsChanged: result.rowsChanged
+        )
     }
 
     @discardableResult

@@ -37,6 +37,29 @@ final class NativeResult {
         return columns
     }
 
+    func resultColumns() throws -> [ResultColumn] {
+        let names = try columnNames()
+        var columns: [ResultColumn] = []
+        columns.reserveCapacity(names.count)
+
+        for (index, name) in names.enumerated() {
+            guard let logicalType = duckdb_column_logical_type(&result, idx_t(index)) else {
+                throw NativeDuckDBError(
+                    operation: .invalidResult,
+                    message: "DuckDB returned no logical type for result column \(index)."
+                )
+            }
+            var ownedLogicalType: duckdb_logical_type? = logicalType
+            defer { duckdb_destroy_logical_type(&ownedLogicalType) }
+
+            columns.append(
+                ResultColumn(name: name, logicalType: try copyLogicalType(logicalType))
+            )
+        }
+
+        return columns
+    }
+
     func materializeNextChunk() throws -> [Row]? {
         var chunk = duckdb_fetch_chunk(result)
         guard let chunkHandle = chunk else {
@@ -127,6 +150,136 @@ final class NativeResult {
                 message: "Unsupported DuckDB result type: \(type)."
             )
         }
+    }
+
+    private func copyLogicalType(_ type: duckdb_logical_type) throws -> LogicalType {
+        let nativeID = duckdb_get_type_id(type)
+        let id = LogicalTypeID(rawValue: unsafeBitCast(nativeID, to: UInt32.self))
+        let alias = copyAllocatedString(duckdb_logical_type_get_alias(type))
+
+        let detail: LogicalTypeDetail
+        switch id {
+        case .decimal:
+            detail = .decimal(
+                width: duckdb_decimal_width(type),
+                scale: duckdb_decimal_scale(type)
+            )
+        case .enumeration:
+            let count = try integerCount(
+                UInt64(duckdb_enum_dictionary_size(type)),
+                name: "enum dictionary size"
+            )
+            var values: [String] = []
+            values.reserveCapacity(count)
+            for index in 0..<count {
+                guard let value = copyAllocatedString(
+                    duckdb_enum_dictionary_value(type, idx_t(index))
+                ) else {
+                    throw NativeDuckDBError(
+                        operation: .invalidResult,
+                        message: "DuckDB returned no enum dictionary value at index \(index)."
+                    )
+                }
+                values.append(value)
+            }
+            detail = .enumeration(values: values)
+        case .list:
+            detail = .list(child: try copyOwnedLogicalType(duckdb_list_type_child_type(type)))
+        case .array:
+            let length = try integerCount(
+                duckdb_array_type_array_size(type),
+                name: "array length"
+            )
+            detail = .array(
+                child: try copyOwnedLogicalType(duckdb_array_type_child_type(type)),
+                length: length
+            )
+        case .map:
+            detail = .map(
+                key: try copyOwnedLogicalType(duckdb_map_type_key_type(type)),
+                value: try copyOwnedLogicalType(duckdb_map_type_value_type(type))
+            )
+        case .structType:
+            detail = .structure(members: try copyStructMembers(type))
+        case .union:
+            detail = .union(members: try copyUnionMembers(type))
+        default:
+            detail = .none
+        }
+
+        return LogicalType(id: id, alias: alias, detail: detail)
+    }
+
+    private func copyOwnedLogicalType(_ type: duckdb_logical_type?) throws -> LogicalType {
+        guard let type else {
+            throw NativeDuckDBError(
+                operation: .invalidResult,
+                message: "DuckDB returned no child logical type."
+            )
+        }
+        var ownedType: duckdb_logical_type? = type
+        defer { duckdb_destroy_logical_type(&ownedType) }
+        return try copyLogicalType(type)
+    }
+
+    private func copyStructMembers(_ type: duckdb_logical_type) throws -> [LogicalTypeMember] {
+        let count = try integerCount(
+            duckdb_struct_type_child_count(type),
+            name: "struct member count"
+        )
+        var members: [LogicalTypeMember] = []
+        members.reserveCapacity(count)
+
+        for index in 0..<count {
+            guard let name = copyAllocatedString(
+                duckdb_struct_type_child_name(type, idx_t(index))
+            ) else {
+                throw NativeDuckDBError(
+                    operation: .invalidResult,
+                    message: "DuckDB returned no struct member name at index \(index)."
+                )
+            }
+            let child = try copyOwnedLogicalType(
+                duckdb_struct_type_child_type(type, idx_t(index))
+            )
+            members.append(LogicalTypeMember(name: name, type: child))
+        }
+
+        return members
+    }
+
+    private func copyUnionMembers(_ type: duckdb_logical_type) throws -> [LogicalTypeMember] {
+        let count = try integerCount(
+            duckdb_union_type_member_count(type),
+            name: "union member count"
+        )
+        var members: [LogicalTypeMember] = []
+        members.reserveCapacity(count)
+
+        for index in 0..<count {
+            guard let name = copyAllocatedString(
+                duckdb_union_type_member_name(type, idx_t(index))
+            ) else {
+                throw NativeDuckDBError(
+                    operation: .invalidResult,
+                    message: "DuckDB returned no union member name at index \(index)."
+                )
+            }
+            let child = try copyOwnedLogicalType(
+                duckdb_union_type_member_type(type, idx_t(index))
+            )
+            members.append(LogicalTypeMember(name: name, type: child))
+        }
+
+        return members
+    }
+
+    private func copyAllocatedString(_ pointer: UnsafeMutablePointer<CChar>?) -> String? {
+        guard let pointer else {
+            return nil
+        }
+        defer { duckdb_free(UnsafeMutableRawPointer(pointer)) }
+        return String(cString: pointer)
     }
 
     private func materializeString(data: UnsafeMutableRawPointer, rowIndex: Int) throws -> Value {

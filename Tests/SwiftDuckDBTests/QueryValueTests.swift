@@ -25,7 +25,16 @@ func rowDistinguishesNullFromMissingColumn() {
 func queryValueSurfaceIsSendableAndEquatable() {
     let value = Value.blob(Data([0x00, 0x7F, 0xFF]))
     let row = Row(columns: ["payload"], values: [value])
-    let result = QueryResult(columns: row.columns, rows: [row], rowsChanged: 3)
+    let resultColumn = ResultColumn(
+        name: "payload",
+        logicalType: LogicalType(id: .blob)
+    )
+    let result = QueryResult(
+        columns: row.columns,
+        resultColumns: [resultColumn],
+        rows: [row],
+        rowsChanged: 3
+    )
     let error = DatabaseError.binding(index: 2, message: "unsupported value")
 
     requireSendable(value)
@@ -33,7 +42,12 @@ func queryValueSurfaceIsSendableAndEquatable() {
     requireSendable(result)
     requireSendable(error)
 
-    #expect(result == QueryResult(columns: ["payload"], rows: [row], rowsChanged: 3))
+    #expect(result == QueryResult(
+        columns: ["payload"],
+        resultColumns: [resultColumn],
+        rows: [row],
+        rowsChanged: 3
+    ))
     #expect(error == DatabaseError.binding(index: 2, message: "unsupported value"))
 }
 
