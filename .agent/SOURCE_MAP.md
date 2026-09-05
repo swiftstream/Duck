@@ -47,7 +47,9 @@ There is intentionally no model/provider/tool-specific stable session-orchestrat
 - `Sources/SwiftDuckDB/DatabaseError.swift`: public typed query/database/reusable-Statement/transaction/Appender/fail-close error cases.
 - `Sources/SwiftDuckDB/Value.swift`: public primitive/NULL/BLOB result value model.
 - `Sources/SwiftDuckDB/Row.swift`: public row value with positional and named lookup.
-- `Sources/SwiftDuckDB/QueryResult.swift`: public columns/rows/rowsChanged result value.
+- `Sources/SwiftDuckDB/QueryResult.swift`: public columns/resultColumns/rows/rowsChanged result value; result-column names and logical descriptors are kept index-aligned.
+- `Sources/SwiftDuckDB/ResultColumn.swift`: public per-result-column name + Swift-owned `LogicalType` descriptor.
+- `Sources/SwiftDuckDB/LogicalType.swift`: open `LogicalTypeID` raw identity plus value-semantic `LogicalType`; preserves alias/custom identity, Decimal width/scale, and internal recursive metadata without native handle escape.
 - `Sources/SwiftDuckDB/SwifQLable+Execution.swift`: query-centered `.query(on:)` / `.execute(on:)` conveniences for both `Connection` and `Transaction`, delegating to the same owned execution engine.
 - `Sources/SwiftDuckDB/TableSelector+Selection.swift`: heterogeneous typed selected-column parameter-pack convenience for SwifQL `TableSelector`.
 - `Sources/SwiftDuckDB/SwiftDuckDB.swift`: minimal package/module bootstrap comment only; public declarations live in focused files.
@@ -60,7 +62,7 @@ There is intentionally no model/provider/tool-specific stable session-orchestrat
 - `Sources/SwiftDuckDB/Native/NativePreparedStatement.swift`: prepared-statement RAII owner and first-slice binding implementation.
 - `Sources/SwiftDuckDB/Native/NativeAppender.swift`: Appender RAII owner with strong NativeConnection lifetime, `duckdb_appender_create_ext`, complete-row primitive/end-row append, explicit close/destroy, discard via clear+destroy, copied diagnostics, and ambiguous-buffered-data cleanup signaling.
 - `Sources/SwiftDuckDB/Native/NativePendingResult.swift`: pending-result RAII owner and pending task/final execution bridge.
-- `Sources/SwiftDuckDB/Native/NativeResult.swift`: result RAII owner, chunk/vector materialization, NULL handling, and Swift-owned primitive/String/BLOB copying.
+- `Sources/SwiftDuckDB/Native/NativeResult.swift`: result RAII owner, one-time result-column logical metadata deep-copy/destruction, chunk/vector materialization, NULL handling, and Swift-owned primitive/String/BLOB copying.
 
 ## Vendored DuckDB
 

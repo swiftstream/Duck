@@ -35,6 +35,7 @@ Shared API and semantics remain platform-independent unless a concrete platform 
 9. Implement the first public reusable prepared-statement capability with reusable native ownership, ordinary and explicit-Transaction execution, deterministic concurrency/lifetime coverage, and public documentation. **Implemented current capability boundary; no later capability is implicitly authorized.**
 10. Implement and document the first public scoped Appender capability with complete-row ingestion, Connection-owned lifetime/concurrency, truthful failure/cancellation semantics, explicit non-atomic auto-flush boundaries, and source-owned public skill coverage. **Implemented and documented current capability boundary; later Appender transaction/advanced features remain unapproved.**
 11. Enforce a public-capability closure contract for every implemented user-facing feature: README coverage, detailed article/social-post source material, and source-owned Agent Skill coverage following `swiftstream/skills` standards. **Mandatory ongoing rule; historical public capabilities must be backfilled.**
+12. Establish the open Swift-owned logical result metadata foundation (`LogicalTypeID`, `LogicalType`, `ResultColumn`, aligned `QueryResult.resultColumns`) with native deep-copy lifetime safety. **Foundation accepted; recursive metadata hardening is the next active step before the fresh logical-metadata root audit.**
 
 ## Implemented First Public Query Slice
 

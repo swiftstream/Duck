@@ -13,9 +13,9 @@ A2 remains intentionally independent from shared-value implementation details. T
 ### Active A2 sequencing
 
 ```text
-A2.1 — open LogicalTypeID / value-semantic LogicalType / ResultColumn foundation + deep-copy lifetime
-A2.2 — recursive metadata copy/destruction hardening and forward-compatibility tests
-R2   — fresh independent SwiftDuckDB Logical Metadata Root Audit
+A2.1 — accepted: open LogicalTypeID / value-semantic LogicalType / ResultColumn foundation + deep-copy lifetime
+A2.2 — active next: recursive metadata copy/destruction hardening and forward-compatibility tests
+R2   — after A2.2: fresh independent logical metadata root audit
 ```
 
 No source mutation may occur outside the exact allowlist of the active numbered task.
