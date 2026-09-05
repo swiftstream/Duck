@@ -43,6 +43,165 @@ func logicalMetadataValueTypesAreSendableAndEquatable() {
     ))
 }
 
+@Test("Preserves unknown logical identities and aliases")
+func preservesUnknownLogicalIdentitiesAndAliases() {
+    let firstID = LogicalTypeID(rawValue: UInt32.max)
+    let secondID = LogicalTypeID(rawValue: UInt32.max - 1)
+    let first = LogicalType(id: firstID, alias: "future_type")
+    let same = LogicalType(id: firstID, alias: "future_type")
+    let differentAlias = LogicalType(id: firstID, alias: "other_future_type")
+
+    #expect(firstID.rawValue == UInt32.max)
+    #expect(firstID == LogicalTypeID(rawValue: UInt32.max))
+    #expect(firstID != secondID)
+    #expect(Set([firstID, secondID]).count == 2)
+    #expect(first.id == firstID)
+    #expect(first.alias == "future_type")
+    #expect(first == same)
+    #expect(first != differentAlias)
+}
+
+@Test("Logical metadata equality includes every recursive distinction")
+func logicalMetadataEqualityIncludesRecursiveDistinctions() {
+    let integer = LogicalType(id: .integer)
+    let bigint = LogicalType(id: .bigint)
+    let varchar = LogicalType(id: .varchar)
+
+    let enumA = LogicalType(
+        id: .enumeration,
+        alias: nil,
+        detail: .enumeration(values: ["sad", "ok", "happy"])
+    )
+    let enumB = LogicalType(
+        id: .enumeration,
+        alias: nil,
+        detail: .enumeration(values: ["sad", "happy", "ok"])
+    )
+    #expect(enumA != enumB)
+
+    let listA = LogicalType(
+        id: .list,
+        alias: nil,
+        detail: .list(child: integer)
+    )
+    let listB = LogicalType(
+        id: .list,
+        alias: nil,
+        detail: .list(child: LogicalType(id: .integer, alias: "child"))
+    )
+    #expect(listA != listB)
+
+    let arrayA = LogicalType(
+        id: .array,
+        alias: nil,
+        detail: .array(child: integer, length: 3)
+    )
+    let arrayWithDifferentChild = LogicalType(
+        id: .array,
+        alias: nil,
+        detail: .array(child: bigint, length: 3)
+    )
+    let arrayWithDifferentLength = LogicalType(
+        id: .array,
+        alias: nil,
+        detail: .array(child: integer, length: 4)
+    )
+    #expect(arrayA != arrayWithDifferentChild)
+    #expect(arrayA != arrayWithDifferentLength)
+
+    let mapA = LogicalType(
+        id: .map,
+        alias: nil,
+        detail: .map(key: varchar, value: integer)
+    )
+    let mapWithDifferentKey = LogicalType(
+        id: .map,
+        alias: nil,
+        detail: .map(key: integer, value: integer)
+    )
+    let mapWithDifferentValue = LogicalType(
+        id: .map,
+        alias: nil,
+        detail: .map(key: varchar, value: bigint)
+    )
+    #expect(mapA != mapWithDifferentKey)
+    #expect(mapA != mapWithDifferentValue)
+
+    let structureA = LogicalType(
+        id: .structType,
+        alias: nil,
+        detail: .structure(members: [
+            LogicalTypeMember(name: "id", type: integer),
+            LogicalTypeMember(name: "label", type: varchar)
+        ])
+    )
+    let structureWithDifferentName = LogicalType(
+        id: .structType,
+        alias: nil,
+        detail: .structure(members: [
+            LogicalTypeMember(name: "identifier", type: integer),
+            LogicalTypeMember(name: "label", type: varchar)
+        ])
+    )
+    let structureWithDifferentOrder = LogicalType(
+        id: .structType,
+        alias: nil,
+        detail: .structure(members: [
+            LogicalTypeMember(name: "label", type: varchar),
+            LogicalTypeMember(name: "id", type: integer)
+        ])
+    )
+    let structureWithDifferentChild = LogicalType(
+        id: .structType,
+        alias: nil,
+        detail: .structure(members: [
+            LogicalTypeMember(name: "id", type: bigint),
+            LogicalTypeMember(name: "label", type: varchar)
+        ])
+    )
+    #expect(structureA != structureWithDifferentName)
+    #expect(structureA != structureWithDifferentOrder)
+    #expect(structureA != structureWithDifferentChild)
+
+    let unionA = LogicalType(
+        id: .union,
+        alias: nil,
+        detail: .union(members: [
+            LogicalTypeMember(name: "number", type: integer),
+            LogicalTypeMember(name: "label", type: varchar)
+        ])
+    )
+    let unionWithDifferentName = LogicalType(
+        id: .union,
+        alias: nil,
+        detail: .union(members: [
+            LogicalTypeMember(name: "value", type: integer),
+            LogicalTypeMember(name: "label", type: varchar)
+        ])
+    )
+    let unionWithDifferentOrder = LogicalType(
+        id: .union,
+        alias: nil,
+        detail: .union(members: [
+            LogicalTypeMember(name: "label", type: varchar),
+            LogicalTypeMember(name: "number", type: integer)
+        ])
+    )
+    let unionWithDifferentChild = LogicalType(
+        id: .union,
+        alias: nil,
+        detail: .union(members: [
+            LogicalTypeMember(name: "number", type: bigint),
+            LogicalTypeMember(name: "label", type: varchar)
+        ])
+    )
+    #expect(unionA != unionWithDifferentName)
+    #expect(unionA != unionWithDifferentOrder)
+    #expect(unionA != unionWithDifferentChild)
+
+    #expect(deeplyNestedDescriptor() == deeplyNestedDescriptor())
+}
+
 @Test("Exposes every current pinned DuckDB logical type identity")
 func exposesPinnedLogicalTypeIdentities() {
     let identities: [(LogicalTypeID, UInt32)] = [
@@ -196,10 +355,230 @@ func copiesRecursiveLogicalMetadata() async throws {
     #expect(retained.map(\.name) == result.columns)
 }
 
+@Test("Copies and inspects metadata across multiple recursive families")
+func copiesAndInspectsDeepRecursiveMetadata() async throws {
+    let database = try Database()
+    let connection = try database.connect()
+
+    try await connection.execute(SwifQL.raw(
+        "CREATE TYPE deep_metadata_mood AS ENUM ('sad', 'ok', 'happy')"
+    ))
+
+    let result = try await connection.query(SwifQL.raw(
+        """
+        SELECT
+            CAST(NULL AS STRUCT(
+                payload MAP(VARCHAR, INTEGER[][]),
+                fixed INTEGER[2],
+                mood deep_metadata_mood
+            )) AS nested_value,
+            CAST(NULL AS UNION(
+                payload STRUCT(items INTEGER[2], label VARCHAR),
+                mood deep_metadata_mood
+            )) AS nested_union
+        WHERE FALSE
+        """
+    ))
+
+    #expect(result.rows.isEmpty)
+
+    let nested = result.resultColumns[0].logicalType.detail
+    guard case .structure(let nestedMembers) = nested else {
+        Issue.record("Expected outer STRUCT metadata")
+        return
+    }
+    #expect(nestedMembers.map(\.name) == ["payload", "fixed", "mood"])
+
+    let payload = nestedMembers[0].type.detail
+    guard case .map(let key, let value) = payload else {
+        Issue.record("Expected STRUCT payload MAP metadata")
+        return
+    }
+    #expect(key.id == .varchar)
+    let outerList = value.detail
+    guard case .list(let innerList) = outerList else {
+        Issue.record("Expected MAP value LIST metadata")
+        return
+    }
+    let innerListDetail = innerList.detail
+    guard case .list(let integerChild) = innerListDetail else {
+        Issue.record("Expected nested LIST metadata")
+        return
+    }
+    #expect(integerChild.id == .integer)
+
+    let fixed = nestedMembers[1].type.detail
+    guard case .array(let fixedChild, let fixedLength) = fixed else {
+        Issue.record("Expected STRUCT fixed ARRAY metadata")
+        return
+    }
+    #expect(fixedChild.id == .integer)
+    #expect(fixedLength == 2)
+
+    let mood = nestedMembers[2].type.detail
+    guard case .enumeration(let moodValues) = mood else {
+        Issue.record("Expected STRUCT mood ENUM metadata")
+        return
+    }
+    #expect(moodValues == ["sad", "ok", "happy"])
+
+    let union = result.resultColumns[1].logicalType.detail
+    guard case .union(let unionMembers) = union else {
+        Issue.record("Expected outer UNION metadata")
+        return
+    }
+    #expect(unionMembers.map(\.name) == ["payload", "mood"])
+    let unionPayload = unionMembers[0].type.detail
+    guard case .structure(let unionPayloadMembers) = unionPayload else {
+        Issue.record("Expected UNION payload STRUCT metadata")
+        return
+    }
+    #expect(unionPayloadMembers.map(\.name) == ["items", "label"])
+    let unionArray = unionPayloadMembers[0].type.detail
+    guard case .array(let unionArrayChild, let unionArrayLength) = unionArray else {
+        Issue.record("Expected UNION payload ARRAY metadata")
+        return
+    }
+    #expect(unionArrayChild.id == .integer)
+    #expect(unionArrayLength == 2)
+}
+
+@Test("Retains recursive metadata after the native query scope ends")
+func retainsRecursiveMetadataAfterNativeScopeEnds() async throws {
+    let retained = try await captureRecursiveMetadata()
+
+    #expect(retained.count == 1)
+    let detail = retained[0].logicalType.detail
+    guard case .structure(let members) = detail else {
+        Issue.record("Expected retained STRUCT metadata")
+        return
+    }
+    #expect(members.map(\.name) == ["payload", "fixed", "mood"])
+    let payload = members[0].type.detail
+    guard case .map(let key, let value) = payload else {
+        Issue.record("Expected retained MAP metadata")
+        return
+    }
+    #expect(key.id == .varchar)
+    let list = value.detail
+    guard case .list(let child) = list else {
+        Issue.record("Expected retained LIST metadata")
+        return
+    }
+    let nestedList = child.detail
+    guard case .list(let integer) = nestedList else {
+        Issue.record("Expected retained nested LIST metadata")
+        return
+    }
+    #expect(integer.id == .integer)
+}
+
+@Test("Keeps duplicate result names positionally aligned")
+func keepsDuplicateResultNamesPositionallyAligned() async throws {
+    let result = try await query(
+        "SELECT 7 AS duplicate, 11 AS duplicate"
+    )
+
+    #expect(result.resultColumns.count == result.columns.count)
+    #expect(result.resultColumns.map(\.name) == result.columns)
+    #expect(result.columns == ["duplicate", "duplicate"])
+    #expect(result.rows == [Row(
+        columns: ["duplicate", "duplicate"],
+        values: [.int32(7), .int32(11)]
+    )])
+}
+
+@Test("Stabilizes repeated recursive metadata capture")
+func stabilizesRepeatedRecursiveMetadataCapture() async throws {
+    let database = try Database()
+    let connection = try database.connect()
+    try await connection.execute(SwifQL.raw(
+        "CREATE TYPE repeated_metadata_mood AS ENUM ('sad', 'ok', 'happy')"
+    ))
+
+    let sql = SwifQL.raw(
+        """
+        SELECT CAST(NULL AS STRUCT(
+            payload MAP(VARCHAR, INTEGER[][]),
+            fixed INTEGER[2],
+            mood repeated_metadata_mood
+        )) AS nested_value
+        WHERE FALSE
+        """
+    )
+    var retained: [LogicalType] = []
+    retained.reserveCapacity(48)
+
+    for _ in 0..<48 {
+        let result = try await connection.query(sql)
+        retained.append(try #require(result.resultColumns.first?.logicalType))
+    }
+
+    let first = try #require(retained.first)
+    #expect(retained.count == 48)
+    #expect(retained.dropFirst().allSatisfy { $0 == first })
+    #expect(retained.allSatisfy { $0.id == .structType })
+}
+
 private func query(_ sql: String) async throws -> QueryResult {
     let database = try Database()
     let connection = try database.connect()
     return try await connection.query(SwifQL.raw(sql))
+}
+
+private func captureRecursiveMetadata() async throws -> [ResultColumn] {
+    let database = try Database()
+    let connection = try database.connect()
+    try await connection.execute(SwifQL.raw(
+        "CREATE TYPE retained_metadata_mood AS ENUM ('sad', 'ok', 'happy')"
+    ))
+    let result = try await connection.query(SwifQL.raw(
+        """
+        SELECT CAST(NULL AS STRUCT(
+            payload MAP(VARCHAR, INTEGER[][]),
+            fixed INTEGER[2],
+            mood retained_metadata_mood
+        )) AS nested_value
+        WHERE FALSE
+        """
+    ))
+    return result.resultColumns
+}
+
+private func deeplyNestedDescriptor() -> LogicalType {
+    LogicalType(
+        id: .structType,
+        alias: "outer",
+        detail: .structure(members: [
+            LogicalTypeMember(
+                name: "payload",
+                type: LogicalType(
+                    id: .map,
+                    alias: nil,
+                    detail: .map(
+                        key: LogicalType(id: .varchar, alias: "key"),
+                        value: LogicalType(
+                            id: .list,
+                            alias: nil,
+                            detail: .list(child: LogicalType(
+                                id: .array,
+                                alias: nil,
+                                detail: .array(child: LogicalType(id: .integer), length: 2)
+                            ))
+                        )
+                    )
+                )
+            ),
+            LogicalTypeMember(
+                name: "mood",
+                type: LogicalType(
+                    id: .enumeration,
+                    alias: "mood",
+                    detail: .enumeration(values: ["sad", "ok", "happy"])
+                )
+            )
+        ])
+    )
 }
 
 private func requireSendable<Value: Sendable>(_: Value) {}

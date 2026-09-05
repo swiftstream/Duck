@@ -127,7 +127,10 @@ func exposesAndDestroysRecursiveLogicalTypeChildren() throws {
     var structChild: duckdb_logical_type? = duckdb_struct_type_child_type(structure, 0)
     try #require(structChild != nil)
     defer { duckdb_destroy_logical_type(&structChild) }
-    #expect(copyAndFree(duckdb_struct_type_child_name(structure, 0)) == "id")
+    let structNames = (0..<2).map { index in
+        copyAndFree(duckdb_struct_type_child_name(structure, idx_t(index)))
+    }
+    #expect(structNames == ["id", "label"].map(Optional.some))
     let structChildHandle = try #require(structChild)
     #expect(duckdb_get_type_id(structChildHandle) == DUCKDB_TYPE_INTEGER)
 
@@ -136,9 +139,82 @@ func exposesAndDestroysRecursiveLogicalTypeChildren() throws {
     var unionMember: duckdb_logical_type? = duckdb_union_type_member_type(union, 1)
     try #require(unionMember != nil)
     defer { duckdb_destroy_logical_type(&unionMember) }
-    #expect(copyAndFree(duckdb_union_type_member_name(union, 1)) == "label")
+    let unionNames = (0..<2).map { index in
+        copyAndFree(duckdb_union_type_member_name(union, idx_t(index)))
+    }
+    #expect(unionNames == ["number", "label"].map(Optional.some))
     let unionMemberHandle = try #require(unionMember)
     #expect(duckdb_get_type_id(unionMemberHandle) == DUCKDB_TYPE_VARCHAR)
+}
+
+@Test("Walks and destroys deeply nested logical type children")
+func walksAndDestroysDeeplyNestedLogicalTypeChildren() throws {
+    var database: duckdb_database?
+    try #require(duckdb_open(nil, &database) == DuckDBSuccess)
+    defer { duckdb_close(&database) }
+
+    var connection: duckdb_connection?
+    try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
+    defer { duckdb_disconnect(&connection) }
+
+    let sql = SwifQL.raw(
+        """
+        SELECT CAST(NULL AS STRUCT(
+            payload MAP(VARCHAR, INTEGER[][]),
+            fixed INTEGER[2]
+        )) AS nested_value
+        WHERE FALSE
+        """
+    ).prepare(.duck).plain
+    var result = duckdb_result()
+    try #require(duckdb_query(connection, sql, &result) == DuckDBSuccess)
+    defer { duckdb_destroy_result(&result) }
+
+    guard let structure = duckdb_column_logical_type(&result, 0) else {
+        Issue.record("DuckDB did not return the nested logical type")
+        return
+    }
+    var ownedStructure: duckdb_logical_type? = structure
+    defer { duckdb_destroy_logical_type(&ownedStructure) }
+    #expect(duckdb_get_type_id(structure) == DUCKDB_TYPE_STRUCT)
+    #expect(duckdb_struct_type_child_count(structure) == 2)
+
+    var payload: duckdb_logical_type? = duckdb_struct_type_child_type(structure, 0)
+    try #require(payload != nil)
+    defer { duckdb_destroy_logical_type(&payload) }
+    let payloadHandle = try #require(payload)
+    #expect(duckdb_get_type_id(payloadHandle) == DUCKDB_TYPE_MAP)
+
+    var mapValue: duckdb_logical_type? = duckdb_map_type_value_type(payloadHandle)
+    try #require(mapValue != nil)
+    defer { duckdb_destroy_logical_type(&mapValue) }
+    let mapValueHandle = try #require(mapValue)
+    #expect(duckdb_get_type_id(mapValueHandle) == DUCKDB_TYPE_LIST)
+
+    var innerList: duckdb_logical_type? = duckdb_list_type_child_type(mapValueHandle)
+    try #require(innerList != nil)
+    defer { duckdb_destroy_logical_type(&innerList) }
+    let innerListHandle = try #require(innerList)
+    #expect(duckdb_get_type_id(innerListHandle) == DUCKDB_TYPE_LIST)
+
+    var integerChild: duckdb_logical_type? = duckdb_list_type_child_type(innerListHandle)
+    try #require(integerChild != nil)
+    defer { duckdb_destroy_logical_type(&integerChild) }
+    let integerChildHandle = try #require(integerChild)
+    #expect(duckdb_get_type_id(integerChildHandle) == DUCKDB_TYPE_INTEGER)
+
+    var fixed: duckdb_logical_type? = duckdb_struct_type_child_type(structure, 1)
+    try #require(fixed != nil)
+    defer { duckdb_destroy_logical_type(&fixed) }
+    let fixedHandle = try #require(fixed)
+    #expect(duckdb_get_type_id(fixedHandle) == DUCKDB_TYPE_ARRAY)
+    #expect(duckdb_array_type_array_size(fixedHandle) == 2)
+
+    var fixedChild: duckdb_logical_type? = duckdb_array_type_child_type(fixedHandle)
+    try #require(fixedChild != nil)
+    defer { duckdb_destroy_logical_type(&fixedChild) }
+    let fixedChildHandle = try #require(fixedChild)
+    #expect(duckdb_get_type_id(fixedChildHandle) == DUCKDB_TYPE_INTEGER)
 }
 
 @Test("Preserves enum dictionary order and frees dictionary strings")
