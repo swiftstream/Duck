@@ -17,7 +17,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/SwifQL/SwifQL.git",
-            exact: "2.0.0-beta.5.1.0"
+            exact: "2.0.0-beta.6.0.1"
         )
     ],
     targets: [
