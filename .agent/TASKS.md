@@ -14,8 +14,8 @@ A2 remains intentionally independent from shared-value implementation details. T
 
 ```text
 A2.1 — accepted: open LogicalTypeID / value-semantic LogicalType / ResultColumn foundation + deep-copy lifetime
-A2.2 — active next: recursive metadata copy/destruction hardening and forward-compatibility tests
-R2   — after A2.2: fresh independent logical metadata root audit
+A2.2 — accepted: recursive metadata copy/destruction hardening and forward-compatibility tests
+R2   — active next: fresh independent logical metadata root audit
 ```
 
 No source mutation may occur outside the exact allowlist of the active numbered task.

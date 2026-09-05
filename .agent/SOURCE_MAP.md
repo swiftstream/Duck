@@ -81,7 +81,9 @@ There is intentionally no model/provider/tool-specific stable session-orchestrat
 - `Tests/SwiftDuckDBTests/AppenderTests.swift`: public target overloads, setup/cancellation/admission release, escaped capability, same-Connection guards, Transaction exclusion, different-Connection independence, caller-local validation, terminal/finalization failure, and body-error cleanup coverage.
 - `Tests/SwiftDuckDBTests/AppenderConcurrencyTests.swift`: high-volume ingestion, supported-value matrix, real auto-flush row-completion failure, actor-side/pre-close cancellation, deterministic complete-row concurrency, and fail-closed precedence coverage.
 - `Tests/SwiftDuckDBTests/PublicActorTests.swift`: public Database/Connection opening, independent Connections, and parent lifetime retention.
-- `Tests/SwiftDuckDBTests/QueryValueTests.swift`: Row/Value/QueryResult/DatabaseError value semantics and Sendability coverage.
+- `Tests/SwiftDuckDBTests/QueryValueTests.swift`: Row/Value/QueryResult/DatabaseError value semantics, aligned result metadata fixture coverage, and Sendability coverage.
+- `Tests/SwiftDuckDBTests/LogicalTypeMetadataTests.swift`: public/internal logical metadata identity, equality, scalar/Decimal IDs, deep recursive production copy, post-native-scope retention, duplicate-name alignment, and repeated-capture stability coverage.
+- `Tests/CDuckDBTests/LogicalTypeContractTests.swift`: direct DuckDB logical-type ownership contracts, Decimal/alias/recursive/ENUM metadata, multi-level child-handle destruction, and allocated-name/string copy/free coverage.
 - `Tests/SwiftDuckDBTests/AsyncConnectionExecutionTests.swift`: public async execution, mutation rowsChanged, error/reuse, and deterministic pre-native cancellation coverage.
 - `Tests/SwiftDuckDBTests/QueryConvenienceTests.swift`: typed-table selected-column and query-centered convenience coverage.
 - `Tests/SwiftDuckDBTests/TransactionControlTests.swift`: prepared-statement transaction classification and rejection of user BEGIN/COMMIT/ROLLBACK on ordinary public execution routes.
