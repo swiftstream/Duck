@@ -32,8 +32,8 @@ There is intentionally no model/provider/tool-specific stable session-orchestrat
 
 ## Package / Public Surface
 
-- `Package.swift`: SwiftPM manifest for the `SwiftDuckDB` library product, public `SwiftDuckDB` target, internal generated `Cduckdb` target, exact SwifQL `2.0.0-beta.5.1.0` dependency, and both Swift Testing targets. It uses Swift tools 6.3, iOS 15+, macOS 12+, Swift language mode 6, and the upstream-generated C++11 setting.
-- `Package.resolved`: exact dependency resolution, including SwifQL revision `849931d048905abbf10d31b73eef14d8a64568cb`.
+- `Package.swift`: SwiftPM manifest for the `SwiftDuckDB` library product, public `SwiftDuckDB` target, internal generated `Cduckdb` target, exact SwifQL `2.0.0-beta.6.0.1` dependency, and both Swift Testing targets. It uses Swift tools 6.3, iOS 15+, macOS 12+, Swift language mode 6, and the upstream-generated C++11 setting.
+- `Package.resolved`: intentionally ignored local SwiftPM resolution evidence, not committed source-of-truth; current remote validation resolves SwifQL `2.0.0-beta.6.0.1` to revision `b759be0f7c64c6ca3b5272d17f404f5084e08033`.
 - `.swift-version`: tracked exact Swift `6.3.3` toolchain pin.
 - `README.md`: public query, reusable-Statement, scoped-transaction, and scoped-Appender documentation. Executable examples use SwifQL; ordinary String execution, manual `$1` placeholder APIs, and unimplemented Appender lifecycle/Transaction surfaces are not taught.
 

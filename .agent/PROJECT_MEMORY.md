@@ -7,7 +7,7 @@ Durable current-state facts useful beyond immediate source inspection.
 - Swift Package Manager library package/product/primary target name is `SwiftDuckDB`.
 - The package uses Swift tools 6.3, Swift language mode 6, iOS 15+ and macOS 12+ manifest deployment targets.
 - The tracked repository toolchain pin is `.swift-version` with exact Swift `6.3.3`. `swiftly.pkg` is intentionally absent and must not be recreated unless the maintainer explicitly changes that policy.
-- The accepted package baseline integrates exact SwifQL `2.0.0-beta.5.1.0` from `https://github.com/SwifQL/SwifQL.git`; the resolved revision is `849931d048905abbf10d31b73eef14d8a64568cb`. This dependency provides same-render unsafe-value provenance used by reusable Statement template validation.
+- The accepted package baseline integrates exact SwifQL `2.0.0-beta.6.0.1` from `https://github.com/SwifQL/SwifQL.git`; remote SwiftPM validation resolved revision `b759be0f7c64c6ca3b5272d17f404f5084e08033` and passed the complete SwiftDuckDB suite. `Package.swift` is the committed dependency declaration; `Package.resolved` is intentionally ignored local resolution evidence in this repository.
 - DuckDB C integration is the internal `Cduckdb` target generated from the official DuckDB `v1.5.5` Swift package flow. The current generated extension set includes `core_functions`, `parquet`, `icu`, and `json`; the generated manifest uses C++11.
 - The first public query slice is implemented, validated, independently audited, and documented in the root README.
 - Public `Database` is an actor-free `Sendable` final class that owns the database lifetime and can open in-memory or file-backed DuckDB databases.

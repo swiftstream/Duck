@@ -100,3 +100,7 @@ Prioritize:
 The coordinator/reviewer uses its configured approved repository interface as the primary repository inspection/editing path. When that interface cannot execute compiler/test commands, use the narrow direct-local-executor fallback process in `DEVELOPMENT_ORCHESTRATION.md` and `ARTIFACTS_WORKFLOW.md`.
 
 A validation executor must not opportunistically fix source. It reports the exact failure; the coordinator diagnoses and edits through the coordinator's configured repository interface unless the required operation itself is technically unavailable there.
+
+## Dependency Resolution Evidence
+
+Before asserting that generated dependency metadata must appear in Git status, verify whether the repository tracks or ignores that file. In this repository `Package.resolved` is intentionally ignored: validate its generated contents, resolved revision, checkout provenance, and hash as execution evidence, but do not require it to appear as a tracked diff or commit candidate. The committed dependency source-of-truth is `Package.swift`.

@@ -8,7 +8,7 @@ Only active approved executable implementation/closure work belongs here.
 
 The maintainer accepted Research 01, Plan Correction 01, P00 temporal executable evidence, and the fresh independent Plan Re-audit 01 CLEAN result.
 
-A2 is intentionally independent from the new SwifQL shared semantic type publication and may proceed while SwifQL Wave A1 is implemented/audited. It must not import or duplicate unpublished `PureDate`, `PureTime`, `DateTime`, or `Interval` definitions.
+A2 remains intentionally independent from shared-value implementation details. The separate SwifQL dependency handoff is now complete on exact published `2.0.0-beta.6.0.1` / revision `b759be0f7c64c6ca3b5272d17f404f5084e08033`; A2 must consume those published definitions rather than duplicate them, and it does not authorize any further dependency update.
 
 ### Active A2 sequencing
 
