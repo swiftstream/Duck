@@ -80,6 +80,7 @@ Rules:
 - Prefer a subject-only commit message. Add a body only when non-obvious context is genuinely required for future archaeology.
 - Do not invent decorative emoji prefixes when one of the canonical semantic prefixes fits.
 - Do not add model, provider, tool, agent, or automated-assistance attribution.
+- Do not put internal planning/execution identifiers or task names in commit subjects (`A1`, `A1.5`, `R1`, `Task 06`, `Correction 01`, audit/gate names, artifact lineage labels, and similar coordinator-only terminology). Describe the durable repository change instead. Use such an identifier only when it is itself a real public API/domain name or externally meaningful standard.
 
 Examples:
 
