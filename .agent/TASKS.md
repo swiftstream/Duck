@@ -1,111 +1,123 @@
 # Active Tasks
 
-Only active approved executable implementation/closure work belongs here.
+Only active approved executable implementation/closure work belongs here. Detailed completed execution/audit lineage belongs in `.artifacts/**`.
 
 ## Current active capability
 
-**Value & Result Type Expansion — Wave A2: Open Logical Result Metadata** is now the active approved SwiftDuckDB capability.
+**Value & Result Type Expansion — Wave B: Non-Decimal Exact Driver Vertical** is the active approved SwiftDuckDB capability.
 
-The maintainer accepted Research 01, Plan Correction 01, P00 temporal executable evidence, and the fresh independent Plan Re-audit 01 CLEAN result.
-
-A2 remains intentionally independent from shared-value implementation details. The separate SwifQL dependency handoff is now complete on exact published `2.0.0-beta.6.0.1` / revision `b759be0f7c64c6ca3b5272d17f404f5084e08033`; A2 must consume those published definitions rather than duplicate them, and it does not authorize any further dependency update.
-
-### Active A2 sequencing
+Prerequisites are complete and accepted:
 
 ```text
-A2.1 — accepted: open LogicalTypeID / value-semantic LogicalType / ResultColumn foundation + deep-copy lifetime
-A2.2 — accepted: recursive metadata copy/destruction hardening and forward-compatibility tests
-R2   — accepted CLEAN: fresh independent logical metadata root audit
-P01  — active next: remaining temporal/raw adapter boundaries
-P02  — active next: Foundation.Date / TIMESTAMPTZ exact finite domain
+SwifQL 2.0.0-beta.6.0.1 published + consumed
+A2 logical metadata milestone accepted + root audit CLEAN
+P01 temporal/raw adapter probe accepted
+P02 Foundation.Date/TIMESTAMPTZ exactness probe accepted
 ```
 
-No source mutation may occur outside the exact allowlist of the active numbered task.
+No source mutation may occur outside the exact allowlist of the currently frozen implementation task.
 
-### A2 public compatibility contract
-
-Existing surfaces remain:
+## Active sequencing
 
 ```text
-QueryResult.columns: [String]
-Row.columns: [String]
+B1 — active next: Int128 / UInt128 / UUID exact vertical
+B2 — after B1 acceptance: PureDate / PureTime / DateTime exact vertical
+B3 — after B2 acceptance: TIMESTAMPTZ / Foundation.Date exact vertical
+B4 — after B3 acceptance: Interval exact vertical
+B5 — after B4 acceptance: concurrency/regression/external-consumer hardening
+R3 — after B5: fresh independent Non-Decimal Value Vertical Root Audit
 ```
 
-A2 adds QueryResult-owned logical descriptors without exposing native DuckDB handles or turning Row into a duplicate metadata owner.
+Each implementation slice requires its own frozen prompt, validation, coordinator review, and local checkpoint before the next slice is promoted. Wave B activation does not authorize all B1–B5 mutations at once.
 
-The public logical identity must remain open/extensible:
+## Universal Wave B path contract
+
+Every implemented type family must use the existing architecture and cover:
 
 ```text
-LogicalTypeID
-- RawRepresentable open numeric identity
-- known IDs exposed as additive conveniences
-- unknown/future IDs remain representable
-
-LogicalType
-- value-semantic Swift-owned descriptor
-- public logical ID
-- copied alias/custom identity
-- applicable copied semantic metadata
-- no native pointer/handle escape
+ordinary query binding/execution
+reusable Statement binding/reuse
+Appender complete-row ingestion
+result materialization
+NULL / Optional
+logical result metadata
+boundary values and exact rejection
 ```
 
-Do not introduce a closed exhaustive public logical-type enum.
+Resolved native target metadata must be honored exactly. Targetless values use only the deterministic natural target frozen by the accepted plan/corrections.
 
-### A2 metadata/lifetime requirements
+Rounding, lossy narrowing, sentinel collision, unsupported special states, and unchecked overflow are forbidden. Reject before unsafe native mutation whenever the existing architecture permits preflight.
 
-Internal deep-copy must preserve enough identity for current and future logical types, including at minimum:
+## Frozen conversion anchors
+
+P01 is authoritative for DATE/TIME/TIME_NS/TIMESTAMP S/MS/us/NS finite ranges, infinity sentinels, divisibility, exact 24:00 handling, checked overflow, and floor-consistent negative/pre-epoch conversion.
+
+Important natural-target rules:
 
 ```text
-raw logical type ID
-alias
-DECIMAL width/scale
-ENUM dictionary
-LIST child
-ARRAY child + length
-MAP key/value
-STRUCT member names/types
-UNION member names/types
+targetless PureTime -> TIME_NS
+targetless DateTime -> TIMESTAMP_NS only when exactly representable
 ```
 
-Nested `Value` materialization remains later Wave E and is not activated by A2 metadata copying.
-
-Every owned native logical-type handle obtained during descriptor copying must be destroyed exactly once; every separately allocated alias/member/dictionary string must be copied and freed exactly once.
-
-`LogicalType` equality must include alias and all applicable copied semantic detail. Two custom logical types with the same underlying raw ID but different aliases must not collapse as equal.
-
-A2 tests must exercise representative recursive descriptor copy/destruction even though nested values remain unsupported.
-
-### Explicit non-goals for A2
-
-A2 does not authorize:
+P02 is authoritative for TIMESTAMPTZ/Foundation.Date:
 
 ```text
-new Value temporal/scalar cases
-SwifQL dependency update
-Wave B binding/Appender/result materialization
-Decimal Value support
-Table/full-model decoding
-arbitrary Decodable projections
+native identity: signed Int64 microseconds since Unix epoch
+DuckDB ±Int64.max sentinels: reject for Foundation.Date
+non-finite Foundation.Date: reject
+conversion: Foundation-reference split algorithm
+acceptance: exact bidirectional per-value equality only
+silent rounding/tolerance: forbidden
+```
+
+Largest contiguous guaranteed exact subset:
+
+```text
+[-7_611_627_392_000_000, 9_568_241_792_000_000] microseconds
+```
+
+That subset is not a hard bound; sparse exact values outside it remain valid when the accepted per-value predicate succeeds.
+
+## Current public compatibility boundary
+
+Before the active Wave B implementation begins, public `Value` contains only:
+
+```text
+null
+Bool
+Int8 / Int16 / Int32 / Int64
+UInt8 / UInt16 / UInt32 / UInt64
+Float / Double
+String
+Data
+```
+
+Existing query/result/Statement/Appender/Transaction behavior remains source-compatible unless the current frozen task explicitly authorizes an additive surface. Logical metadata support alone does not imply value materialization.
+
+## Explicit Wave B non-goals
+
+Wave B does not authorize:
+
+```text
+Foundation.Decimal production support or Wave C
+nested LIST/ARRAY/MAP/STRUCT/UNION/ENUM Value materialization
+Table/full-model or arbitrary Decodable projection
 migrations
-complex/nested Value materialization
-platform-support claims
 DuckDB vendor mutation
+SwifQL dependency changes
+Bridges/PostgresBridge modernization
+new platform-support claims
+release/tag/publication
+unrelated public API redesign
 ```
 
-Authoritative planning evidence:
+## Current gate evidence
 
 ```text
-.artifacts/planning/value-result-type-expansion-2026-09-04/IMPLEMENTATION_PLAN.md
-.artifacts/corrections/value-result-type-expansion-plan-correction-01-2026-09-04/PLAN_CORRECTION_01.md
-.artifacts/validation/value-result-type-expansion-p00-temporal-2026-09-04/P00_TEMPORAL_SEMANTICS_REPORT.md
-.artifacts/reviews/value-result-type-expansion-plan-reaudit-01-2026-09-04/PLAN_REAUDIT_01_REPORT.md
-.artifacts/reviews/value-result-type-expansion-plan-reaudit-01-2026-09-04/COORDINATOR_ACCEPTANCE.md
+.artifacts/implementation/value-result-type-expansion-2026-09-04/PRE_B_GATE_COORDINATOR_ACCEPTANCE.md
+.artifacts/validation/value-result-type-expansion-p01-temporal-raw-2026-09-06/P01_COORDINATOR_ACCEPTANCE.md
+.artifacts/validation/value-result-type-expansion-p02-foundation-date-2026-09-06/P02_COORDINATOR_ACCEPTANCE.md
+.artifacts/implementation/value-result-type-expansion-2026-09-04/A2_FINAL_COORDINATOR_ACCEPTANCE.md
 ```
 
-## Completed capability context
-
-The first public scoped Appender capability remains fully closed through final immutable Task 06 validation, the R2 Final Appender Root Audit lineage, coordinator acceptance, and the audited documentation/durable-state/source-owned Agent Skill checkpoint.
-
-No further Appender implementation, correction, documentation closure, central federation onboarding, notifier installation, publication, release, or unrelated later-capability work is implicitly authorized by this A2 activation.
-
-Potential work outside Value & Result Type Expansion remains in `.agent/TODO.md` and must be promoted here only after explicit maintainer direction, fresh current-state research, and reviewed planning appropriate to the capability.
+Work outside the active Value & Result Type Expansion capability remains in `.agent/TODO.md` and requires separate promotion/research/planning authorization.
