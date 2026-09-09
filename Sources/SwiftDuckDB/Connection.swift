@@ -109,6 +109,32 @@ func normalizeBinding(_ value: Any) throws -> Value {
     if let value = exactCast(value, as: Data.self) {
         return .blob(value)
     }
+    if #available(macOS 15.0, iOS 18.0, *) {
+        if let value = exactCast(value, as: Int128.self) {
+            return .int128(value)
+        }
+        if let value = exactCast(value, as: UInt128.self) {
+            return .uint128(value)
+        }
+    }
+    if let value = exactCast(value, as: UUID.self) {
+        return .uuid(value)
+    }
+    if let value = exactCast(value, as: Date.self) {
+        return .timestampTZ(value)
+    }
+    if let value = exactCast(value, as: PureDate.self) {
+        return .date(value)
+    }
+    if let value = exactCast(value, as: PureTime.self) {
+        return .time(value)
+    }
+    if let value = exactCast(value, as: DateTime.self) {
+        return .dateTime(value)
+    }
+    if let value = exactCast(value, as: Interval.self) {
+        return .interval(value)
+    }
 
     throw DatabaseError.unsupportedBindingType(String(reflecting: Swift.type(of: value)))
 }
@@ -474,6 +500,9 @@ public actor Connection {
             try nativeAppender.appendRow(bindings)
         } catch let error as NativeAppenderError {
             let primary = mapNativeAppenderError(error)
+            if error.isPreflight {
+                throw primary
+            }
             let cleanup = discardAppenderForScope(nativeAppender)
             entry.appender = nil
 

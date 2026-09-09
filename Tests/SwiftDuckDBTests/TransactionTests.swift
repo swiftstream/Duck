@@ -38,6 +38,8 @@ private struct TransactionBoundValue<Value: Encodable>: SwifQLable {
     }
 }
 
+private struct UnsupportedTransactionBinding: Encodable, Sendable {}
+
 private actor TransactionTestSignal {
     private var isSignaled = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
@@ -338,7 +340,7 @@ func callerLocalPreparationFailureRegistersBeforePreparation() async throws {
 
             do {
                 _ = try await SwifQL
-                    .select(TransactionBoundValue(value: Date()) => "unsupported")
+                    .select(TransactionBoundValue(value: UnsupportedTransactionBinding()) => "unsupported")
                     .query(on: transaction)
                 Issue.record("Expected caller-local binding normalization to fail.")
             } catch let error as DatabaseError {

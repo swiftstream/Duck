@@ -77,7 +77,7 @@ public final class Appender: Sendable {
         self.expectedArgumentCount = expectedArgumentCount
     }
 
-    public func append(_ values: any Sendable...) async throws {
+    public func append(_ values: (any Sendable)?...) async throws {
         let retainedSelf = self
         defer { withExtendedLifetime(retainedSelf) {} }
 
@@ -89,7 +89,7 @@ public final class Appender: Sendable {
             )
         }
 
-        let bindings = try values.map { try normalizeBinding($0) }
+        let bindings = try values.map { try normalizeBinding($0 as Any) }
         try await connection.appendAppenderRow(id, bindings: bindings)
     }
 }

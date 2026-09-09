@@ -13,23 +13,49 @@ struct NativeAppenderError: Error, Sendable {
     let stage: NativeAppenderErrorStage
     let message: String
     let bufferedDataOutcomeAmbiguous: Bool
+    let isPreflight: Bool
 
     init(
         stage: NativeAppenderErrorStage,
         message: String,
-        bufferedDataOutcomeAmbiguous: Bool = false
+        bufferedDataOutcomeAmbiguous: Bool = false,
+        isPreflight: Bool = false
     ) {
         self.stage = stage
         self.message = message
         self.bufferedDataOutcomeAmbiguous = bufferedDataOutcomeAmbiguous
+        self.isPreflight = isPreflight
     }
 }
 
 final class NativeAppender {
     let connection: NativeConnection
     let columnCount: Int
+    let targetDescriptors: [LogicalType]
 
     private var handle: duckdb_appender?
+
+    private enum PlannedAppend {
+        case null
+        case boolean(Bool)
+        case int8(Int8)
+        case int16(Int16)
+        case int32(Int32)
+        case int64(Int64)
+        case uint8(UInt8)
+        case uint16(UInt16)
+        case uint32(UInt32)
+        case uint64(UInt64)
+        case float(Float)
+        case double(Double)
+        case string(String)
+        case blob(Data)
+        case hugeint(duckdb_hugeint)
+        case uhugeint(duckdb_uhugeint)
+        case interval(duckdb_interval)
+        case uuid
+        case typedValue
+    }
 
     init(
         connection: NativeConnection,
@@ -103,8 +129,54 @@ final class NativeAppender {
             throw NativeAppenderError(stage: .creation, message: message)
         }
 
+        guard let count = Int(exactly: duckdb_appender_column_count(createdAppender)) else {
+            var appenderToDestroy: duckdb_appender? = createdAppender
+            _ = duckdb_appender_destroy(&appenderToDestroy)
+            throw NativeAppenderError(
+                stage: .creation,
+                message: "DuckDB appender column count does not fit in Swift Int."
+            )
+        }
+
+        var descriptors: [LogicalType] = []
+        descriptors.reserveCapacity(count)
+        do {
+            for index in 0..<count {
+                guard let logicalType = duckdb_appender_column_type(createdAppender, idx_t(index)) else {
+                    throw NativeAppenderError(
+                        stage: .creation,
+                        message: "DuckDB returned no logical type for appender column \(index + 1)."
+                    )
+                }
+                var ownedLogicalType: duckdb_logical_type? = logicalType
+                defer { duckdb_destroy_logical_type(&ownedLogicalType) }
+                descriptors.append(try NativeLogicalTypeCopier.copyBorrowed(logicalType))
+            }
+        } catch let error as NativeAppenderError {
+            var appenderToDestroy: duckdb_appender? = createdAppender
+            _ = duckdb_appender_destroy(&appenderToDestroy)
+            throw error
+        } catch {
+            var appenderToDestroy: duckdb_appender? = createdAppender
+            _ = duckdb_appender_destroy(&appenderToDestroy)
+            throw NativeAppenderError(
+                stage: .creation,
+                message: "DuckDB failed to copy appender target metadata: \(error)."
+            )
+        }
+
+        guard descriptors.count == count else {
+            var appenderToDestroy: duckdb_appender? = createdAppender
+            _ = duckdb_appender_destroy(&appenderToDestroy)
+            throw NativeAppenderError(
+                stage: .creation,
+                message: "Appender target metadata count did not match its column count."
+            )
+        }
+
         handle = createdAppender
-        columnCount = Int(duckdb_appender_column_count(createdAppender))
+        columnCount = count
+        targetDescriptors = descriptors
     }
 
     deinit {
@@ -133,8 +205,31 @@ final class NativeAppender {
             )
         }
 
+        var plannedValues: [PlannedAppend] = []
+        plannedValues.reserveCapacity(columnCount)
+        var ownedValues = Array<duckdb_value?>(repeating: nil, count: columnCount)
+        defer {
+            for index in ownedValues.indices {
+                duckdb_destroy_value(&ownedValues[index])
+            }
+        }
+
         for (offset, value) in values.enumerated() {
-            let state = append(value, to: appender)
+            let planned = try plan(
+                value,
+                target: targetDescriptors[offset],
+                column: offset + 1
+            )
+            plannedValues.append(planned.operation)
+            ownedValues[offset] = planned.ownedValue
+        }
+
+        for (offset, plannedValue) in plannedValues.enumerated() {
+            let state = append(
+                plannedValue,
+                ownedValue: ownedValues[offset],
+                to: appender
+            )
             guard state == DuckDBSuccess else {
                 throw NativeAppenderError(
                     stage: .appendColumn(offset + 1),
@@ -230,7 +325,219 @@ final class NativeAppender {
         handle = nil
     }
 
-    private func append(_ value: Value, to appender: duckdb_appender) -> duckdb_state {
+    private func plan(
+        _ value: Value,
+        target: LogicalType,
+        column: Int
+    ) throws -> (operation: PlannedAppend, ownedValue: duckdb_value?) {
+        switch value.storage {
+        case .null:
+            return (.null, nil)
+        case .boolean(let value):
+            guard target.id == .boolean else { throw preflightMismatch(column, target.id) }
+            return (.boolean(value), nil)
+        case .int8(let value):
+            return try plan(signed: Int64(value), target: target.id, column: column)
+        case .int16(let value):
+            return try plan(signed: Int64(value), target: target.id, column: column)
+        case .int32(let value):
+            return try plan(signed: Int64(value), target: target.id, column: column)
+        case .int64(let value):
+            return try plan(signed: value, target: target.id, column: column)
+        case .uint8(let value):
+            return try plan(unsigned: UInt64(value), target: target.id, column: column)
+        case .uint16(let value):
+            return try plan(unsigned: UInt64(value), target: target.id, column: column)
+        case .uint32(let value):
+            return try plan(unsigned: UInt64(value), target: target.id, column: column)
+        case .uint64(let value):
+            return try plan(unsigned: value, target: target.id, column: column)
+        case .float(let value):
+            guard target.id == .float else { throw preflightMismatch(column, target.id) }
+            return (.float(value), nil)
+        case .double(let value):
+            guard target.id == .double else { throw preflightMismatch(column, target.id) }
+            return (.double(value), nil)
+        case .string(let value):
+            guard target.id == .varchar else { throw preflightMismatch(column, target.id) }
+            return (.string(value), nil)
+        case .blob(let value):
+            guard target.id == .blob else { throw preflightMismatch(column, target.id) }
+            return (.blob(value), nil)
+        case .signed128Words(let upper, let lower):
+            guard target.id == .hugeint else { throw preflightMismatch(column, target.id) }
+            return (.hugeint(NativeScalarCodec.hugeint(upper: upper, lower: lower)), nil)
+        case .unsigned128Words(let upper, let lower):
+            guard target.id == .uhugeint else { throw preflightMismatch(column, target.id) }
+            return (.uhugeint(NativeScalarCodec.uhugeint(upper: upper, lower: lower)), nil)
+        case .uuid(let value):
+            guard target.id == .uuid else { throw preflightMismatch(column, target.id) }
+            let nativeValue = duckdb_create_uuid(NativeScalarCodec.canonicalUUIDWords(from: value))
+            guard nativeValue != nil else {
+                throw NativeAppenderError(
+                    stage: .appendColumn(column),
+                    message: "DuckDB failed to create a UUID appender value.",
+                    isPreflight: true
+                )
+            }
+            return (.uuid, nativeValue)
+        case .date(let value):
+            guard target.id == .date else { throw preflightMismatch(column, target.id) }
+            do {
+                let nativeValue = duckdb_create_date(try NativeTemporalCodec.date(from: value))
+                guard nativeValue != nil else {
+                    throw NativeTemporalConversionError(message: "DuckDB failed to create a DATE appender value.")
+                }
+                return (.typedValue, nativeValue)
+            } catch let error as NativeTemporalConversionError {
+                throw NativeAppenderError(
+                    stage: .appendColumn(column),
+                    message: error.message,
+                    isPreflight: true
+                )
+            }
+        case .time(let value):
+            guard target.id == .time || target.id == .timeNS else {
+                throw preflightMismatch(column, target.id)
+            }
+            do {
+                let nativeValue: duckdb_value?
+                if target.id == .time {
+                    nativeValue = duckdb_create_time(try NativeTemporalCodec.time(from: value))
+                } else {
+                    nativeValue = duckdb_create_time_ns(try NativeTemporalCodec.timeNS(from: value))
+                }
+                guard nativeValue != nil else {
+                    throw NativeTemporalConversionError(message: "DuckDB failed to create a TIME appender value.")
+                }
+                return (.typedValue, nativeValue)
+            } catch let error as NativeTemporalConversionError {
+                throw NativeAppenderError(
+                    stage: .appendColumn(column),
+                    message: error.message,
+                    isPreflight: true
+                )
+            }
+        case .dateTime(let value):
+            guard target.id == .timestampS
+                || target.id == .timestampMS
+                || target.id == .timestamp
+                || target.id == .timestampNS else {
+                throw preflightMismatch(column, target.id)
+            }
+            do {
+                let raw = try NativeTemporalCodec.timestampRaw(from: value, target: target.id)
+                let nativeValue: duckdb_value?
+                switch target.id {
+                case .timestampS:
+                    nativeValue = duckdb_create_timestamp_s(duckdb_timestamp_s(seconds: raw))
+                case .timestampMS:
+                    nativeValue = duckdb_create_timestamp_ms(duckdb_timestamp_ms(millis: raw))
+                case .timestamp:
+                    nativeValue = duckdb_create_timestamp(duckdb_timestamp(micros: raw))
+                case .timestampNS:
+                    nativeValue = duckdb_create_timestamp_ns(duckdb_timestamp_ns(nanos: raw))
+                default:
+                    throw NativeTemporalConversionError(message: "Unsupported DateTime appender target.")
+                }
+                guard nativeValue != nil else {
+                    throw NativeTemporalConversionError(message: "DuckDB failed to create a timestamp appender value.")
+                }
+                return (.typedValue, nativeValue)
+            } catch let error as NativeTemporalConversionError {
+                throw NativeAppenderError(
+                    stage: .appendColumn(column),
+                    message: error.message,
+                    isPreflight: true
+                )
+            }
+        case .timestampTZ(let value):
+            guard target.id == .timestampTZ else { throw preflightMismatch(column, target.id) }
+            do {
+                let raw = try NativeFoundationDateCodec.rawMicroseconds(from: value)
+                let nativeValue = duckdb_create_timestamp_tz(duckdb_timestamp(micros: raw))
+                guard nativeValue != nil else {
+                    throw NativeTemporalConversionError(message: "DuckDB failed to create a TIMESTAMPTZ appender value.")
+                }
+                return (.typedValue, nativeValue)
+            } catch let error as NativeTemporalConversionError {
+                throw NativeAppenderError(
+                    stage: .appendColumn(column),
+                    message: error.message,
+                    isPreflight: true
+                )
+            }
+        case .interval(let value):
+            guard target.id == .interval else { throw preflightMismatch(column, target.id) }
+            do {
+                return (.interval(try NativeIntervalCodec.native(from: value)), nil)
+            } catch let error as NativeIntervalConversionError {
+                throw NativeAppenderError(
+                    stage: .appendColumn(column),
+                    message: error.message,
+                    isPreflight: true
+                )
+            }
+        }
+    }
+
+    private func plan(
+        signed value: Int64,
+        target: LogicalTypeID,
+        column: Int
+    ) throws -> (operation: PlannedAppend, ownedValue: duckdb_value?) {
+        switch target {
+        case .tinyint:
+            guard let value = Int8(exactly: value) else { throw preflightMismatch(column, target) }
+            return (.int8(value), nil)
+        case .smallint:
+            guard let value = Int16(exactly: value) else { throw preflightMismatch(column, target) }
+            return (.int16(value), nil)
+        case .integer:
+            guard let value = Int32(exactly: value) else { throw preflightMismatch(column, target) }
+            return (.int32(value), nil)
+        case .bigint:
+            return (.int64(value), nil)
+        case .hugeint:
+            let words = (
+                upper: value < 0 ? Int64(-1) : Int64(0),
+                lower: UInt64(bitPattern: value)
+            )
+            return (.hugeint(NativeScalarCodec.hugeint(upper: words.upper, lower: words.lower)), nil)
+        default:
+            throw preflightMismatch(column, target)
+        }
+    }
+
+    private func plan(
+        unsigned value: UInt64,
+        target: LogicalTypeID,
+        column: Int
+    ) throws -> (operation: PlannedAppend, ownedValue: duckdb_value?) {
+        switch target {
+        case .utinyint:
+            guard let value = UInt8(exactly: value) else { throw preflightMismatch(column, target) }
+            return (.uint8(value), nil)
+        case .usmallint:
+            guard let value = UInt16(exactly: value) else { throw preflightMismatch(column, target) }
+            return (.uint16(value), nil)
+        case .uinteger:
+            guard let value = UInt32(exactly: value) else { throw preflightMismatch(column, target) }
+            return (.uint32(value), nil)
+        case .ubigint:
+            return (.uint64(value), nil)
+        case .uhugeint:
+            return (.uhugeint(NativeScalarCodec.uhugeint(upper: 0, lower: value)), nil)
+        default:
+            throw preflightMismatch(column, target)
+        }
+    }
+
+    private func append(
+        _ value: PlannedAppend,
+        ownedValue: duckdb_value?,
+        to appender: duckdb_appender
+    ) -> duckdb_state {
         switch value {
         case .null:
             return duckdb_append_null(appender)
@@ -258,11 +565,7 @@ final class NativeAppender {
             return duckdb_append_double(appender, value)
         case .string(let value):
             return value.utf8CString.withUnsafeBufferPointer { buffer in
-                duckdb_append_varchar_length(
-                    appender,
-                    buffer.baseAddress,
-                    idx_t(buffer.count - 1)
-                )
+                duckdb_append_varchar_length(appender, buffer.baseAddress, idx_t(buffer.count - 1))
             }
         case .blob(let value):
             if value.isEmpty {
@@ -271,14 +574,31 @@ final class NativeAppender {
                     duckdb_append_blob(appender, UnsafeRawPointer(pointer), 0)
                 }
             }
-
             return value.withUnsafeBytes { buffer in
-                guard let baseAddress = buffer.baseAddress else {
-                    return DuckDBError
-                }
+                guard let baseAddress = buffer.baseAddress else { return DuckDBError }
                 return duckdb_append_blob(appender, baseAddress, idx_t(buffer.count))
             }
+        case .hugeint(let value):
+            return duckdb_append_hugeint(appender, value)
+        case .uhugeint(let value):
+            return duckdb_append_uhugeint(appender, value)
+        case .interval(let value):
+            return duckdb_append_interval(appender, value)
+        case .uuid:
+            guard let ownedValue else { return DuckDBError }
+            return duckdb_append_value(appender, ownedValue)
+        case .typedValue:
+            guard let ownedValue else { return DuckDBError }
+            return duckdb_append_value(appender, ownedValue)
         }
+    }
+
+    private func preflightMismatch(_ column: Int, _ target: LogicalTypeID) -> NativeAppenderError {
+        NativeAppenderError(
+            stage: .appendColumn(column),
+            message: "Value is not exactly compatible with appender target logical type \(target.rawValue).",
+            isPreflight: true
+        )
     }
 
     private static func copyDiagnostic(

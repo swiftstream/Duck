@@ -36,7 +36,7 @@ Shared API and semantics remain platform-independent unless a concrete platform 
 10. Implement and document the first public scoped Appender capability with complete-row ingestion, Connection-owned lifetime/concurrency, truthful failure/cancellation semantics, explicit non-atomic auto-flush boundaries, and source-owned public skill coverage. **Implemented and documented current capability boundary; later Appender transaction/advanced features remain unapproved.**
 11. Enforce a public-capability closure contract for every implemented user-facing feature: README coverage, detailed article/social-post source material, and source-owned Agent Skill coverage following `swiftstream/skills` standards. **Mandatory ongoing rule; historical public capabilities must be backfilled.**
 12. Establish the open Swift-owned logical result metadata foundation (`LogicalTypeID`, `LogicalType`, `ResultColumn`, aligned `QueryResult.resultColumns`) with native deep-copy lifetime safety. **Done; fresh root audit CLEAN.**
-13. Implement the exact non-Decimal value vertical for Int128/UInt128/UUID, PureDate/PureTime/DateTime, bounded-exact Foundation.Date/TIMESTAMPTZ, and Interval across query/Statement/Appender/result paths using the accepted P01/P02 contracts. **Active current capability; Decimal and nested Value remain separately gated.**
+13. Implement the exact non-Decimal value vertical for Int128/UInt128/UUID, PureDate/PureTime/DateTime, bounded-exact Foundation.Date/TIMESTAMPTZ, and Interval across query/Statement/Appender/result paths using the accepted P01/P02 contracts. **Current progression: B1 Int128/UInt128/UUID is accepted; B2 PureDate/PureTime/DateTime is accepted; B3 Foundation.Date/TIMESTAMPTZ is accepted; B4 SwifQL.Interval/DuckDB INTERVAL is accepted; B5 concurrency/regression/external-consumer hardening is next and separately gated; R3 follows B5. Decimal and nested/complex Value remain separately gated.**
 
 ## Implemented First Public Query Slice
 
@@ -49,13 +49,15 @@ The current public slice includes:
 - async query/execute through pending DuckDB execution;
 - per-Connection execution serialization without a global Database gate;
 - cooperative Swift cancellation with same-owner native interruption at implemented boundaries;
-- Swift-owned `QueryResult`, `Row`, and primitive `Value` results;
+- Swift-owned `QueryResult`, `Row`, and exact scalar `Value` results, including accepted B1 UUID/hidden-word Int128/UInt128, accepted B2 PureDate/PureTime/DateTime, accepted B3 Foundation.Date/TIMESTAMPTZ, and accepted B4 SwifQL.Interval/DuckDB INTERVAL support;
 - typed `DatabaseError` failure categories;
 - query-centered `.query(on:)` / `.execute(on:)` conveniences that delegate to the same `Connection` engine;
 - typed-table selected-column syntax such as `User.select(\.$email, \.$name, \.$role)` while preserving ordinary SwifQL composition;
 - a root README describing only this reviewed surface and its evidence-bounded behavior.
 
 This is query-construction/execution sugar over SwifQL and DuckDB, not an ORM or repository layer.
+
+The current exact temporal result/value boundary is `PureDate` ↔ `DATE`, `PureTime` ↔ `TIME` / `TIME_NS`, `DateTime` ↔ `TIMESTAMP_S` / `TIMESTAMP_MS` / `TIMESTAMP_US` / `TIMESTAMP_NS`, `Foundation.Date` ↔ `TIMESTAMPTZ`, and shared `SwifQL.Interval` ↔ `INTERVAL`. B2 precision and B3 target resolution are honored exactly; targetless Foundation.Date and resolved Foundation.Date targets accept only `TIMESTAMPTZ`, with no timezone identifier/offset metadata preserved. B4 preserves mixed-sign/non-normalized Interval components, narrows finite months/days with exact `Int64` → `Int32` checks at the native boundary, passes microseconds as exact `Int64`, preserves semantic infinity/out-of-native-range values through generic normalization, and rejects them at native Prepared/Appender boundaries. Decimal/nested/complex families remain gated.
 
 ## Implemented Scoped Transaction Slice
 
@@ -96,6 +98,7 @@ The current public Appender capability includes:
 
 - scoped `Connection.appender(to:)` entrypoints for table, schema+table, and catalog+schema+table SwifQL `Path` targets;
 - one complete-row `Appender.append(...)` operation with current `Value`/Optional/primitive/String/Data normalization, including SQL NULL and empty BLOB;
+- exact Foundation.Date/TIMESTAMPTZ row support is accepted; whole-row Phase-1 conversion and typed-value creation preserve zero native-column mutation for deterministic Date failures, while native Phase-2 failure remains terminal;
 - no public native handle, initializer, manual close/flush/clear, per-column append/endRow, selected columns, DEFAULT, QueryAppender, or DataChunk surface;
 - one ordinary Connection admission held for the complete awaited Appender scope, with setup ownership transferring to actor-registered live Appender state only after native creation succeeds;
 - inherited same-Connection Connection/ordinary-Statement/transaction/nested-Appender work rejected while the scope is live, while separate Connections remain independent;
@@ -142,7 +145,7 @@ The following are not yet approved/implemented architecture unless later resolve
 - migrations;
 - ORM/repository persistence features;
 - connection pooling;
-- expansion of the public result model into unsupported complex/temporal/Decimal/UUID/128-bit families;
+- expansion of the public result model into Decimal and nested/complex families beyond the approved Wave-B non-Decimal sequence;
 - exact Linux/Android/Windows architecture and toolchain validation matrix.
 
 Record these as implemented decisions only after discussion, current evidence, planning, validation, and audit.

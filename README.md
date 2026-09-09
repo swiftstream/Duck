@@ -15,7 +15,7 @@ These are manifest facts, not a claim of broader platform/runtime validation bey
 
 The repository toolchain pin is Swift 6.3.3.
 
-SwiftDuckDB currently depends on SwifQL `2.0.0-beta.5.1.0` exactly.
+SwiftDuckDB currently depends on SwifQL `2.0.0-beta.6.0.1` exactly.
 
 ## Installation
 
@@ -28,7 +28,7 @@ dependencies: [
     .package(path: "../SwiftDuckDB"),
     .package(
         url: "https://github.com/SwifQL/SwifQL.git",
-        exact: "2.0.0-beta.5.1.0"
+        exact: "2.0.0-beta.6.0.1"
     )
 ],
 targets: [
@@ -234,7 +234,7 @@ A `Statement` cannot execute on a `Transaction` from another `Connection`; that 
 
 `Statement` is `Sendable` and may be called from multiple tasks. Native execution still belongs to the originating `Connection`: ordinary calls are serialized by that connection, transaction calls participate in that transaction's FIFO execution, and separate connections remain independent. A `Statement` strongly retains its originating `Connection`, so it remains usable while the statement itself is alive unless that connection becomes unusable or the statement is terminally invalidated.
 
-Supported dynamic arguments use the same current binding normalization as ordinary execution: `Value`, Optional values whose wrapped type is also supported, `Bool`, signed and unsigned 8/16/32/64-bit integers, `Int`, `UInt`, `Float`, `Double`, `String`, and Foundation `Data`. Optional `nil` becomes SQL `NULL`; `Data()` is a valid empty BLOB. Unsupported types fail with `.unsupportedBindingType`, and the statement remains reusable when the failure is caller-local.
+Supported dynamic arguments use the same current binding normalization as ordinary execution: `Value`, Optional values whose wrapped type is also supported, `Bool`, signed and unsigned 8/16/32/64-bit integers, `Int`, `UInt`, `Float`, `Double`, `String`, Foundation `Data`, Foundation `UUID`, Foundation `Date`, `PureDate`, `PureTime`, `DateTime`, and `SwifQL.Interval`. Naked `nil` is accepted directly on all four variadics. Optional `nil` becomes SQL `NULL`; `Data()` is a valid empty BLOB. Unsupported types fail with `.unsupportedBindingType`, while non-finite or out-of-range Interval values fail with `.binding`; the statement remains reusable after these deterministic binding failures.
 
 Reusable preparation means SwiftDuckDB retains and reuses one native prepared-statement owner across executions. It does not promise that DuckDB will never internally rebind or replan when native engine conditions require it. SwiftDuckDB also does not expose a manual `$1` / `$2` placeholder API; dynamic parameters are created only through `Statement.Parameters` in the builder closure.
 
@@ -300,9 +300,14 @@ UInt8 / UInt16 / UInt32 / UInt64 / UInt
 Float / Double
 String
 Foundation.Data
+Foundation.UUID
+Foundation.Date
+SwifQL.PureDate / PureTime / DateTime
+SwifQL.Interval
 ```
 
-Optional `nil` becomes SQL `NULL`. `Data()` is a valid empty BLOB. Unsupported temporal, Decimal, UUID, 128-bit, list/struct/map, and other complex families are not implied by this first slice.
+Naked `nil` is accepted directly; explicit `Value.null` remains valid.
+Optional `nil` becomes SQL `NULL`. `Data()` is a valid empty BLOB. Temporal and Interval values are supported through their exact SwifQL representations; Decimal, list/struct/map, and other complex families are not implied by this slice. 128-bit integers are supported through the availability-gated Swift bridges described under Reading results.
 
 Wrong row width and unsupported Swift argument types fail before native row mutation, so a later valid row may still be appended within the same live scope.
 
@@ -373,7 +378,7 @@ The current transaction API does not advertise READ ONLY modes, custom isolation
 
 ```swift
 for row in result.rows {
-    if case .string(let email)? = row["email"] {
+    if let email = row.string("email") {
         print(email)
     }
 }
@@ -385,28 +390,86 @@ Rows can also be accessed by position:
 let firstValue = result.rows[0][0]
 ```
 
-The current public `Value` result cases are:
+The public `Value` is a value facade, not an enum. Construction keeps the
+same call sites (`Value.int32(42)`, `Value.string("Mike")`, `Value.null`, and
+contextual `[.int32(1), .string("x"), .null]`), while result identity is
+exposed through `Value.Kind` (`value.kind`, `Value.Kind.allKnown`) and exact
+typed extraction:
 
 ```swift
-.null
-.boolean(Bool)
-.int8(Int8)
-.int16(Int16)
-.int32(Int32)
-.int64(Int64)
-.uint8(UInt8)
-.uint16(UInt16)
-.uint32(UInt32)
-.uint64(UInt64)
-.float(Float)
-.double(Double)
-.string(String)
-.blob(Data)
+let email = row.value("email", as: String.self)
+let id = row.value("id", as: Int64.self)
+let first = row.value(0, as: Int64.self)
 ```
+
+`Row` also offers `row.string("email")`, `row.int64("id")`, and the positional
+`row.string(0)` / `row.int64(0)` helpers. Extraction is exact: a wrong
+requested type, SQL `NULL`, a missing named column, or an out-of-range
+positional convenience all produce `nil` without numeric coercion.
+
+The current public `Value` families are:
+
+```swift
+Value.null
+Value.boolean(Bool)
+Value.int8(Int8) / Value.int16(Int16) / Value.int32(Int32) / Value.int64(Int64)
+Value.uint8(UInt8) / Value.uint16(UInt16) / Value.uint32(UInt32) / Value.uint64(UInt64)
+Value.float(Float) / Value.double(Double)
+Value.string(String) / Value.blob(Data)
+Value.uuid(UUID)
+Value.date(PureDate) / Value.time(PureTime) / Value.dateTime(DateTime)
+Value.timestampTZ(Foundation.Date)
+Value.interval(Interval)
+```
+
+`Int128` / `UInt128` values are supported through `Value.int128(_:)`,
+`Value.uint128(_:)`, `value.get(Int128.self)`, and `value.get(UInt128.self)`.
+Those direct Swift bridges require macOS 15 / iOS 18 availability on Apple
+platforms; `UUID` construction and extraction remain availability-free.
 
 SQL `NULL` is represented explicitly as `.null`. Missing named columns return `nil` from the named row subscript.
 
 BLOB results are returned as Swift `Data`. SwifQL has its own expression semantics for plain Foundation `Data`; this README does not imply that every plain `Data` expression is automatically emitted as a native prepared Data bind.
+
+### Temporal values
+
+Bind `PureDate`, `PureTime`, and `DateTime` directly through the normal SwifQL execution path:
+
+```swift
+let date = PureDate(year: 2026, month: 9, day: 7)
+let time = PureTime(nanosecondsSinceMidnight: 12_345_678_901)
+
+if let date, let time, let dateTime = DateTime(date: date, time: time) {
+    let result = try await connection.query(
+        SwifQL.select(
+            Fn.cast(date, .date) => "date_value",
+            Fn.cast(time, .timeNs) => "time_value",
+            Fn.cast(dateTime, .timestampNs) => "timestamp_value"
+        )
+    )
+    if let row = result.rows.first {
+        let exactTime = row.value("time_value", as: PureTime.self)
+        _ = exactTime
+    }
+}
+```
+
+`Foundation.Date` represents an instant and naturally binds to DuckDB `TIMESTAMPTZ`. Use `Value.timestampTZ(date)`, `value.get(Date.self)`, `value.timestampTZValue`, `row.value("value", as: Date.self)`, or `row.timestampTZ("value")` for exact-family access. Binding and result materialization require exact per-value microsecond representability; there is no tolerance, silent rounding, or truncation. DuckDB `TIMESTAMPTZ` infinities are not representable as `Foundation.Date`, and no timezone identifier is retained.
+
+`TIME_NS` preserves nanoseconds exactly. Timestamp bindings reject values that cannot be represented at the requested precision; they do not round. `DateTime` remains a civil, timezone-free value in the non-TZ `TIMESTAMP_S` / `TIMESTAMP_MS` / `TIMESTAMP` / `TIMESTAMP_NS` family and does not bridge through `Foundation.Date` or `TIMESTAMPTZ`. `PureDate` remains `DATE`; `PureTime` remains `TIME` / `TIME_NS`. Standalone `PureTime` preserves `24:00`; `DateTime` follows SwifQL's civil semantics and canonicalizes that value to the next day's midnight.
+
+`SwifQL.Interval` preserves independent `months`, `days`, and `microseconds` components. Mixed signs and non-normalized structural values remain exact: months and days are not converted into one another, and microseconds are passed as an exact `Int64`. DuckDB's native month/day fields are `Int32`, so values outside that range and SwifQL's explicit positive/negative infinity states are rejected at binding or Appender preflight with `.binding` or `.appenderAppend`. `Interval` is not equivalent to Foundation `TimeInterval`, and it does not unconditionally bridge to Swift `Duration`.
+
+Plain `Interval` and `Optional<Interval>` are directly usable through ordinary SwifQL execution. `Value.interval(...)` is the SwiftDuckDB facade for stored/extracted values and Sendable dynamic routes such as reusable `Statement` and Appender; `Value` does not claim ordinary SwifQL `Encodable` or `SwifQLable` conformance.
+
+```swift
+let interval = Interval(months: 1, days: 40, microseconds: 2)
+let result = try await connection.query(SwifQL.select(interval => "value"))
+
+if let row = result.rows.first, let exact = row.interval("value") {
+    _ = exact
+}
+```
 
 ## Concurrency
 
@@ -446,6 +509,6 @@ Treat `SwifQL.raw(...)` as an escape hatch. Normal SwiftDuckDB examples should p
 
 ## Current scope
 
-The current public slice covers database/connection ownership, SwifQL query execution, reusable prepared statements, scoped transactions, scoped complete-row Appender ingestion, primitive binding/result values, mutation row counts, typed-table selected-column convenience, structured connection concurrency, and cancellation-aware execution.
+The current public slice covers database/connection ownership, SwifQL query execution, reusable prepared statements, scoped transactions, scoped complete-row Appender ingestion, primitive, temporal, and Interval binding/result values, mutation row counts, typed-table selected-column convenience, structured connection concurrency, and cancellation-aware execution.
 
-The current API does not yet advertise Appender-in-Transaction or advanced Appender selected-column/DEFAULT/query/data-chunk/manual-lifecycle surfaces, Codable model decoding, ORM/repository semantics, connection pooling, observation/reactive queries, migrations, savepoints/manual transaction lifecycle controls, custom transaction isolation modes, or complex/temporal/Decimal/UUID/128-bit result families.
+The current API does not yet advertise Appender-in-Transaction or advanced Appender selected-column/DEFAULT/query/data-chunk/manual-lifecycle surfaces, Codable model decoding, ORM/repository semantics, connection pooling, observation/reactive queries, migrations, savepoints/manual transaction lifecycle controls, custom transaction isolation modes, or complex/Decimal result families.

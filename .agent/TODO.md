@@ -9,7 +9,6 @@ Ideas that are not active approved implementation tasks.
 - Backfill the mandatory public-capability closure gate for reusable prepared Statements with a public `swiftduckdb-reusable-statements` skill package and retain/expand its existing detailed publication source material as needed.
 - Decide when to request central `swiftstream/skills` onboarding for SwiftDuckDB after source-owned public packages are ready. Source preparation under the established `.agent/skills` root and `.agent/SKILL_INDEX.md` does not itself authorize central federation registration.
 - Evaluate Codable/model decoding and encoding beyond the current explicit `Row` / `Value` result surface.
-- Evaluate expansion of result/binding support into currently unsupported temporal, Decimal, UUID, 128-bit, and complex DuckDB families.
 - Evaluate observation/reactive query support for application UI consumers.
 - Evaluate whether connection pooling is justified and, if so, define ownership/backpressure semantics before implementation.
 - Research migration support only if a concrete consumer requirement justifies it.

@@ -333,8 +333,8 @@ func concurrentAppenderCallsPreserveRowAtomicity() async throws {
     for row in result.rows {
         guard let idValue = row["id"],
               let nameValue = row["name"],
-              case .int32(let id) = idValue,
-              case .string(let name) = nameValue else {
+              let id = idValue.get(Int32.self),
+              let name = nameValue.get(String.self) else {
             Issue.record("Expected complete INTEGER/VARCHAR Appender row.")
             continue
         }

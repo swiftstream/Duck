@@ -53,7 +53,7 @@ final class NativeResult {
             defer { duckdb_destroy_logical_type(&ownedLogicalType) }
 
             columns.append(
-                ResultColumn(name: name, logicalType: try copyLogicalType(logicalType))
+                ResultColumn(name: name, logicalType: try NativeLogicalTypeCopier.copyBorrowed(logicalType))
             )
         }
 
@@ -144,6 +144,78 @@ final class NativeResult {
             return try materializeString(data: data, rowIndex: rowIndex)
         case DUCKDB_TYPE_BLOB:
             return try materializeBlob(data: data, rowIndex: rowIndex)
+        case DUCKDB_TYPE_HUGEINT:
+            let words = NativeScalarCodec.signedWords(
+                of: data.assumingMemoryBound(to: duckdb_hugeint.self)[rowIndex]
+            )
+            return Value(signedUpper: words.upper, lower: words.lower)
+        case DUCKDB_TYPE_UHUGEINT:
+            let words = NativeScalarCodec.unsignedWords(
+                of: data.assumingMemoryBound(to: duckdb_uhugeint.self)[rowIndex]
+            )
+            return Value(unsignedUpper: words.upper, lower: words.lower)
+        case DUCKDB_TYPE_UUID:
+            let physical = data.assumingMemoryBound(to: duckdb_hugeint.self)[rowIndex]
+            let canonical = NativeScalarCodec.canonicalUUIDWords(fromPhysicalWords: physical)
+            return .uuid(NativeScalarCodec.uuid(fromCanonicalWords: canonical))
+        case DUCKDB_TYPE_DATE:
+            return try temporalValue {
+                .date(try NativeTemporalCodec.pureDate(
+                    from: data.assumingMemoryBound(to: duckdb_date.self)[rowIndex]
+                ))
+            }
+        case DUCKDB_TYPE_TIME:
+            return try temporalValue {
+                .time(try NativeTemporalCodec.pureTime(
+                    from: data.assumingMemoryBound(to: duckdb_time.self)[rowIndex]
+                ))
+            }
+        case DUCKDB_TYPE_TIME_NS:
+            return try temporalValue {
+                .time(try NativeTemporalCodec.pureTime(
+                    from: data.assumingMemoryBound(to: duckdb_time_ns.self)[rowIndex]
+                ))
+            }
+        case DUCKDB_TYPE_TIMESTAMP_S:
+            return try temporalValue {
+                .dateTime(try NativeTemporalCodec.dateTime(
+                    fromRaw: data.assumingMemoryBound(to: duckdb_timestamp_s.self)[rowIndex].seconds,
+                    source: .timestampS
+                ))
+            }
+        case DUCKDB_TYPE_TIMESTAMP_MS:
+            return try temporalValue {
+                .dateTime(try NativeTemporalCodec.dateTime(
+                    fromRaw: data.assumingMemoryBound(to: duckdb_timestamp_ms.self)[rowIndex].millis,
+                    source: .timestampMS
+                ))
+            }
+        case DUCKDB_TYPE_TIMESTAMP:
+            return try temporalValue {
+                .dateTime(try NativeTemporalCodec.dateTime(
+                    fromRaw: data.assumingMemoryBound(to: duckdb_timestamp.self)[rowIndex].micros,
+                    source: .timestamp
+                ))
+            }
+        case DUCKDB_TYPE_TIMESTAMP_NS:
+            return try temporalValue {
+                .dateTime(try NativeTemporalCodec.dateTime(
+                    fromRaw: data.assumingMemoryBound(to: duckdb_timestamp_ns.self)[rowIndex].nanos,
+                    source: .timestampNS
+                ))
+            }
+        case DUCKDB_TYPE_TIMESTAMP_TZ:
+            return try temporalValue {
+                .timestampTZ(try NativeFoundationDateCodec.date(
+                    fromRawMicroseconds: data.assumingMemoryBound(to: duckdb_timestamp.self)[rowIndex].micros
+                ))
+            }
+        case DUCKDB_TYPE_INTERVAL:
+            return .interval(
+                NativeIntervalCodec.interval(
+                    from: data.assumingMemoryBound(to: duckdb_interval.self)[rowIndex]
+                )
+            )
         default:
             throw NativeDuckDBError(
                 operation: .unsupportedResultType,
@@ -152,134 +224,12 @@ final class NativeResult {
         }
     }
 
-    private func copyLogicalType(_ type: duckdb_logical_type) throws -> LogicalType {
-        let nativeID = duckdb_get_type_id(type)
-        let id = LogicalTypeID(rawValue: unsafeBitCast(nativeID, to: UInt32.self))
-        let alias = copyAllocatedString(duckdb_logical_type_get_alias(type))
-
-        let detail: LogicalTypeDetail
-        switch id {
-        case .decimal:
-            detail = .decimal(
-                width: duckdb_decimal_width(type),
-                scale: duckdb_decimal_scale(type)
-            )
-        case .enumeration:
-            let count = try integerCount(
-                UInt64(duckdb_enum_dictionary_size(type)),
-                name: "enum dictionary size"
-            )
-            var values: [String] = []
-            values.reserveCapacity(count)
-            for index in 0..<count {
-                guard let value = copyAllocatedString(
-                    duckdb_enum_dictionary_value(type, idx_t(index))
-                ) else {
-                    throw NativeDuckDBError(
-                        operation: .invalidResult,
-                        message: "DuckDB returned no enum dictionary value at index \(index)."
-                    )
-                }
-                values.append(value)
-            }
-            detail = .enumeration(values: values)
-        case .list:
-            detail = .list(child: try copyOwnedLogicalType(duckdb_list_type_child_type(type)))
-        case .array:
-            let length = try integerCount(
-                duckdb_array_type_array_size(type),
-                name: "array length"
-            )
-            detail = .array(
-                child: try copyOwnedLogicalType(duckdb_array_type_child_type(type)),
-                length: length
-            )
-        case .map:
-            detail = .map(
-                key: try copyOwnedLogicalType(duckdb_map_type_key_type(type)),
-                value: try copyOwnedLogicalType(duckdb_map_type_value_type(type))
-            )
-        case .structType:
-            detail = .structure(members: try copyStructMembers(type))
-        case .union:
-            detail = .union(members: try copyUnionMembers(type))
-        default:
-            detail = .none
+    private func temporalValue(_ body: () throws -> Value) throws -> Value {
+        do {
+            return try body()
+        } catch let error as NativeTemporalConversionError {
+            throw NativeDuckDBError(operation: .invalidResult, message: error.message)
         }
-
-        return LogicalType(id: id, alias: alias, detail: detail)
-    }
-
-    private func copyOwnedLogicalType(_ type: duckdb_logical_type?) throws -> LogicalType {
-        guard let type else {
-            throw NativeDuckDBError(
-                operation: .invalidResult,
-                message: "DuckDB returned no child logical type."
-            )
-        }
-        var ownedType: duckdb_logical_type? = type
-        defer { duckdb_destroy_logical_type(&ownedType) }
-        return try copyLogicalType(type)
-    }
-
-    private func copyStructMembers(_ type: duckdb_logical_type) throws -> [LogicalTypeMember] {
-        let count = try integerCount(
-            duckdb_struct_type_child_count(type),
-            name: "struct member count"
-        )
-        var members: [LogicalTypeMember] = []
-        members.reserveCapacity(count)
-
-        for index in 0..<count {
-            guard let name = copyAllocatedString(
-                duckdb_struct_type_child_name(type, idx_t(index))
-            ) else {
-                throw NativeDuckDBError(
-                    operation: .invalidResult,
-                    message: "DuckDB returned no struct member name at index \(index)."
-                )
-            }
-            let child = try copyOwnedLogicalType(
-                duckdb_struct_type_child_type(type, idx_t(index))
-            )
-            members.append(LogicalTypeMember(name: name, type: child))
-        }
-
-        return members
-    }
-
-    private func copyUnionMembers(_ type: duckdb_logical_type) throws -> [LogicalTypeMember] {
-        let count = try integerCount(
-            duckdb_union_type_member_count(type),
-            name: "union member count"
-        )
-        var members: [LogicalTypeMember] = []
-        members.reserveCapacity(count)
-
-        for index in 0..<count {
-            guard let name = copyAllocatedString(
-                duckdb_union_type_member_name(type, idx_t(index))
-            ) else {
-                throw NativeDuckDBError(
-                    operation: .invalidResult,
-                    message: "DuckDB returned no union member name at index \(index)."
-                )
-            }
-            let child = try copyOwnedLogicalType(
-                duckdb_union_type_member_type(type, idx_t(index))
-            )
-            members.append(LogicalTypeMember(name: name, type: child))
-        }
-
-        return members
-    }
-
-    private func copyAllocatedString(_ pointer: UnsafeMutablePointer<CChar>?) -> String? {
-        guard let pointer else {
-            return nil
-        }
-        defer { duckdb_free(UnsafeMutableRawPointer(pointer)) }
-        return String(cString: pointer)
     }
 
     private func materializeString(data: UnsafeMutableRawPointer, rowIndex: Int) throws -> Value {

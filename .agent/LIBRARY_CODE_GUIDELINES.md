@@ -30,6 +30,8 @@ Inherit `STYLE_GUIDELINES.md`. Higher-authority system/product decisions govern 
 - Prefer concise call sites that keep connection, transaction, cancellation, and lifetime semantics visible instead of hiding them behind generic ceremony.
 - Prefer direct domain verbs/nouns for public methods. Closure-scoped lifetime is not by itself a reason to prepend `with`; use `connection.transaction { ... }` when `transaction` already names the capability clearly.
 - Review new public member names for redundant owner/type words and ceremony before acceptance; the shortest unambiguous consumer-facing spelling wins.
+- **Conveniences first:** developer experience is a first-class acceptance requirement for public API. When a capability can expose a concise, type-safe Swift-native convenience without weakening correctness, ownership, lifetime, transaction, cancellation, or exact-conversion semantics, that convenience belongs in the first accepted public slice rather than a deferred follow-up.
+- Public review must include realistic consumer call sites, not only internal correctness. Prefer APIs that let callers pass and retrieve ordinary Swift values directly when the library can normalize/extract them exactly and unambiguously.
 - Use typed outcomes/errors when callers need meaningful distinctions.
 - Conveniences should funnel into one owned implementation rather than duplicate native operations.
 - Do not introduce a protocol solely to make a unit test mockable.

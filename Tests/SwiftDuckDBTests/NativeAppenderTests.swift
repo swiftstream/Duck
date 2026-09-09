@@ -295,7 +295,7 @@ private func rowCount(
     let row = try #require(rows.first)
     let value = try #require(row["count"])
 
-    guard case .int64(let count) = value else {
+    guard let count = value.get(Int64.self) else {
         Issue.record("Expected BIGINT row count result.")
         return -1
     }

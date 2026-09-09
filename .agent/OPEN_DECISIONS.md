@@ -33,7 +33,7 @@ Still open:
 - Codable/model decoding and encoding strategy beyond the current explicit `Row` / `Value` surface;
 - observation/reactive query strategy;
 - migration strategy;
-- expansion policy for unsupported complex, temporal, Decimal, UUID, and 128-bit result families.
+- expansion policy for Decimal and nested/complex result families. B1 Int128/UInt128/UUID, B2 PureDate/PureTime/DateTime, B3 Foundation.Date/TIMESTAMPTZ, and B4 SwifQL.Interval/DuckDB INTERVAL are accepted non-Decimal exact value slices. B5 concurrency/regression/external-consumer hardening is the next separately gated slice; R3 follows B5. Decimal and nested/complex Value families remain unresolved and separately gated, and each later slice remains gated by its own frozen implementation task.
 
 ## Platform Packaging
 

@@ -172,16 +172,13 @@ func publicErrorAndReuseScenarios() async throws {
     let connection = try database.connect()
 
     do {
-        _ = try await SwifQL
+        let temporalResult = try await SwifQL
             .select(Fn.cast("2026-08-29", .date) => "unsupported_value")
             .query(on: connection)
-        Issue.record("Expected DATE materialization to fail as unsupported.")
-    } catch let error as DatabaseError {
-        if case .unsupportedResultType = error {
-            // Expected. The associated String is the native diagnostic message, not a symbolic type-name contract.
-        } else {
-            Issue.record("Expected unsupportedResultType, got \(error).")
-        }
+        let expectedDate = try #require(PureDate(year: 2026, month: 8, day: 29))
+        #expect(temporalResult.rows.first?["unsupported_value"] == Value.date(expectedDate))
+    } catch {
+        Issue.record("Unexpected DATE materialization failure: \(error).")
     }
 
     do {
@@ -215,7 +212,7 @@ func sameConnectionConcurrencyAndCancellation() async throws {
                     .query(on: connection)
                 guard
                     let value = result.rows.first?["value"],
-                    case .int64(let actual) = value
+                    let actual = value.get(Int64.self)
                 else {
                     throw Task07TestError.unexpectedValue
                 }
@@ -269,7 +266,7 @@ func multipleConnectionsConcurrency() async throws {
                     .query(on: connection)
                 guard
                     let value = result.rows.first?["value"],
-                    case .int64(let actual) = value
+                    let actual = value.get(Int64.self)
                 else {
                     throw Task07TestError.unexpectedValue
                 }

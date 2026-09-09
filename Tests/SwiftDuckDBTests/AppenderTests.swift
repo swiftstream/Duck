@@ -97,7 +97,7 @@ func scopedAppenderWritesCatalogTarget() async throws {
     )
     let catalogRow = try #require(catalogResult.rows.first)
     let catalogValue = try #require(catalogRow["catalog"])
-    guard case .string(let catalog) = catalogValue else {
+    guard let catalog = catalogValue.get(String.self) else {
         Issue.record("Expected current_database() to return a String.")
         return
     }
@@ -334,8 +334,8 @@ func appenderCallerValidationRemainsRecoverable() async throws {
     #expect(result.rows.first?["name"] == .string("valid"))
 }
 
-@Test("Caught terminal native Appender error cannot make the scope succeed")
-func caughtTerminalAppenderErrorCannotFalseSucceed() async throws {
+@Test("Deterministic Appender preflight mismatch stays recoverable")
+func appenderDeterministicPreflightMismatchStaysRecoverable() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_terminal_error")
     try await connection.execute(
@@ -346,30 +346,29 @@ func caughtTerminalAppenderErrorCannotFalseSucceed() async throws {
     )
 
     var caughtInsideBody: DatabaseError?
-    do {
-        try await connection.appender(to: table) { appender in
-            do {
-                try await appender.append("not-an-integer")
-                Issue.record("Expected native Appender type failure.")
-            } catch let error as DatabaseError {
-                caughtInsideBody = error
-            }
+    try await connection.appender(to: table) { appender in
+        do {
+            try await appender.append("not-an-integer")
+            Issue.record("Expected deterministic Appender type preflight to fail.")
+        } catch let error as DatabaseError {
+            caughtInsideBody = error
         }
-        Issue.record("Expected terminal Appender failure to fail scope finalization.")
-    } catch let error as DatabaseError {
-        guard case .appenderAppend(let column, let message) = error else {
-            Issue.record("Expected appenderAppend, got \(error).")
-            return
-        }
-        #expect(column == 1)
-        #expect(!message.isEmpty)
-        #expect(caughtInsideBody == error)
+
+        try await appender.append(Int32(1))
     }
+
+    guard case .appenderAppend(let column, let message) = caughtInsideBody else {
+        Issue.record("Expected appenderAppend preflight, got \(String(describing: caughtInsideBody)).")
+        return
+    }
+    #expect(column == 1)
+    #expect(!message.isEmpty)
 
     let result = try await connection.query(
         SwifQL.select(table.column("id")).from(table)
     )
-    #expect(result.rows.isEmpty)
+    #expect(result.rows.count == 1)
+    #expect(result.rows.first?["id"] == .int32(1))
 }
 
 @Test("Appender finalization failure remains local to the scope")
@@ -430,6 +429,54 @@ func appenderBodyErrorDiscardsBufferedRows() async throws {
         SwifQL.select(table.column("id")).from(table)
     )
     #expect(result.rows.isEmpty)
+}
+
+@Test("Appender accepts naked nil, Optional values, and explicit Value null")
+func appenderAcceptsNakedNilAndOptionalValues() async throws {
+    let connection = try Database().connect()
+    let table = Path.Table("appender_nullable_inputs")
+    try await connection.execute(
+        SwifQL
+            .create
+            .table[any: table]
+            .tableDefinitions(
+                NewColumn("id", .integer),
+                NewColumn("name", .text),
+                NewColumn("note", .text)
+            )
+    )
+
+    let some: String? = "Olga"
+    let none: String? = nil
+
+    try await connection.appender(to: table) { appender in
+        try await appender.append(1, "Mike", nil)
+
+        let a: Int32 = 2
+        let b: Int64 = 3
+        try await appender.append(a, "Olga", nil)
+        try await appender.append(b, "Boris", nil)
+
+        try await appender.append(a, some, none)
+        try await appender.append(a, none, "explicit")
+        try await appender.append(Value.int32(5), Value.string("Nina"), Value.null)
+    }
+
+    let result = try await connection.query(
+        SwifQL
+            .select(table.column("id"), table.column("name"), table.column("note"))
+            .from(table)
+            .orderBy(.asc(table.column("id")))
+    )
+    #expect(result.rows.count == 6)
+    let first = try #require(result.rows.first)
+    #expect(first["id"] == .int32(1))
+    #expect(first["name"] == .string("Mike"))
+    #expect(first["note"] == .null)
+    let last = try #require(result.rows.last)
+    #expect(last["id"] == .int32(5))
+    #expect(last["name"] == .string("Nina"))
+    #expect(last["note"] == .null)
 }
 
 private func expectAppenderScopeViolation(

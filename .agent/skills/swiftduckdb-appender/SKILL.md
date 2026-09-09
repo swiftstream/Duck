@@ -74,11 +74,22 @@ UInt8 / UInt16 / UInt32 / UInt64 / UInt
 Float / Double
 String
 Foundation.Data
+UUID
+Int128 / UInt128 on macOS 15+ / iOS 18+
+SwifQL.PureDate
+SwifQL.PureTime
+SwifQL.DateTime
+Foundation.Date
+SwifQL.Interval
 ```
 
-Optional `nil` becomes SQL `NULL`. `Data()` is a valid empty BLOB. Do not assume temporal, Decimal, UUID, 128-bit, list/struct/map, or other complex families are supported by this first Appender slice.
+Optional `nil` becomes SQL `NULL`. `Data()` is a valid empty BLOB. UUID is availability-free. Exact Int128/UInt128 values use the accepted B1 vertical and are available only where the Swift stdlib types are available; the package itself still supports macOS 12 / iOS 15 through hidden word storage. The accepted B2 temporal values map exactly as follows: `SwifQL.PureDate` to `DATE` through the B01-safe finite civil-domain guard before `duckdb_to_date`; `SwifQL.PureTime` to `TIME` when exact microseconds are required or to targetless natural `TIME_NS` when exact nanoseconds are retained, including standalone `24:00`; and `SwifQL.DateTime` to `TIMESTAMP_S` / `TIMESTAMP_MS` / `TIMESTAMP_US` / `TIMESTAMP_NS` with no rounding. Foundation.Date is a supported row value and maps only to `TIMESTAMPTZ`; targetless or resolved targets must be TIMESTAMPTZ, P02 per-value representability must be exact, and no timezone identifier/offset metadata is preserved. DuckDB TIMESTAMPTZ infinities and non-finite Foundation.Date reject. `SwifQL.Interval` maps only to DuckDB `INTERVAL`; finite months/days use exact `Int64` → `Int32` conversion, microseconds remain exact `Int64`, and mixed signs/non-normalized components are preserved. Positive/negative Interval infinity and out-of-Int32 month/day values reject before native row mutation. Decimal/nested/complex families remain gated.
 
 Wrong row width and unsupported Swift types fail before native row mutation, so the same live Appender may continue with a later valid row.
+
+Temporal conversion and typed-value construction, including Foundation.Date, are planned for the whole row in Phase 1 before native row mutation. A deterministic temporal mismatch, precision, range, or representability failure is recoverable and mutates zero columns, including a later-column Date failure. Native append/end-row Phase 2 failure remains terminal for the Appender scope.
+
+For Interval rows, conversion and typed-value construction occur in whole-row Phase 1. A deterministic Interval failure mutates zero native columns and the live Appender remains recoverable; Phase 2 uses direct `duckdb_append_interval`, and native Phase-2 failure remains terminal.
 
 ## Lifetime rules
 
@@ -154,7 +165,8 @@ QueryAppender
 public DataChunk/vector append
 Appender-in-Transaction
 implicit atomic Appender transaction
-new temporal/Decimal/UUID/128-bit/complex value families
+Decimal
+nested/complex families
 Appender pooling/cache
 ```
 

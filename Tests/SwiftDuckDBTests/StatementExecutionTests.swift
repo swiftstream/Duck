@@ -250,6 +250,65 @@ func reusableStatementRecoversAfterNativeExecutionFailure() async throws {
     #expect(try statementResultValue(result, column: "value") == .int32(42))
 }
 
+@Test("Reusable Statement accepts naked nil and Optional values on query and execute")
+func reusableStatementAcceptsNakedNilValues() async throws {
+    let connection = try Database().connect()
+    let queryStatement = try await connection.prepare { parameters in
+        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+    }
+
+    let nilResult = try await queryStatement.query(nil)
+    #expect(try statementResultValue(nilResult, column: "value") == .null)
+
+    let some: Int32? = 17
+    let none: Int32? = nil
+    #expect(try statementResultValue(try await queryStatement.query(some), column: "value") == .int32(17))
+    #expect(try statementResultValue(try await queryStatement.query(none), column: "value") == .null)
+    #expect(try statementResultValue(try await queryStatement.query(Value.null), column: "value") == .null)
+
+    let table = Path.Table("statement_naked_nil_events")
+    try await connection.execute(
+        SwifQL
+            .create
+            .table[any: table]
+            .tableDefinitions(
+                NewColumn("id", .integer),
+                NewColumn("name", .text)
+            )
+    )
+    let insert = try await connection.prepare { parameters in
+        let id = parameters.parameter()
+        let name = parameters.parameter()
+        return SwifQL
+            .insertInto(table, fields: "id", "name")
+            .values
+            .values(id, name)
+    }
+
+    let a: Int32 = 1
+    let someName: String? = "Olga"
+    #expect(try await insert.execute(a, nil) == 1)
+    #expect(try await insert.execute(a, someName) == 1)
+
+    let rows = try await connection.query(
+        SwifQL.select(table.column("id"), table.column("name")).from(table)
+    )
+    #expect(rows.rows.count == 2)
+
+    do {
+        _ = try await queryStatement.query(UnsupportedStatementArgument(value: 1))
+        Issue.record("Expected unsupported Statement argument type.")
+    } catch let error as DatabaseError {
+        guard case .unsupportedBindingType = error else {
+            Issue.record("Expected unsupportedBindingType, got \(error).")
+            return
+        }
+    }
+
+    let recovered = try await queryStatement.query(Int32(43))
+    #expect(try statementResultValue(recovered, column: "value") == .int32(43))
+}
+
 @Test("Live same-Connection transaction scope rejects Statement before normalization")
 func reusableStatementRejectsLiveTransactionBeforeNormalization() async throws {
     let connection = try Database().connect()
@@ -294,7 +353,7 @@ func manyConcurrentReusableStatementCallsPreserveBindings() async throws {
             group.addTask {
                 let expected = Int32(value)
                 let result = try await statement.query(expected)
-                guard case .int32(let actual) = try statementResultValue(result, column: "value") else {
+                guard let actual = try statementResultValue(result, column: "value").get(Int32.self) else {
                     throw DatabaseError.invalidResult("Expected integer reusable Statement result.")
                 }
                 guard actual == expected else {

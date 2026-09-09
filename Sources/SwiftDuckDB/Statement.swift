@@ -218,7 +218,7 @@ public final class Statement: Sendable {
         self.dynamicArgumentCount = dynamicArgumentCount
     }
 
-    public func query(_ values: any Sendable...) async throws -> QueryResult {
+    public func query(_ values: (any Sendable)?...) async throws -> QueryResult {
         try await withOperationLifetime { connection, id in
             try await connection.rejectLiveTransactionBodyMisuse(asTransaction: false)
             try await connection.rejectLiveAppenderBodyMisuse()
@@ -231,7 +231,7 @@ public final class Statement: Sendable {
     }
 
     @discardableResult
-    public func execute(_ values: any Sendable...) async throws -> UInt64 {
+    public func execute(_ values: (any Sendable)?...) async throws -> UInt64 {
         try await withOperationLifetime { connection, id in
             try await connection.rejectLiveTransactionBodyMisuse(asTransaction: false)
             try await connection.rejectLiveAppenderBodyMisuse()
@@ -245,7 +245,7 @@ public final class Statement: Sendable {
 
     public func query(
         on transaction: Transaction,
-        _ values: any Sendable...
+        _ values: (any Sendable)?...
     ) async throws -> QueryResult {
         try await withTransactionOperation(on: transaction, values: values) {
             connection,
@@ -263,7 +263,7 @@ public final class Statement: Sendable {
     @discardableResult
     public func execute(
         on transaction: Transaction,
-        _ values: any Sendable...
+        _ values: (any Sendable)?...
     ) async throws -> UInt64 {
         try await withTransactionOperation(on: transaction, values: values) {
             connection,
@@ -296,7 +296,7 @@ public final class Statement: Sendable {
 
     private func withTransactionOperation<Result>(
         on transaction: Transaction,
-        values: [any Sendable],
+        values: [(any Sendable)?],
         operation: (
             Connection,
             StatementId,
@@ -336,7 +336,7 @@ public final class Statement: Sendable {
     }
 
     private func normalizeDynamicBindings(
-        _ values: [any Sendable]
+        _ values: [(any Sendable)?]
     ) throws -> [Value] {
         guard values.count == dynamicArgumentCount else {
             throw DatabaseError.statementArgumentCount(
@@ -344,6 +344,6 @@ public final class Statement: Sendable {
                 actual: values.count
             )
         }
-        return try values.map { try normalizeBinding($0) }
+        return try values.map { try normalizeBinding($0 as Any) }
     }
 }

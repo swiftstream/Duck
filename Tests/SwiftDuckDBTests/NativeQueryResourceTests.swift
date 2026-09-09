@@ -134,7 +134,7 @@ func failedNativeQueryResourcesLeaveConnectionReusable() throws {
     #expect(rows.first?["answer"] == Value.int32(42))
 }
 
-@Test("Unsupported result types fail explicitly")
+@Test("Temporal result types materialize explicitly")
 func unsupportedResultTypesFailExplicitly() throws {
     let database = try NativeDatabase()
     let connection = try database.connect()
@@ -145,12 +145,9 @@ func unsupportedResultTypesFailExplicitly() throws {
     let statement = try connection.prepare(sql)
     let result = try execute(statement)
 
-    do {
-        _ = try result.materializeNextChunk()
-        Issue.record("Expected DATE result materialization to be unsupported in the first slice.")
-    } catch let error as NativeDuckDBError {
-        #expect(error.operation.rawValue == NativeDuckDBOperation.unsupportedResultType.rawValue)
-    }
+    let expectedDate = try #require(PureDate(year: 2026, month: 8, day: 29))
+    let rows = try result.materializeNextChunk()
+    #expect(rows?.first?["unsupported_value"] == Value.date(expectedDate))
 }
 
 @Test("Clears, rebinds, and reuses one native statement through pending execution")
@@ -222,7 +219,7 @@ private func executeInt32(_ statement: NativePreparedStatement) throws -> Int32 
     let row = try #require(rows.first)
     let value = try #require(row["value"])
 
-    guard case .int32(let int32) = value else {
+    guard let int32 = value.get(Int32.self) else {
         Issue.record("Expected an Int32 result from the prepared statement.")
         return 0
     }

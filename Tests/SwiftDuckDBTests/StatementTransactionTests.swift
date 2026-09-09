@@ -260,7 +260,7 @@ func concurrentStatementTransactionCallsPreserveBindings() async throws {
                 group.addTask {
                     let result = try await statement.query(on: transaction, Int32(value))
                     let resultValue = try statementTransactionResultValue(result, column: "value")
-                    guard case .int32(let observed) = resultValue else {
+                    guard let observed = resultValue.get(Int32.self) else {
                         throw DatabaseError.invalidResult("Expected integer Statement transaction result.")
                     }
                     return observed
@@ -276,6 +276,48 @@ func concurrentStatementTransactionCallsPreserveBindings() async throws {
     }
 
     #expect(values == (1...8).map { Int32($0) })
+}
+
+@Test("Statement Transaction variants accept naked nil and stay reusable")
+func statementTransactionVariantsAcceptNakedNil() async throws {
+    let connection = try Database().connect()
+    let statement = try await connection.prepare { parameters in
+        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+    }
+    let some: Int32? = 17
+    let none: Int32? = nil
+
+    let table = Path.Table("statement_transaction_naked_nil")
+    _ = try await SwifQL
+        .create
+        .table[any: table]
+        .tableDefinitions(NewColumn("id", .integer))
+        .execute(on: connection)
+    let insert = try await connection.prepare { parameters in
+        SwifQL
+            .insertInto(table, fields: "id")
+            .values
+            .values(parameters.parameter())
+    }
+
+    try await connection.transaction { transaction in
+        let nilQuery = try await statement.query(on: transaction, nil)
+        #expect(try statementTransactionResultValue(nilQuery, column: "value") == .null)
+        let someQuery = try await statement.query(on: transaction, some)
+        #expect(try statementTransactionResultValue(someQuery, column: "value") == .int32(17))
+        let noneQuery = try await statement.query(on: transaction, none)
+        #expect(try statementTransactionResultValue(noneQuery, column: "value") == .null)
+
+        let nilInserted = try await insert.execute(on: transaction, nil)
+        #expect(nilInserted == 1)
+        let someInserted = try await insert.execute(on: transaction, Int32(9))
+        #expect(someInserted == 1)
+    }
+
+    let rows = try await connection.query(
+        SwifQL.select(table.column("id")).from(table).orderBy(.asc(table.column("id")))
+    )
+    #expect(rows.rows.count == 2)
 }
 
 @Test("Finalized Transaction rejects later reusable Statement execution")
