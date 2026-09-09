@@ -4,7 +4,7 @@ Only active approved executable implementation/closure work belongs here. Detail
 
 ## Current active capability
 
-**Value & Result Type Expansion — Wave B: Non-Decimal Exact Driver Vertical** is the active approved SwiftDuckDB capability.
+**Value & Result Type Expansion** remains the active approved SwiftDuckDB capability. The Wave B non-Decimal exact driver vertical is complete and accepted through B5 plus fresh R3 root audit; **P03 Foundation.Decimal exactness probing is the active next separately gated step**.
 
 Prerequisites are complete and accepted:
 
@@ -15,7 +15,7 @@ P01 temporal/raw adapter probe accepted
 P02 Foundation.Date/TIMESTAMPTZ exactness probe accepted
 ```
 
-B1, B2, B3, and B4 are accepted. B5 hardening is the active next slice and remains separately gated; this task integrates the accepted B4 candidate and synchronizes current-state governance.
+B1, B2, B3, B4, and B5 are accepted. Fresh R3 whole non-Decimal root audit is accepted CLEAN with zero blockers. The accepted current package baseline is `242/0` under Swift 6.3.3 warnings-as-errors, with protected `18/18` regressions, fresh build PASS, and preserved normal-import marker `B5-CONSUMER-OK`.
 
 ## Active sequencing
 
@@ -24,11 +24,13 @@ B1 — ACCEPTED: Int128 / UInt128 / UUID exact vertical
 B2 — ACCEPTED: PureDate / PureTime / DateTime exact vertical
 B3 — ACCEPTED: TIMESTAMPTZ / Foundation.Date exact vertical
 B4 — ACCEPTED: SwifQL.Interval / DuckDB INTERVAL exact vertical
-B5 — active next, separately gated: concurrency/regression/external-consumer hardening
-R3 — after B5: fresh independent Non-Decimal Value Vertical Root Audit
+B5 — ACCEPTED: concurrency/regression/external-consumer hardening
+R3 — CLEAN / ACCEPTED: fresh independent Non-Decimal Value Vertical Root Audit
+P03 — ACTIVE NEXT GATE: Foundation.Decimal exactness probe only
+Wave C — DORMANT: Decimal production integration only after P03 PASS + coordinator acceptance
 ```
 
-Each implementation slice requires its own frozen prompt, validation, coordinator review, and local checkpoint before the next slice is promoted. Wave B activation does not authorize all B1–B5 mutations at once.
+Each implementation/probe slice requires its own frozen prompt, validation, coordinator review, and local checkpoint before the next slice is promoted. P03 does not authorize Decimal production source mutation. If P03 is BLOCKED, reopen focused Decimal representation research instead of narrowing or rounding the promised domain.
 
 ## Universal Wave B path contract
 
@@ -80,7 +82,7 @@ That subset is not a hard bound; sparse exact values outside it remain valid whe
 
 ## Current public compatibility boundary
 
-After accepted B1, B2, B3, and B4, public `Value` supports:
+After accepted Wave B, public `Value` supports:
 
 ```text
 null
@@ -99,7 +101,7 @@ Foundation.Date as exact TIMESTAMPTZ
 SwifQL.Interval
 ```
 
-`Value` is a public struct facade with internal exhaustive storage. Exact 128-bit values are stored as hidden word pairs so the package remains buildable at the macOS 12 / iOS 15 floors; UUID remains availability-free. B2 maps `PureDate` exactly to `DATE`, `PureTime` exactly to `TIME` / `TIME_NS` (with targetless natural `TIME_NS`), and `DateTime` exactly to `TIMESTAMP_S` / `TIMESTAMP_MS` / `TIMESTAMP_US` / `TIMESTAMP_NS` (with targetless natural `TIMESTAMP_NS` only when exactly representable). B3 maps Foundation.Date exactly to TIMESTAMPTZ using signed Int64 microseconds since the Unix epoch; targetless and resolved Foundation.Date binding accept only TIMESTAMPTZ, preserve no timezone metadata, and require exact per-value equality with no tolerance/silent rounding. B4 adds shared `SwifQL.Interval`, `Value.Kind.interval == 21` with `Value.Kind` IDs `0...20` unchanged, exact finite native narrowing/transport, structural mixed-sign/non-normalized preservation, and the public `Value.interval`/Row conveniences. Ordinary SwifQL uses plain Interval/Optional transport while dynamic `Value.interval` uses dynamic routes; semantic infinity and out-of-native-range values survive generic normalization but reject at native Prepared/Appender boundaries. Existing query/result/Statement/Appender/Transaction behavior remains source-compatible unless the current frozen task explicitly authorizes an additive surface. B1/B2/B3/B4 are accepted non-Decimal exact value slices; B5 is next and separately gated, R3 follows B5, and Decimal/nested/complex families remain gated.
+`Value` is a public struct facade with internal exhaustive storage. Exact 128-bit values are stored as hidden word pairs so the package remains buildable at the macOS 12 / iOS 15 floors; UUID remains availability-free. B2 maps `PureDate` exactly to `DATE`, `PureTime` exactly to `TIME` / `TIME_NS` (with targetless natural `TIME_NS`), and `DateTime` exactly to `TIMESTAMP_S` / `TIMESTAMP_MS` / `TIMESTAMP_US` / `TIMESTAMP_NS` (with targetless natural `TIMESTAMP_NS` only when exactly representable). B3 maps Foundation.Date exactly to TIMESTAMPTZ using signed Int64 microseconds since the Unix epoch; targetless and resolved Foundation.Date binding accept only TIMESTAMPTZ, preserve no timezone metadata, and require exact per-value equality with no tolerance/silent rounding. B4 adds shared `SwifQL.Interval`, `Value.Kind.interval == 21` with `Value.Kind` IDs `0...20` unchanged, exact finite native narrowing/transport, structural mixed-sign/non-normalized preservation, and the public `Value.interval`/Row conveniences. Ordinary SwifQL uses plain Interval/Optional transport while dynamic `Value.interval` uses dynamic routes; semantic infinity and out-of-native-range values survive generic normalization but reject at native Prepared/Appender boundaries. B5 hardens this complete non-Decimal family across result-owner lifetime, same-Connection and cross-Connection Statement concurrency, typed Appender row atomicity, transaction-local Statement concurrency, protected regressions, and a normal-import downstream consumer. Fresh R3 accepted the cumulative A2+B1–B5 vertical with zero blockers. Decimal production support and nested/complex families remain gated; P03 is the next hard gate for Decimal exactness.
 
 Accepted B2 conversion and ownership anchors are: the B01 finite `PureDate` civil-domain guard precedes `duckdb_to_date`; standalone `PureTime` supports exact `24:00`; target precision is resolved and honored without rounding; negative timestamp decomposition is floor-consistent; prepared binding rejects `TIMESTAMPTZ` in B2; Appender temporal conversion and typed-value construction happen for the whole row in Phase 1 before native mutation, with deterministic failure recoverable and native Phase 2 failure terminal; and result materialization preserves source precision identity through `ResultColumn`.
 
@@ -136,6 +138,8 @@ unrelated public API redesign
 .artifacts/reviews/value-result-type-expansion-b3-foundation-date-timestamptz-root-audit-01-2026-09-08/B3_IMPLEMENTATION_ROOT_AUDIT_01_COORDINATOR_ACCEPTANCE.md
 .artifacts/reviews/value-result-type-expansion-b3-correction-01-coordinator-acceptance-2026-09-08/B3_CORRECTION_01_COORDINATOR_ACCEPTANCE.md
 .artifacts/reviews/value-result-type-expansion-b4-interval-root-reaudit-01-2026-09-08/B4_INTERVAL_IMPLEMENTATION_ROOT_REAUDIT_01_COORDINATOR_ACCEPTANCE.md
+.artifacts/reviews/value-result-type-expansion-b5-hardening-implementation-coordinator-acceptance-2026-09-09/B5_HARDENING_IMPLEMENTATION_COORDINATOR_ACCEPTANCE.md
+.artifacts/reviews/value-result-type-expansion-r3-non-decimal-root-audit-01-coordinator-completion-acceptance-2026-09-09/R3_NON_DECIMAL_ROOT_AUDIT_01_COORDINATOR_COMPLETION_ACCEPTANCE.md
 ```
 
 Work outside the active Value & Result Type Expansion capability remains in `.agent/TODO.md` and requires separate promotion/research/planning authorization.

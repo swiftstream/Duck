@@ -33,7 +33,7 @@ Still open:
 - Codable/model decoding and encoding strategy beyond the current explicit `Row` / `Value` surface;
 - observation/reactive query strategy;
 - migration strategy;
-- expansion policy for Decimal and nested/complex result families. B1 Int128/UInt128/UUID, B2 PureDate/PureTime/DateTime, B3 Foundation.Date/TIMESTAMPTZ, and B4 SwifQL.Interval/DuckDB INTERVAL are accepted non-Decimal exact value slices. B5 concurrency/regression/external-consumer hardening is the next separately gated slice; R3 follows B5. Decimal and nested/complex Value families remain unresolved and separately gated, and each later slice remains gated by its own frozen implementation task.
+- expansion policy for Decimal and nested/complex result families. The B1–B5 non-Decimal exact value vertical is accepted and fresh R3 whole-vertical root audit is CLEAN with zero blockers. P03 Foundation.Decimal exactness probing is the next hard gate; Wave C production integration is forbidden unless P03 is PASS and coordinator-accepted. A P03 BLOCKED result reopens focused Decimal representation research instead of permitting rounding or a narrowed implicit contract. Nested/complex Value families remain unresolved and separately gated.
 
 ## Platform Packaging
 
