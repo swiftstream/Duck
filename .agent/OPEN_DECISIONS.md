@@ -33,7 +33,7 @@ Still open:
 - Codable/model decoding and encoding strategy beyond the current explicit `Row` / `Value` surface;
 - observation/reactive query strategy;
 - migration strategy;
-- expansion policy for Decimal and nested/complex result families. The B1–B5 non-Decimal exact value vertical is accepted and fresh R3 whole-vertical root audit is CLEAN with zero blockers. P03 Foundation.Decimal exactness probing is the next hard gate; Wave C production integration is forbidden unless P03 is PASS and coordinator-accepted. A P03 BLOCKED result reopens focused Decimal representation research instead of permitting rounding or a narrowed implicit contract. Nested/complex Value families remain unresolved and separately gated.
+- nested/complex result-family expansion policy remains unresolved and separately gated. Foundation.Decimal representation/exactness is no longer open: P03 is coordinator-accepted PASS after fresh final root audit and freezes DCT128-v1 plus the corrected Android compile/link assurance boundary. The remaining Decimal question is bounded Wave C production integration under that accepted contract; source mutation still requires a separately audited/accepted Wave C implementation plan.
 
 ## Platform Packaging
 

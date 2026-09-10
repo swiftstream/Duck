@@ -36,7 +36,7 @@ Shared API and semantics remain platform-independent unless a concrete platform 
 10. Implement and document the first public scoped Appender capability with complete-row ingestion, Connection-owned lifetime/concurrency, truthful failure/cancellation semantics, explicit non-atomic auto-flush boundaries, and source-owned public skill coverage. **Implemented and documented current capability boundary; later Appender transaction/advanced features remain unapproved.**
 11. Enforce a public-capability closure contract for every implemented user-facing feature: README coverage, detailed article/social-post source material, and source-owned Agent Skill coverage following `swiftstream/skills` standards. **Mandatory ongoing rule; historical public capabilities must be backfilled.**
 12. Establish the open Swift-owned logical result metadata foundation (`LogicalTypeID`, `LogicalType`, `ResultColumn`, aligned `QueryResult.resultColumns`) with native deep-copy lifetime safety. **Done; fresh root audit CLEAN.**
-13. Implement the exact non-Decimal value vertical for Int128/UInt128/UUID, PureDate/PureTime/DateTime, bounded-exact Foundation.Date/TIMESTAMPTZ, and Interval across query/Statement/Appender/result paths using the accepted P01/P02 contracts. **Done: B1–B5 are accepted and the fresh R3 whole non-Decimal root audit is CLEAN with zero blockers. The next separately gated step is P03 Foundation.Decimal exactness probing; Wave C remains dormant until P03 is PASS and coordinator-accepted. Nested/complex Value remains separately gated.**
+13. Implement the exact non-Decimal value vertical for Int128/UInt128/UUID, PureDate/PureTime/DateTime, bounded-exact Foundation.Date/TIMESTAMPTZ, and Interval across query/Statement/Appender/result paths using the accepted P01/P02 contracts. **Done: B1–B5 are accepted and the fresh R3 whole non-Decimal root audit is CLEAN with zero blockers. P03 Foundation.Decimal exactness probing is now coordinator-accepted PASS after fresh final root audit CLEAN. Wave C Decimal production planning is the active next separately reviewed step; production mutation remains forbidden until its concrete implementation plan is independently audited and coordinator-accepted. Nested/complex Value remains separately gated.**
 
 ## Implemented First Public Query Slice
 
@@ -57,7 +57,7 @@ The current public slice includes:
 
 This is query-construction/execution sugar over SwifQL and DuckDB, not an ORM or repository layer.
 
-The current exact temporal result/value boundary is `PureDate` ↔ `DATE`, `PureTime` ↔ `TIME` / `TIME_NS`, `DateTime` ↔ `TIMESTAMP_S` / `TIMESTAMP_MS` / `TIMESTAMP_US` / `TIMESTAMP_NS`, `Foundation.Date` ↔ `TIMESTAMPTZ`, and shared `SwifQL.Interval` ↔ `INTERVAL`. B2 precision and B3 target resolution are honored exactly; targetless Foundation.Date and resolved Foundation.Date targets accept only `TIMESTAMPTZ`, with no timezone identifier/offset metadata preserved. B4 preserves mixed-sign/non-normalized Interval components, narrows finite months/days with exact `Int64` → `Int32` checks at the native boundary, passes microseconds as exact `Int64`, preserves semantic infinity/out-of-native-range values through generic normalization, and rejects them at native Prepared/Appender boundaries. Decimal/nested/complex families remain gated.
+The current exact temporal result/value boundary is `PureDate` ↔ `DATE`, `PureTime` ↔ `TIME` / `TIME_NS`, `DateTime` ↔ `TIMESTAMP_S` / `TIMESTAMP_MS` / `TIMESTAMP_US` / `TIMESTAMP_NS`, `Foundation.Date` ↔ `TIMESTAMPTZ`, and shared `SwifQL.Interval` ↔ `INTERVAL`. B2 precision and B3 target resolution are honored exactly; targetless Foundation.Date and resolved Foundation.Date targets accept only `TIMESTAMPTZ`, with no timezone identifier/offset metadata preserved. B4 preserves mixed-sign/non-normalized Interval components, narrows finite months/days with exact `Int64` → `Int32` checks at the native boundary, passes microseconds as exact `Int64`, preserves semantic infinity/out-of-native-range values through generic normalization, and rejects them at native Prepared/Appender boundaries. P03 has accepted DCT128-v1 as the exact Foundation.Decimal production-intended algorithm and proved the promised DECIMAL domain on required runtime platforms plus Android exact-source compile/link; Decimal production integration itself is still pending Wave C. Nested/complex families remain separately gated.
 
 ## Implemented Scoped Transaction Slice
 
@@ -145,7 +145,7 @@ The following are not yet approved/implemented architecture unless later resolve
 - migrations;
 - ORM/repository persistence features;
 - connection pooling;
-- expansion of the public result model into Decimal and nested/complex families beyond the approved Wave-B non-Decimal sequence;
+- Decimal production integration beyond the accepted P03 exactness contract until Wave C implementation is planned/reviewed/accepted, plus nested/complex result families beyond that separately gated scope;
 - exact Linux/Android/Windows architecture and toolchain validation matrix.
 
 Record these as implemented decisions only after discussion, current evidence, planning, validation, and audit.
