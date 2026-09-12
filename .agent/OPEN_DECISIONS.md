@@ -33,7 +33,7 @@ Still open:
 - Codable/model decoding and encoding strategy beyond the current explicit `Row` / `Value` surface;
 - observation/reactive query strategy;
 - migration strategy;
-- nested/complex result-family expansion policy remains unresolved and separately gated. Foundation.Decimal representation/exactness is no longer open: P03 is coordinator-accepted PASS after fresh final root audit and freezes DCT128-v1 plus the corrected Android compile/link assurance boundary. The remaining Decimal question is bounded Wave C production integration under that accepted contract; source mutation still requires a separately audited/accepted Wave C implementation plan.
+- nested/complex result-family expansion policy remains unresolved and separately gated. Foundation.Decimal is no longer an open design/integration question: P03 freezes DCT128-v1 and the corrected Android compile/link assurance boundary, and Wave C exact production/query/Statement/Appender/result integration is coordinator-accepted after fresh R4 whole-vertical CLEAN. Any future change to Decimal representation, rounding policy, target policy, or transport algorithm requires separately reviewed work rather than being inferred from this closure.
 
 ## Platform Packaging
 
