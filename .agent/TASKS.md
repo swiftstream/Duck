@@ -4,7 +4,31 @@ Only active approved executable implementation/closure work belongs here. Detail
 
 ## Current active capability
 
-There is currently **no active executable implementation slice**. **Value & Result Type Expansion through Wave C exact Foundation.Decimal is complete and coordinator-accepted after fresh R4 final whole-vertical root audit CLEAN.** Any next capability must be promoted separately through research and reviewed planning before source mutation.
+**Appender-in-Transaction is now the active reviewed capability.** Research 01 is accepted, the initial implementation-plan audit identified B01/B02, Correction 01 was frozen, and fresh independent Plan Re-audit 01 is CLEAN with both historical blockers CLOSED and no new blockers. The coordinator has accepted that CLEAN re-audit and activated the capability for bounded implementation.
+
+Current production baseline remains unchanged at:
+
+```text
+branch: master
+HEAD: eeabd19d0441b78a19c62e16b8224a6878cd1bce
+subject: 📖 Record Decimal vertical closure
+```
+
+No Appender-in-Transaction production/test implementation has been applied yet. Task 01 is the next executable slice.
+
+Corrected implementation authority is the combination:
+
+```text
+.artifacts/planning/appender-in-transaction-2026-09-12/IMPLEMENTATION_PLAN.md
+SHA-256 6fcc59476acccedf67ca7122f5880f66df1fe7e6798442c4df9914eb3b345bdc
+1324 lines
+
+.artifacts/planning/appender-in-transaction-2026-09-12/IMPLEMENTATION_PLAN_CORRECTION_01.md
+SHA-256 09d3eb03e4c58da7f4dd9110ae8a9009468059b71e69947592ec2ae8604cfaf3
+727 lines
+```
+
+Correction 01 takes precedence only for the explicit B01/B02-overridden sections. Unrelated original-plan requirements remain in force.
 
 Prerequisites are complete and accepted:
 
@@ -20,21 +44,42 @@ B1, B2, B3, B4, and B5 are accepted. Fresh R3 whole non-Decimal root audit is ac
 ## Active sequencing
 
 ```text
-B1 — ACCEPTED: Int128 / UInt128 / UUID exact vertical
-B2 — ACCEPTED: PureDate / PureTime / DateTime exact vertical
-B3 — ACCEPTED: TIMESTAMPTZ / Foundation.Date exact vertical
-B4 — ACCEPTED: SwifQL.Interval / DuckDB INTERVAL exact vertical
-B5 — ACCEPTED: concurrency/regression/external-consumer hardening
-R3 — CLEAN / ACCEPTED: fresh independent Non-Decimal Value Vertical Root Audit
-P03 — PASS / ACCEPTED: Foundation.Decimal exactness probe + final fresh root audit CLEAN
-Wave C C1 — ACCEPTED: exact Decimal production/public integration
-Wave C C2 — ACCEPTED: Decimal concurrency/lifetime/failure hardening
-Wave C C3 — ACCEPTED: README/Appender-skill/publication closure
-Wave C R4 — CLEAN / ACCEPTED: final whole-Decimal vertical root audit
-Next executable slice — NONE AUTHORIZED: requires separate promotion/research/planning
+Research 01 — ACCEPTED: Appender-in-Transaction architecture + pinned native runtime evidence
+Plan Audit 01 — BLOCKED: B01/B02
+Correction 01 — FROZEN: fail-closed mandatory teardown + non-vacuous sibling evidence split
+Plan Re-audit 01 — CLEAN / COORDINATOR-ACCEPTED: B01 CLOSED, B02 CLOSED, no new blockers
+Task 00 — ACCEPTED: stable task activation
+Task 01 — READY / NEXT: production scheduler/lifetime/public API
+Task 02 — GATED: core public semantics + deterministic scheduler/failure coverage
+Task 03 — GATED: auto-flush/cancellation/failure hardening
+R1 — GATED: fresh source/diff/evidence/root audit
+Task 04 — GATED: README + Appender skill + publication source
+Task 05 — GATED: full validation candidate
+R2 — GATED: fresh final root audit
+Task 06 — GATED: durable governance/final closure
 ```
 
-Each implementation/probe slice requires its own frozen prompt, validation, coordinator review, and local checkpoint before the next slice is promoted. The accepted Wave C production codec remains byte-identical to P03 DCT128-v1; a materially different Decimal conversion algorithm requires a new separately reviewed lineage instead of silently narrowing, rounding, or substituting a different representation.
+Each implementation slice requires its own frozen prompt, exact mutation boundary, validation, coordinator review, and required audit gate before the next slice is promoted.
+
+Task 01 must follow the corrected plan exactly. In particular it must preserve:
+
+```text
+public API: Transaction.appender(to:) for existing three Appender target forms
+existing public Appender type and Connection-owned NativeAppender registry
+one TransactionOperationToken held nativeActive across complete Appender body + close/discard
+ordinary Connection.appender semantics unchanged/non-atomic across auto-flush
+Policy B recoverable zero-native-mutation row preflight
+native/terminal/finalization/cancellation/escaping-body/setup failure => rollback-only
+typed DatabaseError.appenderTransactionAborted(String) surrogate for caught arbitrary body errors
+inherited same-Transaction query/execute, transaction-bound Statement, nested transaction Appender rejection before registration
+fail-closed live-transaction mandatory teardown + native rollback/end-reservation
+stored rollbackOnlyReason precedence over later connectionUnusable when present
+no TransactionReservationState redesign
+no NativeAppender semantic redesign unless implementation evidence triggers STOP/plan correction
+no vendored DuckDB / Package.swift / SwifQL dependency mutation
+```
+
+Task 01 executor must STOP rather than improvise if any reviewed stop condition is reached.
 
 ## Universal Wave B path contract
 
