@@ -60,14 +60,21 @@ final class NativeResult {
         return columns
     }
 
-    func materializeNextChunk() throws -> [Row]? {
+    func materializeNextChunk(resultColumns: [ResultColumn]? = nil) throws -> [Row]? {
         var chunk = duckdb_fetch_chunk(result)
         guard let chunkHandle = chunk else {
             return nil
         }
         defer { duckdb_destroy_data_chunk(&chunk) }
 
+        let descriptors = try resultColumns ?? self.resultColumns()
         let resultColumnCount = try integerCount(duckdb_column_count(&result), name: "result column count")
+        guard resultColumnCount == descriptors.count else {
+            throw NativeDuckDBError(
+                operation: .invalidResult,
+                message: "DuckDB result column count does not match its logical descriptors."
+            )
+        }
         let chunkColumnCount = try integerCount(
             duckdb_data_chunk_get_column_count(chunkHandle),
             name: "chunk column count"
@@ -80,7 +87,7 @@ final class NativeResult {
         }
 
         let rowCount = try integerCount(duckdb_data_chunk_get_size(chunkHandle), name: "chunk row count")
-        let columns = try columnNames()
+        let columns = descriptors.map(\.name)
         var valuesByRow = Array(repeating: [Value](), count: rowCount)
 
         for columnIndex in 0..<chunkColumnCount {
@@ -101,7 +108,12 @@ final class NativeResult {
                 }
 
                 valuesByRow[rowIndex].append(
-                    try materializeValue(type: type, vector: vector, rowIndex: rowIndex)
+                    try materializeValue(
+                        type: type,
+                        descriptor: descriptors[columnIndex].logicalType,
+                        vector: vector,
+                        rowIndex: rowIndex
+                    )
                 )
             }
         }
@@ -109,7 +121,16 @@ final class NativeResult {
         return valuesByRow.map { Row(columns: columns, values: $0) }
     }
 
-    private func materializeValue(type: duckdb_type, vector: duckdb_vector, rowIndex: Int) throws -> Value {
+    private func materializeValue(
+        type: duckdb_type,
+        descriptor: LogicalType,
+        vector: duckdb_vector,
+        rowIndex: Int
+    ) throws -> Value {
+        if type == DUCKDB_TYPE_DECIMAL {
+            return try materializeDecimal(descriptor: descriptor, vector: vector, rowIndex: rowIndex)
+        }
+
         guard let data = duckdb_vector_get_data(vector) else {
             throw NativeDuckDBError(
                 operation: .invalidResult,
@@ -221,6 +242,52 @@ final class NativeResult {
                 operation: .unsupportedResultType,
                 message: "Unsupported DuckDB result type: \(type)."
             )
+        }
+    }
+
+    private func materializeDecimal(
+        descriptor: LogicalType,
+        vector: duckdb_vector,
+        rowIndex: Int
+    ) throws -> Value {
+        do {
+            let target = try NativeDecimalAdapter.target(for: descriptor)
+            guard let data = duckdb_vector_get_data(vector) else {
+                throw NativeDuckDBError(
+                    operation: .invalidResult,
+                    message: "DuckDB returned no DECIMAL vector data for a non-null value."
+                )
+            }
+
+            let words: Signed128Words
+            switch target.width {
+            case 1...4:
+                let value = data.assumingMemoryBound(to: Int16.self)[rowIndex]
+                words = NativeDecimalAdapter.signedWords(of: Int64(value))
+            case 5...9:
+                let value = data.assumingMemoryBound(to: Int32.self)[rowIndex]
+                words = NativeDecimalAdapter.signedWords(of: Int64(value))
+            case 10...18:
+                let value = data.assumingMemoryBound(to: Int64.self)[rowIndex]
+                words = NativeDecimalAdapter.signedWords(of: value)
+            case 19...38:
+                let value = data.assumingMemoryBound(to: duckdb_hugeint.self)[rowIndex]
+                let nativeWords = NativeScalarCodec.signedWords(of: value)
+                words = Signed128Words(upper: nativeWords.upper, lower: nativeWords.lower)
+            default:
+                throw DecimalExactError.invalidWidthScale
+            }
+
+            return .decimal(
+                try NativeDecimalAdapter.foundationDecimal(
+                    from: words,
+                    target: target
+                )
+            )
+        } catch let error as NativeDuckDBError {
+            throw error
+        } catch let error as DecimalExactError {
+            throw NativeDecimalAdapter.invalidResultError(error)
         }
     }
 

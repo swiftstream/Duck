@@ -33,6 +33,7 @@ public struct Value: Sendable, Equatable {
         case dateTime(DateTime)
         case timestampTZ(Date)
         case interval(Interval)
+        case decimal(Decimal)
     }
 
     internal let storage: Storage
@@ -83,6 +84,7 @@ public struct Value: Sendable, Equatable {
         public static let dateTime = Self(rawValue: 19)
         public static let timestampTZ = Self(rawValue: 20)
         public static let interval = Self(rawValue: 21)
+        public static let decimal = Self(rawValue: 22)
 
         public static let allKnown: [Self] = [
             .null,
@@ -107,6 +109,7 @@ public struct Value: Sendable, Equatable {
             .dateTime,
             .timestampTZ,
             .interval,
+            .decimal,
         ]
     }
 
@@ -156,6 +159,8 @@ public struct Value: Sendable, Equatable {
             return .timestampTZ
         case .interval:
             return .interval
+        case .decimal:
+            return .decimal
         }
     }
 
@@ -235,6 +240,10 @@ public struct Value: Sendable, Equatable {
 
     public static func interval(_ value: Interval) -> Value {
         Value(storage: .interval(value))
+    }
+
+    public static func decimal(_ value: Decimal) -> Value {
+        Value(storage: .decimal(value))
     }
 
     @available(macOS 15.0, iOS 18.0, *)
@@ -389,6 +398,13 @@ public struct Value: Sendable, Equatable {
         return value
     }
 
+    public func get(_ type: Decimal.Type) -> Decimal? {
+        guard case .decimal(let value) = storage else {
+            return nil
+        }
+        return value
+    }
+
     @available(macOS 15.0, iOS 18.0, *)
     public func get(_ type: Int128.Type) -> Int128? {
         guard case .signed128Words(let upper, let lower) = storage else {
@@ -439,6 +455,10 @@ public struct Value: Sendable, Equatable {
 
     public var intervalValue: Interval? {
         self.get(Interval.self)
+    }
+
+    public var decimalValue: Decimal? {
+        self.get(Decimal.self)
     }
 
     @available(macOS 15.0, iOS 18.0, *)

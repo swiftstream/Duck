@@ -103,6 +103,9 @@ func normalizeBinding(_ value: Any) throws -> Value {
     if let value = exactCast(value, as: Double.self) {
         return .double(value)
     }
+    if let value = exactCast(value, as: Decimal.self) {
+        return .decimal(value)
+    }
     if let value = exactCast(value, as: String.self) {
         return .string(value)
     }
@@ -1335,7 +1338,7 @@ public actor Connection {
             if cancellationPolicy == .cooperative {
                 try Task.checkCancellation()
             }
-            guard let chunkRows = try result.materializeNextChunk() else {
+            guard let chunkRows = try result.materializeNextChunk(resultColumns: resultColumns) else {
                 break
             }
             rows.append(contentsOf: chunkRows)

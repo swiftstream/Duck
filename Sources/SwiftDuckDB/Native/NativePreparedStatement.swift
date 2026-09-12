@@ -160,6 +160,8 @@ final class NativePreparedStatement {
             state = try bindTimestampTZ(value, at: index, parameterIndex: parameterIndex)
         case .interval(let value):
             state = try bindInterval(value, at: index, parameterIndex: parameterIndex)
+        case .decimal(let value):
+            state = try bindDecimal(value, at: index, parameterIndex: parameterIndex)
         }
 
         guard state == DuckDBSuccess else {
@@ -188,14 +190,57 @@ final class NativePreparedStatement {
     }
 
     private func resolvedTarget(at index: Int) throws -> LogicalTypeID? {
+        guard let copied = try resolvedTargetDescriptor(at: index) else {
+            return nil
+        }
+        return copied.id == .invalid ? nil : copied.id
+    }
+
+    private func resolvedTargetDescriptor(at index: Int) throws -> LogicalType? {
         guard let type = duckdb_param_logical_type(handle, idx_t(index)) else {
             return nil
         }
         var ownedType: duckdb_logical_type? = type
         defer { duckdb_destroy_logical_type(&ownedType) }
 
-        let copied = try NativeLogicalTypeCopier.copyBorrowed(type)
-        return copied.id == .invalid ? nil : copied.id
+        return try NativeLogicalTypeCopier.copyBorrowed(type)
+    }
+
+    private func bindDecimal(
+        _ value: Decimal,
+        at index: Int,
+        parameterIndex: idx_t
+    ) throws -> duckdb_state {
+        do {
+            let descriptor = try resolvedTargetDescriptor(at: index)
+            let target: NativeDecimalTarget
+            if descriptor == nil || descriptor?.id == .invalid || descriptor?.id == .any {
+                target = try NativeDecimalAdapter.naturalTarget(for: value)
+            } else if descriptor?.id == .decimal {
+                guard let descriptor else {
+                    throw NativeDuckDBError(
+                        operation: .binding,
+                        message: "Parameter (index) has no DECIMAL target descriptor.",
+                        parameterIndex: index
+                    )
+                }
+                target = try NativeDecimalAdapter.target(for: descriptor)
+            } else if let descriptor {
+                throw targetMismatch(descriptor.id, expected: .decimal, at: index)
+            } else {
+                target = try NativeDecimalAdapter.naturalTarget(for: value)
+            }
+
+            return duckdb_bind_decimal(
+                handle,
+                parameterIndex,
+                try NativeDecimalAdapter.nativeDecimal(value, target: target)
+            )
+        } catch let error as NativeDuckDBError {
+            throw error
+        } catch let error as DecimalExactError {
+            throw NativeDecimalAdapter.bindingError(error, at: index)
+        }
     }
 
     private func bindDate(

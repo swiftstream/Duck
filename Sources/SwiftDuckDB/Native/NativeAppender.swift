@@ -478,6 +478,30 @@ final class NativeAppender {
                     isPreflight: true
                 )
             }
+        case .decimal(let value):
+            guard target.id == .decimal else { throw preflightMismatch(column, target.id) }
+            do {
+                let decimalTarget = try NativeDecimalAdapter.target(for: target)
+                let nativeValue = duckdb_create_decimal(
+                    try NativeDecimalAdapter.nativeDecimal(value, target: decimalTarget)
+                )
+                guard nativeValue != nil else {
+                    throw NativeAppenderError(
+                        stage: .appendColumn(column),
+                        message: "DuckDB failed to create a DECIMAL appender value.",
+                        isPreflight: true
+                    )
+                }
+                return (.typedValue, nativeValue)
+            } catch let error as NativeAppenderError {
+                throw error
+            } catch let error as DecimalExactError {
+                throw NativeAppenderError(
+                    stage: .appendColumn(column),
+                    message: NativeDecimalAdapter.message(for: error),
+                    isPreflight: true
+                )
+            }
         }
     }
 

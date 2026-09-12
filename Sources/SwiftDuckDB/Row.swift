@@ -102,6 +102,10 @@ public struct Row: Sendable, Equatable {
         self[column]?.get(type)
     }
 
+    public func value(_ column: String, as type: Decimal.Type) -> Decimal? {
+        self[column]?.get(type)
+    }
+
     @available(macOS 15.0, iOS 18.0, *)
     public func value(_ column: String, as type: Int128.Type) -> Int128? {
         self[column]?.get(type)
@@ -250,6 +254,13 @@ public struct Row: Sendable, Equatable {
         return values[index].get(type)
     }
 
+    public func value(_ index: Int, as type: Decimal.Type) -> Decimal? {
+        guard values.indices.contains(index) else {
+            return nil
+        }
+        return values[index].get(type)
+    }
+
     @available(macOS 15.0, iOS 18.0, *)
     public func value(_ index: Int, as type: Int128.Type) -> Int128? {
         guard values.indices.contains(index) else {
@@ -320,5 +331,13 @@ public struct Row: Sendable, Equatable {
 
     public func interval(_ index: Int) -> Interval? {
         value(index, as: Interval.self)
+    }
+
+    public func decimal(_ column: String) -> Decimal? {
+        value(column, as: Decimal.self)
+    }
+
+    public func decimal(_ index: Int) -> Decimal? {
+        value(index, as: Decimal.self)
     }
 }

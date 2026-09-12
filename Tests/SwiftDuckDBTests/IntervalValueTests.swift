@@ -36,7 +36,7 @@ func intervalValueFacadeAndRowConveniences() throws {
     let none: Interval? = nil
 
     #expect(Value.Kind.interval.rawValue == 21)
-    #expect(Value.Kind.allKnown.map(\.rawValue) == Array(0...21))
+    #expect(Value.Kind.allKnown.map(\.rawValue) == Array(0...22))
     #expect(wrapped.kind == .interval)
     #expect(wrapped.get(Interval.self) == finite)
     #expect(wrapped.intervalValue == finite)
