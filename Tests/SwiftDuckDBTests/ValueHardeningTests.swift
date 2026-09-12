@@ -504,3 +504,411 @@ func concurrentMixedFamilyStatementsInsideTransactionPreserveBindings() async th
         try expectResultValue(result, column: "value", expected: expected)
     }
 }
+
+private func hardeningDecimal(_ text: String) throws -> Decimal {
+    try #require(Decimal(string: text, locale: Locale(identifier: "en_US_POSIX")))
+}
+
+private func requireHardeningDecimalResult(
+    _ result: QueryResult,
+    column: String = "value",
+    value: Decimal,
+    width: UInt8,
+    scale: UInt8
+) throws {
+    #expect(result.resultColumns.count == 1)
+    #expect(result.resultColumns.first?.logicalType.id == .decimal)
+    #expect(result.resultColumns.first?.logicalType.decimalWidth == width)
+    #expect(result.resultColumns.first?.logicalType.decimalScale == scale)
+    #expect(try resultValue(result, column: column) == .decimal(value))
+    let row = try #require(result.rows.first)
+    #expect(row.decimal(column) == value)
+    #expect(row.decimal(0) == value)
+}
+
+private func targetlessDecimalStatement(
+    on connection: Connection
+) async throws -> Statement {
+    try await connection.prepare { parameters in
+        SwifQL.select(parameters.parameter() => "value")
+    }
+}
+
+private func hardeningDecimalCoordinates() throws -> [(text: String, value: Decimal, width: UInt8, scale: UInt8)] {
+    let texts = [
+        "1.2",
+        "1.23",
+        "1200",
+        "0.0012",
+        "9999999999999999999"
+    ]
+    let metadata: [(UInt8, UInt8)] = [
+        (2, 1),
+        (3, 2),
+        (4, 0),
+        (4, 4),
+        (19, 0)
+    ]
+    return try texts.enumerated().map { index, text in
+        let (width, scale) = metadata[index]
+        return (text, try hardeningDecimal(text), width, scale)
+    }
+}
+
+@Test("A Decimal QueryResult remains usable after its owners leave scope")
+func decimalResultSurvivesOwnerScope() async throws {
+    let expected = try hardeningDecimal("9999999999999999999")
+    weak var weakDatabase: Database?
+    weak var weakConnection: Connection?
+
+    let retained: QueryResult
+    do {
+        func produceOwnerScopedDecimalResult() async throws -> QueryResult {
+            let database = try Database()
+            weakDatabase = database
+            let connection = try database.connect()
+            weakConnection = connection
+            return try await connection.query(
+                SwifQL.select(
+                    Fn.cast(expected, .decimal(19, 0)) => "value"
+                )
+            )
+        }
+        retained = try await produceOwnerScopedDecimalResult()
+    }
+
+    #expect(weakConnection == nil)
+    #expect(weakDatabase == nil)
+    try requireHardeningDecimalResult(
+        retained,
+        value: expected,
+        width: 19,
+        scale: 0
+    )
+}
+
+@Test("Concurrent Decimal Statement calls preserve per-call bindings")
+func concurrentDecimalStatementCallsPreserveBindings() async throws {
+    let connection = try Database().connect()
+    let statement = try await targetlessDecimalStatement(on: connection)
+    let coordinates = try hardeningDecimalCoordinates()
+    var operations: [(value: Decimal, width: UInt8, scale: UInt8)] = []
+    while operations.count < 20 {
+        for coordinate in coordinates {
+            operations.append((coordinate.value, coordinate.width, coordinate.scale))
+            if operations.count >= 20 {
+                break
+            }
+        }
+    }
+    #expect(operations.count >= 20)
+
+    try await withThrowingTaskGroup(of: Void.self) { group in
+        for operation in operations {
+            group.addTask {
+                let result = try await statement.query(operation.value)
+                try requireHardeningDecimalResult(
+                    result,
+                    value: operation.value,
+                    width: operation.width,
+                    scale: operation.scale
+                )
+            }
+        }
+        try await group.waitForAll()
+    }
+
+    for coordinate in coordinates {
+        let result = try await statement.query(coordinate.value)
+        try requireHardeningDecimalResult(
+            result,
+            value: coordinate.value,
+            width: coordinate.width,
+            scale: coordinate.scale
+        )
+    }
+}
+
+@Test("Decimal Statements on separate Connections remain independent")
+func decimalStatementsOnSeparateConnectionsRemainIndependent() async throws {
+    let database = try Database()
+    let connections = try (0..<4).map { _ in try database.connect() }
+    var statements: [Statement] = []
+    statements.reserveCapacity(connections.count)
+    for connection in connections {
+        statements.append(try await targetlessDecimalStatement(on: connection))
+    }
+    let fixtures: [(value: Decimal, width: UInt8, scale: UInt8)] = [
+        (try hardeningDecimal("1.2"), 2, 1),
+        (try hardeningDecimal("1.23"), 3, 2),
+        (try hardeningDecimal("1200"), 4, 0),
+        (try hardeningDecimal("9999999999999999999"), 19, 0)
+    ]
+
+    try await withThrowingTaskGroup(of: Void.self) { group in
+        for index in statements.indices {
+            let statement = statements[index]
+            let fixture = fixtures[index]
+            group.addTask {
+                let result = try await statement.query(fixture.value)
+                try requireHardeningDecimalResult(
+                    result,
+                    value: fixture.value,
+                    width: fixture.width,
+                    scale: fixture.scale
+                )
+            }
+        }
+        try await group.waitForAll()
+    }
+
+    for index in statements.indices {
+        let result = try await statements[index].query(fixtures[index].value)
+        try requireHardeningDecimalResult(
+            result,
+            value: fixtures[index].value,
+            width: fixtures[index].width,
+            scale: fixtures[index].scale
+        )
+    }
+}
+
+@Test("Concurrent Decimal Appender rows preserve id/value correlation")
+func concurrentDecimalAppenderRowsPreserveCorrelation() async throws {
+    let connection = try Database().connect()
+    let table = Path.Table("value_hardening_decimal_appender_rows")
+    try await connection.execute(
+        SwifQL.create.table[any: table].tableDefinitions(
+            NewColumn("id", .integer),
+            NewColumn("amount", .decimal(19, 0))
+        )
+    )
+
+    let rows: [(id: Int32, amount: Decimal)] = try (1...24).map { id in
+        (Int32(id), try hardeningDecimal("95000000000000000\(String(format: "%02d", id))"))
+    }
+
+    try await connection.appender(to: table) { appender in
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for row in rows {
+                group.addTask {
+                    try await appender.append(row.id, row.amount)
+                }
+            }
+            try await group.waitForAll()
+        }
+    }
+
+    let result = try await connection.query(
+        SwifQL.select(
+            table.column("id"),
+            table.column("amount")
+        )
+        .from(table)
+        .orderBy(.asc(table.column("id")))
+    )
+    #expect(result.rows.count == rows.count)
+    #expect(result.resultColumns.map(\.logicalType.id) == [.integer, .decimal])
+    #expect(result.resultColumns.map(\.logicalType.decimalWidth) == [nil, 19])
+    #expect(result.resultColumns.map(\.logicalType.decimalScale) == [nil, 0])
+
+    for (row, expected) in zip(result.rows, rows) {
+        #expect(row.value("id", as: Int32.self) == expected.id)
+        #expect(row.decimal("amount") == expected.amount)
+    }
+}
+
+@Test("Transaction-local Decimal reusable Statements preserve bindings")
+func decimalStatementsInsideTransactionPreserveBindings() async throws {
+    let connection = try Database().connect()
+    let statement = try await targetlessDecimalStatement(on: connection)
+    let fixtures: [(value: Decimal, width: UInt8, scale: UInt8)] = [
+        (try hardeningDecimal("1.2"), 2, 1),
+        (try hardeningDecimal("1.23"), 3, 2),
+        (try hardeningDecimal("1200"), 4, 0),
+        (try hardeningDecimal("0.0012"), 4, 4),
+        (try hardeningDecimal("9999999999999999999"), 19, 0)
+    ]
+
+    try await connection.transaction { transaction in
+        for fixture in fixtures {
+            let result = try await statement.query(on: transaction, fixture.value)
+            try requireHardeningDecimalResult(
+                result,
+                value: fixture.value,
+                width: fixture.width,
+                scale: fixture.scale
+            )
+        }
+    }
+
+    for fixture in fixtures {
+        let result = try await statement.query(fixture.value)
+        try requireHardeningDecimalResult(
+            result,
+            value: fixture.value,
+            width: fixture.width,
+            scale: fixture.scale
+        )
+    }
+}
+
+@Test("Decimal Statement and Connection failures recover without stale targets")
+func decimalStatementFailuresRecoverWithoutStaleTargets() async throws {
+    let connection = try Database().connect()
+
+    let roundingStatement = try await connection.prepare { parameters in
+        SwifQL.select(Fn.cast(parameters.parameter(), .decimal(3, 1)) => "value")
+    }
+    do {
+        _ = try await roundingStatement.query(try hardeningDecimal("1.23"))
+        Issue.record("Expected rounding-required Decimal binding failure.")
+    } catch let error as DatabaseError {
+        guard case .binding(let index, let message) = error else {
+            Issue.record("Expected indexed binding failure, got \(error).")
+            return
+        }
+        #expect(index == 1)
+        #expect(message.localizedCaseInsensitiveContains("rounding"))
+    }
+    let roundingRecovery = try hardeningDecimal("1.2")
+    try requireHardeningDecimalResult(
+        try await roundingStatement.query(roundingRecovery),
+        value: roundingRecovery,
+        width: 3,
+        scale: 1
+    )
+
+    let nonfiniteStatement = try await connection.prepare { parameters in
+        SwifQL.select(Fn.cast(parameters.parameter(), .decimal(4, 2)) => "value")
+    }
+    do {
+        _ = try await nonfiniteStatement.query(Decimal.nan)
+        Issue.record("Expected nonfinite Decimal binding failure.")
+    } catch let error as DatabaseError {
+        guard case .binding(let index, let message) = error else {
+            Issue.record("Expected indexed binding failure, got \(error).")
+            return
+        }
+        #expect(index == 1)
+        #expect(message.localizedCaseInsensitiveContains("nonfinite"))
+    }
+    let nonfiniteRecovery = try hardeningDecimal("12.34")
+    try requireHardeningDecimalResult(
+        try await nonfiniteStatement.query(nonfiniteRecovery),
+        value: nonfiniteRecovery,
+        width: 4,
+        scale: 2
+    )
+
+    let targetless = try await targetlessDecimalStatement(on: connection)
+    let targetlessSequence: [(value: Decimal, width: UInt8, scale: UInt8)] = [
+        (try hardeningDecimal("1.2"), 2, 1),
+        (try hardeningDecimal("1.23"), 3, 2),
+        (try hardeningDecimal("1200"), 4, 0),
+        (try hardeningDecimal("9999999999999999999"), 19, 0)
+    ]
+    for fixture in targetlessSequence {
+        try requireHardeningDecimalResult(
+            try await targetless.query(fixture.value),
+            value: fixture.value,
+            width: fixture.width,
+            scale: fixture.scale
+        )
+    }
+
+    do {
+        _ = try await connection.query(SwifQL.select(Decimal.nan => "value"))
+        Issue.record("Expected ordinary Connection Decimal conversion rejection.")
+    } catch let error as DatabaseError {
+        guard case .binding(let index, let message) = error else {
+            Issue.record("Expected indexed binding failure, got \(error).")
+            return
+        }
+        #expect(index == 1)
+        #expect(message.localizedCaseInsensitiveContains("nonfinite"))
+    }
+
+    let ordinaryRecovery = try hardeningDecimal("1.23")
+    try requireHardeningDecimalResult(
+        try await connection.query(SwifQL.select(ordinaryRecovery => "value")),
+        value: ordinaryRecovery,
+        width: 3,
+        scale: 2
+    )
+}
+
+@Test("Decimal Appender failures remain atomic and reusable")
+func decimalAppenderFailuresRemainAtomicAndReusable() async throws {
+    let connection = try Database().connect()
+    let table = Path.Table("value_hardening_decimal_appender_recovery")
+    try await connection.execute(
+        SwifQL.create.table[any: table].tableDefinitions(
+            NewColumn("id", .integer),
+            NewColumn("label", .varchar),
+            NewColumn("amount", .decimal(3, 1))
+        )
+    )
+
+    try await connection.appender(to: table) { appender in
+        try await appender.append(Int32(1), "valid-1", try hardeningDecimal("1.2"))
+
+        do {
+            try await appender.append(Int32(2), "rounding", try hardeningDecimal("1.23"))
+            Issue.record("Expected rounding-required Decimal preflight failure.")
+        } catch let error as DatabaseError {
+            guard case .appenderAppend(let column, let message) = error else {
+                Issue.record("Expected appenderAppend, got \(error).")
+                return
+            }
+            #expect(column == 3)
+            #expect(message.localizedCaseInsensitiveContains("rounding"))
+        }
+
+        do {
+            try await appender.append(Int32(3), "width", try hardeningDecimal("1200"))
+            Issue.record("Expected width-overflow Decimal preflight failure.")
+        } catch let error as DatabaseError {
+            guard case .appenderAppend(let column, let message) = error else {
+                Issue.record("Expected appenderAppend, got \(error).")
+                return
+            }
+            #expect(column == 3)
+            #expect(message.localizedCaseInsensitiveContains("width"))
+        }
+
+        do {
+            try await appender.append(Int32(4), "nonfinite", Decimal.nan)
+            Issue.record("Expected nonfinite Decimal preflight failure.")
+        } catch let error as DatabaseError {
+            guard case .appenderAppend(let column, let message) = error else {
+                Issue.record("Expected appenderAppend, got \(error).")
+                return
+            }
+            #expect(column == 3)
+            #expect(message.localizedCaseInsensitiveContains("nonfinite"))
+        }
+
+        try await appender.append(Int32(5), "valid-5", try hardeningDecimal("9.9"))
+    }
+
+    let result = try await connection.query(
+        SwifQL.select(
+            table.column("id"),
+            table.column("label"),
+            table.column("amount")
+        )
+        .from(table)
+        .orderBy(.asc(table.column("id")))
+    )
+    #expect(result.rows.count == 2)
+    #expect(result.resultColumns.map(\.logicalType.id) == [.integer, .varchar, .decimal])
+    #expect(result.resultColumns.map(\.logicalType.decimalWidth) == [nil, nil, 3])
+    #expect(result.resultColumns.map(\.logicalType.decimalScale) == [nil, nil, 1])
+    #expect(result.rows.map { $0.value("id", as: Int32.self) } == [1, 5])
+    #expect(result.rows.map { $0.value("label", as: String.self) } == ["valid-1", "valid-5"])
+    #expect(result.rows.map { $0.decimal("amount") } == [
+        try hardeningDecimal("1.2"),
+        try hardeningDecimal("9.9")
+    ])
+}
