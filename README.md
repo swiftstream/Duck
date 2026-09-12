@@ -234,7 +234,7 @@ A `Statement` cannot execute on a `Transaction` from another `Connection`; that 
 
 `Statement` is `Sendable` and may be called from multiple tasks. Native execution still belongs to the originating `Connection`: ordinary calls are serialized by that connection, transaction calls participate in that transaction's FIFO execution, and separate connections remain independent. A `Statement` strongly retains its originating `Connection`, so it remains usable while the statement itself is alive unless that connection becomes unusable or the statement is terminally invalidated.
 
-Supported dynamic arguments use the same current binding normalization as ordinary execution: `Value`, Optional values whose wrapped type is also supported, `Bool`, signed and unsigned 8/16/32/64-bit integers, `Int`, `UInt`, `Float`, `Double`, `String`, Foundation `Data`, Foundation `UUID`, Foundation `Date`, `PureDate`, `PureTime`, `DateTime`, and `SwifQL.Interval`. Naked `nil` is accepted directly on all four variadics. Optional `nil` becomes SQL `NULL`; `Data()` is a valid empty BLOB. Unsupported types fail with `.unsupportedBindingType`, while non-finite or out-of-range Interval values fail with `.binding`; the statement remains reusable after these deterministic binding failures.
+Supported dynamic arguments use the same current binding normalization as ordinary execution: `Value`, Optional values whose wrapped type is also supported, `Bool`, signed and unsigned 8/16/32/64-bit integers, `Int`, `UInt`, `Float`, `Double`, Foundation `Decimal`, `String`, Foundation `Data`, Foundation `UUID`, Foundation `Date`, `PureDate`, `PureTime`, `DateTime`, and `SwifQL.Interval`. Naked `nil` is accepted directly on all four variadics. Optional `nil` becomes SQL `NULL`; `Data()` is a valid empty BLOB. Unsupported types fail with `.unsupportedBindingType`, while non-finite or out-of-range Interval values fail with `.binding`; the statement remains reusable after these deterministic binding failures. Targetless reusable Decimal parameters recompute canonical exact natural `DECIMAL(W,S)` for each execution, so clear/rebind does not carry a prior Decimal target or value. Explicit DECIMAL targets reject rounding, nonfinite, and width/scale mismatch deterministically with `.binding`, and the statement remains reusable after those caller-side Decimal binding failures. Transaction-local `Statement.query(on:transaction, ...)` and `execute(on:transaction, ...)` support Decimal through the same exact contract.
 
 Reusable preparation means SwiftDuckDB retains and reuses one native prepared-statement owner across executions. It does not promise that DuckDB will never internally rebind or replan when native engine conditions require it. SwiftDuckDB also does not expose a manual `$1` / `$2` placeholder API; dynamic parameters are created only through `Statement.Parameters` in the builder closure.
 
@@ -298,6 +298,7 @@ Bool
 Int8 / Int16 / Int32 / Int64 / Int
 UInt8 / UInt16 / UInt32 / UInt64 / UInt
 Float / Double
+Foundation.Decimal
 String
 Foundation.Data
 Foundation.UUID
@@ -307,7 +308,7 @@ SwifQL.Interval
 ```
 
 Naked `nil` is accepted directly; explicit `Value.null` remains valid.
-Optional `nil` becomes SQL `NULL`. `Data()` is a valid empty BLOB. Temporal and Interval values are supported through their exact SwifQL representations; Decimal, list/struct/map, and other complex families are not implied by this slice. 128-bit integers are supported through the availability-gated Swift bridges described under Reading results.
+Optional `nil` becomes SQL `NULL`. `Data()` is a valid empty BLOB. Temporal, Interval, and Foundation.Decimal values are supported through their exact current representations; list/struct/map and other complex families are not implied by this slice. 128-bit integers are supported through the availability-gated Swift bridges described under Reading results. Decimal row values map only to DuckDB `DECIMAL(W,S)` columns: the resolved target width/scale is authoritative, values must fit that exact width and scale, and SwiftDuckDB does not round or convert through `Double`. Nonfinite Decimal values reject. Deterministic Decimal conversion and typed-value construction happen in whole-row Appender Phase 1 before native row mutation, so a later-column Decimal rejection mutates zero native columns and the same live Appender remains recoverable.
 
 Wrong row width and unsupported Swift argument types fail before native row mutation, so a later valid row may still be appended within the same live scope.
 
@@ -420,6 +421,7 @@ Value.uuid(UUID)
 Value.date(PureDate) / Value.time(PureTime) / Value.dateTime(DateTime)
 Value.timestampTZ(Foundation.Date)
 Value.interval(Interval)
+Value.decimal(Decimal)
 ```
 
 `Int128` / `UInt128` values are supported through `Value.int128(_:)`,
@@ -471,6 +473,36 @@ if let row = result.rows.first, let exact = row.interval("value") {
 }
 ```
 
+### Exact Decimal values
+
+`Foundation.Decimal` is a supported exact scalar family across ordinary query bindings, reusable `Statement` dynamic/fixed bindings, Appender complete rows, and result reading. Transport is exact: SwiftDuckDB does not route Decimal through `Double` or `Float`, and it does not implicitly round or truncate.
+
+An explicit resolved `DECIMAL(W,S)` target is authoritative. The value must fit that exact width and scale or binding/preflight rejects. Targetless Decimal bindings use a canonical minimal exact natural `W/S`; the zero natural target is `DECIMAL(1,0)`. Width/scale is schema/result metadata carried on `ResultColumn.logicalType.decimalWidth` and `.decimalScale`. It is not part of `Value` numeric identity: numeric `1.20` and `1.2` may compare as the same `Foundation.Decimal` while result metadata can differ. SwiftDuckDB does not claim that `Foundation.Decimal` preserves user-entered textual trailing zeros as `Value` identity. Nonfinite Decimal values, including `Decimal.nan`, reject at the native-conversion/preflight boundary.
+
+Read exact Decimal results through `Value.decimal(decimal)`, `value.get(Decimal.self)`, `value.decimalValue`, `row.value("amount", as: Decimal.self)`, `row.value(index, as: Decimal.self)`, `row.decimal("amount")`, and `row.decimal(index)`. Extraction remains exact-family only; there is no numeric coercion.
+
+```swift
+let amount = Decimal(
+    string: "9999999999999999999",
+    locale: Locale(identifier: "en_US_POSIX")
+)
+
+if let amount {
+    let result = try await connection.query(
+        SwifQL.select(Fn.cast(amount, .decimal(19, 0)) => "amount")
+    )
+
+    if let row = result.rows.first {
+        let exact = row.decimal("amount")
+        let width = result.resultColumns.first?.logicalType.decimalWidth
+        let scale = result.resultColumns.first?.logicalType.decimalScale
+        _ = (exact, width, scale)
+    }
+}
+```
+
+Do not construct example Decimal values through `Double` when exactness is the point of the example.
+
 ## Concurrency
 
 A `Database` can create multiple independent `Connection` actors:
@@ -509,6 +541,6 @@ Treat `SwifQL.raw(...)` as an escape hatch. Normal SwiftDuckDB examples should p
 
 ## Current scope
 
-The current public slice covers database/connection ownership, SwifQL query execution, reusable prepared statements, scoped transactions, scoped complete-row Appender ingestion, primitive, temporal, and Interval binding/result values, mutation row counts, typed-table selected-column convenience, structured connection concurrency, and cancellation-aware execution.
+The current public slice covers database/connection ownership, SwifQL query execution, reusable prepared statements, scoped transactions, scoped complete-row Appender ingestion, primitive, temporal, Interval, and exact Foundation.Decimal binding/result values, mutation row counts, typed-table selected-column convenience, structured connection concurrency, and cancellation-aware execution.
 
-The current API does not yet advertise Appender-in-Transaction or advanced Appender selected-column/DEFAULT/query/data-chunk/manual-lifecycle surfaces, Codable model decoding, ORM/repository semantics, connection pooling, observation/reactive queries, migrations, savepoints/manual transaction lifecycle controls, custom transaction isolation modes, or complex/Decimal result families.
+The current API does not yet advertise Appender-in-Transaction or advanced Appender selected-column/DEFAULT/query/data-chunk/manual-lifecycle surfaces, Codable model decoding, ORM/repository semantics, connection pooling, observation/reactive queries, migrations, savepoints/manual transaction lifecycle controls, custom transaction isolation modes, or complex result families beyond the exact Decimal vertical.

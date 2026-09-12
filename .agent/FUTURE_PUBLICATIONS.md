@@ -31,6 +31,12 @@ Scoped Appender
 - README: PRESENT
 - detailed social/article source: PRESENT below
 - public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-appender`; central federation onboarding/publication remains separate
+
+Exact Foundation.Decimal integration
+- implementation: accepted exact public vertical across ordinary query bindings, reusable Statements, Appender rows, Value/Row/Result reading, and ResultColumn DECIMAL W/S metadata
+- README: PRESENT
+- detailed social/article source: PRESENT below
+- public Agent Skill coverage: Appender-specific Decimal contract PRESENT in `swiftduckdb-appender`; broader cross-surface publication remains sourced below
 ```
 
 All future public capabilities automatically enter this register/closure model. Completing implementation without README + detailed publication source + skill coverage is not considered full public-capability closure.
@@ -203,11 +209,18 @@ Bool
 Int8 / Int16 / Int32 / Int64 / Int
 UInt8 / UInt16 / UInt32 / UInt64 / UInt
 Float / Double
+Foundation.Decimal
 String
 Foundation.Data
+Foundation.UUID
+Foundation.Date
+SwifQL.PureDate
+SwifQL.PureTime
+SwifQL.DateTime
+SwifQL.Interval
 ```
 
-Optional `nil` becomes SQL NULL. Empty `Data()` is a valid empty BLOB. Unsupported future temporal/Decimal/UUID/complex families are not implied by this API.
+Optional `nil` becomes SQL NULL. Empty `Data()` is a valid empty BLOB. Exact Decimal, temporal, UUID, Date, and Interval families are supported current values rather than implied future work. Unsupported types remain caller-side failures; the statement stays reusable after deterministic binding rejection.
 
 ### Important native nuance
 
@@ -392,11 +405,18 @@ Bool
 Int8 / Int16 / Int32 / Int64 / Int
 UInt8 / UInt16 / UInt32 / UInt64 / UInt
 Float / Double
+Foundation.Decimal
 String
 Foundation.Data
+Foundation.UUID
+Foundation.Date
+SwifQL.PureDate
+SwifQL.PureTime
+SwifQL.DateTime
+SwifQL.Interval
 ```
 
-Optional `nil` becomes SQL NULL. Empty `Data()` is a valid empty BLOB.
+Optional `nil` becomes SQL NULL. Empty `Data()` is a valid empty BLOB. Current temporal, UUID, Date, Interval, and exact Decimal families are supported row values. Nested/complex families remain gated.
 
 A wrong row width or unsupported Swift value fails before native mutation, so it is a caller-local error rather than a poisoned Appender:
 
@@ -412,7 +432,9 @@ try await connection.appender(to: events) { appender in
 }
 ```
 
-The first slice does not imply temporal, Decimal, UUID, 128-bit, list/struct/map, or other complex family support.
+Decimal row values map only to DuckDB `DECIMAL(W,S)`. Exact width/scale fit is required, there is no rounding, and nonfinite values reject. Whole-row Phase 1 performs deterministic Decimal conversion and constructs an owned typed value through `duckdb_create_decimal` before native row mutation; a later-column deterministic Decimal rejection mutates zero native columns and is recoverable. Phase 2 appends via `duckdb_append_value`, Swift destroys the temporary `duckdb_value` after the native append copies/stores it, and native Phase-2 failure remains terminal.
+
+The current slice still does not imply list/struct/map or other complex family support.
 
 ### Native failures are different from caller-local validation
 
@@ -480,7 +502,7 @@ QueryAppender
 public DataChunk/vector append
 Appender-in-Transaction
 implicit atomic Appender transaction
-new temporal/Decimal/UUID/128-bit/complex value families
+nested/complex value families
 Appender pooling/cache
 ```
 
@@ -495,3 +517,183 @@ Preserve these user-facing angles:
 3. why scoped lifetime plus complete-row serialization is a Swift-concurrency-friendly public boundary;
 4. the crucial difference between a closure lifetime boundary and an atomic transaction boundary;
 5. why Appender-in-Transaction deserves its own design instead of being implied by the first release.
+
+## 003 — Exact Foundation.Decimal without Double
+
+Status: **implemented accepted source material / future article-publication candidate**
+
+Trigger for publication: after final Wave C/R4/release acceptance of the exact Decimal vertical. The source below describes current accepted implementation truth, not a future redesign.
+
+### Why Decimal cannot route through Double
+
+`Foundation.Decimal` is an exact decimal type. DuckDB `DECIMAL(W,S)` is also an exact scaled-integer type. Routing either side through binary floating point would reintroduce values such as `0.1` as repeating binary fractions, so money-like and high-precision domain values would stop being exact.
+
+SwiftDuckDB therefore treats Decimal transport as a dedicated exact vertical:
+
+```text
+no Double / Float intermediary
+no implicit rounding or truncation
+no silent width/scale coercion
+```
+
+If a value cannot be represented exactly at the resolved `DECIMAL(W,S)` target, binding or preflight rejects. It does not “almost” succeed.
+
+### Public API surface
+
+The public surface is symmetric across construction, binding, and reading:
+
+```swift
+Value.decimal(Decimal)
+value.get(Decimal.self)
+value.decimalValue
+
+row.value("amount", as: Decimal.self)
+row.value(index, as: Decimal.self)
+row.decimal("amount")
+row.decimal(index)
+
+// Ordinary query binding, reusable Statement dynamic/fixed binding,
+// and Appender complete-row values all accept Foundation.Decimal
+// through the same current normalization family.
+
+result.resultColumns.first?.logicalType.decimalWidth
+result.resultColumns.first?.logicalType.decimalScale
+```
+
+Optional `Decimal.some` and `Optional<Decimal>.none` follow the same Optional/NULL rules as other supported scalar families.
+
+### Ordinary, reusable, Appender, and result symmetry
+
+The same exact contract is used on every route:
+
+```text
+ordinary SwifQL query binding
+  -> exact conversion / bind
+
+reusable Statement dynamic or fixed binding
+  -> clear prior bindings
+  -> recompute natural W/S for targetless Decimal, or honor explicit target W/S
+  -> exact bind
+
+Appender complete-row Decimal
+  -> whole-row Phase-1 deterministic conversion
+  -> owned typed native value
+  -> Phase-2 append
+
+result DECIMAL physical reconstruction
+  -> width-aware physical carrier
+  -> exact signed coefficient + scale reconstruction
+  -> Value.decimal
+```
+
+Prepared statements remain reusable after deterministic caller-side Decimal binding rejection. Transaction-local reusable `Statement` query/execute participates through the same exact Decimal contract. Appender scopes remain recoverable after deterministic Phase-1 Decimal rejection.
+
+### Natural targetless W/S versus explicit target W/S
+
+An explicit resolved `DECIMAL(W,S)` target is authoritative. The value must fit that exact width and scale or the bind/preflight fails.
+
+Targetless Decimal uses a canonical minimal exact natural `W/S` derived from the value’s exact coefficient and scale. The natural target for zero is `DECIMAL(1,0)`. Targetless reusable Statement parameters recompute that natural `W/S` for each execution, so previous executions do not leave a stale Decimal target behind.
+
+Supported DuckDB Decimal domain remains `W1...W38` with `0 <= S <= W`.
+
+### No rounding and nonfinite rejection
+
+The public contract states the same failure truth on every surface:
+
+```text
+no implicit rounding
+no truncation
+no Double-mediated “close enough”
+nonfinite Foundation.Decimal, including Decimal.nan, rejects at the native-conversion / preflight boundary
+```
+
+For reusable Statements those deterministic failures surface as `.binding` and leave the statement reusable. For Appender rows they surface as preflight `.appenderAppend` and mutate zero native columns when they occur in whole-row Phase 1.
+
+### DCT128-v1 high-level exact transport
+
+The accepted internal transport protocol is referred to as `DCT128-v1`. At publication level it can be described as:
+
+```text
+canonical Foundation.Decimal coefficient + scale
+exact signed coefficient represented as two 64-bit words / 128-bit transport
+no Foundation.Decimal raw-layout dependency
+no Double intermediary
+W1...W38 exact Decimal domain
+reverse reconstruction validates canonical exact fit/words
+```
+
+`W18/W19` matter because they mark the physical carrier transition inside the accepted DuckDB Decimal width classes. `W38` is the maximum-domain boundary and therefore the outer exactness limit of the vertical. These are physical/domain facts, not performance claims.
+
+Do not publish private implementation pseudocode detailed enough to become an accidental alternate specification. Keep the public story high-level but technically exact.
+
+### ResultColumn W/S versus Value identity
+
+`ResultColumn.logicalType.decimalWidth` and `.decimalScale` carry returned `DECIMAL(W,S)` identity. That metadata is schema/result identity, not part of `Value` numeric identity.
+
+Therefore:
+
+```text
+numeric 1.20 and 1.2 may compare as the same Foundation.Decimal
+while ResultColumn metadata can still differ
+```
+
+SwiftDuckDB does not claim that `Foundation.Decimal` preserves user-entered textual trailing zeros as `Value` identity. Publication copy should separate numeric identity from column metadata instead of promising textual formatting storage that the type does not provide.
+
+### Prepared direct Decimal route, Appender Phase 1, and result reconstruction
+
+Prepared binding uses the direct exact `duckdb_bind_decimal` route after computing either the natural target or the explicit resolved target. There is no temporary string or `Double` hop.
+
+Appender Decimal uses whole-row Phase 1:
+
+```text
+resolve DECIMAL(W,S) target
+-> exact coefficient conversion / fit validation
+-> owned typed value via duckdb_create_decimal
+-> Phase 2 duckdb_append_value
+-> Swift destroys the temporary duckdb_value after native append copies/stores it
+```
+
+A later-column deterministic Decimal failure mutates zero native row columns and remains recoverable on the same live Appender. A native Phase-2 failure remains terminal under existing Appender rules.
+
+Result reconstruction is width-aware and validity-first: the native physical carrier is read for the resolved `DECIMAL(W,S)`, the signed coefficient is revalidated, and only then is a public `Value.decimal` produced. Reconstruction failure is an invalid-result error rather than a silent approximate value.
+
+### Hardening evidence worth citing
+
+When this material is turned into public copy, cite the accepted hardening shape rather than inventing benchmarks:
+
+```text
+concurrent reusable Decimal Statement calls preserve per-call bindings
+Decimal Statements on separate Connections remain independent
+transaction-local Decimal reusable Statements preserve bindings
+Decimal Statement and Connection failures recover without stale targets
+Decimal Appender later-column preflight failures mutate zero columns and remain recoverable
+concurrent Decimal Appender rows preserve id/value correlation
+Decimal QueryResult values remain usable after their original owners leave scope
+```
+
+No performance claim should be published unless separately backed by measured evidence.
+
+### Platform evidence boundary
+
+If platform assurance is discussed, preserve the accepted P03 boundary exactly:
+
+```text
+macOS: runtime/Codable exact-source evidence
+Ubuntu arm64: runtime/Codable exact-source evidence
+Windows ARM64: runtime/Codable exact-source evidence
+NixOS x86_64: supplemental runtime/Codable evidence
+Android arm64/API28: official Swift Android SDK exact-source compile/link evidence only
+Android runtime: NOT PERFORMED / NOT CLAIMED
+```
+
+Do not say that Swift.org equates compile/link evidence with runtime Decimal semantics. Do not claim empirical Android runtime Decimal behavior. The Android line is a compile/link assurance boundary only.
+
+### Best publication angles
+
+Preserve these user-facing angles:
+
+1. money-like and high-precision values deserve an exact path that never silently becomes a `Double`;
+2. the same Decimal contract is available through ordinary queries, reusable Statements, and bulk Appender rows;
+3. targetless natural `W/S` is deterministic, while explicit `DECIMAL(W,S)` is authoritative and unforgiving;
+4. width/scale metadata lives on `ResultColumn`, not in `Value` numeric identity;
+5. deterministic rejection is part of correctness: Appender Phase 1 can refuse a later-column Decimal without poisoning the live scope, while native Phase 2 remains terminal.
