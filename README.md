@@ -240,7 +240,7 @@ Reusable preparation means SwiftDuckDB retains and reuses one native prepared-st
 
 ## Bulk ingestion with Appender
 
-Use `Connection.appender(to:)` when you already have many complete rows to load into one existing table. Appender avoids rebuilding an INSERT statement for each row and keeps row ingestion scoped to the owning `Connection`.
+Use `Connection.appender(to:)` when you already have many complete rows to load into one existing table and the import does not need transaction-wide rollback. For high-volume complete rows that must share an explicit transaction's commit/rollback boundary, use `transaction.appender(to:)` inside `connection.transaction`. Both modes use the same scoped `Appender` row API.
 
 ```swift
 let users = Path.Table("users")
@@ -264,7 +264,7 @@ try await connection.appender(to: users) { appender in
 
 Each `append(...)` call supplies one **complete row** in table-column order. The public API does not expose per-column append, `endRow`, manual flush, clear, or close.
 
-Appender is a good fit for bulk row ingestion into one table. Prefer a reusable prepared `Statement` when you need a repeated SQL shape such as INSERT/UPDATE/SELECT, fixed and dynamic query values, or explicit participation in a supported `Transaction`.
+Appender is a good fit for bulk complete-row ingestion into one table. Choose ordinary `connection.appender(to:)` for a scoped, non-atomic import, or `transaction.appender(to:)` when the rows must participate in the surrounding explicit transaction. Prefer a reusable prepared `Statement` when you need a repeated SQL shape such as INSERT/UPDATE/SELECT, per-row SQL expressions, query/update/select flexibility, or explicit transaction execution that is not a complete-row ingest.
 
 ### Appender targets
 
@@ -285,7 +285,7 @@ let catalogSchemaTable = Path.CatalogWithSchemaAndTable(
 )
 ```
 
-Pass the matching value to `connection.appender(to:)`. SwiftDuckDB does not currently expose selected-column Appender configuration or DEFAULT-column filling, so every public row must match the target table's complete active column width.
+Pass the matching value to either `connection.appender(to:)` or `transaction.appender(to:)`. Both overload families support `Path.Table`, `Path.SchemaWithTable`, and `Path.CatalogWithSchemaAndTable`. SwiftDuckDB does not currently expose selected-column Appender configuration or DEFAULT-column filling, so every public row must match the target table's complete active column width.
 
 ### Supported Appender values
 
@@ -338,13 +338,35 @@ On a successful body return, SwiftDuckDB checks terminal state, Connection usabi
 
 That means a later body error or cancellation can discard rows that are still buffered, but it cannot promise rollback of rows that DuckDB already auto-flushed. Successful closure completion finalizes the Appender; it does not retroactively turn the whole scope into one atomic commit unit.
 
-The current first slice intentionally does not support Appender-in-Transaction. If a workload requires atomic transaction semantics, use the currently supported Transaction/query/reusable-Statement APIs rather than assuming Appender provides rollback.
+### Appender inside an explicit transaction
+
+Use the explicit `Transaction` capability when a complete-row import must roll back as one part of the surrounding transaction:
+
+```swift
+let events = Path.Table("events")
+
+try await connection.transaction { transaction in
+    try await transaction.appender(to: events) { appender in
+        for event in importedEvents {
+            try await appender.append(event.id, event.kind, event.payload)
+        }
+    }
+}
+```
+
+`transaction.appender(to:)` uses the same three target forms, supported value families, complete-row shape, and scoped `Appender` lifetime as ordinary `connection.appender(to:)`. It participates in the already-active explicit outer transaction; it is not a nested transaction or an implicit ambient transaction, and ordinary `connection.appender(to:)` does not silently join a transaction.
+
+The outer transaction owns the commit boundary. A successful Appender scope does not commit by itself: outer COMMIT persists its rows, while outer ROLLBACK removes its buffered and already auto-flushed Appender batches. Any body error, cancellation, terminal native append/row-completion failure, or finalization failure that escapes the transaction Appender scope makes the outer transaction rollback-only. Catching that failure and returning success cannot make the outer transaction eligible for COMMIT.
+
+Wrong row width, unsupported Swift-value normalization, and deterministic whole-row native Phase-1 preflight failures mutate no native columns and may be caught so a later valid row can continue in the same live scope. Native Phase-2 append, end-row, or auto-flush failures are terminal; catching their immediate error does not make the scope successful. Cancellation is cooperative at Swift boundaries and does not preempt a synchronous native C call already running.
+
+While a transaction Appender body is live, inherited same-Transaction work that would self-depend is rejected, including `transaction.query`, `transaction.execute`, transaction-bound `Statement.query` / `Statement.execute`, and nested `transaction.appender`. Ordinary same-Connection APIs are not an escape hatch. Use another `Connection` for independent concurrent work. A deliberately pre-created or otherwise non-inheriting same-Transaction child may queue behind the live Appender scope; awaiting that queued work from inside the still-live body can create a caller dependency cycle.
 
 The current Appender API also does not advertise free-standing/manual-close Appenders, manual flush/clear, per-column mutation/endRow, selected columns, DEFAULT append, QueryAppender, public DataChunk/vector append, new value families, or Appender pooling/cache.
 
 ## Transactions
 
-Use `Connection.transaction` for a scoped transaction. Work on that same connection that should participate in the transaction must use the supplied `Transaction` capability:
+Use `Connection.transaction` for a scoped transaction. Work on that same connection that should participate in the transaction must use the supplied `Transaction` capability. For high-volume complete rows that must share this explicit transaction's commit/rollback boundary, use `transaction.appender(to:)`; it remains a scoped Appender operation and does not commit independently.
 
 ```swift
 let users = Path.Table("users")
@@ -541,6 +563,6 @@ Treat `SwifQL.raw(...)` as an escape hatch. Normal SwiftDuckDB examples should p
 
 ## Current scope
 
-The current public slice covers database/connection ownership, SwifQL query execution, reusable prepared statements, scoped transactions, scoped complete-row Appender ingestion, primitive, temporal, Interval, and exact Foundation.Decimal binding/result values, mutation row counts, typed-table selected-column convenience, structured connection concurrency, and cancellation-aware execution.
+The current public slice covers database/connection ownership, SwifQL query execution, reusable prepared statements, scoped transactions, ordinary scoped complete-row Appender ingestion, explicit-Transaction Appender participation, primitive, temporal, Interval, and exact Foundation.Decimal binding/result values, mutation row counts, typed-table selected-column convenience, structured connection concurrency, and cancellation-aware execution.
 
-The current API does not yet advertise Appender-in-Transaction or advanced Appender selected-column/DEFAULT/query/data-chunk/manual-lifecycle surfaces, Codable model decoding, ORM/repository semantics, connection pooling, observation/reactive queries, migrations, savepoints/manual transaction lifecycle controls, custom transaction isolation modes, or complex result families beyond the exact Decimal vertical.
+The current API does not yet advertise advanced Appender selected-column/DEFAULT/query/data-chunk/manual-lifecycle surfaces, Codable model decoding, ORM/repository semantics, connection pooling, observation/reactive queries, migrations, savepoints/manual transaction lifecycle controls, custom transaction isolation modes, or complex result families beyond the exact Decimal vertical.

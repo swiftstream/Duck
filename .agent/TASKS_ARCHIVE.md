@@ -38,4 +38,8 @@ Introduced public Connection-owned reusable `Statement` preparation with fixed a
 
 ### Scoped Appender API
 
-Introduced public scoped complete-row `Appender` ingestion for table/schema/catalog targets with Connection-owned native lifetime and one complete-scope ordinary admission, complete-row actor serialization, caller-local row validation, terminal native failure retention, explicit success/abort cleanup, cooperative cancellation, same-Connection scope guards, different-Connection independence, conservative fail-close on ambiguous cleanup, normal-import consumer validation, and an explicit non-atomic DuckDB auto-flush boundary. Appender-in-Transaction and advanced selected-column/default/query/data-chunk/manual-lifecycle surfaces remain separate future work.
+Introduced public scoped complete-row `Appender` ingestion for table/schema/catalog targets with Connection-owned native lifetime and one complete-scope ordinary admission, complete-row actor serialization, caller-local row validation, terminal native failure retention, explicit success/abort cleanup, cooperative cancellation, same-Connection scope guards, different-Connection independence, conservative fail-close on ambiguous cleanup, normal-import consumer validation, and an explicit non-atomic DuckDB auto-flush boundary. At this historical checkpoint, Appender-in-Transaction remained separate future work; later closure is recorded below.
+
+### Explicit Transaction Appender participation
+
+Added explicit `Transaction.appender` participation for all three target forms using the same public `Appender` and Connection native owner, with one transaction operation across body plus close/discard, rollback-safe auto-flush under an explicit outer transaction, rollback-only first-reason semantics, fail-closed mandatory teardown, same-scope guards, and cross-Connection independence. The accepted vertical is covered by 23 durable tests, 293/293 full validation, and an R2 final root audit CLEAN.

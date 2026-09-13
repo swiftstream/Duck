@@ -6,7 +6,7 @@ Source-owned skill packages live under `.agent/skills/<name>/SKILL.md`. Load at 
 
 ## Public / downstream skills
 
-- `swiftduckdb-appender` — bulk-ingest complete rows through SwiftDuckDB's scoped Appender API, including target forms, supported values, lifetime, concurrency, same-Connection restrictions, cancellation/error behavior, and the non-atomic auto-flush boundary.
+- `swiftduckdb-appender` — bulk-ingest complete rows through SwiftDuckDB's scoped Appender API, including ordinary scoped/non-atomic Connection ingestion, explicit Transaction Appender participation and rollback boundary, target forms, supported values, lifetime, concurrency, same-Connection restrictions, and cancellation/error behavior.
 
 The public skill is intended for downstream distribution through the external `swiftstream/skills` collection. Its placement under `.agent/skills/` is source ownership, not a claim that central federation onboarding or publication has already occurred.
 

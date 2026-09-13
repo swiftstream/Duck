@@ -278,7 +278,7 @@ SwiftDuckDB preserves that character without exposing DuckDB's lower-level per-c
 
 ### Appender versus one-shot INSERT versus reusable Statement
 
-There are three distinct choices in the current API.
+There are four useful choices in the current API: one-shot execution, a reusable `Statement`, ordinary `Connection.appender(to:)`, and `Transaction.appender(to:)` inside an explicit transaction.
 
 **One-shot query/execute** is the simplest choice for occasional mutations:
 
@@ -320,9 +320,33 @@ try await connection.appender(to: events) { appender in
 
 This distinction is semantic, not a benchmark claim. The durable message should be “pick the API that matches the workload,” not an unsupported universal performance ranking.
 
+### Transaction Appender: complete rows with an explicit rollback boundary
+
+When a high-volume complete-row import must commit or roll back with other work, use the transaction-owned form:
+
+```swift
+try await connection.transaction { transaction in
+    try await transaction.appender(to: events) { appender in
+        for event in importedEvents {
+            try await appender.append(event.id, event.kind, event.payload)
+        }
+    }
+}
+```
+
+`Connection.appender(to:)` provides a scoped Appender lifetime and ordinary Connection admission, but it is non-atomic across DuckDB's automatic Appender flushes: a later body error or cancellation can discard still-buffered rows without rolling back earlier auto-flushed batches. `Transaction.appender(to:)` uses the same public `Appender` type, complete-row value families, scoped lifetime, and three target forms — `Path.Table`, `Path.SchemaWithTable`, and `Path.CatalogWithSchemaAndTable` — while participating in the already-active explicit outer transaction. Auto-flushed transaction-Appender batches remain transaction-local; outer COMMIT persists them and outer ROLLBACK removes them.
+
+The transaction Appender scope does not commit independently and is not a nested transaction, savepoint, or implicit ambient transaction. A body error, cancellation, terminal native append/row-completion failure, or finalization failure that escapes the scope makes the outer transaction rollback-only. Catching that failure in the surrounding transaction body cannot turn the later outcome into a successful COMMIT. If the surrounding transaction body catches an arbitrary Appender-body error and returns, outer transaction finalization later surfaces `.appenderTransactionAborted(...)` rather than permitting COMMIT; callers should use the typed error, never parse diagnostic text.
+
+Preflight row validation remains scoped: wrong row width, unsupported Swift binding during caller normalization, and deterministic whole-row Phase-1 preflight mismatch mutate zero native columns and can be caught so a valid row follows. Native Phase-2 append, end-row, or auto-flush failure remains terminal even when its immediate error is caught inside the Appender body. Cancellation is cooperative at Swift boundaries and does not promise to preempt a synchronous native C call already running.
+
+While a transaction Appender body is live, inherited same-Transaction work that would self-depend is rejected, including `transaction.query`, `transaction.execute`, transaction-bound `Statement.query` / `Statement.execute`, and nested `transaction.appender`. Ordinary same-Connection APIs are not an escape hatch. Use another `Connection` for independent concurrent work. A deliberately pre-created or otherwise non-inheriting same-Transaction child may queue behind the live Appender operation; awaiting that queued work from inside the still-live body can create a caller dependency cycle.
+
+Use a reusable `Statement` instead when repeated SQL shape, query/update/select behavior, or per-row SQL-expression flexibility matters, including explicit transaction execution. Use a transaction Appender when the workload is high-volume complete rows and the import should share the explicit transaction's commit/rollback boundary.
+
 ### Scoped lifetime instead of a free-standing handle
 
-The first public SwiftDuckDB Appender is scoped:
+The public SwiftDuckDB Appenders are scoped:
 
 ```text
 Connection.appender(to:) {
@@ -371,7 +395,7 @@ The article should not turn this into a promise that parallel submission makes o
 
 ### Same Connection versus another Connection
 
-A live Appender scope holds the owning Connection's ordinary admission for the complete awaited body.
+A live ordinary Appender scope holds the owning Connection's ordinary admission for the complete awaited body. A transaction Appender instead remains scoped inside the explicit outer transaction for its complete awaited body and finalization.
 
 Ordinary same-Connection work inherited from that Appender body is rejected instead of silently queueing behind itself. The rejected family includes Connection query/execute, both prepare forms, transaction start, nested Appender, and ordinary reusable Statement query/execute.
 
@@ -480,13 +504,7 @@ try await connection.appender(to: events) { appender in
 
 The closure is a **lifetime boundary**, not a transaction boundary.
 
-The first slice intentionally does not expose Appender-in-Transaction. If a workflow requires rollback across the complete operation, use the currently supported Transaction/query/reusable-Statement APIs or wait for a separately designed Appender/Transaction capability rather than assuming hidden atomicity.
-
-### Why Appender-in-Transaction is separate future work
-
-The current Transaction API has explicit reservation, operation FIFO, rollback-only, finalization, and fail-close semantics. The Appender has its own complete-scope ordinary Connection admission, native buffering, auto-flush, terminal cleanup, and cancellation boundaries.
-
-Combining those models is not a spelling exercise such as adding an `on: transaction` parameter. It needs an explicit ownership/scheduler/rollback design and independent evidence. That is why the first Appender slice refuses to imply Transaction participation.
+The ordinary closure is a lifetime boundary, not a transaction boundary. The transaction closure is a complete Appender operation inside an explicit outer transaction: it shares that transaction's rollback-only and finalization rules without exposing an independent Appender commit or savepoint.
 
 ### Current non-goals
 
@@ -500,8 +518,7 @@ selected columns
 DEFAULT append
 QueryAppender
 public DataChunk/vector append
-Appender-in-Transaction
-implicit atomic Appender transaction
+implicit ambient or nested Appender transaction
 nested/complex value families
 Appender pooling/cache
 ```
@@ -516,7 +533,7 @@ Preserve these user-facing angles:
 2. choosing correctly among one-shot execute, reusable prepared Statement, and Appender;
 3. why scoped lifetime plus complete-row serialization is a Swift-concurrency-friendly public boundary;
 4. the crucial difference between a closure lifetime boundary and an atomic transaction boundary;
-5. why Appender-in-Transaction deserves its own design instead of being implied by the first release.
+5. when to choose ordinary scoped ingestion versus transaction-owned ingestion, and why neither mode advertises advanced Appender lifecycle surfaces.
 
 ## 003 — Exact Foundation.Decimal without Double
 

@@ -33,7 +33,7 @@ Shared API and semantics remain platform-independent unless a concrete platform 
 7. Implement, validate, and independently audit the first public scoped transaction capability. **Done.**
 8. Document the scoped transaction API and synchronize its durable project state. **Done.**
 9. Implement the first public reusable prepared-statement capability with reusable native ownership, ordinary and explicit-Transaction execution, deterministic concurrency/lifetime coverage, and public documentation. **Implemented current capability boundary; no later capability is implicitly authorized.**
-10. Implement and document the first public scoped Appender capability with complete-row ingestion, Connection-owned lifetime/concurrency, truthful failure/cancellation semantics, explicit non-atomic auto-flush boundaries, and source-owned public skill coverage. **Implemented and documented current capability boundary; later Appender transaction/advanced features remain unapproved.**
+10. Implement and document the first public scoped Appender capability with complete-row ingestion, Connection-owned lifetime/concurrency, truthful failure/cancellation semantics, explicit non-atomic auto-flush boundaries, and source-owned public skill coverage. **Implemented and documented current capability boundary; explicit `Transaction.appender` participation is accepted current state, while advanced Appender surfaces remain separately gated.**
 11. Enforce a public-capability closure contract for every implemented user-facing feature: README coverage, detailed article/social-post source material, and source-owned Agent Skill coverage following `swiftstream/skills` standards. **Mandatory ongoing rule; historical public capabilities must be backfilled.**
 12. Establish the open Swift-owned logical result metadata foundation (`LogicalTypeID`, `LogicalType`, `ResultColumn`, aligned `QueryResult.resultColumns`) with native deep-copy lifetime safety. **Done; fresh root audit CLEAN.**
 13. Implement the exact value/result expansion vertical for Int128/UInt128/UUID, PureDate/PureTime/DateTime, bounded-exact Foundation.Date/TIMESTAMPTZ, Interval, and Foundation.Decimal across query/Statement/Appender/result paths using the accepted P01/P02/P03 contracts. **Done: B1–B5 plus fresh R3 whole non-Decimal root audit are accepted; P03 Foundation.Decimal exactness is accepted; Wave C C1/C2/C3 are committed and the fresh R4 whole-Decimal root audit is CLEAN with zero blockers. The current exact Decimal vertical is accepted current state. Nested/complex Value remains separately gated and no next executable expansion slice is authorized by this closure.**
@@ -96,20 +96,23 @@ The public slice does not add manual native parameter indices, named-parameter d
 
 The current public Appender capability includes:
 
-- scoped `Connection.appender(to:)` entrypoints for table, schema+table, and catalog+schema+table SwifQL `Path` targets;
+- scoped `Connection.appender(to:)` and explicit `Transaction.appender(to:)` entrypoints for the same table, schema+table, and catalog+schema+table SwifQL `Path` target forms, reusing the same public `Appender` type;
 - one complete-row `Appender.append(...)` operation with current `Value`/Optional/primitive/String/Data normalization, including SQL NULL and empty BLOB;
 - exact Foundation.Date/TIMESTAMPTZ row support is accepted; whole-row Phase-1 conversion and typed-value creation preserve zero native-column mutation for deterministic Date failures, while native Phase-2 failure remains terminal;
 - exact Foundation.Decimal/DECIMAL row support is accepted; whole-row Phase-1 exact conversion and `duckdb_create_decimal` typed-value construction occur before native mutation, deterministic rounding/width/nonfinite failures are zero-mutation and recoverable, and Phase 2 uses `duckdb_append_value` with caller-owned temporary destruction while native Phase-2 failures remain terminal;
 - no public native handle, initializer, manual close/flush/clear, per-column append/endRow, selected columns, DEFAULT, QueryAppender, or DataChunk surface;
-- one ordinary Connection admission held for the complete awaited Appender scope, with setup ownership transferring to actor-registered live Appender state only after native creation succeeds;
+- ordinary mode holds ordinary Connection admission for the complete awaited Appender scope, with setup ownership transferring to actor-registered live Appender state only after native creation succeeds;
+- transaction mode participates in the already-active explicit transaction, holds one transaction operation across the awaited Appender body and finalization/cleanup, and keeps auto-flushed batches rollback-safe under the outer transaction;
 - inherited same-Connection Connection/ordinary-Statement/transaction/nested-Appender work rejected while the scope is live, while separate Connections remain independent;
+- inherited same-Transaction query/execute, transaction-bound Statement, and nested transaction Appender work are rejected during a live transaction-Appender scope;
 - complete-row actor serialization for concurrent public append calls so native columns from different public rows cannot interleave;
 - caller-local count/type failures before native row mutation and first-terminal native append/end-row failure semantics that cannot be hidden by catching the immediate body error;
 - explicit success finalization plus discard-oriented body-error/cancellation cleanup, conservative Connection fail-close when buffered-data cleanup outcome is ambiguous, and normal escaped-use rejection;
 - cooperative cancellation checks before native row mutation/final close without promising preemption of a synchronous native call already running;
-- an explicit non-atomic ordinary-scope contract: DuckDB may auto-flush prior rows before a later error/cancellation, so the complete Appender closure is not a rollback unit.
+- an explicit non-atomic ordinary-scope contract: DuckDB may auto-flush prior rows before a later error/cancellation, so the complete ordinary Appender closure is not a rollback unit;
+- a transaction-Appender failure makes the explicit outer transaction rollback-only, including when the body catches the immediate failure; fail-closed cleanup still performs mandatory rollback before the reservation ends;
 
-The first Appender slice deliberately excludes Appender-in-Transaction. Deliberately externalized same-Connection work that no longer inherits the Appender body scope is treated as external and may queue behind the held ordinary admission; if the body awaits that work, the caller can create a dependency cycle. The API therefore does not claim that every unstructured task topology is deadlock-proof.
+Deliberately externalized same-Connection work that no longer inherits the Appender body scope is treated as external and may queue behind the held admission; if the body awaits that work, the caller can create a dependency cycle. The API therefore does not claim that every unstructured task topology is deadlock-proof.
 
 ## Public Capability Communication and Skill Coverage Contract
 
@@ -140,7 +143,7 @@ The following are not yet approved/implemented architecture unless later resolve
 - long-term DuckDB upgrade/version policy beyond the current v1.5.5 pin;
 - optional extension and bundle-size strategy beyond the current generated extension set;
 - any reusable prepared-statement behavior beyond the implemented first-slice capability;
-- any Appender behavior beyond the approved first scoped slice, including Appender-in-Transaction and advanced selected-column/default/query/data-chunk surfaces;
+- advanced Appender behavior beyond the approved complete-row modes, including selected-column/default/query/data-chunk/manual-lifecycle surfaces, savepoints, and pooling/cache;
 - Codable/model decoding or encoding;
 - observation/reactivity;
 - migrations;

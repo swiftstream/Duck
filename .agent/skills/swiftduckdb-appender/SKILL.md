@@ -1,6 +1,6 @@
 ---
 name: swiftduckdb-appender
-description: Use SwiftDuckDB's scoped Appender API for bulk complete-row ingestion into an existing DuckDB table. Use when downstream Swift code needs high-volume row loading, Appender lifetime/concurrency/error guidance, or a choice between Appender and repeated prepared INSERT execution.
+description: Use SwiftDuckDB's scoped Appender API for bulk complete-row ingestion into an existing DuckDB table, either through ordinary Connection admission or explicit Transaction participation. Use when downstream Swift code needs high-volume row loading, Appender lifetime/concurrency/error guidance, or a choice between Appender, transaction Appender, and repeated prepared INSERT execution.
 license: LICENSE.txt
 ---
 
@@ -10,12 +10,18 @@ Use this skill for downstream code that imports SwiftDuckDB and needs to append 
 
 ## Choose Appender for the right workload
 
-Use `Connection.appender(to:)` when:
+Use ordinary `Connection.appender(to:)` when:
 
 - the target table already exists;
 - you have many complete rows to ingest;
 - each row can be supplied as ordinary supported Swift values or `Value` values;
-- you do not need per-row SQL expressions, selected-column/default handling, or explicit Transaction participation.
+- you do not need per-row SQL expressions, selected-column/default handling, or rollback across the whole import.
+
+Use `Transaction.appender(to:)` inside `connection.transaction` when:
+
+- you need high-volume complete rows to share the explicit outer transaction's COMMIT/ROLLBACK boundary;
+- you want auto-flushed Appender batches to remain transaction-local until the outer transaction commits;
+- you do not need per-row SQL expressions, selected-column/default handling, or an Appender savepoint/nested transaction.
 
 Prefer a reusable `Statement` when you need a repeated SQL shape such as INSERT/UPDATE/SELECT, fixed and dynamic query values, or explicit execution inside a supported `Transaction`.
 
@@ -61,6 +67,23 @@ Path.CatalogWithSchemaAndTable(
 
 Use the target form that matches the existing table you intend to append to.
 
+Both ordinary and transaction Appender modes support all three target forms: `Path.Table`, `Path.SchemaWithTable`, and `Path.CatalogWithSchemaAndTable`.
+
+For explicit transaction participation:
+
+```swift
+let events = Path.Table("events")
+
+try await connection.transaction { transaction in
+    try await transaction.appender(to: events) { appender in
+        try await appender.append(Int32(1), "opened", Data())
+        try await appender.append(Int32(2), "closed", Data())
+    }
+}
+```
+
+The same public `Appender` type, complete-row values, and scoped lifetime are used in both modes. The transaction variant participates in the already-active explicit outer transaction; it is not a nested transaction or an implicit ambient transaction. A successful Appender scope does not commit by itself: outer COMMIT persists rows, while outer ROLLBACK removes buffered and already auto-flushed transaction-Appender batches.
+
 ## Supported row values
 
 Current Appender row normalization accepts:
@@ -96,7 +119,7 @@ For Decimal rows, `Foundation.Decimal` maps only to DuckDB `DECIMAL(W,S)`. Exact
 
 ## Lifetime rules
 
-Treat the `Appender` as scoped authority supplied by `Connection.appender(to:)`.
+Treat the `Appender` as scoped authority supplied by either `Connection.appender(to:)` or `Transaction.appender(to:)` inside an explicit transaction.
 
 - Await all Appender work before the body returns.
 - Do not store an Appender for later use after the body ends.
@@ -108,9 +131,9 @@ The public `Appender` is `Sendable`, so structured child tasks may capture it wh
 
 ## Concurrency rules
 
-Concurrent public `append(...)` calls on one Appender are safe at the complete-row boundary. SwiftDuckDB sends one fully normalized row through the owner `Connection` actor as one synchronous native row operation, so columns from separate public rows do not interleave.
+Concurrent public `append(...)` calls on one Appender are safe at the complete-row boundary. SwiftDuckDB sends one fully normalized row through the owner `Connection` actor as one synchronous native row operation, so columns from separate public rows do not interleave. Structured child tasks must finish before the Appender body returns in either mode.
 
-Do not perform ordinary work on the **same Connection** from inherited Appender-body context. While the scope is live, SwiftDuckDB rejects same-Connection:
+Do not perform ordinary work on the **same Connection** from inherited Appender-body context. While an ordinary scope is live, SwiftDuckDB rejects same-Connection:
 
 ```text
 Connection.query
@@ -136,11 +159,11 @@ There are two important classes of row failure:
 
 Primitive native failure is reported as `.appenderAppend(column:message:)` with a 1-based column. End-row or auto-flush failure is `.appenderRowCompletion` and does not invent a column number.
 
-If a terminal native row failure occurs, catching that immediate error inside the body does **not** make the scope successful. SwiftDuckDB remembers the first terminal truth and rethrows it when the scope finalizes.
+If a terminal native row failure occurs, catching that immediate error inside the body does **not** make the scope successful. SwiftDuckDB remembers the first terminal truth and rethrows it when the scope finalizes. In transaction mode, a terminal/finalization/body-exit failure that escapes the Appender scope makes the outer transaction rollback-only; catching it in the surrounding transaction body cannot restore COMMIT eligibility.
 
 Cancellation is cooperative at SwiftDuckDB's boundaries. It is checked before caller-side row work and again on the owner actor immediately before synchronous native row mutation. Swift cancellation does not promise to preempt a native C operation already running synchronously.
 
-When cancellation is observed before successful final close, SwiftDuckDB discards still-buffered Appender data rather than intentionally flushing it. That guarantee does not roll back rows DuckDB already auto-flushed earlier.
+When cancellation is observed before successful final close, SwiftDuckDB discards still-buffered Appender data rather than intentionally flushing it. Ordinary cancellation cannot roll back rows DuckDB already auto-flushed earlier; transaction-Appender cancellation makes the outer transaction rollback-only, so outer rollback removes transaction-local auto-flushed batches too. Cancellation is cooperative at Swift boundaries and does not preempt a synchronous native C call already running.
 
 ## The scope is not atomic
 
@@ -152,7 +175,15 @@ Therefore:
 - a later cancellation has the same non-atomic boundary;
 - successful scope completion explicitly finalizes the Appender, but the closure is not an all-or-nothing commit unit.
 
-If your workflow requires atomic multi-step database semantics, do not infer them from Appender. The current first slice intentionally does **not** support Appender-in-Transaction. Use the currently supported transaction/query/reusable-Statement APIs for transaction work, or redesign the ingestion workflow around the actually available public surface.
+If your workflow requires atomic multi-step database semantics, use `Transaction.appender(to:)` inside `connection.transaction`. It shares the explicit outer transaction's commit/rollback boundary, but does not provide an independent commit, savepoint, or nested Appender transaction. Use a reusable `Statement` instead when repeated SQL shape, query/update/select behavior, or per-row SQL-expression flexibility matters, including explicit transaction execution.
+
+### Transaction Appender failure and scope rules
+
+Wrong row width, unsupported Swift binding during caller normalization, and deterministic whole-row native Phase-1 preflight mismatch are recoverable when caught inside the live Appender body because they mutate zero native columns. A later valid row may follow. Native Phase-2 append, end-row, or auto-flush failure is terminal even if its immediate error is caught inside the body.
+
+Inside a live transaction Appender body, inherited same-Transaction work that would self-depend is rejected, including `transaction.query`, `transaction.execute`, `Statement.query(on: transaction, ...)`, `Statement.execute(on: transaction, ...)`, and nested `transaction.appender`. Ordinary same-Connection APIs are not an escape hatch. Use another `Connection` for independent work.
+
+A deliberately pre-created or otherwise non-inheriting same-Transaction child can be treated as external and may queue behind the live transaction Appender operation. Awaiting that queued work from inside the still-live Appender body can create a caller dependency cycle; the API does not promise universal deadlock immunity.
 
 ## Current non-goals
 
@@ -166,8 +197,7 @@ selected columns
 DEFAULT append
 QueryAppender
 public DataChunk/vector append
-Appender-in-Transaction
-implicit atomic Appender transaction
+implicit ambient or nested Appender transaction
 nested/complex families
 Appender pooling/cache
 ```

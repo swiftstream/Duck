@@ -2,44 +2,17 @@
 
 Only active approved executable implementation/closure work belongs here. Detailed completed execution/audit lineage belongs in `.artifacts/**`.
 
-## Current active capability
+## Current closure state
 
-**Appender-in-Transaction is now the active reviewed capability.** Research 01 is accepted, the initial implementation-plan audit identified B01/B02, Correction 01 was frozen, and fresh independent Plan Re-audit 01 is CLEAN with both historical blockers CLOSED and no new blockers. The coordinator has accepted that CLEAN re-audit and activated the capability for bounded implementation.
+**Appender-in-Transaction is closed accepted work, not active work.** R2 is CLEAN/coordinator-accepted with zero blockers, and Task 06 has completed the final durable-governance closure.
 
-Current production baseline remains unchanged at:
+Current tracked baseline is:
 
 ```text
 branch: master
-HEAD: eeabd19d0441b78a19c62e16b8224a6878cd1bce
-subject: 📖 Record Decimal vertical closure
+HEAD: 2c740dbe5719e0044ad72de1275fd768f443d268
+subject: 📖 Activate transaction Appender work
 ```
-
-No Appender-in-Transaction production/test implementation has been applied yet. Task 01 is the next executable slice.
-
-Corrected implementation authority is the combination:
-
-```text
-.artifacts/planning/appender-in-transaction-2026-09-12/IMPLEMENTATION_PLAN.md
-SHA-256 6fcc59476acccedf67ca7122f5880f66df1fe7e6798442c4df9914eb3b345bdc
-1324 lines
-
-.artifacts/planning/appender-in-transaction-2026-09-12/IMPLEMENTATION_PLAN_CORRECTION_01.md
-SHA-256 09d3eb03e4c58da7f4dd9110ae8a9009468059b71e69947592ec2ae8604cfaf3
-727 lines
-```
-
-Correction 01 takes precedence only for the explicit B01/B02-overridden sections. Unrelated original-plan requirements remain in force.
-
-Prerequisites are complete and accepted:
-
-```text
-SwifQL 2.0.0-beta.6.0.1 published + consumed
-A2 logical metadata milestone accepted + root audit CLEAN
-P01 temporal/raw adapter probe accepted
-P02 Foundation.Date/TIMESTAMPTZ exactness probe accepted
-```
-
-B1, B2, B3, B4, and B5 are accepted. Fresh R3 whole non-Decimal root audit is accepted CLEAN with zero blockers. P03 is accepted PASS. Wave C C1 exact production integration, C2 hardening, C3 public closure, and fresh R4 whole-Decimal root audit are all accepted. The accepted current package baseline is `270/0` under Swift 6.3.3 warnings-as-errors, with protected `18/18` regressions, fresh build PASS, focused Decimal hardening `7/7`, and normal-import marker `C2-DECIMAL-CONSUMER-OK` exactly once.
 
 ## Active sequencing
 
@@ -49,37 +22,17 @@ Plan Audit 01 — BLOCKED: B01/B02
 Correction 01 — FROZEN: fail-closed mandatory teardown + non-vacuous sibling evidence split
 Plan Re-audit 01 — CLEAN / COORDINATOR-ACCEPTED: B01 CLOSED, B02 CLOSED, no new blockers
 Task 00 — ACCEPTED: stable task activation
-Task 01 — READY / NEXT: production scheduler/lifetime/public API
-Task 02 — GATED: core public semantics + deterministic scheduler/failure coverage
-Task 03 — GATED: auto-flush/cancellation/failure hardening
-R1 — GATED: fresh source/diff/evidence/root audit
-Task 04 — GATED: README + Appender skill + publication source
-Task 05 — GATED: full validation candidate
-R2 — GATED: fresh final root audit
-Task 06 — GATED: durable governance/final closure
+Task 01 — ACCEPTED: production scheduler/lifetime/public API
+Task 02 — ACCEPTED: core public semantics + deterministic scheduler/failure coverage
+Task 03 — ACCEPTED: auto-flush/cancellation/failure hardening
+R1 — CLEAN / COORDINATOR-ACCEPTED: fresh source/diff/evidence/root audit
+Task 04 — ACCEPTED: README + Appender skill + publication source
+Task 05 — ACCEPTED: full validation candidate
+R2 — CLEAN / COORDINATOR-ACCEPTED: fresh final root audit
+Task 06 — CLOSED: durable governance/final closure
 ```
 
-Each implementation slice requires its own frozen prompt, exact mutation boundary, validation, coordinator review, and required audit gate before the next slice is promoted.
-
-Task 01 must follow the corrected plan exactly. In particular it must preserve:
-
-```text
-public API: Transaction.appender(to:) for existing three Appender target forms
-existing public Appender type and Connection-owned NativeAppender registry
-one TransactionOperationToken held nativeActive across complete Appender body + close/discard
-ordinary Connection.appender semantics unchanged/non-atomic across auto-flush
-Policy B recoverable zero-native-mutation row preflight
-native/terminal/finalization/cancellation/escaping-body/setup failure => rollback-only
-typed DatabaseError.appenderTransactionAborted(String) surrogate for caught arbitrary body errors
-inherited same-Transaction query/execute, transaction-bound Statement, nested transaction Appender rejection before registration
-fail-closed live-transaction mandatory teardown + native rollback/end-reservation
-stored rollbackOnlyReason precedence over later connectionUnusable when present
-no TransactionReservationState redesign
-no NativeAppender semantic redesign unless implementation evidence triggers STOP/plan correction
-no vendored DuckDB / Package.swift / SwifQL dependency mutation
-```
-
-Task 01 executor must STOP rather than improvise if any reviewed stop condition is reached.
+No next executable capability is authorized merely by this closure. Future ideas remain in `TODO.md`/`OPEN_DECISIONS.md` and require promotion through research and reviewed planning.
 
 ## Universal Wave B path contract
 
