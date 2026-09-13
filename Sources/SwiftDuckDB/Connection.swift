@@ -293,7 +293,44 @@ public actor Connection {
             throw originalError
         }
 
-        let rollbackOnlyReason = try await beginTransactionFinalization(reservationId)
+        let rollbackOnlyReason: TransactionRollbackOnlyReason?
+        do {
+            rollbackOnlyReason = try await beginTransactionFinalization(reservationId)
+        } catch let finalizationFailure as DatabaseError {
+            guard case .connectionUnusable = finalizationFailure,
+                  await isTransactionReservationLive(reservationId) else {
+                throw finalizationFailure
+            }
+
+            let storedRollbackOnlyReason: TransactionRollbackOnlyReason?
+            do {
+                storedRollbackOnlyReason = try await beginFailClosedTransactionTeardown(
+                    reservationId
+                )
+            } catch let teardownError as DatabaseError {
+                throw TransactionRollbackError(
+                    originalError: finalizationFailure,
+                    rollbackError: teardownError
+                )
+            }
+
+            let authoritativeError = storedRollbackOnlyReason?.errorValue ?? finalizationFailure
+            if let rollbackFailure = await rollbackTransaction(
+                reservationId,
+                rollback: lifecycle.rollback
+            ) {
+                throw TransactionRollbackError(
+                    originalError: authoritativeError,
+                    rollbackError: rollbackFailure
+                )
+            }
+
+            if let storedRollbackOnlyReason {
+                try storedRollbackOnlyReason.throwStoredReason()
+            }
+            throw finalizationFailure
+        }
+
         if let rollbackOnlyReason {
             if let rollbackFailure = await rollbackTransaction(
                 reservationId,
@@ -449,6 +486,42 @@ public actor Connection {
         try Task.checkCancellation()
         try ensureUsable()
 
+        let start = try installAppenderScope(target)
+        transfersLeaseToLiveScope = true
+        return start
+    }
+
+    func acquireAndInstallTransactionAppenderScope(
+        _ target: AppenderTarget,
+        token: TransactionOperationToken
+    ) async throws -> AppenderScopeStart {
+        try await acquireTransactionNativeAdmission(token)
+
+        do {
+            try Task.checkCancellation()
+            try ensureUsable()
+            return try installAppenderScope(target)
+        } catch is CancellationError {
+            completeTransactionOperation(token, failure: .cancelled)
+            throw CancellationError()
+        } catch let error as DatabaseError {
+            completeTransactionOperation(token, failure: .database(error))
+            throw error
+        } catch let error as NativeAppenderError {
+            let mapped = mapNativeAppenderError(error)
+            completeTransactionOperation(token, failure: .database(mapped))
+            throw mapped
+        } catch {
+            let mapped = DatabaseError.appenderCreation(String(describing: error))
+            completeTransactionOperation(token, failure: .database(mapped))
+            throw mapped
+        }
+    }
+
+    private func installAppenderScope(
+        _ target: AppenderTarget
+    ) throws -> AppenderScopeStart {
+
         let nativeAppender: NativeAppender
         do {
             nativeAppender = try NativeAppender(
@@ -469,7 +542,6 @@ public actor Connection {
             expectedArgumentCount: nativeAppender.columnCount,
             terminalFailure: nil
         )
-        transfersLeaseToLiveScope = true
         return AppenderScopeStart(
             id: id,
             expectedArgumentCount: nativeAppender.columnCount
@@ -546,6 +618,33 @@ public actor Connection {
     func abortAppenderScope(_ id: AppenderId) -> AppenderAbortOutcome {
         defer { releaseOrdinaryLease() }
 
+        return abortAppenderEntry(id)
+    }
+
+    func abortTransactionAppenderScope(
+        _ id: AppenderId,
+        token: TransactionOperationToken,
+        failure: TransactionRollbackOnlyReason
+    ) -> AppenderAbortOutcome {
+        let outcome = abortAppenderEntry(id)
+        let effectiveFailure: TransactionRollbackOnlyReason
+
+        switch outcome {
+        case .cleaned, .cleanup:
+            effectiveFailure = failure
+        case .terminal(let terminal):
+            switch terminal {
+            case .database(let error), .cleanup(let error, _):
+                effectiveFailure = .database(error)
+            }
+        }
+
+        completeTransactionOperation(token, failure: effectiveFailure)
+        return outcome
+    }
+
+    private func abortAppenderEntry(_ id: AppenderId) -> AppenderAbortOutcome {
+
         guard let entry = appenders.removeValue(forKey: id) else {
             let cleanup = DatabaseError.appenderCleanup(
                 "Appender scope registry entry disappeared before abort cleanup."
@@ -583,6 +682,44 @@ public actor Connection {
 
     func finishAppenderScopeSuccess(_ id: AppenderId) throws {
         defer { releaseOrdinaryLease() }
+
+        try finalizeAppenderEntry(id)
+    }
+
+    func finishTransactionAppenderScopeSuccess(
+        _ id: AppenderId,
+        token: TransactionOperationToken
+    ) throws {
+        do {
+            try finalizeAppenderEntry(id)
+            completeTransactionOperation(token, failure: nil)
+        } catch is CancellationError {
+            completeTransactionOperation(token, failure: .cancelled)
+            throw CancellationError()
+        } catch let error as AppenderCleanupError {
+            let failure: TransactionRollbackOnlyReason
+            if error.originalError is CancellationError {
+                failure = .cancelled
+            } else if let databaseError = error.originalError as? DatabaseError {
+                failure = .database(databaseError)
+            } else {
+                failure = .database(
+                    .appenderTransactionAborted(String(describing: error.originalError))
+                )
+            }
+            completeTransactionOperation(token, failure: failure)
+            throw error
+        } catch let error as DatabaseError {
+            completeTransactionOperation(token, failure: .database(error))
+            throw error
+        } catch {
+            let mapped = DatabaseError.appenderTransactionAborted(String(describing: error))
+            completeTransactionOperation(token, failure: .database(mapped))
+            throw error
+        }
+    }
+
+    private func finalizeAppenderEntry(_ id: AppenderId) throws {
 
         guard let entry = appenders.removeValue(forKey: id) else {
             let message = "Appender scope registry entry disappeared before finalization."
@@ -1103,6 +1240,40 @@ public actor Connection {
         return transactionState?.rollbackOnlyReason ?? transition.rollbackOnlyReason
     }
 
+    func beginFailClosedTransactionTeardown(
+        _ reservationId: TransactionReservationId
+    ) async throws -> TransactionRollbackOnlyReason? {
+        guard transactionState?.id == reservationId,
+              outerAdmissionState.lease == .transaction(reservationId),
+              case .unusable(let message) = usability else {
+            throw DatabaseError.transactionRollback(
+                "Fail-closed transaction teardown lost the active transaction reservation."
+            )
+        }
+
+        guard var state = transactionState, state.id == reservationId else {
+            throw DatabaseError.transactionRollback(
+                "Fail-closed transaction teardown lost the active transaction reservation."
+            )
+        }
+
+        let transition = state.beginFinalization()
+        transactionState = state
+        for operationId in transition.queuedOperationIds {
+            transactionOperationWaiters.removeValue(forKey: operationId)?.resume(
+                throwing: DatabaseError.connectionUnusable(message)
+            )
+        }
+
+        if transition.waitsForNativeActiveOperation {
+            await withCheckedContinuation { continuation in
+                transactionDrainWaiter = continuation
+            }
+        }
+
+        return transactionState?.rollbackOnlyReason ?? transition.rollbackOnlyReason
+    }
+
     func beginTransaction(
         _ reservationId: TransactionReservationId,
         begin: PreparedQuerySnapshot,
@@ -1533,7 +1704,8 @@ public actor Connection {
                  .appenderCreation(let message),
                  .appenderRowCompletion(let message),
                  .appenderFinalization(let message),
-                 .appenderCleanup(let message):
+                 .appenderCleanup(let message),
+                 .appenderTransactionAborted(let message):
                 return message
             case .binding(_, let message):
                 return message

@@ -27,4 +27,5 @@ public enum DatabaseError: Error, Sendable, Equatable {
     case appenderRowCompletion(String)
     case appenderFinalization(String)
     case appenderCleanup(String)
+    case appenderTransactionAborted(String)
 }

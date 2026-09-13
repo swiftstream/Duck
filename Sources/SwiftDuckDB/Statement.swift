@@ -309,6 +309,7 @@ public final class Statement: Sendable {
                 throw DatabaseError.statementConnectionMismatch
             }
 
+            try await connection.rejectLiveAppenderBodyMisuse()
             let token = try await connection.registerTransactionOperation(
                 transaction.reservationId
             )

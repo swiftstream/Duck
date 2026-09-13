@@ -526,6 +526,7 @@ public struct Transaction: Sendable {
     public nonisolated(nonsending) func query(
         _ query: any SwifQLable
     ) async throws -> QueryResult {
+        try await connection.rejectLiveAppenderBodyMisuse()
         let token = try await connection.registerTransactionOperation(reservationId)
         let snapshot: PreparedQuerySnapshot
 
@@ -547,6 +548,7 @@ public struct Transaction: Sendable {
     public nonisolated(nonsending) func execute(
         _ query: any SwifQLable
     ) async throws -> UInt64 {
+        try await connection.rejectLiveAppenderBodyMisuse()
         let token = try await connection.registerTransactionOperation(reservationId)
         let snapshot: PreparedQuerySnapshot
 
