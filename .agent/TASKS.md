@@ -4,7 +4,9 @@ Only active approved executable implementation/closure work belongs here. Detail
 
 ## Current closure state
 
-No active executable capability is currently authorized. Appender-in-Transaction is closed accepted work after R2 CLEAN/coordinator acceptance and Task 06 durable-governance closure. Its compact completed milestone belongs in TASKS_ARCHIVE.md; detailed execution/audit lineage remains in .artifacts/**.
+No active executable capability is currently authorized.
+
+Public Capability Closure Backfill is complete for Query Execution, Transactions, Reusable Statements, and Appender. Each now has README, publication-source, and source-owned public-skill coverage. Central skill onboarding remains separate.
 
 Future ideas in TODO.md / OPEN_DECISIONS.md require promotion through fresh research and reviewed planning before becoming active work.
 

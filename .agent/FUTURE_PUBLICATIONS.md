@@ -12,19 +12,19 @@ Current coverage/backfill state:
 
 ```text
 Database / Connection / public query execution
-- README: implemented
-- detailed social/article source: BACKFILL REQUIRED
-- public Agent Skill coverage: BACKFILL REQUIRED
+- README: PRESENT
+- detailed social/article source: PRESENT below as 004
+- public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-query-execution`; central federation onboarding/publication remains separate
 
 Scoped Transactions
-- README: implemented
-- detailed social/article source: BACKFILL REQUIRED
-- public Agent Skill coverage: BACKFILL REQUIRED (`swiftduckdb-transactions` minimum)
+- README: PRESENT
+- detailed social/article source: PRESENT below as 005
+- public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-transactions`; central federation onboarding/publication remains separate
 
 Reusable prepared Statements
-- README: implemented
-- detailed social/article source: PRESENT below; may be expanded into channel variants later
-- public Agent Skill coverage: BACKFILL REQUIRED (`swiftduckdb-reusable-statements` minimum)
+- README: PRESENT
+- detailed social/article source: PRESENT below as 001; may be expanded into channel variants later
+- public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-reusable-statements`; central federation onboarding/publication remains separate
 
 Scoped Appender
 - implementation: implemented scoped public API
@@ -714,3 +714,365 @@ Preserve these user-facing angles:
 3. targetless natural `W/S` is deterministic, while explicit `DECIMAL(W,S)` is authoritative and unforgiving;
 4. width/scale metadata lives on `ResultColumn`, not in `Value` numeric identity;
 5. deterministic rejection is part of correctness: Appender Phase 1 can refuse a later-column Decimal without poisoning the live scope, while native Phase 2 remains terminal.
+
+## 004 — Database, Connection, and SwifQL query execution
+
+Status: **implemented source material / future article-publication candidate**
+
+Trigger for publication: when the maintainer chooses to turn this durable source material into channel-specific public copy.
+
+### Start with explicit ownership
+
+SwiftDuckDB keeps database storage and executable connection ownership explicit:
+
+```swift
+let database = try Database()
+let connection = try database.connect()
+```
+
+Use `Database()` for an in-memory database or `Database(path:)` for a file-backed database. A `Database` can create multiple independent `Connection` actors through `connect()`.
+
+That split is the foundation of the public execution model:
+
+```text
+Database
+  -> one or more Connection actors
+       -> Connection-owned native execution
+```
+
+A Connection is not just a convenience wrapper around a global native handle. It is the Swift concurrency owner for one native connection and its admitted work.
+
+### Build normal queries with SwifQL
+
+The normal public path is declarative SwifQL:
+
+```swift
+let users = Path.Table("users")
+
+let result = try await SwifQL
+    .select(users.column("id"), users.column("name"))
+    .from(users)
+    .query(on: connection)
+```
+
+SwiftDuckDB intentionally does not teach handwritten SQL strings as the ordinary query API. Query-centered SwifQL convenience calls delegate to the same execution engine as the Connection-centered form:
+
+```swift
+let query = SwifQL
+    .select(users.column("id"), users.column("name"))
+    .from(users)
+
+let result = try await connection.query(query)
+```
+
+Choose the form that reads better at the call site. Do not describe them as different execution models.
+
+### `query` and `execute` answer different questions
+
+Use `query` when returned rows and result metadata matter:
+
+```swift
+let result = try await SwifQL
+    .select(Int32(42) => "answer")
+    .query(on: connection)
+```
+
+Use `execute` for mutation-oriented work when the relevant public result is the number of changed rows:
+
+```swift
+let changed = try await SwifQL
+    .update(users)
+    .set[items: users.column("name") == "Mike"]
+    .where(users.column("id") == Int32(1))
+    .execute(on: connection)
+
+_ = changed
+```
+
+`execute` returns `UInt64`. `query` returns `QueryResult`, which carries column names, logical result-column metadata, materialized rows, and `rowsChanged`.
+
+### Read materialized rows exactly
+
+Rows expose public `Value` storage plus exact typed conveniences:
+
+```swift
+let result = try await SwifQL
+    .select(
+        Int32(7) => "id",
+        "ready" => "state"
+    )
+    .query(on: connection)
+
+if let row = result.rows.first {
+    let id = row.value("id", as: Int32.self)
+    let state = row.value("state", as: String.self)
+    _ = (id, state)
+}
+```
+
+Typed extraction does not promise numeric coercion. A typed convenience can return `nil` for SQL `NULL`, a missing requested column or out-of-range checked position, or a wrong requested type.
+
+When schema/result identity matters, use `QueryResult.resultColumns`; do not imply that logical column metadata such as Decimal width/scale becomes part of `Value` numeric identity.
+
+### One Connection serializes its native owner
+
+Structured Swift callers may submit concurrent work, but one Connection still owns one native connection and serializes its admitted native execution.
+
+For genuinely independent work, create another Connection:
+
+```swift
+let first = try database.connect()
+let second = try database.connect()
+
+async let a = SwifQL.select(Int32(1) => "value").query(on: first)
+async let b = SwifQL.select(Int32(2) => "value").query(on: second)
+
+let results = try await (a, b)
+_ = results
+```
+
+The useful public distinction is ownership and independence, not a claim that one Connection runs multiple native operations in parallel.
+
+### Cancellation is cooperative
+
+SwiftDuckDB observes cancellation around async/native scheduling boundaries and while copying result chunks. Cancellation surfaces as Swift `CancellationError`.
+
+Do not promise instantaneous interruption of a synchronous DuckDB C call that is already running or deterministic latency inside that call.
+
+### Use typed Swift errors; treat native text as diagnostics
+
+Public database/query failures use `DatabaseError` cases for database opening, connection opening, preparation, binding, execution, unsupported bind/result types, invalid result state, and other owned capability boundaries.
+
+Native diagnostic strings are useful to humans but their exact wording is not a stable symbolic-type contract. Application logic should switch on typed Swift errors rather than parsing DuckDB message text.
+
+### Raw SQL remains an explicit escape hatch
+
+When a query cannot yet be expressed through the declarative surface, raw SQL remains available through SwifQL itself:
+
+```swift
+try await SwifQL
+    .raw("PRAGMA version")
+    .execute(on: connection)
+```
+
+Treat `SwifQL.raw(...)` as an escape hatch. Normal examples should prefer declarative SwifQL construction.
+
+### Choose the more specific capability when the workload changes
+
+Basic query execution is not meant to absorb every public workflow.
+
+Use a reusable `Statement` when one prepared SQL shape repeats with changing values.
+
+Use `Connection.transaction` and its supplied `Transaction` when multiple same-Connection operations need one explicit commit/rollback boundary.
+
+Use `Connection.appender` for bulk complete-row ingestion, or `Transaction.appender` when that ingestion must participate in an already-active explicit transaction.
+
+The important design message is to keep ownership and capability boundaries explicit rather than introducing ambient behavior.
+
+### Current non-goals
+
+Do not turn the baseline query API into implied support for:
+
+```text
+ORM/repository persistence
+arbitrary Codable model decoding
+migrations
+connection pooling
+observation/reactive queries
+manual transaction lifecycle controls
+savepoints/custom isolation
+advanced Appender lifecycle surfaces
+complex nested result families beyond the current Value model
+platform-support guarantees not documented by the current public package
+```
+
+### Best publication angles
+
+Preserve these user-facing angles:
+
+1. `Database` owns storage while `Connection` owns one executable native connection;
+2. declarative SwifQL is the normal query language, with raw SQL kept explicit;
+3. `query` returns materialized result data while `execute` returns rows changed;
+4. exact typed Row/Value reading avoids silent numeric coercion;
+5. multiple Connections are the explicit boundary for independent concurrent work.
+
+## 005 — Scoped Transactions: explicit participation without ambient magic
+
+Status: **implemented source material / future article-publication candidate**
+
+Trigger for publication: when the maintainer chooses to turn this durable source material into channel-specific public copy.
+
+### The smallest useful transaction
+
+SwiftDuckDB exposes transactions as a scoped capability supplied by `Connection.transaction`:
+
+```swift
+let users = Path.Table("users")
+
+let result = try await connection.transaction { transaction in
+    try await SwifQL
+        .insertInto(users, fields: "email", "name", "role")
+        .values
+        .values("mira@example.com", "Mira", "admin")
+        .execute(on: transaction)
+
+    return try await SwifQL
+        .select(users.column("email"), users.column("name"))
+        .from(users)
+        .query(on: transaction)
+}
+```
+
+The supplied `Transaction` is how same-Connection work explicitly participates. SwiftDuckDB does not turn the underlying Connection into an ambient transaction mode that ordinary APIs silently join.
+
+### A successful body is not the COMMIT itself
+
+The transaction body can return successfully, but the transaction is not complete until COMMIT finalization succeeds.
+
+The caller-visible sequence is:
+
+```text
+enter scoped transaction
+-> run awaited body work through Transaction
+-> body returns
+-> final COMMIT attempt
+-> return body result only after successful finalization
+```
+
+A thrown body error or observed cancellation takes the rollback path instead.
+
+### Same-Connection work must use the supplied Transaction
+
+Inside a live transaction scope, ordinary query/execute work on that same Connection is rejected rather than silently joining.
+
+That means the following design rule stays visible in application code:
+
+```text
+same Connection + should participate -> use Transaction
+another Connection + independent work -> use that other Connection directly
+```
+
+This avoids hidden transaction participation and makes ownership clear at the call site.
+
+### A caught database operation failure cannot restore COMMIT eligibility
+
+When a transaction operation records a database failure or cancellation as the first rollback-only reason, catching that immediate error inside the body does not make the transaction healthy again.
+
+If the body later returns successfully, finalization rolls back and surfaces the stored first failure rather than performing a false COMMIT.
+
+This distinction matters because ordinary Swift error-catching controls local control flow, but it cannot erase already-recorded transaction state.
+
+### Body errors and cancellation roll back
+
+An arbitrary error thrown from the transaction body triggers mandatory rollback cleanup. When rollback succeeds, the original body error remains the caller-visible error.
+
+Cancellation follows the same transaction-cleanup model when observed. Cancellation is cooperative at Swift/native boundaries; SwiftDuckDB does not promise instantaneous preemption of a synchronous DuckDB C call already running.
+
+If mandatory rollback cleanup itself fails while another error is already being handled, SwiftDuckDB throws `TransactionRollbackError` with both:
+
+```text
+originalError
+rollbackError: DatabaseError
+```
+
+The affected Connection is fail-closed after unrecoverable rollback cleanup failure, so later work receives `.connectionUnusable` and callers should create a fresh Connection.
+
+### Transaction lifetime is scoped
+
+A `Transaction` is not a reusable connection mode. Once its body/finalization has ended, later work through an escaped Transaction is rejected with `.transactionEnded`.
+
+Starting another transaction on the same Connection while one is already pending or active is rejected with `.transactionAlreadyActive`.
+
+Separate Connections remain independent.
+
+### Structured child operations can share the Transaction
+
+Structured child tasks may submit work through the same live `Transaction` as long as all participating work is awaited before the transaction body returns.
+
+The native transaction operations remain serialized through the transaction's Connection-owned scheduling. Concurrent Swift submission therefore does not imply parallel native execution on one connection.
+
+Use another Connection for work that should proceed independently and must not join the current transaction.
+
+### Reusable Statements participate explicitly
+
+A reusable `Statement` belongs to the Connection that prepared it. Given `insertUser` and `findUser` prepared earlier on that same Connection, use the explicit transaction overloads inside the transaction scope:
+
+```swift
+try await connection.transaction { transaction in
+    try await insertUser.execute(
+        on: transaction,
+        "transaction@example.com",
+        "Transaction User"
+    )
+
+    let result = try await findUser.query(
+        on: transaction,
+        "transaction@example.com"
+    )
+
+    _ = result
+}
+```
+
+A Statement cannot execute on a Transaction from another Connection; SwiftDuckDB rejects that mismatch before the unrelated transaction is poisoned.
+
+Ordinary `statement.query(...)` / `statement.execute(...)` from a live same-Connection transaction body is also rejected. Transaction participation remains explicit through the `on: transaction` forms.
+
+### Appender ingestion can share the same explicit rollback boundary
+
+For high-volume complete rows that should commit or roll back with the rest of the transaction, use `transaction.appender(to:)`:
+
+```swift
+let events = Path.Table("events")
+
+try await connection.transaction { transaction in
+    try await transaction.appender(to: events) { appender in
+        try await appender.append(Int32(1), "opened", Data())
+        try await appender.append(Int32(2), "closed", Data())
+    }
+}
+```
+
+The Appender scope does not commit independently and is not a nested transaction or savepoint. Auto-flushed transaction-Appender batches remain transaction-local: outer COMMIT persists them and outer ROLLBACK removes them.
+
+A failed transaction-Appender scope leaves the outer transaction rollback-only. Detailed Appender row-validation, terminal-failure, and live-Appender dependency rules belong in the dedicated Appender guidance.
+
+### COMMIT failure is deliberately conservative
+
+There are two caller-relevant failure boundaries.
+
+If COMMIT setup fails before native execution scheduling begins, SwiftDuckDB runs mandatory rollback cleanup. The Connection may remain reusable when that cleanup succeeds.
+
+If COMMIT failure occurs after native execution scheduling has begun, the native postcondition is ambiguous. SwiftDuckDB does not retry COMMIT or issue a compensating rollback that could misrepresent what DuckDB actually committed. The Connection is conservatively fail-closed.
+
+Callers should rely on typed Swift errors and Connection state, not parse native diagnostic text to infer an internal failure stage.
+
+### Do not build a second transaction lifecycle with raw SQL
+
+Normal SwiftDuckDB execution routes reject user-issued transaction-control statements such as manual `BEGIN`, `COMMIT`, or `ROLLBACK`.
+
+Use the scoped `Connection.transaction` API instead of layering manual transaction control over the same Connection.
+
+### Current non-goals
+
+The current public transaction capability does not advertise:
+
+```text
+savepoints
+nested manual transaction lifecycles
+manual BEGIN/COMMIT/ROLLBACK control
+custom isolation levels
+READ ONLY transaction modes
+transaction pooling
+ambient same-Connection joining
+```
+
+### Best publication angles
+
+Preserve these user-facing angles:
+
+1. a `Transaction` is an explicit scoped capability, not a hidden Connection mode;
+2. catching a transaction operation failure does not restore COMMIT eligibility;
+3. Statement and Appender integrations stay explicit and share the same outer transaction boundary;
+4. separate Connections remain the clean boundary for independent concurrent work;
+5. conservative fail-close behavior is safer than pretending an ambiguous COMMIT outcome is known.

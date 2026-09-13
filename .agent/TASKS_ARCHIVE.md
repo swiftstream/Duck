@@ -43,3 +43,7 @@ Introduced public scoped complete-row `Appender` ingestion for table/schema/cata
 ### Explicit Transaction Appender participation
 
 Added explicit `Transaction.appender` participation for all three target forms using the same public `Appender` and Connection native owner, with one transaction operation across body plus close/discard, rollback-safe auto-flush under an explicit outer transaction, rollback-only first-reason semantics, fail-closed mandatory teardown, same-scope guards, and cross-Connection independence. The accepted vertical is covered by 23 durable tests, 293/293 full validation, and an R2 final root audit CLEAN.
+
+### Public capability guidance backfill
+
+Completed historical guidance coverage for query execution, Transactions, reusable Statements, and Appender. Each capability now has README coverage, durable publication source, and a source-owned public Agent Skill. Central skill onboarding remains separate.
