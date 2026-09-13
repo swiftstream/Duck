@@ -4,35 +4,9 @@ Only active approved executable implementation/closure work belongs here. Detail
 
 ## Current closure state
 
-**Appender-in-Transaction is closed accepted work, not active work.** R2 is CLEAN/coordinator-accepted with zero blockers, and Task 06 has completed the final durable-governance closure.
+No active executable capability is currently authorized. Appender-in-Transaction is closed accepted work after R2 CLEAN/coordinator acceptance and Task 06 durable-governance closure. Its compact completed milestone belongs in TASKS_ARCHIVE.md; detailed execution/audit lineage remains in .artifacts/**.
 
-Current tracked baseline is:
-
-```text
-branch: master
-HEAD: 2c740dbe5719e0044ad72de1275fd768f443d268
-subject: 📖 Activate transaction Appender work
-```
-
-## Active sequencing
-
-```text
-Research 01 — ACCEPTED: Appender-in-Transaction architecture + pinned native runtime evidence
-Plan Audit 01 — BLOCKED: B01/B02
-Correction 01 — FROZEN: fail-closed mandatory teardown + non-vacuous sibling evidence split
-Plan Re-audit 01 — CLEAN / COORDINATOR-ACCEPTED: B01 CLOSED, B02 CLOSED, no new blockers
-Task 00 — ACCEPTED: stable task activation
-Task 01 — ACCEPTED: production scheduler/lifetime/public API
-Task 02 — ACCEPTED: core public semantics + deterministic scheduler/failure coverage
-Task 03 — ACCEPTED: auto-flush/cancellation/failure hardening
-R1 — CLEAN / COORDINATOR-ACCEPTED: fresh source/diff/evidence/root audit
-Task 04 — ACCEPTED: README + Appender skill + publication source
-Task 05 — ACCEPTED: full validation candidate
-R2 — CLEAN / COORDINATOR-ACCEPTED: fresh final root audit
-Task 06 — CLOSED: durable governance/final closure
-```
-
-No next executable capability is authorized merely by this closure. Future ideas remain in `TODO.md`/`OPEN_DECISIONS.md` and require promotion through research and reviewed planning.
+Future ideas in TODO.md / OPEN_DECISIONS.md require promotion through fresh research and reviewed planning before becoming active work.
 
 ## Universal Wave B path contract
 
