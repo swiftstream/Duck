@@ -218,3 +218,63 @@ extension Table {
         _ = try await connection.execute(query)
     }
 }
+
+// MARK: - Public Transaction-backed persistence conveniences
+
+extension Table {
+    /// Inserts this model through the supplied transaction and returns the
+    /// database-decoded row from `RETURNING *`.
+    ///
+    /// Uninitialized optional columns are omitted so database defaults remain
+    /// eligible. Explicit `Optional.none` binds SQL `NULL`.
+    public func insert(on transaction: Transaction) async throws -> Self {
+        let query = try persistenceInsertQuery(returning: true)
+        let result = try await transaction.query(query)
+        guard let decoded = try result.first(decoding: Self.self) else {
+            throw DatabaseError.invalidResult(
+                "INSERT RETURNING produced no row for model \(String(describing: Self.self)) table \(Self.tableName)"
+            )
+        }
+        return decoded
+    }
+
+    /// Inserts this model through the supplied transaction without decoding a row.
+    public func insertNonReturning(on transaction: Transaction) async throws {
+        let query = try persistenceInsertQuery(returning: false)
+        _ = try await transaction.execute(query)
+    }
+
+    /// Updates changed non-key fields through the supplied transaction and returns
+    /// the database-decoded row from `RETURNING *`.
+    ///
+    /// A zero-changed model returns `self` without SQL execution. A missing key
+    /// row after execution throws `DatabaseError.invalidResult`.
+    public func update<C: ColumnRepresentable>(
+        on keyColumn: KeyPath<Self, C>,
+        on transaction: Transaction
+    ) async throws -> Self {
+        guard let query = try persistenceUpdateQuery(on: keyColumn, returning: true) else {
+            return self
+        }
+        let result = try await transaction.query(query)
+        guard let decoded = try result.first(decoding: Self.self) else {
+            let keyName = Self.key(for: keyColumn)
+            throw DatabaseError.invalidResult(
+                "UPDATE RETURNING produced no row for model \(String(describing: Self.self)) table \(Self.tableName) key column '\(keyName)'"
+            )
+        }
+        return decoded
+    }
+
+    /// Updates changed non-key fields through the supplied transaction without
+    /// decoding a row. A zero-changed model returns successfully without SQL.
+    public func updateNonReturning<C: ColumnRepresentable>(
+        on keyColumn: KeyPath<Self, C>,
+        on transaction: Transaction
+    ) async throws {
+        guard let query = try persistenceUpdateQuery(on: keyColumn, returning: false) else {
+            return
+        }
+        _ = try await transaction.execute(query)
+    }
+}
