@@ -51,6 +51,10 @@ func normalizeBinding(_ value: Any) throws -> Value {
         return value
     }
 
+    if let preparedModelValue = exactCast(value, as: PreparedModelValue.self) {
+        return preparedModelValue.value
+    }
+
     if let optional = value as? OptionalBindingValue {
         guard let wrapped = optional.wrappedBindingValue else {
             return .null
