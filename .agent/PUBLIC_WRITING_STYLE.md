@@ -50,9 +50,9 @@ Public docs must match current validated source.
 Do not advertise:
 
 - planned transaction features beyond the implemented scoped Transaction API;
-- Codable/model decoding;
-- migrations/ORM/repositories;
-- observation/reactivity;
+- broad ORM/repository semantics beyond the validated flat Codable/model layer and explicit insert/update conveniences;
+- arbitrary nested/unkeyed Codable model graphs that are not part of the current flat keyed model boundary;
+- migrations, observation/reactivity, connection pooling, or other deferred capabilities;
 - platform support not actually validated;
 - unpublished package versions.
 

@@ -37,6 +37,12 @@ Exact Foundation.Decimal integration
 - README: PRESENT
 - detailed social/article source: PRESENT below
 - public Agent Skill coverage: Appender-specific Decimal contract PRESENT in `swiftduckdb-appender`; broader cross-surface publication remains sourced below
+
+Codable / Model Layer
+- implementation: accepted flat keyed Row/QueryResult Decodable projection, exact flat ModelEncoder, and explicit Connection/Transaction Table insert/update conveniences
+- README: PRESENT
+- detailed social/article source: PRESENT below as 006
+- public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-codable-models`; central federation onboarding/publication remains separate
 ```
 
 All future public capabilities automatically enter this register/closure model. Completing implementation without README + detailed publication source + skill coverage is not considered full public-capability closure.
@@ -237,7 +243,7 @@ SwifQL query template
 -> query/execute
 ```
 
-They do not imply model persistence, repositories, automatic Codable mapping, migrations, or observation/reactive semantics.
+They do not themselves provide the separate Codable / Model Layer, repository identity semantics, migrations, or observation/reactive behavior. Use the dedicated model capability when flat Codable projection or explicit Table insert/update is the actual task.
 
 ### Best publication angles
 
@@ -874,8 +880,8 @@ The important design message is to keep ownership and capability boundaries expl
 Do not turn the baseline query API into implied support for:
 
 ```text
-ORM/repository persistence
-arbitrary Codable model decoding
+broad ORM/repository identity semantics beyond the dedicated flat Codable/model capability
+arbitrary nested/unkeyed Codable model graphs beyond the dedicated model layer
 migrations
 connection pooling
 observation/reactive queries
@@ -885,6 +891,8 @@ advanced Appender lifecycle surfaces
 complex nested result families beyond the current Value model
 platform-support guarantees not documented by the current public package
 ```
+
+Flat model decoding/encoding and explicit Table insert/update now belong to the dedicated Codable / Model Layer capability rather than the baseline query-execution story.
 
 ### Best publication angles
 
@@ -1076,3 +1084,303 @@ Preserve these user-facing angles:
 3. Statement and Appender integrations stay explicit and share the same outer transaction boundary;
 4. separate Connections remain the clean boundary for independent concurrent work;
 5. conservative fail-close behavior is safer than pretending an ambiguous COMMIT outcome is known.
+
+## 006 — Codable / Model Layer: typed rows and explicit persistence without a broad ORM
+
+Status: **implemented source material / future article-publication candidate**
+
+Trigger for publication: when the maintainer chooses to turn this durable source material into channel-specific public copy.
+
+### The problem this capability solves
+
+SwiftDuckDB already materializes query results into Swift-owned `QueryResult`, `Row`, and `Value` values. The Codable / Model Layer adds a typed projection on top of that ownership model so applications can move between flat database rows and Swift models without hand-reading every column.
+
+The design deliberately stops short of pretending SwiftDuckDB is a full ORM. The useful boundary is:
+
+```text
+materialized row -> flat Decodable model
+flat Encodable model -> ordered exact Value fields
+Table model -> explicit insert/update on a supplied Connection or Transaction
+```
+
+Ownership remains visible at the call site and query construction remains SwifQL-backed.
+
+### Decode a result directly into a flat model
+
+```swift
+struct UserRecord: Codable {
+    let email: String
+    let name: String
+    let role: String
+}
+
+let usersTable = Path.Table("users")
+
+let result = try await SwifQL
+    .select(
+        usersTable.column("email"),
+        usersTable.column("name"),
+        usersTable.column("role")
+    )
+    .from(usersTable)
+    .query(on: connection)
+
+let users = try result.all(decoding: UserRecord.self)
+```
+
+For one materialized `Row`:
+
+```swift
+let user = try row.decode(UserRecord.self)
+```
+
+For the first result row:
+
+```swift
+let user = try result.first(decoding: UserRecord.self)
+```
+
+`first(decoding:)` returns `nil` only when there are no rows. A malformed row throws rather than disappearing as `nil`. `all(decoding:)` preserves row order and throws on the first malformed row rather than returning a partial success.
+
+### Prefixes and CodingKeys stay deterministic
+
+Column lookup uses the model's coding keys. A `prefix:` can scope joined/aliased result columns:
+
+```swift
+let user = try row.decode(UserRecord.self, prefix: "user_")
+```
+
+Exactly one leading prefix occurrence is stripped before coding-key lookup. Columns outside the requested prefix are invisible to that decode.
+
+Custom `CodingKeys` work through normal Decodable semantics. Ambiguous duplicate visible column names are rejected rather than resolved by first/last-wins guessing.
+
+### Missing, NULL, and wrong type are different states
+
+The model decoder preserves the distinction between:
+
+```text
+column/key missing
+SQL NULL present
+non-NULL value of the wrong native kind
+```
+
+Optional properties can represent SQL NULL. A required property receiving NULL throws `DecodingError.valueNotFound`. A missing required key or incompatible native family also throws the corresponding `DecodingError` rather than silently coercing or defaulting.
+
+Numeric decoding uses checked conversions where Swift's platform-sized `Int`/`UInt` is involved. Native SwiftDuckDB scalar families take precedence over raw-value fallback, while scalar raw-value enums remain usable where their raw value is supported.
+
+### The model boundary is flat on purpose
+
+The current decoder is a flat keyed projection. It does not advertise arbitrary nested keyed objects, nested arrays, top-level collections, or top-level scalar Codable graphs.
+
+That boundary keeps SQL result-column identity explicit and prevents a simple row projection API from quietly turning into an object graph mapper.
+
+### Encode a flat model into exact SwiftDuckDB values
+
+`ModelEncoder` projects a flat keyed `Encodable` value into ordered fields:
+
+```swift
+let encoded = try ModelEncoder().encode(
+    UserRecord(
+        email: "mira@example.com",
+        name: "Mira",
+        role: "admin"
+    )
+)
+
+for field in encoded.fields {
+    print(field.key, field.value.kind)
+}
+```
+
+The encoder preserves:
+
+```text
+CodingKeys as field names
+model encoding order
+exact SwiftDuckDB Value families
+checked platform Int/UInt conversion
+UUID / Data / Decimal / temporal / Interval values
+availability-gated Int128 / UInt128 support
+scalar raw-value enum fallback
+```
+
+It does not fall back to `Mirror`, textual stringification, or generic nested-object serialization.
+
+Ordinary synthesized `Optional.none` commonly disappears through `encodeIfPresent`. An explicit `encodeNil(forKey:)` is different: it emits `Value.null`.
+
+### Table wrapper state adds omission-versus-NULL semantics
+
+For `Table` persistence, wrapper state matters in addition to ordinary Encodable output.
+
+An untouched optional `@Column` is omitted from INSERT preparation, so a database default can still apply. Explicitly assigning `nil` marks that column as an explicit SQL NULL.
+
+That gives applications a meaningful three-way distinction:
+
+```text
+untouched optional column -> omit from INSERT / let database default participate
+explicit nil             -> bind SQL NULL
+non-nil value            -> bind exact value
+```
+
+This behavior is especially useful for generated/default IDs, timestamps, and nullable fields whose database default should not be overwritten accidentally.
+
+### Insert a Table model and decode RETURNING
+
+Given an existing table matching this model:
+
+```swift
+struct Note: Table {
+    static let tableName = "notes"
+
+    @Column("id", default: .default(1))
+    var id: Int64?
+
+    @Column("title")
+    var title: String
+
+    @Column("body")
+    var body: String?
+
+    init() {}
+}
+```
+
+Create and insert a value through an explicit Connection:
+
+```swift
+var note = Note()
+note.title = "Draft"
+
+let inserted = try await note.insert(on: connection)
+```
+
+The returning form uses `RETURNING *` and decodes the database row back into `Note`, so database-generated/default values can come back through the same model decoder.
+
+When the returned row is not needed:
+
+```swift
+try await note.insertNonReturning(on: connection)
+```
+
+### Update only changed non-key fields
+
+```swift
+inserted.title = "Published"
+
+let updated = try await inserted.update(
+    on: \.$id,
+    on: connection
+)
+```
+
+The selected key column is used in `WHERE` and excluded from `SET`. Only changed non-key fields are emitted.
+
+If the model has no changed non-key fields, SwiftDuckDB performs no UPDATE SQL at all. The returning overload returns `self`; the non-returning overload returns `Void`.
+
+The non-returning form is:
+
+```swift
+try await inserted.updateNonReturning(
+    on: \.$id,
+    on: connection
+)
+```
+
+The current public persistence surface is intentionally small:
+
+```text
+insert(on: Connection) -> Self
+insertNonReturning(on: Connection)
+update(on:key,on: Connection) -> Self
+updateNonReturning(on:key,on: Connection)
+
+insert(on: Transaction) -> Self
+insertNonReturning(on: Transaction)
+update(on:key,on: Transaction) -> Self
+updateNonReturning(on:key,on: Transaction)
+```
+
+There is no model-level delete/upsert/batch/arbitrary-WHERE expansion hidden behind this capability.
+
+### Use the same model operations inside an explicit transaction
+
+```swift
+try await connection.transaction { transaction in
+    var note = Note()
+    note.title = "Transactional draft"
+
+    let inserted = try await note.insert(on: transaction)
+    inserted.title = "Transactional update"
+
+    _ = try await inserted.update(
+        on: \.$id,
+        on: transaction
+    )
+}
+```
+
+Transaction-backed model persistence reuses the same model query builders and then executes through the existing `Transaction` query/execute engine.
+
+That means model persistence inherits the same explicit transaction boundary:
+
+```text
+same Connection + should participate -> pass Transaction
+ordinary same-Connection API inside live transaction -> rejected rather than ambiently joined
+body/operation failure -> existing rollback/rollback-only semantics
+escaped Transaction -> transactionEnded
+```
+
+The model layer does not create a second transaction state machine.
+
+### Model payloads remain prepared values, not SQL literals
+
+Dynamic model payloads render as placeholders and travel through SwiftDuckDB's prepared binding normalization. The concrete values are not interpolated into rendered SQL text.
+
+This matters both for correctness and for preserving exact native families such as UUID, Data, Decimal, temporal values, and Interval.
+
+### When direct SwifQL is still the better tool
+
+The model conveniences are for the common whole-model INSERT and key-based changed-field UPDATE shapes.
+
+Use normal SwifQL directly when you need:
+
+```text
+arbitrary WHERE predicates
+joins/aggregates/window expressions
+custom SET expressions
+delete/upsert shapes
+batch operations
+partial projections that are not a model decode
+query forms outside the small persistence convenience surface
+```
+
+SwiftDuckDB keeps direct query construction available rather than forcing every database operation through models.
+
+### Current non-goals
+
+Do not turn this capability into implied support for:
+
+```text
+repository identity maps or unit-of-work semantics
+save/persist magic or automatic graph persistence
+model delete/upsert/batch/arbitrary-WHERE CRUD APIs
+arbitrary nested Codable object/array graphs
+migrations/schema evolution
+observation/reactive queries
+connection pooling
+savepoints/manual transaction lifecycle/custom isolation
+implicit ambient transaction participation
+new platform/runtime guarantees
+application-specific readiness claims
+```
+
+### Best publication angles
+
+Preserve these user-facing angles:
+
+1. SwiftDuckDB can decode materialized rows into flat typed models without extending native result lifetime;
+2. ModelEncoder preserves exact database-relevant scalar families instead of stringifying values;
+3. untouched optional Table columns and explicit NULL are intentionally different persistence states;
+4. insert/update conveniences remain explicit about their Connection or Transaction owner;
+5. changed-field key updates cover a useful model workflow without pretending SwiftDuckDB is a broad ORM;
+6. direct SwifQL remains the escape path whenever the small model convenience surface is not the right abstraction.

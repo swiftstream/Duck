@@ -147,15 +147,17 @@ Use `Connection.transaction` and the supplied `Transaction` when multiple same-C
 
 Use `Connection.appender` for bulk complete-row ingestion, or `Transaction.appender` when that ingestion must participate in an already-active explicit transaction.
 
-Do not duplicate the detailed Statement, Transaction, or Appender lifecycle rules in this basic query workflow; switch to the dedicated skill when those semantics become central.
+Use the dedicated `swiftduckdb-codable-models` skill when work centers on `Row.decode`, `QueryResult.first/all(decoding:)`, `ModelEncoder`, or explicit `Table` insert/update through a `Connection` or `Transaction`.
+
+Do not duplicate the detailed Statement, Transaction, Appender, or Codable/model lifecycle rules in this basic query workflow; switch to the dedicated skill when those semantics become central.
 
 ## 10. Current non-goals
 
 Do not infer these capabilities from basic query execution:
 
 ```text
-ORM/repository persistence
-arbitrary Codable model decoding
+broad ORM/repository identity semantics beyond the dedicated flat Codable/model layer
+arbitrary nested/unkeyed Codable model graphs beyond the current flat model boundary
 migrations
 connection pooling
 observation/reactive queries
@@ -165,5 +167,7 @@ advanced Appender lifecycle surfaces
 complex nested result families not implemented by the current Value model
 platform-support guarantees not documented by the current public package
 ```
+
+Flat model decoding/encoding and explicit Table insert/update are supported, but they belong to the dedicated model skill rather than this baseline query workflow.
 
 Keep generated code on the current public SwiftDuckDB + SwifQL surface and preserve explicit ownership boundaries.

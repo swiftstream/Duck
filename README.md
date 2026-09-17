@@ -137,6 +137,109 @@ let result = try await connection.query(query)
 
 Both forms use the same execution engine.
 
+## Decode rows into flat Codable models
+
+`Row` and `QueryResult` can project materialized result data into flat keyed `Decodable` models without giving the model access to native DuckDB result lifetime.
+
+```swift
+struct UserRecord: Codable {
+    let email: String
+    let name: String
+    let role: String
+}
+
+let result = try await User
+    .select(\.$email, \.$name, \.$role)
+    .query(on: connection)
+
+let users = try result.all(decoding: UserRecord.self)
+```
+
+For one row, use `row.decode(UserRecord.self)`. `result.first(decoding:)` returns `nil` only when the result has no rows; a malformed row still throws. `result.all(decoding:)` preserves row order and throws on the first decoding failure.
+
+Column matching uses the model's coding keys. Pass `prefix:` when a result set uses prefixed aliases; one leading prefix occurrence is stripped before coding-key lookup. Ambiguous duplicate visible names are rejected rather than guessed. A missing required key, SQL `NULL` in a required position, or an incompatible native value throws `DecodingError`.
+
+The current model decoder is intentionally flat and keyed. It does not advertise arbitrary nested keyed/unkeyed object graphs or top-level collection/scalar decoding.
+
+## Encode flat models into exact SwiftDuckDB values
+
+`ModelEncoder` performs the inverse flat projection into ordered SwiftDuckDB `Value` fields:
+
+```swift
+let encoded = try ModelEncoder().encode(
+    UserRecord(
+        email: "mira@example.com",
+        name: "Mira",
+        role: "admin"
+    )
+)
+
+for field in encoded.fields {
+    print(field.key, field.value.kind)
+}
+```
+
+Field names follow `CodingKeys`, and field order follows the model's encoding order. Supported scalars keep their exact SwiftDuckDB value families, including UUID, Data, Foundation.Decimal, temporal values, Interval, and the availability-gated 128-bit integer bridges. Ordinary synthesized `Optional.none` values may be omitted by `encodeIfPresent`; an explicit `encodeNil(forKey:)` becomes SQL-style `Value.null` semantics. Unsupported nested, unkeyed, or top-level scalar shapes throw instead of falling back to reflection or stringification.
+
+## Persist `Table` models with explicit Connection or Transaction ownership
+
+For `Table` models, SwiftDuckDB provides a deliberately small insert/update convenience layer. Given an existing `notes` table matching this model:
+
+```swift
+struct Note: Table {
+    static let tableName = "notes"
+
+    @Column("id", default: .default(1))
+    var id: Int64?
+
+    @Column("title")
+    var title: String
+
+    @Column("body")
+    var body: String?
+
+    init() {}
+}
+
+var note = Note()
+note.title = "Draft"
+
+let inserted = try await note.insert(on: connection)
+inserted.title = "Published"
+
+let updated = try await inserted.update(
+    on: \.$id,
+    on: connection
+)
+```
+
+The returning forms use `RETURNING *` and decode the database row back into `Self`. Non-returning variants are also available as `insertNonReturning(on:)` and `updateNonReturning(on:on:)`.
+
+Untouched optional `@Column` values are omitted from INSERT preparation so a database default can remain eligible. Explicitly assigning `nil` to an optional column records an explicit SQL `NULL`. UPDATE uses changed non-key fields only; the selected key column is used only in `WHERE` and is excluded from `SET`. If nothing changed, UPDATE returns `self` / `Void` without executing SQL.
+
+The same four operations are available on the explicit transaction capability:
+
+```swift
+try await connection.transaction { transaction in
+    var note = Note()
+    note.title = "Transactional draft"
+
+    let inserted = try await note.insert(on: transaction)
+    inserted.title = "Transactional update"
+
+    _ = try await inserted.update(
+        on: \.$id,
+        on: transaction
+    )
+}
+```
+
+Transaction-backed model persistence reuses the same model query builders and executes through the existing `Transaction` engine. It does not create ambient transaction participation: same-Connection work that should participate still uses the supplied `Transaction` explicitly.
+
+Model payloads travel through prepared placeholders rather than being interpolated into SQL text.
+
+This model layer is not a broad ORM. It does not advertise repository identity maps, `save`/`persist` aliases, model delete/upsert/batch/arbitrary-WHERE persistence, migrations, observation/reactivity, pooling, arbitrary nested model graphs, savepoints/manual transaction lifecycle/custom isolation, new platform guarantees, or application-specific readiness claims.
+
 ## Mutations and `rowsChanged`
 
 Use `.execute(on:)` for statements where you need the number of changed rows rather than materialized rows.
@@ -563,6 +666,6 @@ Treat `SwifQL.raw(...)` as an escape hatch. Normal SwiftDuckDB examples should p
 
 ## Current scope
 
-The current public slice covers database/connection ownership, SwifQL query execution, reusable prepared statements, scoped transactions, ordinary scoped complete-row Appender ingestion, explicit-Transaction Appender participation, primitive, temporal, Interval, and exact Foundation.Decimal binding/result values, mutation row counts, typed-table selected-column convenience, structured connection concurrency, and cancellation-aware execution.
+The current public slice covers database/connection ownership, SwifQL query execution, reusable prepared statements, scoped transactions, ordinary scoped complete-row Appender ingestion, explicit-Transaction Appender participation, primitive, temporal, Interval, and exact Foundation.Decimal binding/result values, mutation row counts, typed-table selected-column convenience, flat keyed Codable row/result projection, exact flat `ModelEncoder` values, explicit Connection/Transaction `Table` insert/update conveniences, structured connection concurrency, and cancellation-aware execution.
 
-The current API does not yet advertise advanced Appender selected-column/DEFAULT/query/data-chunk/manual-lifecycle surfaces, Codable model decoding, ORM/repository semantics, connection pooling, observation/reactive queries, migrations, savepoints/manual transaction lifecycle controls, custom transaction isolation modes, or complex result families beyond the exact Decimal vertical.
+The current API does not advertise advanced Appender selected-column/DEFAULT/query/data-chunk/manual-lifecycle surfaces, broad ORM/repository identity semantics, model delete/upsert/batch/arbitrary-WHERE persistence, arbitrary nested model graphs, connection pooling, observation/reactive queries, migrations, savepoints/manual transaction lifecycle controls, custom transaction isolation modes, or complex result families beyond the currently implemented Value families.
