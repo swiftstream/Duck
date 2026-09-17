@@ -809,11 +809,19 @@ func swifQLTableDecodeCompatibility() async throws {
         )
         .execute(on: connection)
 
+    let id = UUID(uuid: (
+        0x11, 0x11, 0x11, 0x11,
+        0x22, 0x22,
+        0x33, 0x33,
+        0x44, 0x44,
+        0x55, 0x55, 0x55, 0x55, 0x55, 0x55
+    ))
+
     try await SwifQL
         .insertInto(table, fields: "id", "name", "age", "score", "created_at", "email", "status")
         .values
         .values(
-            UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            id,
             "column-user",
             30,
             Int64(100),

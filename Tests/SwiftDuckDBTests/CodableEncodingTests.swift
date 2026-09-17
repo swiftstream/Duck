@@ -253,6 +253,26 @@ private struct CodableEncodeUser: Table {
 
 // MARK: - Helpers
 
+private let sampleEncodeUUID = UUID(uuid: (
+    0x11, 0x11, 0x11, 0x11,
+    0x22, 0x22,
+    0x33, 0x33,
+    0x44, 0x44,
+    0x55, 0x55, 0x55, 0x55, 0x55, 0x55
+))
+
+private let sampleEncodeDecimal1234_56 = Decimal(
+    sign: .plus,
+    exponent: -2,
+    significand: Decimal(123_456)
+)
+
+private let sampleEncodeDecimal12_34 = Decimal(
+    sign: .plus,
+    exponent: -2,
+    significand: Decimal(1_234)
+)
+
 private func field(_ model: EncodedModel, _ key: String) throws -> Value {
     try #require(model.fields.first(where: { $0.key == key })?.value)
 }
@@ -270,10 +290,10 @@ func encodePlainModelAndOrder() throws {
         flag: true,
         count: 99,
         exactInt64: 42,
-        id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+        id: sampleEncodeUUID,
         createdAt: Date(timeIntervalSince1970: 1_700_000_000),
         payload: Data([0xDE, 0xAD, 0xBE, 0xEF]),
-        amount: Decimal(string: "1234.56")!,
+        amount: sampleEncodeDecimal1234_56,
         note: "hello"
     )
 
@@ -297,11 +317,11 @@ func encodePlainModelAndOrder() throws {
     #expect(try field(encoded, "exact_int64") == .int64(42))
     #expect(
         try field(encoded, "id")
-            == .uuid(UUID(uuidString: "11111111-2222-3333-4444-555555555555")!)
+            == .uuid(sampleEncodeUUID)
     )
     #expect(try field(encoded, "created_at") == .timestampTZ(Date(timeIntervalSince1970: 1_700_000_000)))
     #expect(try field(encoded, "payload") == .blob(Data([0xDE, 0xAD, 0xBE, 0xEF])))
-    #expect(try field(encoded, "amount") == .decimal(Decimal(string: "1234.56")!))
+    #expect(try field(encoded, "amount") == .decimal(sampleEncodeDecimal1234_56))
     #expect(try field(encoded, "note") == .string("hello"))
 }
 
@@ -393,7 +413,7 @@ func intUIntPolicy() throws {
 
 @Test("UUID/Date/Data/Decimal/temporal/Interval encode as exact native Values")
 func nativeObjectPrecedence() throws {
-    let uuid = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+    let uuid = sampleEncodeUUID
     #expect(try field(ModelEncoder().encode(UUIDEncodeModel(value: uuid)), "value") == .uuid(uuid))
 
     let date = Date(timeIntervalSince1970: 1_700_000_000)
@@ -402,7 +422,7 @@ func nativeObjectPrecedence() throws {
     let data = Data([0x01, 0x02])
     #expect(try field(ModelEncoder().encode(DataEncodeModel(value: data)), "value") == .blob(data))
 
-    let amount = Decimal(string: "12.34")!
+    let amount = sampleEncodeDecimal12_34
     #expect(try field(ModelEncoder().encode(DecimalEncodeModel(value: amount)), "value") == .decimal(amount))
 
     let pureDate = try #require(PureDate(year: 2026, month: 9, day: 16))
@@ -547,7 +567,7 @@ func topLevelScalarRejected() throws {
 
 @Test("SwifQL Table @Column encode uses SQL keys and exact Values")
 func swifQLTableEncodeCompatibility() throws {
-    let id = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+    let id = sampleEncodeUUID
     let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
     let table = CodableEncodeUser(
         id: id,

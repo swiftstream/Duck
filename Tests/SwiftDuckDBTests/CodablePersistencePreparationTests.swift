@@ -83,9 +83,19 @@ private struct PersistenceUser: Table {
 
 // MARK: - Helpers
 
-private let sampleUUID = UUID(uuidString: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")!
+private let sampleUUID = UUID(uuid: (
+    0xaa, 0xaa, 0xaa, 0xaa,
+    0xbb, 0xbb,
+    0xcc, 0xcc,
+    0xdd, 0xdd,
+    0xee, 0xee, 0xee, 0xee, 0xee, 0xee
+))
 private let sampleDate = Date(timeIntervalSince1970: 1_700_000_000)
-private let sampleDecimal = Decimal(string: "1234.56")!
+private let sampleDecimal = Decimal(
+    sign: .plus,
+    exponent: -2,
+    significand: Decimal(123_456)
+)
 private let samplePayload = Data([0xCA, 0xFE, 0xBA, 0xBE])
 private let uniqueLiteralProbe = "WAVE_C_UNIQUE_LITERAL_PROBE_9f3a"
 
@@ -280,9 +290,19 @@ func decodedStateExtraction() async throws {
 func preparedPlaceholderAndExactBindings() throws {
     let table = Path.Table(PersistenceUser.tableName)
     let uniqueString = uniqueLiteralProbe
-    let uniqueUUID = UUID(uuidString: "12121212-3434-5656-7878-909090909090")!
+    let uniqueUUID = UUID(uuid: (
+        0x12, 0x12, 0x12, 0x12,
+        0x34, 0x34,
+        0x56, 0x56,
+        0x78, 0x78,
+        0x90, 0x90, 0x90, 0x90, 0x90, 0x90
+    ))
     let uniquePayload = Data([0x11, 0x22, 0x33, 0x44])
-    let uniqueDecimal = Decimal(string: "9876.54")!
+    let uniqueDecimal = Decimal(
+        sign: .plus,
+        exponent: -2,
+        significand: Decimal(987_654)
+    )
 
     let query = SwifQL
         .insertInto(table, fields: "required_name", "id", "payload", "amount")
