@@ -2,7 +2,7 @@
 
 Ideas and maintainer-prioritized capabilities that are not yet active approved implementation tasks.
 
-P0 `Codable / Model Layer` is COMPLETE and no longer future work. P1 `Migrations` Research 01 is the next authorized active phase and is therefore owned by `.agent/TASKS.md`, not this future-work list. Migration implementation remains gated behind completed/reviewed research and planning.
+P0 `Codable / Model Layer` is COMPLETE and no longer future work. P1 `Migrations` Research 01 is complete and primary-accepted as `NEEDS_TARGETED_PROBES`; P01-P05 targeted probes are the active gate owned by `.agent/TASKS.md`. Migration implementation remains gated behind probe review and a later reviewed implementation plan.
 
 ## Maintainer-Prioritized Pre-Vortegy Capability Order
 

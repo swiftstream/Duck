@@ -15,9 +15,11 @@ Final accepted closure anchors:
 
 Final current-source validation is 358/358 tests with 0 failures and 0 skips, build PASS, and 0 new SwiftDuckDB-owned warnings. README, detailed publication source 006, `PUBLIC_WRITING_STYLE`, `SKILL_INDEX`, the dedicated source-owned `swiftduckdb-codable-models` skill, and stable governance are accepted public closure. Both first-final-audit blockers are formally `CLOSED_BY_CORRECTION_01`.
 
-The next authorized roadmap phase is **P1 Migrations — Research 01**. Research only is authorized at this point: inspect current schema/table/query/native capabilities, existing migration-related public/internal surface, DuckDB behavior relevant to schema evolution, and dependency/reference evidence; produce evidence-backed research before any migration API plan or implementation.
+P1 `Migrations` Research 01 is complete and primary-coordinator accepted with classification `NEEDS_TARGETED_PROBES`. The preferred direction is narrowed to Database-level ownership, a dedicated fresh Connection, explicit Int64 version/name/fingerprint history, fail-closed registry/history integrity, and one existing `Connection.transaction` per pending migration, but five planning-critical behaviors remain provisional.
 
-Do not begin Migrations implementation, Observation, Pooling, Appender expansion, complex Value families, Vortegy integration, Android follow-up, or another deferred roadmap capability until separately researched/planned/authorized.
+The current authorized executable gate is **P01-P05 targeted migration probes only**: pinned DDL/DML rollback atomicity, two-Connection bootstrap/history races, same-file two-Database ownership, reusable Statement behavior after catalog mutation, and exact SwifQL Duck DDL compatibility. Do not freeze a migration implementation plan or begin migration source/API/tests until those probes are independently reviewed.
+
+Do not begin Observation, Pooling, Appender expansion, complex Value families, Vortegy integration, Android follow-up, or another deferred roadmap capability until separately researched/planned/authorized.
 
 Public Capability Closure is complete for Query Execution, Transactions, Reusable Statements, Appender, exact Foundation.Decimal, and Codable / Model Layer. Central skill federation onboarding/publication remains separate from repository-local source ownership.
 

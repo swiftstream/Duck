@@ -45,7 +45,7 @@ Resolved query-construction rules are not open decisions:
 - query-centered conveniences delegate to the same Connection engine;
 - typed-table selected-column convenience remains ordinary SwifQL construction sugar.
 
-P0 Codable / Model Layer architecture and public closure are accepted current state. The accepted surface owns arbitrary flat Row/QueryResult decoding, exact flat ModelEncoder semantics, Table/@Column persistence extraction, prepared model bindings, explicit-Connection insert/update, and matching explicit-Transaction persistence overloads that reuse the existing transaction engine. Any later expansion beyond that accepted boundary requires a new reviewed decision. The next authorized unresolved capability is P1 Migrations Research 01; migration architecture/API choices remain open until that research is completed and reviewed.
+P0 Codable / Model Layer architecture and public closure are accepted current state. The accepted surface owns arbitrary flat Row/QueryResult decoding, exact flat ModelEncoder semantics, Table/@Column persistence extraction, prepared model bindings, explicit-Connection insert/update, and matching explicit-Transaction persistence overloads that reuse the existing transaction engine. Any later expansion beyond that accepted boundary requires a new reviewed decision. P1 Migrations Research 01 is primary-accepted as `NEEDS_TARGETED_PROBES`: identity/history/integrity/runner/error/down/drift directions are narrowed, but transaction, concurrency, bootstrap, Statement/catalog, and exact SwifQL-DDL behavior remain open until P01-P05 are executed and reviewed.
 
 Still open, in maintainer priority order after P0:
 
