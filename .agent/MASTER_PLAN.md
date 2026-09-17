@@ -37,6 +37,7 @@ Shared API and semantics remain platform-independent unless a concrete platform 
 11. Enforce a public-capability closure contract for every implemented user-facing feature: README coverage, detailed article/social-post source material, and source-owned Agent Skill coverage following `swiftstream/skills` standards. **Done for historical capabilities; the closure contract remains mandatory for future public work.**
 12. Establish the open Swift-owned logical result metadata foundation (`LogicalTypeID`, `LogicalType`, `ResultColumn`, aligned `QueryResult.resultColumns`) with native deep-copy lifetime safety. **Done; fresh root audit CLEAN.**
 13. Implement the exact value/result expansion vertical for Int128/UInt128/UUID, PureDate/PureTime/DateTime, bounded-exact Foundation.Date/TIMESTAMPTZ, Interval, and Foundation.Decimal across query/Statement/Appender/result paths using the accepted P01/P02/P03 contracts. **Done: B1–B5 plus fresh R3 whole non-Decimal root audit are accepted; P03 Foundation.Decimal exactness is accepted; Wave C C1/C2/C3 are committed and the fresh R4 whole-Decimal root audit is CLEAN with zero blockers. The current exact Decimal vertical is accepted current state. Nested/complex Value remains separately gated and no next executable expansion slice is authorized by this closure.**
+14. Implement the P0 Codable / Model Layer through arbitrary `Row`/`QueryResult` decoding, exact flat `ModelEncoder`, safe `Table` persistence preparation, explicit-`Connection` INSERT/UPDATE conveniences, and later explicit-`Transaction` equivalents. **Wave A-D are primary-coordinator accepted, and the mandatory fresh independent Wave D root audit is CLEAN + primary accepted with zero blockers. Wave D exposes exactly four Connection-backed insert/update helpers with prepared bindings, omission/default versus explicit-NULL semantics, changed-field UPDATE selection, key validation, zero-changed no-SQL behavior, schema qualification, and normal-import public coverage. Wave E Transaction equivalents + rollback/ownership tests are the next planned wave and are not started yet; full macOS regression, final P0 root audit, README/publication/Agent Skill closure, and P0 completion remain separately gated.**
 
 ## Implemented First Public Query Slice
 
@@ -51,7 +52,7 @@ The current public slice includes:
 - cooperative Swift cancellation with same-owner native interruption at implemented boundaries;
 - Swift-owned `QueryResult`, `Row`, and exact scalar `Value` results, including accepted B1 UUID/hidden-word Int128/UInt128, accepted B2 PureDate/PureTime/DateTime, accepted B3 Foundation.Date/TIMESTAMPTZ, accepted B4 SwifQL.Interval/DuckDB INTERVAL support, and accepted Wave C Foundation.Decimal/DuckDB DECIMAL support;
 - typed `DatabaseError` failure categories;
-- query-centered `.query(on:)` / `.execute(on:)` conveniences that delegate to the same `Connection` engine;
+- query-centered `.query(on:)` / `.execute(on:)` conveniences that delegate to the same Connection engine;
 - typed-table selected-column syntax such as `User.select(\.$email, \.$name, \.$role)` while preserving ordinary SwifQL composition;
 - a root README describing only this reviewed surface and its evidence-bounded behavior.
 
@@ -108,7 +109,7 @@ The current public Appender capability includes:
 - complete-row actor serialization for concurrent public append calls so native columns from different public rows cannot interleave;
 - caller-local count/type failures before native row mutation and first-terminal native append/end-row failure semantics that cannot be hidden by catching the immediate body error;
 - explicit success finalization plus discard-oriented body-error/cancellation cleanup, conservative Connection fail-close when buffered-data cleanup outcome is ambiguous, and normal escaped-use rejection;
-- cooperative cancellation checks before native row mutation/final close without promising preemption of a synchronous native call already running;
+- cooperative cancellation checks before native row mutation/final close without promising preemption of a synchronous native C call already running;
 - an explicit non-atomic ordinary-scope contract: DuckDB may auto-flush prior rows before a later error/cancellation, so the complete ordinary Appender closure is not a rollback unit;
 - a transaction-Appender failure makes the explicit outer transaction rollback-only, including when the body catches the immediate failure; fail-closed cleanup still performs mandatory rollback before the reservation ends;
 
@@ -144,10 +145,9 @@ The following are not yet approved/implemented architecture unless later resolve
 - optional extension and bundle-size strategy beyond the current generated extension set;
 - any reusable prepared-statement behavior beyond the implemented first-slice capability;
 - advanced Appender behavior beyond the approved complete-row modes, including selected-column/default/query/data-chunk/manual-lifecycle surfaces, savepoints, and pooling/cache;
-- Codable/model decoding or encoding;
 - observation/reactivity;
 - migrations;
-- ORM/repository persistence features;
+- ORM/repository persistence features beyond the currently accepted P0 Codable / Model Layer boundaries;
 - connection pooling;
 - nested/complex result/value families beyond the accepted exact scalar/temporal/Decimal vertical;
 - exact Linux/Android/Windows architecture and toolchain validation matrix.

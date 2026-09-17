@@ -2,6 +2,24 @@
 
 Unresolved choices that must not be treated as implemented architecture.
 
+## Maintainer Priority Boundary
+
+The current pre-Vortegy capability order is:
+
+```text
+Codable / Model Layer (ACTIVE P0; Wave A-D + mandatory Wave D root gate accepted, Wave E+ pending)
+-> Migrations
+-> Observation / Reactive Queries
+-> Connection Pooling
+-> verified cancellation / post-COMMIT debt
+-> Advanced Appender API
+-> Nested / Complex Value & Result Families
+```
+
+Platform validation continues in parallel when its required environment is available.
+
+This priority order is durable product direction, not implementation authorization. Active P0 execution is owned by `.agent/TASKS.md`; each later capability still requires separate research, reviewed planning, implementation, and audit.
+
 ## DuckDB Integration
 
 - Long-term DuckDB upgrade/version policy beyond the approved current `v1.5.5` pin.
@@ -13,8 +31,8 @@ The current `Database` / `Connection` / `Transaction` / `Statement` / `Appender`
 
 Still unresolved for future separately reviewed capabilities:
 
-- advanced Appender surfaces such as selected columns/DEFAULT, QueryAppender, public DataChunk/vector append, manual lifecycle controls, new value families, or pooling/cache;
-- whether a future connection-pool capability is justified and, if so, its ownership/backpressure semantics.
+- **Connection Pooling — CRITICAL:** define bounded pool ownership, checkout/return semantics, FIFO/backpressure policy, cancellation safety, transaction pinning, unhealthy/fail-closed connection replacement, shutdown/drain semantics, and interaction with observation. Preserve the useful scoped `connection {}` / `transaction {}` ergonomics proven by legacy Bridges/PostgresBridge where they fit Swift concurrency; do not revive NIO/EventLoop ownership.
+- **Advanced Appender APIs — after verified transaction/cancellation debt and before nested values:** decide which of selected columns/`DEFAULT`, QueryAppender, public DataChunk/vector append, manual lifecycle controls, and additional batching surfaces are justified.
 
 ## Higher-Level Features
 
@@ -27,17 +45,39 @@ Resolved query-construction rules are not open decisions:
 - query-centered conveniences delegate to the same Connection engine;
 - typed-table selected-column convenience remains ordinary SwifQL construction sugar.
 
-Still open:
+P0 Codable / Model Layer architecture through coordinator-accepted Wave D is also no longer an open design question. The accepted research/plan owns arbitrary Row/QueryResult decoding, exact flat ModelEncoder semantics, Table/@Column persistence extraction, prepared model bindings, and the first explicit-Connection insert/update public surface. Remaining P0 work is execution/audit/closure work tracked in `.agent/TASKS.md`, not unresolved architecture here; any later expansion beyond the accepted P0 boundary requires a new reviewed decision.
 
-- Codable/model decoding and encoding strategy beyond the current explicit `Row` / `Value` surface;
-- observation/reactive query strategy;
-- migration strategy;
-- nested/complex result-family expansion policy remains unresolved and separately gated. Foundation.Decimal is no longer an open design/integration question: P03 freezes DCT128-v1 and the corrected Android compile/link assurance boundary, and Wave C exact production/query/Statement/Appender/result integration is coordinator-accepted after fresh R4 whole-vertical CLEAN. Any future change to Decimal representation, rounding policy, target policy, or transport algorithm requires separately reviewed work rather than being inferred from this closure.
+Still open, in maintainer priority order after P0:
 
-## Platform Packaging
+### Migrations — CRITICAL / AFTER CODABLE
 
-- Linux architectures/toolchains to validate first.
-- Android architectures/toolchains to validate first.
-- Windows architectures/toolchains to validate first.
+- Stable migration identity/version scheme.
+- Persistent migration-history table shape.
+- Checksum/fingerprint policy and behavior when an already-applied migration definition changes.
+- Concurrency/migration-lock semantics.
+- Transaction policy for DDL/data migrations.
+- Whether down/revert migrations are first-class, optional/development-only, or omitted in v1.
+- Whether later development tooling may add schema-diff/drift detection; initial production direction should prefer explicit reviewed migrations.
+
+### Observation / Reactive Queries — CRITICAL / AFTER MIGRATIONS
+
+- Public observation primitive, with `AsyncSequence`/`AsyncThrowingStream` as the first design to research.
+- Query dependency tracking granularity: whole database, explicit table set, DuckDB `duckdb_get_table_names`, or a layered strategy.
+- Commit-aware invalidation/coalescing across ordinary writes, explicit transactions, Statements, and Appenders.
+- Scope of observation for changes made outside SwiftDuckDB ownership; no unsupported external-change guarantee should be implied.
+- Delivery scheduling/MainActor adapters without importing UIKitUltra or SwiftUI into SwiftDuckDB core.
+
+### Nested / Complex Value & Result Families — DEFERRED NICE-TO-HAVE
+
+- `LIST`, `ARRAY`, `MAP`, `STRUCT`, `UNION`, `ENUM` materialization/binding policy remains unresolved and separately gated.
+- This capability is explicitly ordered after Advanced Appender work unless a critical consumer requirement changes priority.
+- Foundation.Decimal is no longer an open design/integration question: P03 freezes DCT128-v1 and Wave C exact production/query/Statement/Appender/result integration is accepted.
+
+## Platform Packaging / Validation
+
+- Linux additional architectures/toolchains beyond the accepted Ubuntu 24.04 ARM64 Swift 6.3.3 S5 row.
+- Android runtime/integration closure after the maintainer's proper Swift 6.3.3 SwifDroid environment is ready; current ICU packaging research remains paused, not closed.
+- Windows architecture/toolchain/package closure.
+- iOS actual 15/16 runtime and eventual simulator S5 revalidation when a compatible compiler/Testing environment exists.
 
 None of these open decisions is implementation authorization. Promote a concrete capability through research and reviewed planning before source changes.
