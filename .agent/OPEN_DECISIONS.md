@@ -7,7 +7,7 @@ Unresolved choices that must not be treated as implemented architecture.
 The current pre-Vortegy capability order is:
 
 ```text
-Codable / Model Layer (ACTIVE P0; Wave A-E + Wave D/E root gates accepted, Wave F full regression next, Wave G/final closure gated)
+Codable / Model Layer (P0 COMPLETE; technical root + public closure accepted; both original blockers CLOSED_BY_CORRECTION_01)
 -> Migrations
 -> Observation / Reactive Queries
 -> Connection Pooling
@@ -45,7 +45,7 @@ Resolved query-construction rules are not open decisions:
 - query-centered conveniences delegate to the same Connection engine;
 - typed-table selected-column convenience remains ordinary SwifQL construction sugar.
 
-P0 Codable / Model Layer architecture through root-accepted Wave E is also no longer an open design question. The accepted research/plan owns arbitrary Row/QueryResult decoding, exact flat ModelEncoder semantics, Table/@Column persistence extraction, prepared model bindings, explicit-Connection insert/update, and matching explicit-Transaction persistence overloads that reuse the existing transaction engine. Both mandatory fresh Wave D and Wave E root gates are CLEAN + primary accepted. Remaining P0 work is Wave F full regression plus later final audit/closure tracked in `.agent/TASKS.md`, not unresolved architecture here. Any later expansion beyond the accepted P0 boundary requires a new reviewed decision.
+P0 Codable / Model Layer architecture and public closure are accepted current state. The accepted surface owns arbitrary flat Row/QueryResult decoding, exact flat ModelEncoder semantics, Table/@Column persistence extraction, prepared model bindings, explicit-Connection insert/update, and matching explicit-Transaction persistence overloads that reuse the existing transaction engine. Any later expansion beyond that accepted boundary requires a new reviewed decision. The next authorized unresolved capability is P1 Migrations Research 01; migration architecture/API choices remain open until that research is completed and reviewed.
 
 Still open, in maintainer priority order after P0:
 

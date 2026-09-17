@@ -4,63 +4,22 @@ Only active approved executable implementation/closure work belongs here. Detail
 
 ## Current active capability
 
-P0 `Codable / Model Layer` is active under the accepted corrected implementation plan.
+P0 `Codable / Model Layer` is COMPLETE.
 
-Primary plan acceptance:
-
-```text
-.artifacts/planning/codable-model-layer-2026-09-16/PRIMARY_PLAN_ACCEPTANCE.md
-```
-
-Wave A `Decodable` model projection, Wave B `ModelEncoder`, Wave C persistence preparation, and Wave D Connection-backed `Table` insert/update are primary-coordinator accepted.
-
-Accepted evidence:
+Final accepted closure anchors:
 
 ```text
-.artifacts/implementation/codable-model-layer-2026-09-16/wave-a/WAVE_A_COORDINATOR_ACCEPTANCE.md
-.artifacts/implementation/codable-model-layer-2026-09-16/wave-b/WAVE_B_COORDINATOR_ACCEPTANCE.md
-.artifacts/implementation/codable-model-layer-2026-09-16/wave-c/WAVE_C_COORDINATOR_ACCEPTANCE.md
-.artifacts/implementation/codable-model-layer-2026-09-16/wave-d/WAVE_D_COORDINATOR_ACCEPTANCE.md
+.artifacts/reviews/codable-model-layer-wave-g-final-root-reaudit-01-2026-09-17/PRIMARY_COORDINATOR_ACCEPTANCE.md
+.artifacts/closure/codable-model-layer-p0-public-closure-2026-09-17/PRIMARY_PUBLIC_CLOSURE_ACCEPTANCE.md
 ```
 
-Wave C final architecture uses one shared `ModelScalarEncoder` authority for ordinary model encoding and individual `@Column` persistence extraction, safe omission/NULL classification, `PreparedModelValue`, `BoundModelValue`, and exact prepared bindings.
+Final current-source validation is 358/358 tests with 0 failures and 0 skips, build PASS, and 0 new SwiftDuckDB-owned warnings. README, detailed publication source 006, `PUBLIC_WRITING_STYLE`, `SKILL_INDEX`, the dedicated source-owned `swiftduckdb-codable-models` skill, and stable governance are accepted public closure. Both first-final-audit blockers are formally `CLOSED_BY_CORRECTION_01`.
 
-Wave D adds exactly four public `Connection`-backed `Table` persistence methods:
+The next authorized roadmap phase is **P1 Migrations — Research 01**. Research only is authorized at this point: inspect current schema/table/query/native capabilities, existing migration-related public/internal surface, DuckDB behavior relevant to schema evolution, and dependency/reference evidence; produce evidence-backed research before any migration API plan or implementation.
 
-```text
-insert(on: Connection) -> Self
-insertNonReturning(on: Connection)
-update(on: KeyPath<Self, C>, on: Connection) -> Self
-updateNonReturning(on: KeyPath<Self, C>, on: Connection)
-```
+Do not begin Migrations implementation, Observation, Pooling, Appender expansion, complex Value families, Vortegy integration, Android follow-up, or another deferred roadmap capability until separately researched/planned/authorized.
 
-Accepted Wave D semantics include schema-qualified `Self.table` targets, omission/default versus explicit SQL NULL behavior, `BoundModelValue` prepared placeholders without payload literalization, changed non-key UPDATE SET selection, key exclusion and validation, changed-values-then-key binding order, returning zero-row `invalidResult`, and zero-changed UPDATE with no SQL-visible access. Final Correction 01 validation is 14/0/0 for combined Wave D, 10/0/0 for protected Wave C preparation, and build PASS with 0 new warnings.
-
-The mandatory fresh Wave D root audit is CLEAN and primary-coordinator accepted:
-
-```text
-.artifacts/reviews/codable-model-layer-wave-d-root-audit-01-2026-09-17/PRIMARY_COORDINATOR_ACCEPTANCE.md
-```
-
-Wave E — explicit supplied-`Transaction` counterparts of the accepted Wave D persistence conveniences — is implemented, validated, and primary-coordinator accepted with zero blockers. The candidate adds exactly four public Transaction overloads, reuses the same persistence builders, and delegates actual SQL execution only through the existing `Transaction.query` / `Transaction.execute` engine. Focused Wave E validation is 8/0/0, protected Wave D Connection regression is 14/0/0, protected Wave C preparation regression is 10/0/0, and build is PASS with 0 new warnings.
-
-Coordinator implementation acceptance:
-
-```text
-.artifacts/implementation/codable-model-layer-2026-09-16/wave-e/WAVE_E_COORDINATOR_ACCEPTANCE.md
-```
-
-The mandatory fresh Wave E root audit is CLEAN and primary-coordinator accepted:
-
-```text
-.artifacts/reviews/codable-model-layer-wave-e-root-audit-01-2026-09-17/PRIMARY_COORDINATOR_ACCEPTANCE.md
-```
-
-Current next planned executable gate is **Wave F — full macOS Swift 6.3.3 regression + source/evidence coordinator audit** under the accepted P0 plan. Wave F is not started yet and must receive its own frozen validation executor plus coordinator evidence review. Wave F is validation/assurance work, not authorization to silently repair unrelated failures or widen the model API.
-
-Migrations, observation, pooling, Appender expansion, complex Value families, Vortegy integration, Android follow-up, Wave G/final closure, and later roadmap work remain outside the Wave F executable gate.
-
-Public Capability Closure Backfill remains complete for Query Execution, Transactions, Reusable Statements, and Appender. P0 Codable / Model Layer public closure remains pending later README/publication/Agent Skill work after implementation/final-audit gates. Central skill onboarding remains separate.
+Public Capability Closure is complete for Query Execution, Transactions, Reusable Statements, Appender, exact Foundation.Decimal, and Codable / Model Layer. Central skill federation onboarding/publication remains separate from repository-local source ownership.
 
 ## Universal Wave B path contract
 
