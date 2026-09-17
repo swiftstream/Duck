@@ -2,7 +2,7 @@
 
 Ideas and maintainer-prioritized capabilities that are not yet active approved implementation tasks.
 
-P0 `Codable / Model Layer` is active approved work and is therefore owned by `.agent/TASKS.md`, not this future-work list. Wave A-D and the mandatory fresh Wave D root gate are primary-coordinator accepted; Wave E and later P0 gates remain pending.
+P0 `Codable / Model Layer` is active approved work and is therefore owned by `.agent/TASKS.md`, not this future-work list. Wave A-E and the mandatory fresh Wave D/Wave E root gates are accepted. Wave F full macOS regression is the next planned P0 gate; Wave G/final closure and later P0 work remain pending.
 
 ## Maintainer-Prioritized Pre-Vortegy Capability Order
 

@@ -7,7 +7,7 @@ Unresolved choices that must not be treated as implemented architecture.
 The current pre-Vortegy capability order is:
 
 ```text
-Codable / Model Layer (ACTIVE P0; Wave A-D + mandatory Wave D root gate accepted, Wave E+ pending)
+Codable / Model Layer (ACTIVE P0; Wave A-E + Wave D/E root gates accepted, Wave F full regression next, Wave G/final closure gated)
 -> Migrations
 -> Observation / Reactive Queries
 -> Connection Pooling
@@ -45,7 +45,7 @@ Resolved query-construction rules are not open decisions:
 - query-centered conveniences delegate to the same Connection engine;
 - typed-table selected-column convenience remains ordinary SwifQL construction sugar.
 
-P0 Codable / Model Layer architecture through coordinator-accepted Wave D is also no longer an open design question. The accepted research/plan owns arbitrary Row/QueryResult decoding, exact flat ModelEncoder semantics, Table/@Column persistence extraction, prepared model bindings, and the first explicit-Connection insert/update public surface. Remaining P0 work is execution/audit/closure work tracked in `.agent/TASKS.md`, not unresolved architecture here; any later expansion beyond the accepted P0 boundary requires a new reviewed decision.
+P0 Codable / Model Layer architecture through root-accepted Wave E is also no longer an open design question. The accepted research/plan owns arbitrary Row/QueryResult decoding, exact flat ModelEncoder semantics, Table/@Column persistence extraction, prepared model bindings, explicit-Connection insert/update, and matching explicit-Transaction persistence overloads that reuse the existing transaction engine. Both mandatory fresh Wave D and Wave E root gates are CLEAN + primary accepted. Remaining P0 work is Wave F full regression plus later final audit/closure tracked in `.agent/TASKS.md`, not unresolved architecture here. Any later expansion beyond the accepted P0 boundary requires a new reviewed decision.
 
 Still open, in maintainer priority order after P0:
 

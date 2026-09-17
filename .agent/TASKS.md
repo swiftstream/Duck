@@ -42,11 +42,23 @@ The mandatory fresh Wave D root audit is CLEAN and primary-coordinator accepted:
 .artifacts/reviews/codable-model-layer-wave-d-root-audit-01-2026-09-17/PRIMARY_COORDINATOR_ACCEPTANCE.md
 ```
 
-Current next planned executable wave is **Wave E — Transaction equivalents + rollback/ownership tests** under the already accepted P0 plan. Wave E is not started yet and must receive its own surgical frozen executor prompt plus coordinator evidence review.
+Wave E — explicit supplied-`Transaction` counterparts of the accepted Wave D persistence conveniences — is implemented, validated, and primary-coordinator accepted with zero blockers. The candidate adds exactly four public Transaction overloads, reuses the same persistence builders, and delegates actual SQL execution only through the existing `Transaction.query` / `Transaction.execute` engine. Focused Wave E validation is 8/0/0, protected Wave D Connection regression is 14/0/0, protected Wave C preparation regression is 10/0/0, and build is PASS with 0 new warnings.
 
-Wave E implementation is limited to explicit supplied-`Transaction` equivalents of the accepted Wave D persistence conveniences and must delegate through the existing Transaction query/execute engine without weakening same-Connection restrictions, rollback-only/error behavior, or transaction ownership. Migrations, observation, pooling, Appender expansion, complex Value families, Vortegy integration, Android follow-up, Wave F, and later closure work are not executable as part of Wave E.
+Coordinator implementation acceptance:
 
-Because Wave E is itself a substantial public-API/ownership wave, a fresh independent Wave E root audit is mandatory after Wave E implementation/validation/coordinator review before Wave E becomes an accepted prerequisite for later P0 work.
+```text
+.artifacts/implementation/codable-model-layer-2026-09-16/wave-e/WAVE_E_COORDINATOR_ACCEPTANCE.md
+```
+
+The mandatory fresh Wave E root audit is CLEAN and primary-coordinator accepted:
+
+```text
+.artifacts/reviews/codable-model-layer-wave-e-root-audit-01-2026-09-17/PRIMARY_COORDINATOR_ACCEPTANCE.md
+```
+
+Current next planned executable gate is **Wave F — full macOS Swift 6.3.3 regression + source/evidence coordinator audit** under the accepted P0 plan. Wave F is not started yet and must receive its own frozen validation executor plus coordinator evidence review. Wave F is validation/assurance work, not authorization to silently repair unrelated failures or widen the model API.
+
+Migrations, observation, pooling, Appender expansion, complex Value families, Vortegy integration, Android follow-up, Wave G/final closure, and later roadmap work remain outside the Wave F executable gate.
 
 Public Capability Closure Backfill remains complete for Query Execution, Transactions, Reusable Statements, and Appender. P0 Codable / Model Layer public closure remains pending later README/publication/Agent Skill work after implementation/final-audit gates. Central skill onboarding remains separate.
 
