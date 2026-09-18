@@ -45,19 +45,9 @@ Resolved query-construction rules are not open decisions:
 - query-centered conveniences delegate to the same Connection engine;
 - typed-table selected-column convenience remains ordinary SwifQL construction sugar.
 
-P0 Codable / Model Layer architecture and public closure are accepted current state. The accepted surface owns arbitrary flat Row/QueryResult decoding, exact flat ModelEncoder semantics, Table/@Column persistence extraction, prepared model bindings, explicit-Connection insert/update, and matching explicit-Transaction persistence overloads that reuse the existing transaction engine. Any later expansion beyond that accepted boundary requires a new reviewed decision. P1 Migrations Research 01 + Targeted Probes 01 are primary-accepted: identity/history/integrity/runner/error/down/drift plus the transaction/concurrency/bootstrap/Statement/catalog/SwifQL-DDL questions needed for the initial plan are evidence-backed. Remaining migration API/file layout/naming details now belong to the persisted implementation-plan review; source implementation is still gated.
+P0 Codable / Model Layer architecture and public closure are accepted current state. The accepted surface owns arbitrary flat Row/QueryResult decoding, exact flat ModelEncoder semantics, Table/@Column persistence extraction, prepared model bindings, explicit-Connection insert/update, and matching explicit-Transaction persistence overloads that reuse the existing transaction engine. Any later expansion beyond that accepted boundary requires a new reviewed decision. P1 Migrations v1 architecture is no longer an open design decision: Research 01 + Targeted Probes 01 and the corrected implementation plan are primary accepted. The accepted v1 direction freezes explicit positive Int64 version/name/fingerprint identity, `__swiftduckdb.migrations` durable history, fail-closed integrity, one existing transaction per pending migration, process-local canonical-path coordination, startup-before-normal Statement/Appender traffic, roll-forward-only behavior, no automatic retry, no cross-process locking guarantee, and no down/revert or schema-diff/generation surface. Wave A is the next executable implementation slice; any expansion beyond this accepted boundary requires a new reviewed decision.
 
-Still open, in maintainer priority order after P0:
-
-### Migrations — CRITICAL / AFTER CODABLE
-
-- Stable migration identity/version scheme.
-- Persistent migration-history table shape.
-- Checksum/fingerprint policy and behavior when an already-applied migration definition changes.
-- Concurrency/migration-lock semantics.
-- Transaction policy for DDL/data migrations.
-- Whether down/revert migrations are first-class, optional/development-only, or omitted in v1.
-- Whether later development tooling may add schema-diff/drift detection; initial production direction should prefer explicit reviewed migrations.
+Still open, in maintainer priority order after the active Migrations capability:
 
 ### Observation / Reactive Queries — CRITICAL / AFTER MIGRATIONS
 

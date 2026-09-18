@@ -37,6 +37,10 @@ There is intentionally no model/provider/tool-specific stable session-orchestrat
 - `.swift-version`: tracked exact Swift `6.3.3` toolchain pin.
 - `README.md`: public query, reusable-Statement, scoped-transaction, ordinary and Transaction Appender, accepted B2/B3/B4 temporal/value documentation, accepted Wave C exact Foundation.Decimal/DECIMAL documentation, and the accepted flat Codable / Model Layer (`Row.decode`, QueryResult first/all decoding, ModelEncoder, explicit Connection/Transaction Table insert/update). Executable examples use SwifQL; ordinary String execution and manual `$1` placeholder APIs are not taught, while broad ORM/nested-model/deferred capability claims remain out of scope.
 
+## Authorized Next Source Slice
+
+P1 Migrations corrected-plan review is CLEAN + primary accepted. Wave A is the only currently authorized migration implementation slice. It may add `Sources/SwiftDuckDB/Migration.swift` for the exact public `Migration: Sendable` contract plus immutable registry snapshot/preflight, `Sources/SwiftDuckDB/MigrationError.swift` for the exact reviewed semantic error enum, and focused Wave A tests. `Database.migrate`, `MigrationHistory`, `MigrationRunCoordinator`, Database coordination-key mutation, history tables, migration-body execution, and public migration docs/skills do not exist yet and remain Wave B+ or later work.
+
 ## Public SwiftDuckDB Source
 
 - `Sources/SwiftDuckDB/Database.swift`: public actor-free `Sendable` database lifetime owner; in-memory/file-backed open and explicit Connection creation.
