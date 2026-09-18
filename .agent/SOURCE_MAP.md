@@ -39,7 +39,7 @@ There is intentionally no model/provider/tool-specific stable session-orchestrat
 
 ## Authorized Next Source Slice
 
-P1 Migrations Waves A-D are implemented + primary accepted + committed. No implementation slice is currently authorized. The mandatory NEW fresh GPT-5.6 Sol post-D source/evidence root audit is the only active gate and must independently inspect actual source/tests, concurrency ownership, history integrity, P02/P03/P04 probe compatibility, public API exactness, safety, package/toolchain preservation, TECH_DEBT exclusion, and Git state. Wave E full-package regression remains forbidden until the root audit is CLEAN + primary accepted. Production migration owners, `Connection.swift`, `Transaction.swift`, package/toolchain, README, and public closure remain protected.
+P1 Migrations Waves A-D are implemented + primary accepted + committed. The mandatory NEW fresh GPT-5.6 Sol post-D source/evidence root audit is CLEAN + independently primary accepted with zero blockers. No implementation slice is currently authorized. Wave E validation-only full-package regression is the only active gate and must run against the exact committed candidate without mutating production/tests/package/stable governance. Production migration owners, `Connection.swift`, `Transaction.swift`, package/toolchain, README, and public closure remain protected; Wave F final technical root and Wave G public closure remain gated.
 
 ## Public SwiftDuckDB Source
 
