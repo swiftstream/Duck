@@ -154,3 +154,192 @@ func releaseRetainsLiveOwnerAssociation() async throws {
         try await coordinator.acquire(for: second)
     }
 }
+
+@Test("D-C10 overlapping public migrate on the same Database is concurrentRun")
+func overlappingPublicMigrateOnSameDatabaseIsConcurrentRun() async throws {
+    let database = try Database()
+    let entered = MigrationBodySignal()
+    let gate = MigrationBodyGate()
+    let migration = ConcurrencyMigration(
+        version: 100,
+        name: "same database overlap",
+        fingerprint: "same-database-overlap-v1"
+    ) { _ in
+        await entered.signal()
+        await gate.wait()
+    }
+
+    async let firstRun: Void = database.migrate([migration])
+    await entered.wait()
+
+    await expectCoordinatorError(.concurrentRun) {
+        try await database.migrate([migration])
+    }
+
+    await gate.open()
+    try await firstRun
+
+    try await database.migrate([migration])
+}
+
+@Test("D-C11 canonical alias second live owner is conflictingDatabaseOwner")
+func canonicalAliasSecondLiveOwnerIsConflictingDatabaseOwner() async throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("swiftduckdb-migration-owner-alias-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let nested = directory.appendingPathComponent("nested")
+    try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+    let actualURL = nested.appendingPathComponent("database.duckdb")
+    let aliasURL = directory.appendingPathComponent("nested/../nested/database.duckdb")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let first = try Database(path: actualURL.path)
+    let second = try Database(path: aliasURL.path)
+    let migration = ConcurrencyMigration(
+        version: 200,
+        name: "canonical owner",
+        fingerprint: "canonical-owner-v1"
+    )
+
+    try await first.migrate([migration])
+
+    await expectCoordinatorError(.conflictingDatabaseOwner) {
+        try await second.migrate([migration])
+    }
+
+    try await first.migrate([migration])
+}
+
+@Test("D-C12 unrelated public migration bodies are concurrently active")
+func unrelatedPublicMigrationBodiesAreConcurrentlyActive() async throws {
+    let first = try Database()
+    let second = try Database()
+    let barrier = MigrationBodyBarrier(requiredArrivals: 2)
+
+    let firstMigration = ConcurrencyMigration(
+        version: 300,
+        name: "first independent database",
+        fingerprint: "first-independent-v1"
+    ) { _ in
+        await barrier.arriveAndWait()
+    }
+    let secondMigration = ConcurrencyMigration(
+        version: 400,
+        name: "second independent database",
+        fingerprint: "second-independent-v1"
+    ) { _ in
+        await barrier.arriveAndWait()
+    }
+
+    async let firstRun: Void = first.migrate([firstMigration])
+    async let secondRun: Void = second.migrate([secondMigration])
+
+    try await firstRun
+    try await secondRun
+}
+
+private struct ConcurrencyMigration: Migration {
+    let version: Int64
+    let name: String
+    let fingerprint: String
+    private let action: @Sendable (Transaction) async throws -> Void
+
+    init(
+        version: Int64,
+        name: String,
+        fingerprint: String,
+        action: @escaping @Sendable (Transaction) async throws -> Void = { _ in }
+    ) {
+        self.version = version
+        self.name = name
+        self.fingerprint = fingerprint
+        self.action = action
+    }
+
+    func up(on transaction: Transaction) async throws {
+        try await action(transaction)
+    }
+}
+
+private actor MigrationBodySignal {
+    private var signaled = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func signal() {
+        guard !signaled else {
+            return
+        }
+
+        signaled = true
+        let continuations = waiters
+        waiters.removeAll()
+        for continuation in continuations {
+            continuation.resume()
+        }
+    }
+
+    func wait() async {
+        if signaled {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+}
+
+private actor MigrationBodyGate {
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func open() {
+        guard !isOpen else {
+            return
+        }
+
+        isOpen = true
+        let continuations = waiters
+        waiters.removeAll()
+        for continuation in continuations {
+            continuation.resume()
+        }
+    }
+
+    func wait() async {
+        if isOpen {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+}
+
+private actor MigrationBodyBarrier {
+    private let requiredArrivals: Int
+    private var arrivals = 0
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    init(requiredArrivals: Int) {
+        self.requiredArrivals = requiredArrivals
+    }
+
+    func arriveAndWait() async {
+        arrivals += 1
+
+        if arrivals == requiredArrivals {
+            let continuations = waiters
+            waiters.removeAll()
+            for continuation in continuations {
+                continuation.resume()
+            }
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+}
