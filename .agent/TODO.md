@@ -2,7 +2,7 @@
 
 Ideas and maintainer-prioritized capabilities that are not yet active approved implementation tasks.
 
-P0 `Codable / Model Layer` is COMPLETE and no longer future work. P1 `Migrations` has been promoted out of TODO: Research 01 + Targeted Probes 01 and the corrected implementation plan are primary accepted; Waves A-C are implemented/accepted/committed, and Wave D concurrency/lifecycle/public hardening is active executable work owned by `.agent/TASKS.md`. Wave E+ remain gated, and Wave E cannot start until the mandatory fresh post-D root audit is CLEAN + primary accepted.
+P0 `Codable / Model Layer` is COMPLETE and no longer future work. P1 `Migrations` has been promoted out of TODO: Research 01 + Targeted Probes 01 and the corrected implementation plan are primary accepted; Waves A-D are implemented/accepted/committed. No migration implementation wave is currently authorized: the mandatory fresh post-D root audit is the active gate. Wave E+ remain gated, and Wave E cannot start until that root audit is CLEAN + primary accepted.
 
 ## Maintainer-Prioritized Pre-Vortegy Capability Order
 
