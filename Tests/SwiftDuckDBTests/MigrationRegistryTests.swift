@@ -130,29 +130,41 @@ struct MigrationRegistryTests {
     }
 
     @Test("A-T14 metadata is read once and snapshot values drive validation and sorting")
-    func metadataIsReadOnceAndSnapshotsDriveValidationAndSorting() throws {
-        let firstCounter = MetadataReadCounter()
-        let secondCounter = MetadataReadCounter()
-        let first = CountingMigration(
-            version: 20,
-            name: "first",
-            fingerprint: "first-v1",
-            counter: firstCounter
-        )
-        let second = CountingMigration(
-            version: 10,
-            name: "second",
-            fingerprint: "second-v1",
-            counter: secondCounter
-        )
+    func metadataIsReadOnceAndSnapshotsDriveValidationAndSorting() async throws {
+        try await confirmation("first migration version getter", expectedCount: 1) { firstVersionRead in
+            try await confirmation("first migration name getter", expectedCount: 1) { firstNameRead in
+                try await confirmation("first migration fingerprint getter", expectedCount: 1) { firstFingerprintRead in
+                    try await confirmation("second migration version getter", expectedCount: 1) { secondVersionRead in
+                        try await confirmation("second migration name getter", expectedCount: 1) { secondNameRead in
+                            try await confirmation("second migration fingerprint getter", expectedCount: 1) { secondFingerprintRead in
+                                let first = ConfirmingMigration(
+                                    version: 20,
+                                    name: "first",
+                                    fingerprint: "first-v1",
+                                    versionRead: firstVersionRead,
+                                    nameRead: firstNameRead,
+                                    fingerprintRead: firstFingerprintRead
+                                )
+                                let second = ConfirmingMigration(
+                                    version: 10,
+                                    name: "second",
+                                    fingerprint: "second-v1",
+                                    versionRead: secondVersionRead,
+                                    nameRead: secondNameRead,
+                                    fingerprintRead: secondFingerprintRead
+                                )
 
-        let snapshots = try preflightMigrations([first, second])
+                                let snapshots = try preflightMigrations([first, second])
 
-        #expect(snapshots.map(\.version) == [10, 20])
-        #expect(snapshots.map(\.name) == ["second", "first"])
-        #expect(snapshots.map(\.fingerprint) == ["second-v1", "first-v1"])
-        expectOneReadPerMetadataField(firstCounter)
-        expectOneReadPerMetadataField(secondCounter)
+                                #expect(snapshots.map(\.version) == [10, 20])
+                                #expect(snapshots.map(\.name) == ["second", "first"])
+                                #expect(snapshots.map(\.fingerprint) == ["second-v1", "first-v1"])
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -177,56 +189,43 @@ private struct TestMigration: Migration, Equatable {
     func up(on _: Transaction) async throws {}
 }
 
-private enum MetadataField: Hashable, Sendable {
-    case version
-    case name
-    case fingerprint
-}
-
-private final class MetadataReadCounter: @unchecked Sendable {
-    private let lock = NSLock()
-    private var counts: [MetadataField: Int] = [:]
-
-    func next<T>(_ field: MetadataField, first: T, subsequent: T) -> T {
-        lock.lock()
-        defer { lock.unlock() }
-
-        let count = (counts[field] ?? 0) + 1
-        counts[field] = count
-        return count == 1 ? first : subsequent
-    }
-
-    func count(for field: MetadataField) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-
-        return counts[field] ?? 0
-    }
-}
-
-private struct CountingMigration: Migration {
+private struct ConfirmingMigration: Migration {
     let versionValue: Int64
     let nameValue: String
     let fingerprintValue: String
-    let counter: MetadataReadCounter
+    let versionRead: Confirmation
+    let nameRead: Confirmation
+    let fingerprintRead: Confirmation
 
     var version: Int64 {
-        counter.next(.version, first: versionValue, subsequent: Int64.min)
+        versionRead()
+        return versionValue
     }
 
     var name: String {
-        counter.next(.name, first: nameValue, subsequent: "")
+        nameRead()
+        return nameValue
     }
 
     var fingerprint: String {
-        counter.next(.fingerprint, first: fingerprintValue, subsequent: "")
+        fingerprintRead()
+        return fingerprintValue
     }
 
-    init(version: Int64, name: String, fingerprint: String, counter: MetadataReadCounter) {
+    init(
+        version: Int64,
+        name: String,
+        fingerprint: String,
+        versionRead: Confirmation,
+        nameRead: Confirmation,
+        fingerprintRead: Confirmation
+    ) {
         self.versionValue = version
         self.nameValue = name
         self.fingerprintValue = fingerprint
-        self.counter = counter
+        self.versionRead = versionRead
+        self.nameRead = nameRead
+        self.fingerprintRead = fingerprintRead
     }
 
     func up(on _: Transaction) async throws {}
@@ -244,10 +243,4 @@ private func expectMigrationError(
     } catch {
         Issue.record("Expected migration error \(expected), but received \(error).")
     }
-}
-
-private func expectOneReadPerMetadataField(_ counter: MetadataReadCounter) {
-    #expect(counter.count(for: .version) == 1)
-    #expect(counter.count(for: .name) == 1)
-    #expect(counter.count(for: .fingerprint) == 1)
 }
