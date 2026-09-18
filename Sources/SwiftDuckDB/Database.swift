@@ -1,20 +1,35 @@
+import Foundation
+
 public final class Database: Sendable {
     private let nativeDatabase: NativeDatabase
+    let migrationCoordinationKey: MigrationCoordinationKey
 
     public init() throws {
+        let openedDatabase: NativeDatabase
         do {
-            nativeDatabase = try NativeDatabase()
+            openedDatabase = try NativeDatabase()
         } catch let error as NativeDuckDBError {
             throw DatabaseError.databaseOpen(error.message)
         }
+
+        nativeDatabase = openedDatabase
+        migrationCoordinationKey = .memory(UUID())
     }
 
     public init(path: String) throws {
+        let openedDatabase: NativeDatabase
         do {
-            nativeDatabase = try NativeDatabase(path: path)
+            openedDatabase = try NativeDatabase(path: path)
         } catch let error as NativeDuckDBError {
             throw DatabaseError.databaseOpen(error.message)
         }
+
+        nativeDatabase = openedDatabase
+        let canonicalPath = URL(fileURLWithPath: path)
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
+            .path
+        migrationCoordinationKey = .file(canonicalPath)
     }
 
     public func connect() throws -> Connection {
