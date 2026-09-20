@@ -1,28 +1,79 @@
-@testable import SwiftDuckDB
 import Foundation
 import SwifQL
 import Testing
-
-private struct TimestampTable: Table {
-    static let tableName = "migration_timestamp_values"
-
-    init() {}
-}
-
-private struct HistoryMigration: Migration {
-    let version: Int64
-    let name: String
-    let fingerprint: String
-
-    func up(on _: Transaction) async throws {}
-}
+@testable import SwiftDuckDB
 
 private let historyDate = Date(timeIntervalSince1970: 1_700_000_000)
+
+private struct HistoryMigration: Migration {
+    let name: String
+
+    var up: MigrationPlan {
+        Run { _ in }
+    }
+
+    var down: MigrationPlan {
+        Run { _ in }
+    }
+}
+
+private struct HistoryFixture {
+    let database: Database
+    let connection: Connection
+}
 
 private func freshFilePath(_ label: String) -> String {
     FileManager.default.temporaryDirectory
         .appendingPathComponent("swiftduckdb-migration-\(label)-\(UUID().uuidString).duckdb")
         .path
+}
+
+private func bootstrappedFixture() async throws -> HistoryFixture {
+    let database = try Database()
+    let connection = try database.connect()
+    try await MigrationHistory.bootstrap(on: connection)
+    return HistoryFixture(database: database, connection: connection)
+}
+
+private func malformedFixture(_ definition: String) async throws -> HistoryFixture {
+    let database = try Database()
+    let connection = try database.connect()
+    try await SwifQL.raw("CREATE SCHEMA __swiftduckdb").execute(on: connection)
+    try await SwifQL.raw(
+        "CREATE TABLE __swiftduckdb.migrations (\(definition))"
+    ).execute(on: connection)
+    return HistoryFixture(database: database, connection: connection)
+}
+
+private func record(
+    id: Int64,
+    name: String = "migration",
+    batch: Int64 = 1,
+    appliedAt: Date = historyDate
+) -> AppliedMigrationRecord {
+    AppliedMigrationRecord(id: id, name: name, batch: batch, appliedAt: appliedAt)
+}
+
+private func registered(_ name: String) -> RegisteredMigration {
+    let migration = HistoryMigration(name: name)
+    return RegisteredMigration(migration: migration, name: name)
+}
+
+private func insertRecords(
+    _ records: [AppliedMigrationRecord],
+    on connection: Connection
+) async throws {
+    try await connection.transaction { transaction in
+        for item in records {
+            try await MigrationHistory.insert(
+                id: item.id,
+                name: item.name,
+                batch: item.batch,
+                appliedAt: item.appliedAt,
+                on: transaction
+            )
+        }
+    }
 }
 
 private func expectMigrationError(
@@ -45,43 +96,14 @@ private func expectInvalidHistorySchema(
     await expectMigrationError(.invalidHistorySchema, operation: operation)
 }
 
-private func makeRecord(
-    _ version: Int64,
-    name: String = "migration",
-    fingerprint: String = "fingerprint"
-) -> AppliedMigrationRecord {
-    AppliedMigrationRecord(
-        version: version,
-        name: name,
-        fingerprint: fingerprint,
-        appliedAt: historyDate
-    )
-}
-
-private func migration(
-    _ version: Int64,
-    name: String = "migration",
-    fingerprint: String = "fingerprint"
-) -> RegisteredMigration {
-    let value = HistoryMigration(version: version, name: name, fingerprint: fingerprint)
-    return RegisteredMigration(
-        migration: value,
-        version: version,
-        name: name,
-        fingerprint: fingerprint
-    )
-}
-
-@Test("B-H01 fresh in-memory bootstrap succeeds")
+@Test("fresh in-memory history bootstrap succeeds")
 func freshInMemoryBootstrapSucceeds() async throws {
-    let database = try Database()
-    let connection = try database.connect()
+    let fixture = try await bootstrappedFixture()
 
-    try await MigrationHistory.bootstrap(on: connection)
-    try await MigrationHistory.validate(on: connection)
+    try await MigrationHistory.validate(on: fixture.connection)
 }
 
-@Test("B-H02 fresh file-backed bootstrap succeeds")
+@Test("fresh file-backed history bootstrap succeeds")
 func freshFileBackedBootstrapSucceeds() async throws {
     let path = freshFilePath("bootstrap")
     defer { try? FileManager.default.removeItem(atPath: path) }
@@ -92,320 +114,450 @@ func freshFileBackedBootstrapSucceeds() async throws {
     try await MigrationHistory.validate(on: connection)
 }
 
-@Test("B-H03 bootstrap rerun is idempotent")
+@Test("history bootstrap is idempotent")
 func bootstrapRerunIsIdempotent() async throws {
-    let database = try Database()
-    let connection = try database.connect()
+    let fixture = try await bootstrappedFixture()
 
-    try await MigrationHistory.bootstrap(on: connection)
-    try await MigrationHistory.bootstrap(on: connection)
-    try await MigrationHistory.validate(on: connection)
+    try await MigrationHistory.bootstrap(on: fixture.connection)
+    try await MigrationHistory.validate(on: fixture.connection)
 }
 
-@Test("B-H04 exact four-column shape is accepted")
-func exactShapeIsAccepted() async throws {
-    let database = try Database()
-    let connection = try database.connect()
-    try await MigrationHistory.bootstrap(on: connection)
-    try await MigrationHistory.validate(on: connection)
+@Test("canonical four-column history schema is accepted")
+func canonicalFourColumnSchemaIsAccepted() async throws {
+    let fixture = try await bootstrappedFixture()
+
+    try await MigrationHistory.validate(on: fixture.connection)
 }
 
-@Test("B-H05 extra history column is rejected")
+@Test("exactly one id primary key and one name unique constraint are accepted")
+func canonicalConstraintsAreAccepted() async throws {
+    let fixture = try await malformedFixture(
+        "id BIGINT NOT NULL PRIMARY KEY, "
+            + "name VARCHAR NOT NULL UNIQUE, "
+            + "batch BIGINT NOT NULL, "
+            + "applied_at TIMESTAMPTZ NOT NULL"
+    )
+
+    try await MigrationHistory.validate(on: fixture.connection)
+}
+
+@Test("extra history column is rejected")
 func extraHistoryColumnIsRejected() async throws {
-    let database = try Database()
-    let connection = try database.connect()
-    try await MigrationHistory.bootstrap(on: connection)
-    try await SwifQL.raw("ALTER TABLE __swiftduckdb.migrations ADD COLUMN extra VARCHAR")
-        .execute(on: connection)
+    let fixture = try await bootstrappedFixture()
+    try await SwifQL.raw(
+        "ALTER TABLE __swiftduckdb.migrations ADD COLUMN extra VARCHAR"
+    ).execute(on: fixture.connection)
 
     await expectInvalidHistorySchema {
-        try await MigrationHistory.validate(on: connection)
+        try await MigrationHistory.validate(on: fixture.connection)
     }
 }
 
-@Test("B-H06 missing history column is rejected")
+@Test("missing history column is rejected")
 func missingHistoryColumnIsRejected() async throws {
-    let database = try Database()
-    let connection = try database.connect()
-    try await SwifQL.raw("CREATE SCHEMA __swiftduckdb").execute(on: connection)
-    try await SwifQL.raw(
-        "CREATE TABLE __swiftduckdb.migrations (version BIGINT PRIMARY KEY, name VARCHAR NOT NULL, fingerprint VARCHAR NOT NULL)"
-    ).execute(on: connection)
+    let fixture = try await malformedFixture(
+        "id BIGINT NOT NULL PRIMARY KEY, "
+            + "name VARCHAR NOT NULL UNIQUE, "
+            + "batch BIGINT NOT NULL"
+    )
 
     await expectInvalidHistorySchema {
-        try await MigrationHistory.validate(on: connection)
+        try await MigrationHistory.validate(on: fixture.connection)
     }
 }
 
-@Test("B-H07 wrong history type is rejected")
-func wrongHistoryTypeIsRejected() async throws {
-    let database = try Database()
-    let connection = try database.connect()
-    try await SwifQL.raw("CREATE SCHEMA __swiftduckdb").execute(on: connection)
-    try await SwifQL.raw(
-        "CREATE TABLE __swiftduckdb.migrations (version INTEGER PRIMARY KEY, name VARCHAR NOT NULL, fingerprint VARCHAR NOT NULL, applied_at TIMESTAMPTZ NOT NULL)"
-    ).execute(on: connection)
+@Test("wrong history column type is rejected")
+func wrongHistoryColumnTypeIsRejected() async throws {
+    let fixture = try await malformedFixture(
+        "id INTEGER NOT NULL PRIMARY KEY, "
+            + "name VARCHAR NOT NULL UNIQUE, "
+            + "batch BIGINT NOT NULL, "
+            + "applied_at TIMESTAMPTZ NOT NULL"
+    )
 
     await expectInvalidHistorySchema {
-        try await MigrationHistory.validate(on: connection)
+        try await MigrationHistory.validate(on: fixture.connection)
     }
 }
 
-@Test("B-H08 wrong history nullability is rejected")
+@Test("wrong history nullability is rejected")
 func wrongHistoryNullabilityIsRejected() async throws {
-    let database = try Database()
-    let connection = try database.connect()
-    try await SwifQL.raw("CREATE SCHEMA __swiftduckdb").execute(on: connection)
-    try await SwifQL.raw(
-        "CREATE TABLE __swiftduckdb.migrations (version BIGINT PRIMARY KEY, name VARCHAR, fingerprint VARCHAR NOT NULL, applied_at TIMESTAMPTZ NOT NULL)"
-    ).execute(on: connection)
+    let fixture = try await malformedFixture(
+        "id BIGINT NOT NULL PRIMARY KEY, "
+            + "name VARCHAR UNIQUE, "
+            + "batch BIGINT NOT NULL, "
+            + "applied_at TIMESTAMPTZ NOT NULL"
+    )
 
     await expectInvalidHistorySchema {
-        try await MigrationHistory.validate(on: connection)
+        try await MigrationHistory.validate(on: fixture.connection)
     }
 }
 
-@Test("B-H09 history default expression is rejected")
+@Test("history default expression is rejected")
 func historyDefaultExpressionIsRejected() async throws {
-    let database = try Database()
-    let connection = try database.connect()
-    try await SwifQL.raw("CREATE SCHEMA __swiftduckdb").execute(on: connection)
-    try await SwifQL.raw(
-        "CREATE TABLE __swiftduckdb.migrations (version BIGINT PRIMARY KEY, name VARCHAR NOT NULL DEFAULT 'seed', fingerprint VARCHAR NOT NULL, applied_at TIMESTAMPTZ NOT NULL)"
-    ).execute(on: connection)
+    let fixture = try await malformedFixture(
+        "id BIGINT NOT NULL PRIMARY KEY, "
+            + "name VARCHAR NOT NULL UNIQUE DEFAULT 'seed', "
+            + "batch BIGINT NOT NULL, "
+            + "applied_at TIMESTAMPTZ NOT NULL"
+    )
 
     await expectInvalidHistorySchema {
-        try await MigrationHistory.validate(on: connection)
+        try await MigrationHistory.validate(on: fixture.connection)
     }
 }
 
-@Test("B-H10 missing or wrong primary key is rejected")
+@Test("missing primary key is rejected")
+func missingPrimaryKeyIsRejected() async throws {
+    let fixture = try await malformedFixture(
+        "id BIGINT NOT NULL, "
+            + "name VARCHAR NOT NULL UNIQUE, "
+            + "batch BIGINT NOT NULL, "
+            + "applied_at TIMESTAMPTZ NOT NULL"
+    )
+
+    await expectInvalidHistorySchema {
+        try await MigrationHistory.validate(on: fixture.connection)
+    }
+}
+
+@Test("primary key on the wrong column is rejected")
 func wrongPrimaryKeyIsRejected() async throws {
-    let database = try Database()
-    let connection = try database.connect()
-    try await SwifQL.raw("CREATE SCHEMA __swiftduckdb").execute(on: connection)
-    try await SwifQL.raw(
-        "CREATE TABLE __swiftduckdb.migrations (version BIGINT NOT NULL, name VARCHAR NOT NULL, fingerprint VARCHAR NOT NULL, applied_at TIMESTAMPTZ NOT NULL)"
-    ).execute(on: connection)
+    let fixture = try await malformedFixture(
+        "id BIGINT NOT NULL, "
+            + "name VARCHAR NOT NULL UNIQUE, "
+            + "batch BIGINT NOT NULL PRIMARY KEY, "
+            + "applied_at TIMESTAMPTZ NOT NULL"
+    )
 
     await expectInvalidHistorySchema {
-        try await MigrationHistory.validate(on: connection)
+        try await MigrationHistory.validate(on: fixture.connection)
     }
 }
 
-@Test("B-H11 unrelated extra history-schema table remains valid")
-func unrelatedExtraTableRemainsValid() async throws {
-    let database = try Database()
-    let connection = try database.connect()
-    try await MigrationHistory.bootstrap(on: connection)
-    try await SwifQL.raw("CREATE TABLE __swiftduckdb.unrelated (value VARCHAR)")
-        .execute(on: connection)
+@Test("missing name unique constraint is rejected")
+func missingNameUniqueConstraintIsRejected() async throws {
+    let fixture = try await malformedFixture(
+        "id BIGINT NOT NULL PRIMARY KEY, "
+            + "name VARCHAR NOT NULL, "
+            + "batch BIGINT NOT NULL, "
+            + "applied_at TIMESTAMPTZ NOT NULL"
+    )
 
-    try await MigrationHistory.validate(on: connection)
+    await expectInvalidHistorySchema {
+        try await MigrationHistory.validate(on: fixture.connection)
+    }
 }
 
-@Test("B-H12 history load returns explicit records in ascending order")
-func historyLoadReturnsAscendingRecords() async throws {
-    let database = try Database()
-    let connection = try database.connect()
-    try await MigrationHistory.bootstrap(on: connection)
-    try await connection.transaction { transaction in
-        try await MigrationHistory.insert(
-            version: 20,
-            name: "twenty",
-            fingerprint: "twenty-fingerprint",
-            appliedAt: try MigrationHistory.exactAppliedAt(from: historyDate),
-            on: transaction
-        )
-        try await MigrationHistory.insert(
-            version: 10,
-            name: "ten",
-            fingerprint: "ten-fingerprint",
-            appliedAt: try MigrationHistory.exactAppliedAt(from: historyDate),
-            on: transaction
-        )
-    }
+@Test("unique constraint on the wrong column is rejected")
+func wrongUniqueColumnIsRejected() async throws {
+    let fixture = try await malformedFixture(
+        "id BIGINT NOT NULL PRIMARY KEY, "
+            + "name VARCHAR NOT NULL, "
+            + "batch BIGINT NOT NULL UNIQUE, "
+            + "applied_at TIMESTAMPTZ NOT NULL"
+    )
 
-    let records = try await MigrationHistory.load(on: connection)
-    let exact = try MigrationHistory.exactAppliedAt(from: historyDate)
-    #expect(records.map(\.version) == [10, 20])
+    await expectInvalidHistorySchema {
+        try await MigrationHistory.validate(on: fixture.connection)
+    }
+}
+
+@Test("composite name and batch unique constraint is rejected")
+func compositeUniqueConstraintIsRejected() async throws {
+    let fixture = try await malformedFixture(
+        "id BIGINT NOT NULL PRIMARY KEY, "
+            + "name VARCHAR NOT NULL, "
+            + "batch BIGINT NOT NULL, "
+            + "applied_at TIMESTAMPTZ NOT NULL, "
+            + "UNIQUE(name, batch)"
+    )
+
+    await expectInvalidHistorySchema {
+        try await MigrationHistory.validate(on: fixture.connection)
+    }
+}
+
+@Test("name unique constraint plus an additional unique constraint is rejected")
+func additionalUniqueConstraintIsRejected() async throws {
+    let fixture = try await malformedFixture(
+        "id BIGINT NOT NULL PRIMARY KEY, "
+            + "name VARCHAR NOT NULL UNIQUE, "
+            + "batch BIGINT NOT NULL UNIQUE, "
+            + "applied_at TIMESTAMPTZ NOT NULL"
+    )
+
+    await expectInvalidHistorySchema {
+        try await MigrationHistory.validate(on: fixture.connection)
+    }
+}
+
+@Test("history loads rows in ascending id order")
+func historyLoadsInAscendingIDOrder() async throws {
+    let fixture = try await bootstrappedFixture()
+    try await insertRecords([
+        record(id: 20, name: "twenty"),
+        record(id: 10, name: "ten")
+    ], on: fixture.connection)
+
+    let records = try await MigrationHistory.load(on: fixture.connection)
+    #expect(records.map(\.id) == [10, 20])
     #expect(records.map(\.name) == ["ten", "twenty"])
-    #expect(records.allSatisfy { $0.appliedAt == exact })
 }
 
-@Test("B-I01 empty registry and empty history produce no pending migrations")
-func emptyRegistryAndHistoryProduceNoPending() throws {
-    #expect(try MigrationHistory.pending(current: [], applied: []).isEmpty)
+@Test("fresh history has current batch zero")
+func freshHistoryHasCurrentBatchZero() async throws {
+    let fixture = try await bootstrappedFixture()
+
+    let records = try await MigrationHistory.load(on: fixture.connection)
+    #expect(try MigrationHistory.currentBatch(records) == 0)
 }
 
-@Test("B-I02 exact applied set produces no pending migrations")
-func exactAppliedSetProducesNoPending() throws {
-    let current = [migration(1), migration(10)]
-    let applied = [makeRecord(1), makeRecord(10)]
-    #expect(try MigrationHistory.pending(current: current, applied: applied).isEmpty)
+@Test("dense positive batches produce the exact current UInt")
+func densePositiveBatchesProduceExactCurrentUInt() async throws {
+    let fixture = try await bootstrappedFixture()
+    try await insertRecords([
+        record(id: 1, name: "first", batch: 1),
+        record(id: 2, name: "second", batch: 1),
+        record(id: 3, name: "third", batch: 2)
+    ], on: fixture.connection)
+
+    let records = try await MigrationHistory.load(on: fixture.connection)
+    #expect(try MigrationHistory.currentBatch(records) == UInt(2))
 }
 
-@Test("B-I03 exact prefix selects suffix")
-func exactPrefixSelectsSuffix() throws {
-    let current = [migration(1), migration(10), migration(100)]
-    let applied = [makeRecord(1), makeRecord(10)]
-    #expect(try MigrationHistory.pending(current: current, applied: applied).map(\.version) == [100])
-}
+@Test("non-positive history id is rejected")
+func nonPositiveHistoryIDIsRejected() async throws {
+    let fixture = try await bootstrappedFixture()
+    try await insertRecords([record(id: 0)], on: fixture.connection)
 
-@Test("B-I04 name mismatch is exact")
-func nameMismatchIsExact() {
-    let current = [migration(1, name: "current")]
-    let applied = [makeRecord(1, name: "old")]
-    do {
-        _ = try MigrationHistory.pending(current: current, applied: applied)
-        Issue.record("Expected an applied-name mismatch.")
-    } catch let error as MigrationError {
-        #expect(error == .appliedNameMismatch(version: 1, expected: "current", actual: "old"))
-    } catch {
-        Issue.record("Unexpected error: \(error)")
+    await expectMigrationError(.invalidHistoryRecord) {
+        _ = try await MigrationHistory.load(on: fixture.connection)
     }
 }
 
-@Test("B-I05 fingerprint mismatch is exact")
-func fingerprintMismatchIsExact() {
-    let current = [migration(1, fingerprint: "current")]
-    let applied = [makeRecord(1, fingerprint: "old")]
-    do {
-        _ = try MigrationHistory.pending(current: current, applied: applied)
-        Issue.record("Expected an applied-fingerprint mismatch.")
-    } catch let error as MigrationError {
-        #expect(error == .appliedFingerprintMismatch(version: 1, expected: "current", actual: "old"))
-    } catch {
-        Issue.record("Unexpected error: \(error)")
+@Test("non-positive durable batch is rejected before UInt conversion")
+func nonPositiveDurableBatchIsRejected() async throws {
+    let fixture = try await bootstrappedFixture()
+    try await insertRecords([record(id: 1, batch: 0)], on: fixture.connection)
+
+    await expectMigrationError(.invalidHistoryRecord) {
+        _ = try await MigrationHistory.load(on: fixture.connection)
     }
 }
 
-@Test("B-I06 applied row missing from registry is exact")
-func appliedRowMissingFromRegistryIsExact() {
-    let applied = [makeRecord(7, name: "gone")]
-    do {
-        _ = try MigrationHistory.pending(current: [], applied: applied)
-        Issue.record("Expected an applied-migration-missing error.")
-    } catch let error as MigrationError {
-        #expect(error == .appliedMigrationMissing(version: 7, name: "gone"))
-    } catch {
-        Issue.record("Unexpected error: \(error)")
+@Test("blank durable name is rejected")
+func blankDurableNameIsRejected() async throws {
+    let fixture = try await bootstrappedFixture()
+    try await insertRecords([record(id: 1, name: " \t")], on: fixture.connection)
+
+    await expectMigrationError(.invalidHistoryRecord) {
+        _ = try await MigrationHistory.load(on: fixture.connection)
     }
 }
 
-@Test("B-I07 missing current version below highest is exact")
-func missingCurrentVersionBelowHighestIsExact() {
-    let current = [migration(10), migration(100)]
-    let applied = [makeRecord(10), makeRecord(100)]
-    do {
-        _ = try MigrationHistory.pending(
-            current: current + [migration(50)],
-            applied: applied
+@Test("decreasing batch is rejected")
+func decreasingBatchIsRejected() async throws {
+    let fixture = try await bootstrappedFixture()
+    try await insertRecords([
+        record(id: 1, name: "first", batch: 1),
+        record(id: 2, name: "second", batch: 2),
+        record(id: 3, name: "third", batch: 1)
+    ], on: fixture.connection)
+
+    await expectMigrationError(.invalidHistoryRecord) {
+        _ = try await MigrationHistory.load(on: fixture.connection)
+    }
+}
+
+@Test("skipped batch is rejected")
+func skippedBatchIsRejected() async throws {
+    let fixture = try await bootstrappedFixture()
+    try await insertRecords([
+        record(id: 1, name: "first", batch: 1),
+        record(id: 2, name: "third", batch: 3)
+    ], on: fixture.connection)
+
+    await expectMigrationError(.invalidHistoryRecord) {
+        _ = try await MigrationHistory.load(on: fixture.connection)
+    }
+}
+
+@Test("first retained batch must be one")
+func firstRetainedBatchMustBeOne() async throws {
+    let fixture = try await bootstrappedFixture()
+    try await insertRecords([record(id: 1, batch: 2)], on: fixture.connection)
+
+    await expectMigrationError(.invalidHistoryRecord) {
+        _ = try await MigrationHistory.load(on: fixture.connection)
+    }
+}
+
+@Test("same-batch adjacent rows are valid")
+func sameBatchAdjacentRowsAreValid() async throws {
+    let fixture = try await bootstrappedFixture()
+    try await insertRecords([
+        record(id: 1, name: "first", batch: 1),
+        record(id: 2, name: "second", batch: 1)
+    ], on: fixture.connection)
+
+    let records = try await MigrationHistory.load(on: fixture.connection)
+    #expect(records.map(\.batch) == [1, 1])
+}
+
+@Test("empty registry and history have no pending migrations")
+func emptyRegistryAndHistoryHaveNoPendingMigrations() throws {
+    #expect(MigrationHistory.pending(current: [], applied: []).isEmpty)
+}
+
+@Test("exact applied names have no pending migrations")
+func exactAppliedNamesHaveNoPendingMigrations() {
+    let current = [registered("first"), registered("second")]
+    let applied = [record(id: 1, name: "first"), record(id: 2, name: "second")]
+
+    #expect(MigrationHistory.pending(current: current, applied: applied).isEmpty)
+}
+
+@Test("pending migrations use current caller order")
+func pendingMigrationsUseCurrentCallerOrder() {
+    let current = [registered("third"), registered("first"), registered("second")]
+    let applied = [record(id: 1, name: "first")]
+
+    #expect(MigrationHistory.pending(current: current, applied: applied).map(\.name) ==
+        ["third", "second"])
+}
+
+@Test("a migration inserted between applied names is pending and allowed")
+func insertedMigrationIsPendingAndAllowed() {
+    let current = [registered("first"), registered("inserted"), registered("last")]
+    let applied = [record(id: 1, name: "first"), record(id: 2, name: "last")]
+
+    #expect(MigrationHistory.pending(current: current, applied: applied).map(\.name) ==
+        ["inserted"])
+}
+
+@Test("reordering applied names does not make them pending")
+func reorderingAppliedNamesDoesNotMakePending() {
+    let current = [registered("first"), registered("second")]
+    let applied = [record(id: 1, name: "second"), record(id: 2, name: "first")]
+
+    #expect(MigrationHistory.pending(current: current, applied: applied).isEmpty)
+}
+
+@Test("an applied historical name absent from current registry does not block pending")
+func absentHistoricalNameDoesNotBlockPending() {
+    let current = [registered("current")]
+    let applied = [record(id: 1, name: "historical")]
+
+    #expect(MigrationHistory.pending(current: current, applied: applied).map(\.name) ==
+        ["current"])
+}
+
+@Test("representable Int64 batch reaches the exact public UInt boundary")
+func representableInt64BatchReachesExactUIntBoundary() throws {
+    let records = [record(id: 1, batch: Int64.max)]
+
+    #expect(try MigrationHistory.currentBatch(records) == UInt(Int64.max))
+}
+
+@Test("batch overflow fails closed without trapping")
+func batchOverflowFailsClosed() {
+    expectMigrationErrorSync(.batchOverflow) {
+        _ = try MigrationHistory.currentBatch([record(id: 1, batch: -1)])
+    }
+    expectMigrationErrorSync(.batchOverflow) {
+        _ = try MigrationHistory.nextBatch(after: UInt.max)
+    }
+}
+
+@Test("history id overflow preflight fails closed")
+func historyIDOverflowPreflightFailsClosed() {
+    expectMigrationErrorSync(.historyIdOverflow) {
+        _ = try MigrationHistory.nextHistoryID(
+            after: [record(id: Int64.max)],
+            adding: 1
         )
-        Issue.record("Expected a historical-insertion error.")
-    } catch let error as MigrationError {
-        #expect(error == .historicalInsertion(version: 50, highestApplied: 100))
-    } catch {
-        Issue.record("Unexpected error: \(error)")
     }
 }
 
-@Test("B-I08 missing current version between applied versions is exact")
-func missingCurrentVersionBetweenAppliedVersionsIsExact() {
-    let current = [migration(10), migration(50), migration(100)]
-    let applied = [makeRecord(10), makeRecord(100)]
-    do {
-        _ = try MigrationHistory.pending(current: current, applied: applied)
-        Issue.record("Expected a historical-insertion error.")
-    } catch let error as MigrationError {
-        #expect(error == .historicalInsertion(version: 50, highestApplied: 100))
-    } catch {
-        Issue.record("Unexpected error: \(error)")
+@Test("history insert and delete target exact row identity")
+func historyInsertAndDeleteTargetExactRowIdentity() async throws {
+    let fixture = try await bootstrappedFixture()
+    try await insertRecords([
+        record(id: 1, name: "first"),
+        record(id: 2, name: "second")
+    ], on: fixture.connection)
+
+    try await fixture.connection.transaction { transaction in
+        try await MigrationHistory.delete(id: 1, on: transaction)
     }
+
+    let records = try await MigrationHistory.load(on: fixture.connection)
+    #expect(records.map(\.id) == [2])
+    #expect(records.map(\.name) == ["second"])
 }
 
-@Test("B-I09 numeric gaps are accepted")
-func numericGapsAreAccepted() throws {
-    let current = [migration(1), migration(10), migration(100)]
-    let applied = [makeRecord(1), makeRecord(10)]
-    #expect(try MigrationHistory.pending(current: current, applied: applied).map(\.version) == [100])
-}
-
-@Test("B-T01 deliberately inexact source becomes codec-exact")
-func deliberatelyInexactSourceBecomesCodecExact() throws {
+@Test("inexact applied_at source is quantized by the exact codec")
+func inexactAppliedAtSourceIsQuantized() throws {
     let candidate = Date(timeIntervalSinceReferenceDate: 0.1234565)
     let exact = try MigrationHistory.exactAppliedAt(from: candidate)
     let raw = try NativeFoundationDateCodec.rawMicroseconds(from: exact)
+
     #expect(exact != candidate)
     #expect(raw == 978_307_200_123_457)
 }
 
-@Test("B-T02 exact applied_at binds and round-trips through TIMESTAMPTZ")
-func exactAppliedAtBindsAndRoundTrips() async throws {
-    let database = try Database()
-    let connection = try database.connect()
-    let candidate = Date(timeIntervalSinceReferenceDate: 0.1234565)
-    let exact = try MigrationHistory.exactAppliedAt(from: candidate)
-    let table = Path.Table(TimestampTable.tableName)
-    let create = CreateTableBuilder<TimestampTable>()
-        .column("value", .timestamptz, .notNull)
-    try await create.execute(on: connection)
-    try await SwifQL.insertInto(table, fields: "value")
-        .values
-        .values(exact)
-        .execute(on: connection)
-
-    let result = try await SwifQL.select(table.column("value"))
-        .from(table)
-        .query(on: connection)
-    let returned = try #require(result.rows.first?.value("value", as: Date.self))
-    #expect(returned == exact)
-    #expect(try NativeFoundationDateCodec.rawMicroseconds(from: returned) ==
-        NativeFoundationDateCodec.rawMicroseconds(from: exact))
-}
-
-@Test("B-T03 history INSERT stores exact non-NULL applied_at")
-func historyInsertStoresExactAppliedAt() async throws {
-    let database = try Database()
-    let connection = try database.connect()
-    try await MigrationHistory.bootstrap(on: connection)
+@Test("exact applied_at round-trips through TIMESTAMPTZ")
+func exactAppliedAtRoundTripsThroughTIMESTAMPTZ() async throws {
+    let fixture = try await bootstrappedFixture()
     let exact = try MigrationHistory.exactAppliedAt(
         from: Date(timeIntervalSinceReferenceDate: 0.1234565)
     )
-    try await connection.transaction { transaction in
+    try await fixture.connection.transaction { transaction in
         try await MigrationHistory.insert(
-            version: 1,
+            id: 1,
             name: "exact",
-            fingerprint: "exact-fingerprint",
+            batch: 1,
             appliedAt: exact,
             on: transaction
         )
     }
 
-    let records = try await MigrationHistory.load(on: connection)
-    let record = try #require(records.first)
-    #expect(record.appliedAt == exact)
-    #expect(try NativeFoundationDateCodec.rawMicroseconds(from: record.appliedAt) ==
+    let loaded = try await MigrationHistory.load(on: fixture.connection)
+    let appliedAt = try #require(loaded.first?.appliedAt)
+    #expect(appliedAt == exact)
+    #expect(try NativeFoundationDateCodec.rawMicroseconds(from: appliedAt) ==
         NativeFoundationDateCodec.rawMicroseconds(from: exact))
 }
 
-@Test("B-T04 nonfinite timestamp fails before history mutation")
-func nonfiniteTimestampFailsBeforeHistoryMutation() async throws {
-    let database = try Database()
-    let connection = try database.connect()
-    try await MigrationHistory.bootstrap(on: connection)
+@Test("nonfinite applied_at fails before history mutation")
+func nonfiniteAppliedAtFailsBeforeHistoryMutation() async throws {
+    let fixture = try await bootstrappedFixture()
 
-    await expectDatabaseInvalidResult {
+    expectDatabaseInvalidResult {
         _ = try MigrationHistory.exactAppliedAt(
             from: Date(timeIntervalSinceReferenceDate: .infinity)
         )
     }
-    #expect(try await MigrationHistory.load(on: connection).isEmpty)
+    #expect(try await MigrationHistory.load(on: fixture.connection).isEmpty)
 }
 
-private func expectDatabaseInvalidResult(
-    _ operation: () throws -> Void
-) async {
+private func expectMigrationErrorSync(
+    _ expected: MigrationError,
+    operation: () throws -> Void
+) {
+    do {
+        try operation()
+        Issue.record("Expected migration error \(expected), but the operation succeeded.")
+    } catch let error as MigrationError {
+        #expect(error == expected)
+    } catch {
+        Issue.record("Expected migration error \(expected), but received \(error).")
+    }
+}
+
+private func expectDatabaseInvalidResult(_ operation: () throws -> Void) {
     do {
         try operation()
         Issue.record("Expected DatabaseError.invalidResult.")
