@@ -2,19 +2,18 @@
 
 Ideas and maintainer-prioritized capabilities that are not yet active approved implementation tasks.
 
-P0 `Codable / Model Layer` is COMPLETE and no longer future work. P1 `Migrations` has been promoted out of TODO: Research 01 + Targeted Probes 01 and the corrected implementation plan are primary accepted; Waves A-D are implemented/accepted/committed; the mandatory fresh post-D root audit is CLEAN + primary accepted. No migration implementation wave is currently authorized. Wave E validation-only full-package regression is the active gate; Wave F final technical root and Wave G public closure remain gated.
+P0 `Codable / Model Layer` and P1 `Migrations` are COMPLETE and no longer future work. Observation / Reactive Queries has now been promoted out of TODO into active Research 01; implementation remains separately gated until research, targeted probes, planning, and independent audit close its architecture.
 
 ## Maintainer-Prioritized Pre-Vortegy Capability Order
 
-Promote each future item separately through fresh research, reviewed planning, implementation, and audit after the active Migrations capability reaches its required gates.
+Promote each remaining future item separately through fresh research, reviewed planning, implementation, and audit after the active Observation capability reaches its required gates.
 
-1. **Observation / reactive queries** with a UI-neutral core suitable for application actions, UIKitUltra `@UState`, and SwiftUI observation/state adapters.
-2. **Connection pooling** with scoped leasing, bounded concurrency, transaction pinning, cancellation-safe backpressure, unhealthy-connection replacement, and graceful shutdown semantics.
-3. Address the two verified technical-debt capabilities in `.agent/TECH_DEBT.md` before Advanced Appender expansion:
+1. **Connection pooling** with scoped leasing, bounded concurrency, transaction pinning, cancellation-safe backpressure, unhealthy-connection replacement, graceful shutdown semantics, and explicit interaction with the eventual observation core.
+2. Address the two verified technical-debt capabilities in `.agent/TECH_DEBT.md` before Advanced Appender expansion:
    - deterministic active-pending cancellation integration coverage;
    - post-COMMIT scheduling Connection recovery research.
-4. **Advanced Appender APIs** before nested/complex value families: evaluate selected columns / `DEFAULT`, QueryAppender, public DataChunk/vector append, manual lifecycle controls, and other justified high-throughput surfaces.
-5. **Nested/complex Value/result families** (`LIST`, `ARRAY`, `MAP`, `STRUCT`, `UNION`, `ENUM`) remain explicitly deferred nice-to-have capability debt and must not be lost.
+3. **Advanced Appender APIs** before nested/complex value families: evaluate selected columns / `DEFAULT`, QueryAppender, public DataChunk/vector append, manual lifecycle controls, and other justified high-throughput surfaces.
+4. **Nested/complex Value/result families** (`LIST`, `ARRAY`, `MAP`, `STRUCT`, `UNION`, `ENUM`) remain explicitly deferred nice-to-have capability debt and must not be lost.
 
 Platform validation proceeds in parallel whenever the correct platform/toolchain environment is available. It is an assurance track, not a substitute for the feature roadmap.
 
