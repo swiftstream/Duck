@@ -1,51 +1,51 @@
+/// A named, declarative migration with forward and reverse plans.
 public protocol Migration: Sendable {
-    var version: Int64 { get }
+    /// The durable identity used to determine whether this migration has been applied.
     var name: String { get }
-    var fingerprint: String { get }
 
-    func up(on transaction: Transaction) async throws
+    /// The ordered plan that applies this migration.
+    @MigrationBuilder
+    var up: MigrationPlan { get }
+
+    /// The ordered plan that reverts this migration.
+    @MigrationBuilder
+    var down: MigrationPlan { get }
 }
 
+public extension Migration {
+    /// The conforming type's name, used as the default durable migration identity.
+    var name: String {
+        String(describing: Self.self)
+    }
+}
+
+/// An immutable migration and name snapshot retained by one Migrator.
 struct RegisteredMigration: Sendable {
+    /// The original migration value used to evaluate its plans.
     let migration: any Migration
-    let version: Int64
+
+    /// The name captured when the migrator was created.
     let name: String
-    let fingerprint: String
 }
 
-func preflightMigrations(_ migrations: [any Migration]) throws -> [RegisteredMigration] {
-    let snapshots = migrations.map { migration in
-        let version = migration.version
+/// Captures migration names once when a Migrator is constructed.
+func snapshotMigrations(_ migrations: [any Migration]) -> [RegisteredMigration] {
+    migrations.map { migration in
         let name = migration.name
-        let fingerprint = migration.fingerprint
-
-        return RegisteredMigration(
-            migration: migration,
-            version: version,
-            name: name,
-            fingerprint: fingerprint
-        )
+        return RegisteredMigration(migration: migration, name: name)
     }
+}
 
-    var registeredVersions = Set<Int64>(minimumCapacity: snapshots.count)
+/// Validates the frozen migration-name snapshot before database work begins.
+func validateMigrations(_ migrations: [RegisteredMigration]) throws {
+    var names = Set<String>(minimumCapacity: migrations.count)
 
-    for snapshot in snapshots {
-        guard snapshot.version > 0 else {
-            throw MigrationError.invalidVersion(snapshot.version)
+    for migration in migrations {
+        guard migration.name.contains(where: { !$0.isWhitespace }) else {
+            throw MigrationError.emptyName
         }
-
-        guard snapshot.name.contains(where: { !$0.isWhitespace }) else {
-            throw MigrationError.emptyName(version: snapshot.version)
-        }
-
-        guard snapshot.fingerprint.contains(where: { !$0.isWhitespace }) else {
-            throw MigrationError.emptyFingerprint(version: snapshot.version)
-        }
-
-        guard registeredVersions.insert(snapshot.version).inserted else {
-            throw MigrationError.duplicateVersion(snapshot.version)
+        guard names.insert(migration.name).inserted else {
+            throw MigrationError.duplicateName(migration.name)
         }
     }
-
-    return snapshots.sorted { $0.version < $1.version }
 }

@@ -11,32 +11,42 @@ private struct MigrationHistoryTable: Table {
     init() {}
 }
 
+/// A validated retained row from the durable migration history table.
 struct AppliedMigrationRecord: Decodable, Sendable, Equatable {
-    let version: Int64
+    /// The factual retained history ordering key.
+    let id: Int64
+
+    /// The durable migration identity.
     let name: String
-    let fingerprint: String
+
+    /// The applied batch number stored as signed DuckDB BIGINT.
+    let batch: Int64
+
+    /// The exact applied timestamp.
     let appliedAt: Date
 
-    enum CodingKeys: String, CodingKey {
-        case version
+    private enum CodingKeys: String, CodingKey {
+        case id
         case name
-        case fingerprint
+        case batch
         case appliedAt = "applied_at"
     }
 }
 
+/// Owns bootstrap, validation, loading, and row mutation for migration history.
 enum MigrationHistory {
-    static let schemaName = "__swiftduckdb"
-    static let tableName = "migrations"
+    private static let schemaName = "__swiftduckdb"
+    private static let tableName = "migrations"
 
+    /// Creates the canonical migration schema and table idempotently.
     static func bootstrap(on connection: Connection) async throws {
         let schema = CreateSchemaBuilder<MigrationHistorySchema>()
             .checkIfNotExists()
         let table = CreateTableBuilder<MigrationHistoryTable>(schema: MigrationHistorySchema.self)
             .checkIfNotExists()
-            .column("version", .bigint, .primaryKey)
-            .column("name", .varchar, .notNull)
-            .column("fingerprint", .varchar, .notNull)
+            .column("id", .bigint, .primaryKey)
+            .column("name", .varchar, .notNull, .unique)
+            .column("batch", .bigint, .notNull)
             .column("applied_at", .timestamptz, .notNull)
 
         try await connection.transaction { transaction in
@@ -45,18 +55,19 @@ enum MigrationHistory {
         }
     }
 
+    /// Rejects any durable history table whose columns or constraints are non-canonical.
     static func validate(on connection: Connection) async throws {
         let columns = try await columns(on: connection)
-        guard columns.count == 4 else {
-            throw MigrationError.invalidHistorySchema
-        }
-
         let expected: [(String, String)] = [
-            ("version", "BIGINT"),
+            ("id", "BIGINT"),
             ("name", "VARCHAR"),
-            ("fingerprint", "VARCHAR"),
+            ("batch", "BIGINT"),
             ("applied_at", "TIMESTAMP WITH TIME ZONE")
         ]
+
+        guard columns.count == expected.count else {
+            throw MigrationError.invalidHistorySchema
+        }
 
         for (index, requirement) in expected.enumerated() {
             let column = columns[index]
@@ -68,96 +79,121 @@ enum MigrationHistory {
             }
         }
 
-        let constraints = try await primaryKeyConstraints(on: connection)
-        guard constraints.count == 1,
-              let constraintName = constraints.first,
-              try await primaryKeyColumns(constraintName, on: connection) == ["version"] else {
+        let primaryKeys = try await constraints(ofType: "PRIMARY KEY", on: connection)
+        guard primaryKeys.count == 1,
+              let primaryKey = primaryKeys.first,
+              try await constraintColumns(primaryKey, on: connection) == ["id"] else {
+            throw MigrationError.invalidHistorySchema
+        }
+
+        let uniques = try await constraints(ofType: "UNIQUE", on: connection)
+        guard uniques.count == 1,
+              let unique = uniques.first,
+              try await constraintColumns(unique, on: connection) == ["name"] else {
             throw MigrationError.invalidHistorySchema
         }
     }
 
+    /// Loads and fail-closes on malformed retained history ordered by ascending id.
     static func load(on connection: Connection) async throws -> [AppliedMigrationRecord] {
         let table = Path.Schema(schemaName).table(tableName)
         let query = SwifQL
             .select(
-                Path.Column("version"),
+                Path.Column("id"),
                 Path.Column("name"),
-                Path.Column("fingerprint"),
+                Path.Column("batch"),
                 Path.Column("applied_at")
             )
             .from(table)
-            .orderBy(.asc(Path.Column("version")))
+            .orderBy(.asc(Path.Column("id")))
         let result = try await query.query(on: connection)
-        return try result.rows.map { try $0.decode(AppliedMigrationRecord.self) }
+
+        let records: [AppliedMigrationRecord]
+        do {
+            records = try result.rows.map { try $0.decode(AppliedMigrationRecord.self) }
+        } catch {
+            throw MigrationError.invalidHistoryRecord
+        }
+        try validate(records)
+        return records
     }
 
+    /// Selects unapplied frozen registry entries in caller order.
     static func pending(
         current: [RegisteredMigration],
         applied: [AppliedMigrationRecord]
-    ) throws -> [RegisteredMigration] {
-        let currentByVersion = Dictionary(uniqueKeysWithValues: current.map { ($0.version, $0) })
-        var appliedByVersion: [Int64: AppliedMigrationRecord] = [:]
-
-        for record in applied {
-            guard let migration = currentByVersion[record.version] else {
-                throw MigrationError.appliedMigrationMissing(
-                    version: record.version,
-                    name: record.name
-                )
-            }
-
-            guard migration.name == record.name else {
-                throw MigrationError.appliedNameMismatch(
-                    version: record.version,
-                    expected: migration.name,
-                    actual: record.name
-                )
-            }
-
-            guard migration.fingerprint == record.fingerprint else {
-                throw MigrationError.appliedFingerprintMismatch(
-                    version: record.version,
-                    expected: migration.fingerprint,
-                    actual: record.fingerprint
-                )
-            }
-
-            appliedByVersion[record.version] = record
-        }
-
-        guard let highestApplied = appliedByVersion.keys.max() else {
-            return current.sorted { $0.version < $1.version }
-        }
-
-        for migration in current where migration.version <= highestApplied {
-            guard appliedByVersion[migration.version] != nil else {
-                throw MigrationError.historicalInsertion(
-                    version: migration.version,
-                    highestApplied: highestApplied
-                )
-            }
-        }
-
-        return current
-            .filter { $0.version > highestApplied && appliedByVersion[$0.version] == nil }
-            .sorted { $0.version < $1.version }
+    ) -> [RegisteredMigration] {
+        let appliedNames = Set(applied.map(\.name))
+        return current.filter { !appliedNames.contains($0.name) }
     }
 
+    /// Returns the public current batch, or zero for empty retained history.
+    static func currentBatch(_ records: [AppliedMigrationRecord]) throws -> UInt {
+        guard let last = records.last else {
+            return 0
+        }
+        guard let batch = UInt(exactly: last.batch) else {
+            throw MigrationError.batchOverflow
+        }
+        return batch
+    }
+
+    /// Computes the next batch without signed or unsigned overflow.
+    static func nextBatch(after current: UInt) throws -> UInt {
+        let (next, overflow) = current.addingReportingOverflow(1)
+        guard !overflow, Int64(exactly: next) != nil else {
+            throw MigrationError.batchOverflow
+        }
+        return next
+    }
+
+    /// Preflights a complete positive BIGINT id range and returns its first id.
+    static func nextHistoryID(
+        after records: [AppliedMigrationRecord],
+        adding count: Int
+    ) throws -> Int64 {
+        let maximum = records.last?.id ?? 0
+        guard let count64 = Int64(exactly: count), count64 > 0 else {
+            throw MigrationError.historyIdOverflow
+        }
+        let (last, overflow) = maximum.addingReportingOverflow(count64)
+        guard !overflow, last > 0 else {
+            throw MigrationError.historyIdOverflow
+        }
+        let (first, firstOverflow) = maximum.addingReportingOverflow(1)
+        guard !firstOverflow, first > 0 else {
+            throw MigrationError.historyIdOverflow
+        }
+        return first
+    }
+
+    /// Inserts one exact history row inside the supplied migration transaction.
     static func insert(
-        version: Int64,
+        id: Int64,
         name: String,
-        fingerprint: String,
+        batch: Int64,
         appliedAt: Date,
         on transaction: Transaction
     ) async throws {
         let table = Path.Schema(schemaName).table(tableName)
         let query = SwifQL
-            .insertInto(table, fields: "version", "name", "fingerprint", "applied_at")
+            .insertInto(table, fields: "id", "name", "batch", "applied_at")
             .values
-            .values(version, name, fingerprint, appliedAt)
+            .values(id, name, batch, appliedAt)
         try await query.execute(on: transaction)
     }
 
+    /// Deletes exactly one retained history row by its factual id.
+    static func delete(id: Int64, on transaction: Transaction) async throws {
+        let table = Path.Schema(schemaName).table(tableName)
+        let query = SwifQL
+            .delete
+            .from(table)
+            .where(Path.Column("id") == id)
+        try await query.execute(on: transaction)
+    }
+
+    /// Quantizes a finite date through the exact TIMESTAMPTZ microsecond codec.
     static func exactAppliedAt(from candidate: Date = Date()) throws -> Date {
         let unixSeconds = candidate.timeIntervalSince1970
         guard unixSeconds.isFinite else {
@@ -188,6 +224,34 @@ enum MigrationHistory {
         let dataType: String
         let isNullable: String
         let defaultValue: String?
+    }
+
+    private static func validate(_ records: [AppliedMigrationRecord]) throws {
+        guard let first = records.first else {
+            return
+        }
+        guard first.id > 0,
+              first.batch == 1,
+              first.name.contains(where: { !$0.isWhitespace }) else {
+            throw MigrationError.invalidHistoryRecord
+        }
+
+        var previous = first
+        for record in records.dropFirst() {
+            guard record.id > previous.id,
+                  record.batch > 0,
+                  record.name.contains(where: { !$0.isWhitespace }) else {
+                throw MigrationError.invalidHistoryRecord
+            }
+
+            let isSameBatch = record.batch.distance(to: previous.batch) == 0
+            let isNextBatch = previous.batch < Int64.max
+                && record.batch.distance(to: previous.batch + 1) == 0
+            guard isSameBatch || isNextBatch else {
+                throw MigrationError.invalidHistoryRecord
+            }
+            previous = record
+        }
     }
 
     private static func columns(on connection: Connection) async throws -> [ColumnMetadata] {
@@ -221,15 +285,20 @@ enum MigrationHistory {
         }
     }
 
-    private static func primaryKeyConstraints(on connection: Connection) async throws -> [String] {
+    private static func constraints(
+        ofType type: String,
+        on connection: Connection
+    ) async throws -> [String] {
         let table = Path.Schema("information_schema").table("table_constraints")
         let query = SwifQL
             .select(Path.Column("constraint_name"))
             .from(table)
             .where(
                 (Path.Column("table_schema") == schemaName)
-                    .and((Path.Column("table_name") == tableName)
-                        .and(Path.Column("constraint_type") == "PRIMARY KEY"))
+                    .and(
+                        (Path.Column("table_name") == tableName)
+                            .and(Path.Column("constraint_type") == type)
+                    )
             )
         let result = try await query.query(on: connection)
         return try result.rows.map { row in
@@ -240,7 +309,7 @@ enum MigrationHistory {
         }
     }
 
-    private static func primaryKeyColumns(
+    private static func constraintColumns(
         _ constraintName: String,
         on connection: Connection
     ) async throws -> [String] {
