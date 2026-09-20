@@ -1,6 +1,7 @@
-@testable import SwiftDuckDB
 import Foundation
+import SwifQL
 import Testing
+@testable import SwiftDuckDB
 
 private func coordinatorFilePath(_ label: String) -> String {
     FileManager.default.temporaryDirectory
@@ -19,6 +20,20 @@ private func expectCoordinatorError(
         #expect(error == expected)
     } catch {
         Issue.record("Expected coordinator error \(expected), but received \(error).")
+    }
+}
+
+private func expectCustomError(
+    _ expected: ConcurrencyError,
+    operation: () async throws -> Void
+) async {
+    do {
+        try await operation()
+        Issue.record("Expected custom migration error \(expected), but the operation succeeded.")
+    } catch let error as ConcurrencyError {
+        #expect(error == expected)
+    } catch {
+        Issue.record("Expected custom migration error \(expected), but received \(error).")
     }
 }
 
@@ -121,7 +136,7 @@ func differentInMemoryKeysRemainActive() async throws {
 }
 
 @Test("B-C08 different file paths remain independently active")
-func differentFilePathsRemainActive() async throws {
+func differentFilePathsRemainIndependentlyActive() async throws {
     let firstPath = coordinatorFilePath("first")
     let secondPath = coordinatorFilePath("second")
     defer {
@@ -158,32 +173,81 @@ func releaseRetainsLiveOwnerAssociation() async throws {
 @Test("D-C10 overlapping public migrate on the same Database is concurrentRun")
 func overlappingPublicMigrateOnSameDatabaseIsConcurrentRun() async throws {
     let database = try Database()
-    let entered = MigrationBodySignal()
-    let gate = MigrationBodyGate()
-    let migration = ConcurrencyMigration(
-        version: 100,
-        name: "same database overlap",
-        fingerprint: "same-database-overlap-v1"
-    ) { _ in
+    let entered = MigrationSignal()
+    let gate = MigrationGate()
+    let migration = concurrencyMigration(name: "same database migrate overlap") { _ in
         await entered.signal()
         await gate.wait()
     }
 
-    async let firstRun: Void = database.migrate([migration])
+    let firstRun = Task {
+        try await database.migrator([migration]).migrate()
+    }
     await entered.wait()
 
     await expectCoordinatorError(.concurrentRun) {
-        try await database.migrate([migration])
+        _ = try await database.migrator([migration]).migrate()
     }
 
     await gate.open()
-    try await firstRun
-
-    try await database.migrate([migration])
+    #expect(try await firstRun.value == 1)
+    #expect(try await database.migrator([migration]).migrate() == 1)
 }
 
-@Test("D-C11 canonical alias second live owner is conflictingDatabaseOwner")
-func canonicalAliasSecondLiveOwnerIsConflictingDatabaseOwner() async throws {
+@Test("D-C11 overlapping public revert on the same Database is concurrentRun")
+func overlappingPublicRevertOnSameDatabaseIsConcurrentRun() async throws {
+    let database = try Database()
+    let entered = MigrationSignal()
+    let gate = MigrationGate()
+    let migration = concurrencyMigration(name: "same database revert overlap", down: { _ in
+        await entered.signal()
+        await gate.wait()
+    })
+    let migrator = database.migrator([migration])
+
+    #expect(try await migrator.migrate() == 1)
+    let firstRun = Task {
+        try await migrator.revert()
+    }
+    await entered.wait()
+
+    await expectCoordinatorError(.concurrentRun) {
+        _ = try await migrator.revert()
+    }
+
+    await gate.open()
+    #expect(try await firstRun.value == 0)
+    #expect(try await migrator.revert() == 0)
+}
+
+@Test("D-C12 overlapping public migrate and revert on the same Database is concurrentRun")
+func overlappingPublicMigrateAndRevertOnSameDatabaseIsConcurrentRun() async throws {
+    let database = try Database()
+    let entered = MigrationSignal()
+    let gate = MigrationGate()
+    let first = concurrencyMigration(name: "migrate and revert first")
+    let second = concurrencyMigration(name: "migrate and revert second") { _ in
+        await entered.signal()
+        await gate.wait()
+    }
+    let migrator = database.migrator([first, second])
+
+    #expect(try await database.migrator([first]).migrate() == 1)
+    let migrateRun = Task {
+        try await migrator.migrate()
+    }
+    await entered.wait()
+
+    await expectCoordinatorError(.concurrentRun) {
+        _ = try await migrator.revert()
+    }
+
+    await gate.open()
+    #expect(try await migrateRun.value == 2)
+}
+
+@Test("D-C13 canonical alias second live owner remains conflictingDatabaseOwner")
+func canonicalAliasSecondLiveOwnerRemainsConflictingDatabaseOwner() async throws {
     let directory = FileManager.default.temporaryDirectory
         .appendingPathComponent("swiftduckdb-migration-owner-alias-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -195,73 +259,173 @@ func canonicalAliasSecondLiveOwnerIsConflictingDatabaseOwner() async throws {
 
     let first = try Database(path: actualURL.path)
     let second = try Database(path: aliasURL.path)
-    let migration = ConcurrencyMigration(
-        version: 200,
-        name: "canonical owner",
-        fingerprint: "canonical-owner-v1"
-    )
+    let migration = concurrencyMigration(name: "canonical owner")
 
-    try await first.migrate([migration])
-
+    #expect(try await first.migrator([migration]).migrate() == 1)
     await expectCoordinatorError(.conflictingDatabaseOwner) {
-        try await second.migrate([migration])
+        _ = try await second.migrator([migration]).migrate()
     }
-
-    try await first.migrate([migration])
+    #expect(try await first.migrator([migration]).migrate() == 1)
 }
 
-@Test("D-C12 unrelated public migration bodies are concurrently active")
+@Test("D-C14 unrelated public migration bodies are concurrently active")
 func unrelatedPublicMigrationBodiesAreConcurrentlyActive() async throws {
     let first = try Database()
     let second = try Database()
-    let barrier = MigrationBodyBarrier(requiredArrivals: 2)
-
-    let firstMigration = ConcurrencyMigration(
-        version: 300,
-        name: "first independent database",
-        fingerprint: "first-independent-v1"
-    ) { _ in
+    let barrier = MigrationBarrier(requiredArrivals: 2)
+    let firstMigration = concurrencyMigration(name: "first independent database") { _ in
         await barrier.arriveAndWait()
     }
-    let secondMigration = ConcurrencyMigration(
-        version: 400,
-        name: "second independent database",
-        fingerprint: "second-independent-v1"
-    ) { _ in
+    let secondMigration = concurrencyMigration(name: "second independent database") { _ in
         await barrier.arriveAndWait()
     }
 
-    async let firstRun: Void = first.migrate([firstMigration])
-    async let secondRun: Void = second.migrate([secondMigration])
+    let firstRun = Task {
+        try await first.migrator([firstMigration]).migrate()
+    }
+    let secondRun = Task {
+        try await second.migrator([secondMigration]).migrate()
+    }
 
-    try await firstRun
-    try await secondRun
+    #expect(try await firstRun.value == 1)
+    #expect(try await secondRun.value == 1)
+}
+
+@Test("D-C15 ordinary migrate failure releases coordination")
+func ordinaryMigrateFailureReleasesCoordination() async throws {
+    let database = try Database()
+    let failing = concurrencyMigration(name: "recoverable migrate failure") { _ in
+        throw ConcurrencyError.failed(code: 401)
+    }
+    await expectCustomError(.failed(code: 401)) {
+        _ = try await database.migrator([failing]).migrate()
+    }
+
+    let succeeding = concurrencyMigration(name: "recoverable migrate failure")
+    #expect(try await database.migrator([succeeding]).migrate() == 1)
+}
+
+@Test("D-C16 ordinary revert failure releases coordination")
+func ordinaryRevertFailureReleasesCoordination() async throws {
+    let database = try Database()
+    let failing = concurrencyMigration(
+        name: "recoverable revert failure",
+        down: { _ in throw ConcurrencyError.failed(code: 402) }
+    )
+    #expect(try await database.migrator([failing]).migrate() == 1)
+
+    await expectCustomError(.failed(code: 402)) {
+        _ = try await database.migrator([failing]).revert()
+    }
+
+    let succeeding = concurrencyMigration(name: "recoverable revert failure")
+    #expect(try await database.migrator([succeeding]).revert() == 0)
+}
+
+@Test("D-C17 migrate cancellation with successful rollback releases coordination")
+func migrateCancellationWithSuccessfulRollbackReleasesCoordination() async throws {
+    let database = try Database()
+    let entered = MigrationSignal()
+    let gate = MigrationGate()
+    let migration = concurrencyMigration(name: "cancellable migrate") { transaction in
+        try await SwifQL
+            .create
+            .table[any: Path.Table("cancelled_migration_rows")]
+            .tableDefinitions(NewColumn("value", .integer))
+            .execute(on: transaction)
+        await entered.signal()
+        await gate.wait()
+        try Task.checkCancellation()
+    }
+
+    let cancelledRun = Task {
+        try await database.migrator([migration]).migrate()
+    }
+    await entered.wait()
+    cancelledRun.cancel()
+    await gate.open()
+
+    await expectCancellation {
+        _ = try await cancelledRun.value
+    }
+
+    let connection = try database.connect()
+    #expect(try await migrationTableExists(on: connection, name: "cancelled_migration_rows") == false)
+    #expect(try await database.migrator([migration]).migrate() == 1)
+}
+
+@Test("D-C18 revert cancellation with successful rollback releases coordination")
+func revertCancellationWithSuccessfulRollbackReleasesCoordination() async throws {
+    let database = try Database()
+    let entered = MigrationSignal()
+    let gate = MigrationGate()
+    let migration = concurrencyMigration(
+        name: "cancellable revert",
+        up: { transaction in
+            try await SwifQL
+                .create
+                .table[any: Path.Table("cancellable_revert_rows")]
+                .tableDefinitions(NewColumn("value", .integer))
+                .execute(on: transaction)
+        },
+        down: { transaction in
+            try await SwifQL
+                .delete
+                .from(Path.Table("cancellable_revert_rows"))
+                .execute(on: transaction)
+            await entered.signal()
+            await gate.wait()
+            try Task.checkCancellation()
+        }
+    )
+    let migrator = database.migrator([migration])
+
+    #expect(try await migrator.migrate() == 1)
+    let cancelledRun = Task {
+        try await migrator.revert()
+    }
+    await entered.wait()
+    cancelledRun.cancel()
+    await gate.open()
+
+    await expectCancellation {
+        _ = try await cancelledRun.value
+    }
+
+    let connection = try database.connect()
+    #expect(try await MigrationHistory.load(on: connection).map(\.name) == ["cancellable revert"])
+    #expect(try await migrator.revert() == 0)
 }
 
 private struct ConcurrencyMigration: Migration {
-    let version: Int64
     let name: String
-    let fingerprint: String
-    private let action: @Sendable (Transaction) async throws -> Void
+    private let upAction: @Sendable (Transaction) async throws -> Void
+    private let downAction: @Sendable (Transaction) async throws -> Void
 
     init(
-        version: Int64,
         name: String,
-        fingerprint: String,
-        action: @escaping @Sendable (Transaction) async throws -> Void = { _ in }
+        up: @escaping @Sendable (Transaction) async throws -> Void = { _ in },
+        down: @escaping @Sendable (Transaction) async throws -> Void = { _ in }
     ) {
-        self.version = version
         self.name = name
-        self.fingerprint = fingerprint
-        self.action = action
+        upAction = up
+        downAction = down
     }
 
-    func up(on transaction: Transaction) async throws {
-        try await action(transaction)
+    var up: MigrationPlan {
+        Run(upAction)
+    }
+
+    var down: MigrationPlan {
+        Run(downAction)
     }
 }
 
-private actor MigrationBodySignal {
+private enum ConcurrencyError: Error, Equatable, Sendable {
+    case failed(code: Int)
+}
+
+private actor MigrationSignal {
     private var signaled = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
 
@@ -289,7 +453,7 @@ private actor MigrationBodySignal {
     }
 }
 
-private actor MigrationBodyGate {
+private actor MigrationGate {
     private var isOpen = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
 
@@ -317,7 +481,7 @@ private actor MigrationBodyGate {
     }
 }
 
-private actor MigrationBodyBarrier {
+private actor MigrationBarrier {
     private let requiredArrivals: Int
     private var arrivals = 0
     private var waiters: [CheckedContinuation<Void, Never>] = []
@@ -341,5 +505,37 @@ private actor MigrationBodyBarrier {
         await withCheckedContinuation { continuation in
             waiters.append(continuation)
         }
+    }
+}
+
+private func concurrencyMigration(
+    name: String,
+    up: @escaping @Sendable (Transaction) async throws -> Void = { _ in },
+    down: @escaping @Sendable (Transaction) async throws -> Void = { _ in }
+) -> ConcurrencyMigration {
+    ConcurrencyMigration(name: name, up: up, down: down)
+}
+
+private func migrationTableExists(on connection: Connection, name: String) async throws -> Bool {
+    let tables = Path.Schema("information_schema").table("tables")
+    let result = try await SwifQL
+        .select(Path.Column("table_name"))
+        .from(tables)
+        .where(
+            (Path.Column("table_schema") == "main")
+                .and(Path.Column("table_name") == name)
+        )
+        .query(on: connection)
+    return !result.rows.isEmpty
+}
+
+private func expectCancellation(operation: () async throws -> Void) async {
+    do {
+        try await operation()
+        Issue.record("Expected cancellation, but the operation succeeded.")
+    } catch is CancellationError {
+        return
+    } catch {
+        Issue.record("Expected CancellationError, but received \(error).")
     }
 }
