@@ -47,15 +47,7 @@ Resolved query-construction rules are not open decisions:
 
 P0 Codable / Model Layer architecture and public closure are accepted current state. The accepted surface owns arbitrary flat Row/QueryResult decoding, exact flat ModelEncoder semantics, Table/@Column persistence extraction, prepared model bindings, explicit-Connection insert/update, and matching explicit-Transaction persistence overloads that reuse the existing transaction engine. Any later expansion beyond that accepted boundary requires a new reviewed decision. P1 Migrations is also accepted current state: the final name-only declarative `Migration`/`Migrator` model, batch history, atomic pending-batch migrate, reverse batch revert, `UInt` current-batch APIs, final build/test validation, and Wave F root audit are complete. No broader schema-diff/generation/reflection/discovery/cross-process-locking design is implied by that closure.
 
-The active research capability is now:
-
-### Observation / Reactive Queries — CRITICAL / AFTER MIGRATIONS
-
-- Public observation primitive, with `AsyncSequence`/`AsyncThrowingStream` as the first design to research.
-- Query dependency tracking granularity: whole database, explicit table set, DuckDB `duckdb_get_table_names`, or a layered strategy.
-- Commit-aware invalidation/coalescing across ordinary writes, explicit transactions, Statements, and Appenders.
-- Scope of observation for changes made outside SwiftDuckDB ownership; no unsupported external-change guarantee should be implied.
-- Delivery scheduling/MainActor adapters without importing UIKitUltra or SwiftUI into SwiftDuckDB core.
+Observation / Reactive Queries core architecture is no longer an open decision. Research 01, probes P01-P10, Product/Architecture Corrections 01-04, Implementation Plan Corrections 01-04, and the CLEAN Correction 04 re-audit freeze the v1 implementation contract. Task 01 is the active implementation gate; later Observation tasks remain separately gated. Any future expansion beyond the accepted same-Database, UI-neutral, latest-state boundary requires a new reviewed decision rather than reopening this closed design implicitly.
 
 ### Nested / Complex Value & Result Families — DEFERRED NICE-TO-HAVE
 

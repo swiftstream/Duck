@@ -39,7 +39,7 @@ There is intentionally no model/provider/tool-specific stable session-orchestrat
 
 ## Authorized Next Source Slice
 
-P1 Migrations is COMPLETE at final implementation HEAD `478a040d79c3fbed6a50d88e672d78cd90aacb44`: Task 05 final validation passed build plus 455/455 tests, and the NEW fresh GPT-5.6 Sol Wave F source/evidence root audit is CLEAN at 48/48 source gates and 10/10 evidence gates with primary coordinator closure accepted. Observation / Reactive Queries Research 01 is now the only active roadmap gate. Research and bounded experimental probes are authorized; production/test implementation is not yet authorized. Pooling and later capabilities remain closed until Observation reaches reviewed planning/implementation gates.
+P1 Migrations is COMPLETE at final implementation HEAD `478a040d79c3fbed6a50d88e672d78cd90aacb44`: Task 05 final validation passed build plus 455/455 tests, and the NEW fresh GPT-5.6 Sol Wave F source/evidence root audit is CLEAN at 48/48 source gates and 10/10 evidence gates with primary coordinator closure accepted. Observation / Reactive Queries is the active implementation capability. Research 01 + probes P01-P10 and plan Corrections 01-04 are accepted; fresh Correction 04 re-audit is CLEAN. Task 01 Native Observation Bridge + Dependency Coordinator is authorized now; Tasks 02-07 and Pooling/later capabilities remain separately gated.
 
 ## Public SwiftDuckDB Source
 

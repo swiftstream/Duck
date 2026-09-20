@@ -2,11 +2,11 @@
 
 Ideas and maintainer-prioritized capabilities that are not yet active approved implementation tasks.
 
-P0 `Codable / Model Layer` and P1 `Migrations` are COMPLETE and no longer future work. Observation / Reactive Queries has now been promoted out of TODO into active Research 01; implementation remains separately gated until research, targeted probes, planning, and independent audit close its architecture.
+P0 `Codable / Model Layer` and P1 `Migrations` are COMPLETE and no longer future work. Observation / Reactive Queries is now active implementation work after completed Research 01, probes P01-P10, accepted Corrections 01-04, and a CLEAN Correction 04 re-audit. Task 01 only is currently authorized; later Observation tasks remain gated.
 
 ## Maintainer-Prioritized Pre-Vortegy Capability Order
 
-Promote each remaining future item separately through fresh research, reviewed planning, implementation, and audit after the active Observation capability reaches its required gates.
+Promote each remaining future item separately through fresh research, reviewed planning, implementation, and audit after the active Observation capability reaches its required implementation/root/public-closure gates.
 
 1. **Connection pooling** with scoped leasing, bounded concurrency, transaction pinning, cancellation-safe backpressure, unhealthy-connection replacement, graceful shutdown semantics, and explicit interaction with the eventual observation core.
 2. Address the two verified technical-debt capabilities in `.agent/TECH_DEBT.md` before Advanced Appender expansion:
