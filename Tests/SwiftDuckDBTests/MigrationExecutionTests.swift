@@ -5,69 +5,80 @@ import Testing
 
 @Suite("MigrationExecutionTests")
 struct MigrationExecutionTests {
-    @Test("C-E01 applies one pending migration and records exact history")
-    func appliesOnePendingMigrationAndRecordsExactHistory() async throws {
-        let database = try Database()
-        let migration = ExecutionMigration(version: 1, name: "create values", fingerprint: "v1") { transaction in
-            try await createValuesTable(on: transaction)
-            try await insertValue(42, on: transaction)
-        }
-
-        try await database.migrate([migration])
-
-        let connection = try database.connect()
-        let records = try await MigrationHistory.load(on: connection)
-        let record = try #require(records.first)
-        #expect(records.count == 1)
-        #expect(record.version == 1)
-        #expect(record.name == "create values")
-        #expect(record.fingerprint == "v1")
-        #expect(try await valueRows(on: connection) == [42])
-    }
-
-    @Test("C-E02 executes declaration order by ascending version")
-    func executesDeclarationOrderByAscendingVersion() async throws {
+    @Test("fresh pending migrations return batch one and share it in caller order")
+    func freshPendingMigrationsReturnBatchOneAndShareItInCallerOrder() async throws {
         let database = try Database()
         let order = ExecutionOrder()
         let migrations = [
-            recordedMigration(version: 30, order: order),
-            recordedMigration(version: 10, order: order),
-            recordedMigration(version: 20, order: order)
+            executionMigration(name: "third", order: order),
+            executionMigration(name: "first", order: order),
+            executionMigration(name: "second", order: order)
         ]
 
-        try await database.migrate(migrations)
+        let result = try await database.migrator(migrations).migrate()
+        let connection = try database.connect()
+        let records = try await MigrationHistory.load(on: connection)
 
-        #expect(await order.values() == [10, 20, 30])
+        #expect(result == 1)
+        #expect(await order.values() == ["third", "first", "second"])
+        #expect(records.map(\.name) == ["third", "first", "second"])
+        #expect(records.map(\.batch) == [1, 1, 1])
+        #expect(records.map(\.id) == [1, 2, 3])
     }
 
-    @Test("C-E03 commits representative DDL and DML with history")
-    func commitsRepresentativeDDLAndDMLWithHistory() async throws {
+    @Test("representative DDL and DML commit with exact history")
+    func representativeDDLAndDMLCommitWithExactHistory() async throws {
         let database = try Database()
-        let migration = ExecutionMigration(version: 2, name: "commit body", fingerprint: "commit-v1") { transaction in
+        let migration = tableMigration(name: "values") { transaction in
             try await createValuesTable(on: transaction)
-            try await insertValue(7, on: transaction)
-            try await insertValue(8, on: transaction)
+            try await insertValue("seven", on: transaction)
+            try await insertValue("eight", on: transaction)
         }
 
-        try await database.migrate([migration])
+        #expect(try await database.migrator([migration]).migrate() == 1)
 
         let connection = try database.connect()
-        #expect(try await valueRows(on: connection) == [7, 8])
-        #expect(try await MigrationHistory.load(on: connection).map(\.version) == [2])
+        #expect(try await valueRows(on: connection) == ["eight", "seven"])
+        let records = try await MigrationHistory.load(on: connection)
+        #expect(records.count == 1)
+        #expect(records[0].id == 1)
+        #expect(records[0].name == "values")
+        #expect(records[0].batch == 1)
     }
 
-    @Test("C-E04 preserves custom migration error identity and rolls back body")
-    func preservesCustomMigrationErrorIdentityAndRollsBackBody() async throws {
+    @Test("a later up failure rolls back the complete pending batch")
+    func laterUpFailureRollsBackTheCompletePendingBatch() async throws {
         let database = try Database()
-        let expected = ExpectedMigrationError.failed(code: 404)
-        let migration = ExecutionMigration(version: 3, name: "fails", fingerprint: "fails-v1") { transaction in
+        let first = tableMigration(name: "first") { transaction in
             try await createValuesTable(on: transaction)
-            try await insertValue(99, on: transaction)
+            try await insertValue("first", on: transaction)
+        }
+        let second = tableMigration(name: "second") { transaction in
+            try await insertValue("second", on: transaction)
+            throw ExecutionError.failed(code: 201)
+        }
+
+        await expectAnyError {
+            _ = try await database.migrator([first, second]).migrate()
+        }
+
+        let connection = try database.connect()
+        #expect(try await MigrationHistory.load(on: connection).isEmpty)
+        #expect(try await valuesTableExists(on: connection) == false)
+    }
+
+    @Test("custom up error identity is preserved after successful rollback")
+    func customUpErrorIdentityIsPreservedAfterSuccessfulRollback() async throws {
+        let database = try Database()
+        let expected = ExecutionError.failed(code: 202)
+        let migration = tableMigration(name: "custom failure") { transaction in
+            try await createValuesTable(on: transaction)
+            try await insertValue("body", on: transaction)
             throw expected
         }
 
         await expectCustomError(expected) {
-            try await database.migrate([migration])
+            _ = try await database.migrator([migration]).migrate()
         }
 
         let connection = try database.connect()
@@ -75,368 +86,229 @@ struct MigrationExecutionTests {
         #expect(try await valuesTableExists(on: connection) == false)
     }
 
-    @Test("C-E05 failed migration has no history row")
-    func failedMigrationHasNoHistoryRow() async throws {
+    @Test("framework history insert failure rolls back the whole batch")
+    func frameworkHistoryInsertFailureRollsBackTheWholeBatch() async throws {
         let database = try Database()
-        let migration = ExecutionMigration(version: 4, name: "history absent", fingerprint: "history-absent-v1") { _ in
-            throw ExpectedMigrationError.failed(code: 405)
-        }
+        let migration = ExecutionMigration(name: "history conflict", up: { transaction in
+            try await createValuesTable(on: transaction)
+            try await insertValue("body", on: transaction)
+            try await MigrationHistory.insert(
+                id: 1,
+                name: "conflicting row",
+                batch: 1,
+                appliedAt: try MigrationHistory.exactAppliedAt(from: executionHistoryDate),
+                on: transaction
+            )
+        })
 
         await expectAnyError {
-            try await database.migrate([migration])
+            _ = try await database.migrator([migration]).migrate()
         }
 
         let connection = try database.connect()
         #expect(try await MigrationHistory.load(on: connection).isEmpty)
+        #expect(try await valuesTableExists(on: connection) == false)
     }
 
-    @Test("C-E06 preserves an earlier committed prefix after later failure")
-    func preservesEarlierCommittedPrefixAfterLaterFailure() async throws {
-        let database = try Database()
-        let first = ExecutionMigration(version: 10, name: "prefix", fingerprint: "prefix-v1") { transaction in
-            try await createValuesTable(on: transaction)
-            try await insertValue(10, on: transaction)
-        }
-        let second = ExecutionMigration(version: 20, name: "suffix", fingerprint: "suffix-v1") { transaction in
-            try await insertValue(20, on: transaction)
-            throw ExpectedMigrationError.failed(code: 406)
-        }
-
-        await expectAnyError {
-            try await database.migrate([first, second])
-        }
-
-        let connection = try database.connect()
-        #expect(try await valueRows(on: connection) == [10])
-        #expect(try await MigrationHistory.load(on: connection).map(\.version) == [10])
-    }
-
-    @Test("C-E07 explicit rerun resumes only the durable unapplied suffix")
-    func explicitRerunResumesOnlyTheDurableUnappliedSuffix() async throws {
-        let database = try Database()
-        let firstRuns = ExecutionCount()
-        let secondRuns = ExecutionCount()
-        let first = ExecutionMigration(version: 11, name: "prefix", fingerprint: "resume-prefix") { transaction in
-            await firstRuns.increment()
-            try await createValuesTable(on: transaction)
-            try await insertValue(11, on: transaction)
-        }
-        let failingSecond = ExecutionMigration(version: 22, name: "suffix", fingerprint: "resume-suffix") { _ in
-            throw ExpectedMigrationError.failed(code: 407)
-        }
-
-        await expectAnyError {
-            try await database.migrate([first, failingSecond])
-        }
-
-        let succeedingSecond = ExecutionMigration(version: 22, name: "suffix", fingerprint: "resume-suffix") { transaction in
-            await secondRuns.increment()
-            try await insertValue(22, on: transaction)
-        }
-        try await database.migrate([first, succeedingSecond])
-
-        #expect(await firstRuns.value() == 1)
-        #expect(await secondRuns.value() == 1)
-        let connection = try database.connect()
-        #expect(try await valueRows(on: connection) == [11, 22])
-        #expect(try await MigrationHistory.load(on: connection).map(\.version) == [11, 22])
-    }
-
-    @Test("C-E08 successful rerun with no pending migrations does no body work")
-    func successfulRerunWithNoPendingMigrationsDoesNoBodyWork() async throws {
+    @Test("a no-pending rerun does no body work and creates no batch")
+    func noPendingRerunDoesNoBodyWorkAndCreatesNoBatch() async throws {
         let database = try Database()
         let count = ExecutionCount()
-        let migration = ExecutionMigration(version: 30, name: "once", fingerprint: "once-v1") { _ in
+        let migration = ExecutionMigration(name: "once", up: { _ in
             await count.increment()
-        }
+        })
+        let migrator = database.migrator([migration])
 
-        try await database.migrate([migration])
-        try await database.migrate([migration])
+        #expect(try await migrator.migrate() == 1)
+        #expect(try await migrator.migrate() == 1)
 
         #expect(await count.value() == 1)
         let connection = try database.connect()
-        #expect(try await MigrationHistory.load(on: connection).map(\.version) == [30])
+        let records = try await MigrationHistory.load(on: connection)
+        #expect(records.map(\.batch) == [1])
     }
 
-    @Test("C-E09 rejects invalid history before migration body execution")
-    func rejectsInvalidHistoryBeforeMigrationBodyExecution() async throws {
+    @Test("inserted and reordered names use name-only pending semantics")
+    func insertedAndReorderedNamesUseNameOnlyPendingSemantics() async throws {
+        let database = try Database()
+        let runs = ExecutionOrder()
+        let first = executionMigration(name: "first", order: runs)
+        let last = executionMigration(name: "last", order: runs)
+        let inserted = executionMigration(name: "inserted", order: runs)
+
+        #expect(try await database.migrator([first, last]).migrate() == 1)
+        #expect(try await database.migrator([first, inserted, last]).migrate() == 2)
+        #expect(try await database.migrator([last, inserted, first]).migrate() == 2)
+
+        #expect(await runs.values() == ["first", "last", "inserted"])
+        let connection = try database.connect()
+        let records = try await MigrationHistory.load(on: connection)
+        #expect(records.map(\.name) == ["first", "last", "inserted"])
+        #expect(records.map(\.batch) == [1, 1, 2])
+    }
+
+    @Test("an applied historical source missing from the registry does not block forward work")
+    func appliedHistoricalSourceMissingFromRegistryDoesNotBlockForwardWork() async throws {
+        let database = try Database()
+        let historical = ExecutionMigration(name: "retired")
+        let current = ExecutionMigration(name: "current")
+
+        #expect(try await database.migrator([historical]).migrate() == 1)
+        #expect(try await database.migrator([current]).migrate() == 2)
+
+        let connection = try database.connect()
+        #expect(try await MigrationHistory.load(on: connection).map(\.name) == ["retired", "current"])
+    }
+
+    @Test("a later explicit run proceeds after an ordinary up failure")
+    func laterExplicitRunProceedsAfterOrdinaryUpFailure() async throws {
+        let database = try Database()
+        let failing = ExecutionMigration(name: "recover", up: { _ in
+            throw ExecutionError.failed(code: 203)
+        })
+        await expectAnyError {
+            _ = try await database.migrator([failing]).migrate()
+        }
+
+        let runs = ExecutionCount()
+        let succeeding = ExecutionMigration(name: "recover", up: { _ in
+            await runs.increment()
+        })
+        #expect(try await database.migrator([succeeding]).migrate() == 1)
+        #expect(await runs.value() == 1)
+    }
+
+    @Test("cancellation during up rolls back and releases migration coordination")
+    func cancellationDuringUpRollsBackAndReleasesMigrationCoordination() async throws {
+        let database = try Database()
+        let entered = ExecutionSignal()
+        let gate = ExecutionGate()
+        let migration = ExecutionMigration(name: "cancellable", up: { transaction in
+            try await createValuesTable(on: transaction)
+            try await insertValue("cancelled", on: transaction)
+            await entered.signal()
+            await gate.wait()
+            try Task.checkCancellation()
+        })
+
+        let task = Task {
+            try await database.migrator([migration]).migrate()
+        }
+        await entered.wait()
+        task.cancel()
+        await gate.open()
+
+        await expectCancellation {
+            _ = try await task.value
+        }
+
+        let connection = try database.connect()
+        #expect(try await MigrationHistory.load(on: connection).isEmpty)
+        #expect(try await valuesTableExists(on: connection) == false)
+        #expect(try await database.migrator([migration]).migrate() == 1)
+    }
+
+    @Test("public migration applied_at is non-NULL and codec-exact")
+    func publicMigrationAppliedAtIsNonNullAndCodecExact() async throws {
+        let database = try Database()
+        #expect(try await database.migrator([ExecutionMigration(name: "timestamp")]).migrate() == 1)
+
+        let connection = try database.connect()
+        let record = try #require(try await MigrationHistory.load(on: connection).first)
+        let raw = try NativeFoundationDateCodec.rawMicroseconds(from: record.appliedAt)
+        #expect(try NativeFoundationDateCodec.date(fromRawMicroseconds: raw) == record.appliedAt)
+    }
+
+    @Test("history id overflow is preflighted before up body mutation")
+    func historyIDOverflowIsPreflightedBeforeUpBodyMutation() async throws {
         let database = try Database()
         let connection = try database.connect()
-        try await SwifQL.raw("CREATE SCHEMA __swiftduckdb").execute(on: connection)
-        try await SwifQL.raw(
-            "CREATE TABLE __swiftduckdb.migrations (version BIGINT PRIMARY KEY, name VARCHAR NOT NULL, fingerprint VARCHAR NOT NULL)"
-        ).execute(on: connection)
-
-        let bodyRuns = ExecutionCount()
-        let migration = ExecutionMigration(version: 40, name: "blocked", fingerprint: "blocked-v1") { _ in
-            await bodyRuns.increment()
-        }
-
-        await expectMigrationError(.invalidHistorySchema) {
-            try await database.migrate([migration])
-        }
-
-        #expect(await bodyRuns.value() == 0)
-    }
-
-    @Test("C-E10 framework history INSERT failure rolls back the whole migration transaction")
-    func frameworkHistoryInsertFailureRollsBackWholeMigrationTransaction() async throws {
-        let database = try Database()
-        let migration = ExecutionMigration(version: 50, name: "conflicting insert", fingerprint: "conflict-v1") { transaction in
-            try await createValuesTable(on: transaction)
-            try await insertValue(50, on: transaction)
+        try await MigrationHistory.bootstrap(on: connection)
+        try await connection.transaction { transaction in
             try await MigrationHistory.insert(
-                version: 50,
-                name: "conflict",
-                fingerprint: "conflict",
-                appliedAt: try MigrationHistory.exactAppliedAt(from: historyDate),
+                id: Int64.max,
+                name: "retained",
+                batch: 1,
+                appliedAt: try MigrationHistory.exactAppliedAt(from: executionHistoryDate),
                 on: transaction
             )
         }
 
-        await expectAnyError {
-            try await database.migrate([migration])
-        }
-
-        let connection = try database.connect()
-        #expect(try await MigrationHistory.load(on: connection).isEmpty)
-        #expect(try await valuesTableExists(on: connection) == false)
-    }
-
-    @Test("C-E11 cancellation rolls back current work and releases coordination before completion")
-    func cancellationRollsBackCurrentWorkAndReleasesCoordinationBeforeCompletion() async throws {
-        let database = try Database()
-        let entered = ExecutionSignal()
-        let gate = ExecutionGate()
-        let migration = gatedMigration(
-            version: 60,
-            entered: entered,
-            gate: gate
-        )
-
-        let task = Task {
-            try await database.migrate([migration])
-        }
-        await entered.wait()
-        task.cancel()
-        await gate.open()
-
-        await expectCancellation {
-            try await task.value
-        }
-
-        let connection = try database.connect()
-        #expect(try await MigrationHistory.load(on: connection).isEmpty)
-        #expect(try await valuesTableExists(on: connection) == false)
-
-        try await database.migrate([])
-    }
-
-    @Test("C-E12 a later explicit run proceeds after a body failure")
-    func laterExplicitRunProceedsAfterBodyFailure() async throws {
-        let database = try Database()
-        let failing = ExecutionMigration(version: 70, name: "recover", fingerprint: "recover-v1") { _ in
-            throw ExpectedMigrationError.failed(code: 412)
-        }
-        await expectAnyError {
-            try await database.migrate([failing])
-        }
-
         let runs = ExecutionCount()
-        let succeeding = ExecutionMigration(version: 70, name: "recover", fingerprint: "recover-v1") { _ in
+        let pending = ExecutionMigration(name: "pending", up: { _ in
             await runs.increment()
-        }
-        try await database.migrate([succeeding])
+        })
 
-        #expect(await runs.value() == 1)
-    }
-
-    @Test("C-E13 a later explicit run proceeds after cancellation on the same Database")
-    func laterExplicitRunProceedsAfterCancellationOnSameDatabase() async throws {
-        let database = try Database()
-        let entered = ExecutionSignal()
-        let gate = ExecutionGate()
-        let canceled = gatedMigration(version: 80, entered: entered, gate: gate)
-        let task = Task {
-            try await database.migrate([canceled])
-        }
-        await entered.wait()
-        task.cancel()
-        await gate.open()
-
-        await expectCancellation {
-            try await task.value
+        await expectMigrationError(.historyIdOverflow) {
+            _ = try await database.migrator([pending]).migrate()
         }
 
-        let runs = ExecutionCount()
-        let succeeding = ExecutionMigration(version: 80, name: "cancellable", fingerprint: "cancellable-v1") { _ in
-            await runs.increment()
-        }
-        try await database.migrate([succeeding])
-        #expect(await runs.value() == 1)
+        #expect(await runs.value() == 0)
+        #expect(try await MigrationHistory.load(on: connection).map(\.id) == [Int64.max])
     }
 
-    @Test("C-E14 public runner stores a non-NULL codec-exact applied_at")
-    func publicRunnerStoresNonNullCodecExactAppliedAt() async throws {
-        let database = try Database()
-        try await database.migrate([
-            ExecutionMigration(version: 90, name: "timestamp", fingerprint: "timestamp-v1")
-        ])
-
-        let connection = try database.connect()
-        let record = try #require(try await MigrationHistory.load(on: connection).first)
-        let rawMicroseconds = try NativeFoundationDateCodec.rawMicroseconds(from: record.appliedAt)
-        let roundTrip = try NativeFoundationDateCodec.date(fromRawMicroseconds: rawMicroseconds)
-        #expect(roundTrip == record.appliedAt)
-    }
-
-    @Test("C-E15 empty registry succeeds on a fresh database")
-    func emptyRegistrySucceedsOnFreshDatabase() async throws {
-        let database = try Database()
-        try await database.migrate([])
-
-        let connection = try database.connect()
-        try await MigrationHistory.validate(on: connection)
-        #expect(try await MigrationHistory.load(on: connection).isEmpty)
-    }
-
-    @Test("C-E16 empty registry with applied history fails closed")
-    func emptyRegistryWithAppliedHistoryFailsClosed() async throws {
-        let database = try Database()
-        try await database.migrate([
-            ExecutionMigration(version: 100, name: "retired", fingerprint: "retired-v1")
-        ])
-
-        await expectMigrationError(.appliedMigrationMissing(version: 100, name: "retired")) {
-            try await database.migrate([])
+    @Test("next batch rejects the signed BIGINT upper boundary")
+    func nextBatchRejectsTheSignedBigIntUpperBoundary() {
+        do {
+            _ = try MigrationHistory.nextBatch(after: UInt(Int64.max))
+            Issue.record("Expected the signed BIGINT batch boundary to overflow.")
+        } catch let error as MigrationError {
+            #expect(error == .batchOverflow)
+        } catch {
+            Issue.record("Expected MigrationError.batchOverflow, but received \(error).")
         }
     }
-
-    @Test("C-E17 public runner uses each captured metadata field exactly once")
-    func publicRunnerUsesEachCapturedMetadataFieldExactlyOnce() async throws {
-        let database = try Database()
-
-        try await confirmation("version getter", expectedCount: 1) { versionRead in
-            try await confirmation("name getter", expectedCount: 1) { nameRead in
-                try await confirmation("fingerprint getter", expectedCount: 1) { fingerprintRead in
-                    let migration = ConfirmingExecutionMigration(
-                        versionValue: 110,
-                        nameValue: "captured name",
-                        fingerprintValue: "captured fingerprint",
-                        versionRead: versionRead,
-                        nameRead: nameRead,
-                        fingerprintRead: fingerprintRead
-                    )
-
-                    try await database.migrate([migration])
-
-                    let connection = try database.connect()
-                    let record = try #require(try await MigrationHistory.load(on: connection).first)
-                    #expect(record.version == 110)
-                    #expect(record.name == "captured name")
-                    #expect(record.fingerprint == "captured fingerprint")
-                }
-            }
-        }
-    }
-}
-
-private struct WaveCValues: Table {
-    static let tableName = "wave_c_values"
-
-    init() {}
 }
 
 private struct ExecutionMigration: Migration {
-    let version: Int64
     let name: String
-    let fingerprint: String
-    private let action: @Sendable (Transaction) async throws -> Void
+    private let upAction: @Sendable (Transaction) async throws -> Void
+    private let downAction: @Sendable (Transaction) async throws -> Void
 
     init(
-        version: Int64,
         name: String,
-        fingerprint: String,
-        action: @escaping @Sendable (Transaction) async throws -> Void = { _ in }
+        up: @escaping @Sendable (Transaction) async throws -> Void = { _ in },
+        down: @escaping @Sendable (Transaction) async throws -> Void = { _ in }
     ) {
-        self.version = version
         self.name = name
-        self.fingerprint = fingerprint
-        self.action = action
+        upAction = up
+        downAction = down
     }
 
-    func up(on transaction: Transaction) async throws {
-        try await action(transaction)
+    var up: MigrationPlan {
+        Run(upAction)
+    }
+
+    var down: MigrationPlan {
+        Run(downAction)
     }
 }
 
-private enum ExpectedMigrationError: Error, Equatable, Sendable {
+private enum ExecutionError: Error, Equatable, Sendable {
     case failed(code: Int)
 }
 
-private struct ConfirmingExecutionMigration: Migration {
-    private let versionValue: Int64
-    private let nameValue: String
-    private let fingerprintValue: String
-    private let versionRead: Confirmation
-    private let nameRead: Confirmation
-    private let fingerprintRead: Confirmation
-
-    var version: Int64 {
-        versionRead()
-        return versionValue
-    }
-
-    var name: String {
-        nameRead()
-        return nameValue
-    }
-
-    var fingerprint: String {
-        fingerprintRead()
-        return fingerprintValue
-    }
-
-    init(
-        versionValue: Int64,
-        nameValue: String,
-        fingerprintValue: String,
-        versionRead: Confirmation,
-        nameRead: Confirmation,
-        fingerprintRead: Confirmation
-    ) {
-        self.versionValue = versionValue
-        self.nameValue = nameValue
-        self.fingerprintValue = fingerprintValue
-        self.versionRead = versionRead
-        self.nameRead = nameRead
-        self.fingerprintRead = fingerprintRead
-    }
-
-    func up(on _: Transaction) async throws {}
-}
-
 private actor ExecutionOrder {
-    private var valuesStorage: [Int64] = []
+    private var storage: [String] = []
 
-    func append(_ value: Int64) {
-        valuesStorage.append(value)
+    func append(_ value: String) {
+        storage.append(value)
     }
 
-    func values() -> [Int64] {
-        valuesStorage
+    func values() -> [String] {
+        storage
     }
 }
 
 private actor ExecutionCount {
-    private var countStorage = 0
+    private var storage = 0
 
     func increment() {
-        countStorage += 1
+        storage += 1
     }
 
     func value() -> Int {
-        countStorage
+        storage
     }
 }
 
@@ -467,14 +339,14 @@ private actor ExecutionSignal {
 }
 
 private actor ExecutionGate {
-    private var isOpen = false
+    private var opened = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
 
     func open() {
-        guard !isOpen else {
+        guard !opened else {
             return
         }
-        isOpen = true
+        opened = true
         let continuations = waiters
         waiters.removeAll()
         for continuation in continuations {
@@ -483,7 +355,7 @@ private actor ExecutionGate {
     }
 
     func wait() async {
-        if isOpen {
+        if opened {
             return
         }
         await withCheckedContinuation { continuation in
@@ -492,60 +364,66 @@ private actor ExecutionGate {
     }
 }
 
-private let historyDate = Date(timeIntervalSince1970: 1_700_000_000)
+private struct MigrationValues: Table {
+    static let tableName = "migration_values"
 
-private func recordedMigration(version: Int64, order: ExecutionOrder) -> ExecutionMigration {
-    ExecutionMigration(version: version, name: "ordered-\(version)", fingerprint: "ordered-\(version)") { _ in
-        await order.append(version)
+    init() {}
+}
+
+private let executionHistoryDate = Date(timeIntervalSince1970: 1_700_000_000)
+
+private func executionMigration(name: String, order: ExecutionOrder) -> ExecutionMigration {
+    ExecutionMigration(name: name) { _ in
+        await order.append(name)
     }
 }
 
+private func tableMigration(
+    name: String,
+    up: @escaping @Sendable (Transaction) async throws -> Void,
+    down: @escaping @Sendable (Transaction) async throws -> Void = { _ in }
+) -> ExecutionMigration {
+    ExecutionMigration(name: name, up: up, down: down)
+}
+
 private func createValuesTable(on transaction: Transaction) async throws {
-    try await CreateTableBuilder<WaveCValues>()
+    try await CreateTableBuilder<MigrationValues>()
         .checkIfNotExists()
-        .column("value", .bigint, .notNull)
+        .column("value", .varchar, .notNull)
         .execute(on: transaction)
 }
 
-private func insertValue(_ value: Int64, on transaction: Transaction) async throws {
-    let table = Path.Table(WaveCValues.tableName)
+private func insertValue(_ value: String, on transaction: Transaction) async throws {
+    let table = Path.Table(MigrationValues.tableName)
     try await SwifQL.insertInto(table, fields: "value")
         .values
         .values(value)
         .execute(on: transaction)
 }
 
-private func valueRows(on connection: Connection) async throws -> [Int64] {
-    let table = Path.Table(WaveCValues.tableName)
+private func valueRows(on connection: Connection) async throws -> [String] {
+    let table = Path.Table(MigrationValues.tableName)
     let result = try await SwifQL
         .select(table.column("value"))
         .from(table)
         .orderBy(.asc(table.column("value")))
         .query(on: connection)
     return try result.rows.map { row in
-        try #require(row.value("value", as: Int64.self))
+        try #require(row.value("value", as: String.self))
     }
 }
 
 private func valuesTableExists(on connection: Connection) async throws -> Bool {
-    let result = try await SwifQL.raw(
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' AND table_name = 'wave_c_values'"
-    ).query(on: connection)
+    let table = Path.Schema("information_schema").table("tables")
+    let result = try await SwifQL
+        .select(Path.Column("table_name"))
+        .from(table)
+        .where(
+            (Path.Column("table_schema") == "main")
+                .and(Path.Column("table_name") == MigrationValues.tableName)
+        )
+        .query(on: connection)
     return !result.rows.isEmpty
-}
-
-private func gatedMigration(
-    version: Int64,
-    entered: ExecutionSignal,
-    gate: ExecutionGate
-) -> ExecutionMigration {
-    ExecutionMigration(version: version, name: "cancellable", fingerprint: "cancellable-v1") { transaction in
-        try await createValuesTable(on: transaction)
-        try await insertValue(version, on: transaction)
-        await entered.signal()
-        await gate.wait()
-        try Task.checkCancellation()
-    }
 }
 
 private func expectMigrationError(
@@ -563,13 +441,13 @@ private func expectMigrationError(
 }
 
 private func expectCustomError(
-    _ expected: ExpectedMigrationError,
+    _ expected: ExecutionError,
     operation: () async throws -> Void
 ) async {
     do {
         try await operation()
         Issue.record("Expected custom migration error \(expected), but the operation succeeded.")
-    } catch let error as ExpectedMigrationError {
+    } catch let error as ExecutionError {
         #expect(error == expected)
     } catch {
         Issue.record("Expected custom migration error \(expected), but received \(error).")
