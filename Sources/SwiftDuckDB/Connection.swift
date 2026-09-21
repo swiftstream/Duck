@@ -196,6 +196,7 @@ private enum NativeCancellationPolicy: Equatable {
 private enum NativeObservationPublicationPolicy: Equatable {
     case none
     case ordinary
+    case transaction(TransactionReservationId)
 }
 
 private struct ManualFinalizationAdmission {
@@ -997,7 +998,8 @@ public actor Connection {
             let result = try await executeReusablePreparedStatementNative(
                 id,
                 dynamicBindings: dynamicBindings,
-                materializeRows: materializeRows
+                materializeRows: materializeRows,
+                observationPublicationPolicy: .transaction(token.reservationId)
             )
             completeTransactionOperation(token, failure: nil)
             return result
@@ -1229,7 +1231,11 @@ public actor Connection {
         try await acquireTransactionNativeAdmission(token)
 
         do {
-            let result = try await executeUserSnapshot(snapshot, materializeRows: true)
+            let result = try await executeUserSnapshot(
+                snapshot,
+                materializeRows: true,
+                observationPublicationPolicy: .transaction(token.reservationId)
+            )
             completeTransactionOperation(token, failure: nil)
             return result
         } catch is CancellationError {
@@ -1252,7 +1258,11 @@ public actor Connection {
         try await acquireTransactionNativeAdmission(token)
 
         do {
-            let result = try await executeUserSnapshot(snapshot, materializeRows: false)
+            let result = try await executeUserSnapshot(
+                snapshot,
+                materializeRows: false,
+                observationPublicationPolicy: .transaction(token.reservationId)
+            )
             completeTransactionOperation(token, failure: nil)
             return result.rowsChanged
         } catch is CancellationError {
@@ -1481,6 +1491,7 @@ public actor Connection {
                 ) {
                     lifecycleStateMachine.commitSchedulingAttempted()
                 }
+                let invalidation = transactionObservationInvalidation(reservationId)
                 if retainTerminalState {
                     completeTransactionFinalization(
                         reservationId,
@@ -1490,6 +1501,7 @@ public actor Connection {
                 } else {
                     endTransactionReservation(reservationId)
                 }
+                await publishTransactionObservation(invalidation)
                 return .committed
             } catch {
                 let message = lifecycleFailureMessage(error)
@@ -1517,6 +1529,7 @@ public actor Connection {
                     if !retainTerminalState {
                         endTransactionReservation(reservationId)
                     }
+                    await database.observationCoordinator.invalidate(.database)
                     return .failed(primary: primary, rollbackFailure: nil)
                 }
             }
@@ -1567,6 +1580,7 @@ public actor Connection {
                 materializeRows: false,
                 cancellationPolicy: .definitive
             )
+            let invalidation = transactionObservationInvalidation(reservationId)
             if retainTerminalState {
                 completeTransactionFinalization(
                     reservationId,
@@ -1576,6 +1590,7 @@ public actor Connection {
             } else {
                 endTransactionReservation(reservationId)
             }
+            await publishTransactionObservation(invalidation)
             return nil
         } catch {
             let rollbackError = DatabaseError.transactionRollback(lifecycleFailureMessage(error))
@@ -1598,6 +1613,7 @@ public actor Connection {
             } else {
                 endTransactionReservation(reservationId)
             }
+            await database.observationCoordinator.invalidate(.database)
             return rollbackError
         }
     }
@@ -1793,6 +1809,43 @@ public actor Connection {
         }
     }
 
+    /// Merges transaction impact or fail-closes conservatively if its reservation is lost.
+    @discardableResult
+    private func mergeTransactionObservation(
+        _ reservationId: TransactionReservationId,
+        invalidation: ObservationInvalidation
+    ) -> Bool {
+        guard invalidation != .none else {
+            return true
+        }
+        guard var state = transactionState, state.id == reservationId else {
+            enterFailClosed("Transaction observation impact lost its active reservation.")
+            return false
+        }
+        state.mergeObservationInvalidation(invalidation)
+        transactionState = state
+        return true
+    }
+
+    /// Returns the accumulated transaction impact before terminal reservation cleanup.
+    private func transactionObservationInvalidation(
+        _ reservationId: TransactionReservationId
+    ) -> ObservationInvalidation {
+        transactionState?.id == reservationId
+            ? transactionState?.observationInvalidation ?? .database
+            : .database
+    }
+
+    /// Publishes one captured transaction invalidation after definitive finalization.
+    private func publishTransactionObservation(
+        _ invalidation: ObservationInvalidation
+    ) async {
+        guard invalidation != .none else {
+            return
+        }
+        await database.observationCoordinator.invalidate(invalidation)
+    }
+
     private func executeUserSnapshot(
         _ snapshot: PreparedQuerySnapshot,
         materializeRows: Bool,
@@ -1899,11 +1952,22 @@ public actor Connection {
             }
             let result = try pending.execute()
             successfulResultReadOnly = result.isReadOnly
-            if successfulResultReadOnly == false,
-               observationPublicationPolicy == .ordinary,
-               !didPublish {
-                didPublish = true
-                await database.observationCoordinator.invalidate(.database)
+            if successfulResultReadOnly == false {
+                switch observationPublicationPolicy {
+                case .none:
+                    break
+                case .ordinary:
+                    guard !didPublish else { break }
+                    didPublish = true
+                    await database.observationCoordinator.invalidate(.database)
+                case .transaction(let reservationId):
+                    if !mergeTransactionObservation(
+                        reservationId,
+                        invalidation: .database
+                    ) {
+                        await database.observationCoordinator.invalidate(.database)
+                    }
+                }
             }
             if requireReadOnlyResult, !result.isReadOnly {
                 throw DatabaseError.invalidResult(
@@ -1944,11 +2008,22 @@ public actor Connection {
             )
         } catch {
             if pendingAttempted,
-               successfulResultReadOnly == nil,
-               observationPublicationPolicy == .ordinary,
-               !didPublish {
-                didPublish = true
-                await database.observationCoordinator.invalidate(.database)
+               successfulResultReadOnly == nil {
+                switch observationPublicationPolicy {
+                case .none:
+                    break
+                case .ordinary:
+                    guard !didPublish else { break }
+                    didPublish = true
+                    await database.observationCoordinator.invalidate(.database)
+                case .transaction(let reservationId):
+                    if !mergeTransactionObservation(
+                        reservationId,
+                        invalidation: .database
+                    ) {
+                        await database.observationCoordinator.invalidate(.database)
+                    }
+                }
             }
             throw error
         }

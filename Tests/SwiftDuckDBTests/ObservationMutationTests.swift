@@ -325,19 +325,24 @@ func lateMaterializationFailurePublishesAfterMutation() async throws {
     #expect(durable.rows.count == 1)
 }
 
-@Test("M15 managed Transaction mutation publishes nothing in Task 03")
-func managedTransactionMutationPublishesNothing() async throws {
+@Test("M15 Transaction mutation publishes nothing before finalization")
+func transactionMutationPublishesNothingBeforeFinalization() async throws {
     let database = try Database()
     let connection = try database.connect()
     let table = Path.Table("observation_mutation_transaction")
     try await createObservationTable(table, on: connection)
 
-    let count = try await drainInvalidations(database) {
-        _ = try await connection.transaction { transaction in
-            try await transaction.execute(
-                SwifQL.insertInto(table, fields: "id", "value").values.values(Int32(1), Int32(10))
-            )
-        }
+    let transaction = try await connection.transaction()
+    let registration = await database.observationCoordinator.register(initial: .tables([]))
+    var iterator = registration.invalidations.makeAsyncIterator()
+    try await transaction.execute(
+        SwifQL.insertInto(table, fields: "id", "value").values.values(Int32(1), Int32(10))
+    )
+    await database.observationCoordinator.unregister(registration.id)
+    var count = 0
+    while await iterator.next() != nil {
+        count += 1
     }
     #expect(count == 0)
+    try await transaction.rollback()
 }

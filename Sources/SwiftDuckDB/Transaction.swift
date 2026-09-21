@@ -291,6 +291,8 @@ struct TransactionReservationState: Equatable, Sendable {
     private(set) var terminalState: TransactionReservationTerminalState = .active
     /// The authoritative failure retained for managed finalizer inspection.
     private(set) var manualFinalizerFailure: TransactionManualFinalizerFailure?
+    /// The monotonic Observation invalidation accumulated by transaction operations.
+    private(set) var observationInvalidation: ObservationInvalidation = .none
     private(set) var operations: [TransactionOperationId: TransactionOperationState] = [:]
     private(set) var queuedOperationIds: [TransactionOperationId] = []
     private(set) var nativeActiveOperation: TransactionOperationId?
@@ -498,6 +500,11 @@ struct TransactionReservationState: Equatable, Sendable {
         }
         terminalState = state
         manualFinalizerFailure = failure
+    }
+
+    /// Merges a transaction operation's known or conservative database impact.
+    mutating func mergeObservationInvalidation(_ invalidation: ObservationInvalidation) {
+        observationInvalidation = observationInvalidation.merged(with: invalidation)
     }
 
     mutating func recordRollbackOnly(

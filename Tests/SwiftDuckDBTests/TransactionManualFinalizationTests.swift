@@ -540,26 +540,26 @@ func forgottenFlatHandleDoesNotRunDeinitCleanup() async throws {
     _ = try await context.connection.query(SwifQL.select(Fn.cast(Int32(1), .integer)))
 }
 
-@Test("TM21 flat commit mutation publishes no Observation signal")
-func flatCommitMutationPublishesNoObservationSignal() async throws {
+@Test("TM21 flat commit mutation publishes one Observation signal")
+func flatCommitMutationPublishesOneObservationSignal() async throws {
     let context = try await makeManualTransactionContext()
     let count = try await drainObservationSignals(context.database) {
         let transaction = try await context.connection.transaction()
         try await insert(1, value: 10, into: context.table, on: transaction)
         try await transaction.commit()
     }
-    #expect(count == 0)
+    #expect(count == 1)
 }
 
-@Test("TM22 flat rollback mutation publishes no Observation signal")
-func flatRollbackMutationPublishesNoObservationSignal() async throws {
+@Test("TM22 flat rollback mutation publishes one Observation signal")
+func flatRollbackMutationPublishesOneObservationSignal() async throws {
     let context = try await makeManualTransactionContext()
     let count = try await drainObservationSignals(context.database) {
         let transaction = try await context.connection.transaction()
         try await insert(1, value: 10, into: context.table, on: transaction)
         try await transaction.rollback()
     }
-    #expect(count == 0)
+    #expect(count == 1)
 }
 
 @Test("TM23 no Transaction.begin symbol is introduced")
