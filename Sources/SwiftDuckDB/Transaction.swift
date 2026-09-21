@@ -47,6 +47,12 @@ enum TransactionBodyContext {
     @TaskLocal static var scopes: [TransactionBodyScope] = []
 }
 
+/// Identifies whether a reservation is retained by a managed body or a flat handle.
+enum TransactionOwnershipMode: Equatable, Sendable {
+    case managedClosure
+    case manualHandle
+}
+
 enum TransactionRollbackOnlyReason: Equatable, Sendable {
     case database(DatabaseError)
     case cancelled
@@ -68,6 +74,53 @@ enum TransactionRollbackOnlyReason: Equatable, Sendable {
             return CancellationError()
         }
     }
+}
+
+/// Closed Sendable storage for a manual finalizer failure that must retain dynamic error identity.
+enum TransactionManualFinalizerFailure: Equatable, Sendable {
+    case database(DatabaseError)
+    case cancelled
+    case rollback(
+        original: TransactionRollbackOnlyReason,
+        rollbackError: DatabaseError
+    )
+
+    /// Reconstructs the authoritative dynamic error represented by this stored failure.
+    var errorValue: any Error {
+        switch self {
+        case .database(let error):
+            return error
+        case .cancelled:
+            return CancellationError()
+        case .rollback(let original, let rollbackError):
+            return TransactionRollbackError(
+                originalError: original.errorValue,
+                rollbackError: rollbackError
+            )
+        }
+    }
+
+    /// Throws the reconstructed authoritative finalizer failure.
+    func throwStored() throws {
+        throw errorValue
+    }
+}
+
+/// One-way lifecycle states for a transaction reservation.
+enum TransactionReservationTerminalState: Equatable, Sendable {
+    case active
+    case finalizationStarted
+    case committed
+    case rolledBack
+    case finalizationFailed
+}
+
+/// A read-only view of terminal state used by the managed outer wrapper.
+struct TransactionTerminalSnapshot: Sendable {
+    /// The one-way reservation terminal state observed by the managed wrapper.
+    let state: TransactionReservationTerminalState
+    /// The retained manual-finalizer failure, when cleanup failed or preserved prior truth.
+    let failure: TransactionManualFinalizerFailure?
 }
 
 enum ConnectionAdmissionLease: Equatable, Sendable {
@@ -226,14 +279,30 @@ struct TransactionFinalizationTransition: Equatable, Sendable {
     let rollbackOnlyReason: TransactionRollbackOnlyReason?
 }
 
+/// Owns admission, operation scheduling, rollback-only truth, and terminal state for one reservation.
 struct TransactionReservationState: Equatable, Sendable {
     let id: TransactionReservationId
+    /// Determines whether terminal state is retained for the managed body or released immediately.
+    let ownership: TransactionOwnershipMode
     private(set) var bodyIsOpen = false
     private(set) var isClosing = false
     private(set) var rollbackOnlyReason: TransactionRollbackOnlyReason?
+    /// The terminal lifecycle state retained for managed finalizer inspection.
+    private(set) var terminalState: TransactionReservationTerminalState = .active
+    /// The authoritative failure retained for managed finalizer inspection.
+    private(set) var manualFinalizerFailure: TransactionManualFinalizerFailure?
     private(set) var operations: [TransactionOperationId: TransactionOperationState] = [:]
     private(set) var queuedOperationIds: [TransactionOperationId] = []
     private(set) var nativeActiveOperation: TransactionOperationId?
+
+    /// Creates an active reservation with its ownership contract.
+    init(
+        id: TransactionReservationId,
+        ownership: TransactionOwnershipMode = .managedClosure
+    ) {
+        self.id = id
+        self.ownership = ownership
+    }
 
     mutating func openBody() {
         bodyIsOpen = true
@@ -389,12 +458,14 @@ struct TransactionReservationState: Equatable, Sendable {
         )
     }
 
+    /// Moves the reservation into finalization and returns operations that must be drained.
     mutating func beginFinalization() -> TransactionFinalizationTransition {
         var queuedToEnd: [TransactionOperationId] = []
 
         if !isClosing {
             isClosing = true
             bodyIsOpen = false
+            terminalState = .finalizationStarted
 
             queuedToEnd = queuedOperationIds
             queuedOperationIds.removeAll()
@@ -415,6 +486,18 @@ struct TransactionReservationState: Equatable, Sendable {
             waitsForNativeActiveOperation: nativeActiveOperation != nil,
             rollbackOnlyReason: rollbackOnlyReason
         )
+    }
+
+    /// Records terminal state and retained failure after finalization has started.
+    mutating func completeFinalization(
+        _ state: TransactionReservationTerminalState,
+        failure: TransactionManualFinalizerFailure?
+    ) {
+        guard isClosing, terminalState == .finalizationStarted else {
+            return
+        }
+        terminalState = state
+        manualFinalizerFailure = failure
     }
 
     mutating func recordRollbackOnly(
@@ -565,4 +648,21 @@ public struct Transaction: Sendable {
 
         return try await connection.executeTransactionStatement(snapshot, token: token)
     }
+
+    /// Commits this one-shot transaction, or rolls it back when an earlier operation made it rollback-only.
+    public nonisolated(nonsending) func commit() async throws {
+        try await connection.commitManualTransaction(reservationId)
+    }
+
+    /// Rolls back this one-shot transaction and releases its Connection reservation when complete.
+    public nonisolated(nonsending) func rollback() async throws {
+        try await connection.rollbackManualTransaction(reservationId)
+    }
+
+    #if compiler(>=6.4)
+    /// Rolls back an active manual transaction during asynchronous cleanup. Cleanup failure is not thrown; the Connection becomes unusable and fail-closed.
+    public nonisolated(nonsending) func rollbackIfNeeded() async {
+        await connection.rollbackManualTransactionIfNeeded(reservationId)
+    }
+    #endif
 }

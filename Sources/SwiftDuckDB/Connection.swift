@@ -198,6 +198,12 @@ private enum NativeObservationPublicationPolicy: Equatable {
     case ordinary
 }
 
+private struct ManualFinalizationAdmission {
+    let rollbackOnlyReason: TransactionRollbackOnlyReason?
+    let retainsTerminalState: Bool
+    let failClosedError: DatabaseError?
+}
+
 private struct PreparedStatementEntry {
     var statement: NativePreparedStatement?
     let bindingLayout: [StatementBindingSource]
@@ -275,7 +281,9 @@ public actor Connection {
         try await rejectLiveAppenderBodyMisuse()
 
         let lifecycle = try TransactionLifecycleSnapshots()
-        let reservationId = try await acquireTransactionReservation()
+        let reservationId = try await acquireTransactionReservation(
+            ownership: .managedClosure
+        )
 
         switch await beginTransaction(
             reservationId,
@@ -309,6 +317,17 @@ public actor Connection {
             }
         } catch {
             let originalError = error
+
+            if let terminal = await transactionTerminalSnapshot(reservationId),
+               terminal.state != .active,
+               terminal.state != .finalizationStarted {
+                await endTransactionReservation(reservationId)
+                if let failure = terminal.failure {
+                    try failure.throwStored()
+                }
+                throw originalError
+            }
+
             _ = try? await beginTransactionFinalization(reservationId)
             if let rollbackFailure = await rollbackTransaction(
                 reservationId,
@@ -320,6 +339,16 @@ public actor Connection {
                 )
             }
             throw originalError
+        }
+
+        if let terminal = await transactionTerminalSnapshot(reservationId),
+           terminal.state != .active,
+           terminal.state != .finalizationStarted {
+            await endTransactionReservation(reservationId)
+            if let failure = terminal.failure {
+                try failure.throwStored()
+            }
+            return result
         }
 
         let rollbackOnlyReason: TransactionRollbackOnlyReason?
@@ -402,24 +431,67 @@ public actor Connection {
         }
     }
 
+    /// Begins and returns a one-shot flat transaction whose Connection remains reserved until explicit finalization.
+    public nonisolated(nonsending) func transaction() async throws -> Transaction {
+        try Task.checkCancellation()
+        try await rejectLiveTransactionBodyMisuse(asTransaction: true)
+        try await rejectLiveAppenderBodyMisuse()
+
+        let lifecycle = try TransactionLifecycleSnapshots()
+        let reservationId = try await acquireTransactionReservation(
+            ownership: .manualHandle
+        )
+
+        switch await beginTransaction(
+            reservationId,
+            begin: lifecycle.begin,
+            rollback: lifecycle.rollback
+        ) {
+        case .started:
+            return Transaction(connection: self, reservationId: reservationId)
+        case .cancelledBeforeStart:
+            throw CancellationError()
+        case .failed(let primary, let rollbackFailure):
+            if let rollbackFailure {
+                throw TransactionRollbackError(
+                    originalError: primary,
+                    rollbackError: rollbackFailure
+                )
+            }
+            throw primary
+        }
+    }
+
+    /// Rejects ordinary or nested transaction admission while this Connection has a live transaction.
     nonisolated func rejectLiveTransactionBodyMisuse(
         asTransaction: Bool
     ) async throws {
-        guard let scope = TransactionBodyContext.scopes.reversed().first(where: { $0.connectionId == id }) else {
-            return
-        }
-        guard await isTransactionReservationLive(scope.reservationId) else {
-            return
+        if let scope = TransactionBodyContext.scopes.reversed().first(where: { $0.connectionId == id }),
+           await isTransactionReservationLive(scope.reservationId) {
+            if asTransaction {
+                throw DatabaseError.transactionAlreadyActive
+            }
+            throw DatabaseError.transactionScopeViolation
         }
 
-        if asTransaction {
-            throw DatabaseError.transactionAlreadyActive
+        if await isManualTransactionLive() {
+            if asTransaction {
+                throw DatabaseError.transactionAlreadyActive
+            }
+            throw DatabaseError.transactionScopeViolation
         }
-        throw DatabaseError.transactionScopeViolation
     }
 
     func isTransactionReservationLive(_ reservationId: TransactionReservationId) -> Bool {
         outerAdmissionState.isTransactionLive(reservationId)
+    }
+
+    /// Returns whether a flat transaction currently owns this Connection reservation.
+    func isManualTransactionLive() -> Bool {
+        guard transactionState != nil else {
+            return false
+        }
+        return transactionState?.ownership == .manualHandle
     }
 
     nonisolated func rejectLiveAppenderBodyMisuse() async throws {
@@ -1007,8 +1079,12 @@ public actor Connection {
         }
     }
 
+    /// Acquires an ordinary-operation lease without bypassing a live flat transaction.
     func acquireOrdinaryLease() async throws {
         try ensureUsable()
+        guard !isManualTransactionLive() else {
+            throw DatabaseError.transactionScopeViolation
+        }
         let waiterId = OuterAdmissionWaiterId()
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -1021,7 +1097,10 @@ public actor Connection {
         }
     }
 
-    func acquireTransactionReservation() async throws -> TransactionReservationId {
+    /// Reserves this Connection for a managed or flat transaction.
+    func acquireTransactionReservation(
+        ownership: TransactionOwnershipMode = .managedClosure
+    ) async throws -> TransactionReservationId {
         try ensureUsable()
         let reservationId = TransactionReservationId()
         let waiterId = OuterAdmissionWaiterId()
@@ -1034,7 +1113,10 @@ public actor Connection {
                         waiterId: waiterId
                     )
                     lifecycleStateMachine = TransactionLifecycleStateMachine()
-                    transactionState = TransactionReservationState(id: reservationId)
+                    transactionState = TransactionReservationState(
+                        id: reservationId,
+                        ownership: ownership
+                    )
 
                     switch decision {
                     case .admitted:
@@ -1259,11 +1341,15 @@ public actor Connection {
         }
     }
 
+    /// Starts normal transaction finalization and drains queued transaction operations.
     func beginTransactionFinalization(
         _ reservationId: TransactionReservationId
     ) async throws -> TransactionRollbackOnlyReason? {
         try ensureUsable()
         guard var state = transactionState, state.id == reservationId else {
+            throw DatabaseError.transactionEnded
+        }
+        guard !state.isClosing else {
             throw DatabaseError.transactionEnded
         }
 
@@ -1280,6 +1366,20 @@ public actor Connection {
         return transactionState?.rollbackOnlyReason ?? transition.rollbackOnlyReason
     }
 
+    /// Returns the retained terminal state for a transaction reservation, when present.
+    func transactionTerminalSnapshot(
+        _ reservationId: TransactionReservationId
+    ) -> TransactionTerminalSnapshot? {
+        guard let state = transactionState, state.id == reservationId else {
+            return nil
+        }
+        return TransactionTerminalSnapshot(
+            state: state.terminalState,
+            failure: state.manualFinalizerFailure
+        )
+    }
+
+    /// Starts transaction teardown after the Connection has entered irreversible fail-closed state.
     func beginFailClosedTransactionTeardown(
         _ reservationId: TransactionReservationId
     ) async throws -> TransactionRollbackOnlyReason? {
@@ -1354,10 +1454,12 @@ public actor Connection {
         }
     }
 
+    /// Attempts native COMMIT and applies the transaction lifecycle failure policy.
     func commitTransaction(
         _ reservationId: TransactionReservationId,
         commit: PreparedQuerySnapshot,
-        rollback: PreparedQuerySnapshot
+        rollback: PreparedQuerySnapshot,
+        retainTerminalState: Bool = false
     ) async -> TransactionCommitOutcome {
         do {
             try ensureUsable()
@@ -1379,7 +1481,15 @@ public actor Connection {
                 ) {
                     lifecycleStateMachine.commitSchedulingAttempted()
                 }
-                endTransactionReservation(reservationId)
+                if retainTerminalState {
+                    completeTransactionFinalization(
+                        reservationId,
+                        state: .committed,
+                        failure: nil
+                    )
+                } else {
+                    endTransactionReservation(reservationId)
+                }
                 return .committed
             } catch {
                 let message = lifecycleFailureMessage(error)
@@ -1389,30 +1499,59 @@ public actor Connection {
                 case .rollbackCleanup:
                     let rollbackFailure = await rollbackTransaction(
                         reservationId,
-                        rollback: rollback
+                        rollback: rollback,
+                        retainTerminalState: retainTerminalState,
+                        originalError: .database(primary),
+                        successFailure: .database(primary)
                     )
                     return .failed(primary: primary, rollbackFailure: rollbackFailure)
                 case .failClosed:
                     enterFailClosed(
                         "COMMIT outcome became ambiguous after native scheduling: \(message)"
                     )
-                    endTransactionReservation(reservationId)
+                    completeTransactionFinalization(
+                        reservationId,
+                        state: .finalizationFailed,
+                        failure: .database(primary)
+                    )
+                    if !retainTerminalState {
+                        endTransactionReservation(reservationId)
+                    }
                     return .failed(primary: primary, rollbackFailure: nil)
                 }
             }
         } catch let error as DatabaseError {
+            if retainTerminalState {
+                completeTransactionFinalization(
+                    reservationId,
+                    state: .finalizationFailed,
+                    failure: .database(error)
+                )
+            }
             return .failed(primary: error, rollbackFailure: nil)
         } catch {
+            let primary = DatabaseError.transactionCommit(lifecycleFailureMessage(error))
+            if retainTerminalState {
+                completeTransactionFinalization(
+                    reservationId,
+                    state: .finalizationFailed,
+                    failure: .database(primary)
+                )
+            }
             return .failed(
-                primary: .transactionCommit(lifecycleFailureMessage(error)),
+                primary: primary,
                 rollbackFailure: nil
             )
         }
     }
 
+    /// Performs definitive native ROLLBACK cleanup and terminalizes the reservation.
     func rollbackTransaction(
         _ reservationId: TransactionReservationId,
-        rollback: PreparedQuerySnapshot
+        rollback: PreparedQuerySnapshot,
+        retainTerminalState: Bool = false,
+        originalError: TransactionRollbackOnlyReason? = nil,
+        successFailure: TransactionManualFinalizerFailure? = nil
     ) async -> DatabaseError? {
         guard transactionState?.id == reservationId,
               outerAdmissionState.lease == .transaction(reservationId) else {
@@ -1428,13 +1567,229 @@ public actor Connection {
                 materializeRows: false,
                 cancellationPolicy: .definitive
             )
-            endTransactionReservation(reservationId)
+            if retainTerminalState {
+                completeTransactionFinalization(
+                    reservationId,
+                    state: .rolledBack,
+                    failure: successFailure
+                )
+            } else {
+                endTransactionReservation(reservationId)
+            }
             return nil
         } catch {
             let rollbackError = DatabaseError.transactionRollback(lifecycleFailureMessage(error))
             enterFailClosed("Transaction rollback failed: \(lifecycleFailureMessage(error))")
-            endTransactionReservation(reservationId)
+            if retainTerminalState {
+                let failure: TransactionManualFinalizerFailure
+                if let originalError {
+                    failure = .rollback(
+                        original: originalError,
+                        rollbackError: rollbackError
+                    )
+                } else {
+                    failure = .database(rollbackError)
+                }
+                completeTransactionFinalization(
+                    reservationId,
+                    state: .finalizationFailed,
+                    failure: failure
+                )
+            } else {
+                endTransactionReservation(reservationId)
+            }
             return rollbackError
+        }
+    }
+
+    private func completeTransactionFinalization(
+        _ reservationId: TransactionReservationId,
+        state terminalState: TransactionReservationTerminalState,
+        failure: TransactionManualFinalizerFailure?
+    ) {
+        guard var state = transactionState, state.id == reservationId else {
+            return
+        }
+        state.completeFinalization(terminalState, failure: failure)
+        transactionState = state
+    }
+
+    private func retainsManagedTransactionState(
+        _ reservationId: TransactionReservationId
+    ) -> Bool {
+        transactionState?.id == reservationId
+            && transactionState?.ownership == .managedClosure
+    }
+
+    /// Finalizes a public transaction handle, rolling back instead of committing fail-closed state.
+    func commitManualTransaction(
+        _ reservationId: TransactionReservationId
+    ) async throws {
+        let lifecycle = try TransactionLifecycleSnapshots()
+        let admission = try await beginManualTransactionFinalization(reservationId)
+        let rollbackOnlyReason = admission.rollbackOnlyReason
+        let retainTerminalState = admission.retainsTerminalState
+
+        if let failClosedError = admission.failClosedError {
+            let authoritativeReason = rollbackOnlyReason ?? .database(failClosedError)
+            let failure = finalizerFailure(for: authoritativeReason)
+            if let rollbackFailure = await rollbackTransaction(
+                reservationId,
+                rollback: lifecycle.rollback,
+                retainTerminalState: retainTerminalState,
+                originalError: authoritativeReason,
+                successFailure: failure
+            ) {
+                throw TransactionRollbackError(
+                    originalError: authoritativeReason.errorValue,
+                    rollbackError: rollbackFailure
+                )
+            }
+            try failure.throwStored()
+        }
+
+        if let rollbackOnlyReason {
+            let storedFailure = finalizerFailure(for: rollbackOnlyReason)
+
+            if let rollbackFailure = await rollbackTransaction(
+                reservationId,
+                rollback: lifecycle.rollback,
+                retainTerminalState: retainTerminalState,
+                originalError: rollbackOnlyReason,
+                successFailure: storedFailure
+            ) {
+                throw TransactionRollbackError(
+                    originalError: rollbackOnlyReason.errorValue,
+                    rollbackError: rollbackFailure
+                )
+            }
+            try storedFailure.throwStored()
+        }
+
+        switch await commitTransaction(
+            reservationId,
+            commit: lifecycle.commit,
+            rollback: lifecycle.rollback,
+            retainTerminalState: retainTerminalState
+        ) {
+        case .committed:
+            return
+        case .cancelledBeforeStart:
+            let rollbackFailure = await rollbackTransaction(
+                reservationId,
+                rollback: lifecycle.rollback,
+                retainTerminalState: retainTerminalState,
+                originalError: .cancelled,
+                successFailure: .cancelled
+            )
+            if let rollbackFailure {
+                throw TransactionRollbackError(
+                    originalError: CancellationError(),
+                    rollbackError: rollbackFailure
+                )
+            }
+            throw CancellationError()
+        case .failed(let primary, let rollbackFailure):
+            if let rollbackFailure {
+                throw TransactionRollbackError(
+                    originalError: primary,
+                    rollbackError: rollbackFailure
+                )
+            }
+            throw primary
+        }
+    }
+
+    /// Rolls back a public transaction handle and preserves fail-closed truth after cleanup.
+    func rollbackManualTransaction(
+        _ reservationId: TransactionReservationId
+    ) async throws {
+        let lifecycle = try TransactionLifecycleSnapshots()
+        let admission = try await beginManualTransactionFinalization(reservationId)
+        let retainTerminalState = admission.retainsTerminalState
+
+        if let failClosedError = admission.failClosedError {
+            let authoritativeReason = admission.rollbackOnlyReason ?? .database(failClosedError)
+            let failure = finalizerFailure(for: authoritativeReason)
+            if let rollbackFailure = await rollbackTransaction(
+                reservationId,
+                rollback: lifecycle.rollback,
+                retainTerminalState: retainTerminalState,
+                originalError: authoritativeReason,
+                successFailure: failure
+            ) {
+                throw TransactionRollbackError(
+                    originalError: authoritativeReason.errorValue,
+                    rollbackError: rollbackFailure
+                )
+            }
+            try failure.throwStored()
+        }
+
+        if let rollbackFailure = await rollbackTransaction(
+            reservationId,
+            rollback: lifecycle.rollback,
+            retainTerminalState: retainTerminalState
+        ) {
+            throw rollbackFailure
+        }
+    }
+
+    #if compiler(>=6.4)
+    /// Rolls back an active transaction during asynchronous cleanup without throwing publicly.
+    func rollbackManualTransactionIfNeeded(
+        _ reservationId: TransactionReservationId
+    ) async {
+        guard let snapshot = transactionTerminalSnapshot(reservationId),
+              snapshot.state == .active else {
+            return
+        }
+
+        do {
+            try await rollbackManualTransaction(reservationId)
+        } catch {
+            // This API is intentionally nonthrowing. rollbackManualTransaction has
+            // already entered the Connection's fail-closed state on native failure.
+        }
+    }
+    #endif
+
+    /// Admits manual finalization through normal or fail-closed teardown for the matching active reservation.
+    private func beginManualTransactionFinalization(
+        _ reservationId: TransactionReservationId
+    ) async throws -> ManualFinalizationAdmission {
+        do {
+            let rollbackOnlyReason = try await beginTransactionFinalization(reservationId)
+            return ManualFinalizationAdmission(
+                rollbackOnlyReason: rollbackOnlyReason,
+                retainsTerminalState: retainsManagedTransactionState(reservationId),
+                failClosedError: nil
+            )
+        } catch let error as DatabaseError {
+            guard case .connectionUnusable = error,
+                  isTransactionReservationLive(reservationId),
+                  transactionTerminalSnapshot(reservationId)?.state == .active else {
+                throw error
+            }
+
+            let rollbackOnlyReason = try await beginFailClosedTransactionTeardown(reservationId)
+            return ManualFinalizationAdmission(
+                rollbackOnlyReason: rollbackOnlyReason,
+                retainsTerminalState: retainsManagedTransactionState(reservationId),
+                failClosedError: error
+            )
+        }
+    }
+
+    /// Converts rollback-only truth into retained manual-finalizer error storage.
+    private func finalizerFailure(
+        for reason: TransactionRollbackOnlyReason
+    ) -> TransactionManualFinalizerFailure {
+        switch reason {
+        case .database(let error):
+            return .database(error)
+        case .cancelled:
+            return .cancelled
         }
     }
 
