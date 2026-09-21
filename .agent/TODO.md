@@ -2,7 +2,7 @@
 
 Ideas and maintainer-prioritized capabilities that are not yet active approved implementation tasks.
 
-P0 `Codable / Model Layer` and P1 `Migrations` are COMPLETE and no longer future work. Observation / Reactive Queries is active implementation work after completed Research 01, probes P01-P10, accepted Corrections 01-04, and a CLEAN Correction 04 re-audit. Task 01 Native Observation Bridge + Dependency Coordinator is implemented and primary-accepted at checkpoint `c8e41dd13c2af2f7430a8e7e6e657d13937c2723`. Task 02 Public QueryObservation + READ ONLY sandbox/latest-state delivery is implemented and primary-accepted at checkpoint `4906284c92e1d56a428208e58c49bdac9fe56edb`. Task 03 is the next gated Observation step but remains not authorized until separately frozen; later Observation tasks remain gated.
+P0 `Codable / Model Layer` and P1 `Migrations` are COMPLETE and no longer future work. Observation / Reactive Queries is active implementation work after completed Research 01, probes P01-P10, accepted Corrections 01-04, and a CLEAN Correction 04 re-audit. Task 01 Native Observation Bridge + Dependency Coordinator is implemented and primary-accepted at checkpoint `c8e41dd13c2af2f7430a8e7e6e657d13937c2723`. Task 02 Public QueryObservation + READ ONLY sandbox/latest-state delivery is implemented and primary-accepted at checkpoint `4906284c92e1d56a428208e58c49bdac9fe56edb`. Task 03 Ordinary Connection / reusable Statement invalidation is promoted into active authorized implementation; later Observation tasks remain gated.
 
 ## Maintainer-Prioritized Pre-Vortegy Capability Order
 
