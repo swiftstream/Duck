@@ -40,6 +40,11 @@ final class NativePreparedStatement {
         duckdb_prepared_statement_type(handle) == DUCKDB_STATEMENT_TYPE_TRANSACTION
     }
 
+    /// Returns DuckDB's current prepared-statement read-only preflight truth.
+    var isReadOnly: Bool {
+        swiftduckdb_prepared_statement_is_read_only(handle)
+    }
+
     var parameterCount: Int {
         Int(duckdb_nparams(handle))
     }

@@ -399,6 +399,7 @@ let package = Package(
         "duckdb/extension/json/json_common.cpp",
         "duckdb/ub_extension_json_json_functions.cpp",
         "duckdb/generated_extension_loader_package_build.cpp",
+        "swiftduckdb_observation.cpp",
       ],
       cxxSettings: [
         .headerSearchPath("duckdb/src/include"),

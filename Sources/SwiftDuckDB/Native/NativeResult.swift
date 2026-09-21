@@ -19,6 +19,11 @@ final class NativeResult {
         UInt64(duckdb_rows_changed(&result))
     }
 
+    /// Returns DuckDB's actual read-only truth for this successful native result.
+    var isReadOnly: Bool {
+        swiftduckdb_result_is_read_only(&result)
+    }
+
     func columnNames() throws -> [String] {
         let count = try integerCount(duckdb_column_count(&result), name: "column count")
         var columns: [String] = []

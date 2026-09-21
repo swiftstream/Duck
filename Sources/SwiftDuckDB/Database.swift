@@ -3,6 +3,8 @@ import Foundation
 public final class Database: Sendable {
     private let nativeDatabase: NativeDatabase
     let migrationCoordinationKey: MigrationCoordinationKey
+    /// Coordinates internal query-observation subscriptions owned by this database.
+    let observationCoordinator = ObservationCoordinator()
 
     public init() throws {
         let openedDatabase: NativeDatabase
