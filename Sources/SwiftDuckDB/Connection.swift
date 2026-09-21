@@ -193,6 +193,11 @@ private enum NativeCancellationPolicy: Equatable {
     case definitive
 }
 
+private enum NativeObservationPublicationPolicy: Equatable {
+    case none
+    case ordinary
+}
+
 private struct PreparedStatementEntry {
     var statement: NativePreparedStatement?
     let bindingLayout: [StatementBindingSource]
@@ -434,13 +439,21 @@ public actor Connection {
     private func executeOrdinaryQuery(_ snapshot: PreparedQuerySnapshot) async throws -> QueryResult {
         try await acquireOrdinaryLease()
         defer { releaseOrdinaryLease() }
-        return try await executeUserSnapshot(snapshot, materializeRows: true)
+        return try await executeUserSnapshot(
+            snapshot,
+            materializeRows: true,
+            observationPublicationPolicy: .ordinary
+        )
     }
 
     private func executeOrdinaryStatement(_ snapshot: PreparedQuerySnapshot) async throws -> UInt64 {
         try await acquireOrdinaryLease()
         defer { releaseOrdinaryLease() }
-        return try await executeUserSnapshot(snapshot, materializeRows: false).rowsChanged
+        return try await executeUserSnapshot(
+            snapshot,
+            materializeRows: false,
+            observationPublicationPolicy: .ordinary
+        ).rowsChanged
     }
 
     private func installPreparedStatement(
@@ -895,7 +908,8 @@ public actor Connection {
         return try await executeReusablePreparedStatementNative(
             id,
             dynamicBindings: dynamicBindings,
-            materializeRows: materializeRows
+            materializeRows: materializeRows,
+            observationPublicationPolicy: .ordinary
         )
     }
 
@@ -931,7 +945,8 @@ public actor Connection {
     private func executeReusablePreparedStatementNative(
         _ id: StatementId,
         dynamicBindings: [Value],
-        materializeRows: Bool
+        materializeRows: Bool,
+        observationPublicationPolicy: NativeObservationPublicationPolicy = .none
     ) async throws -> QueryResult {
         do {
             try Task.checkCancellation()
@@ -982,7 +997,8 @@ public actor Connection {
             return try await executePreparedStatement(
                 statement,
                 materializeRows: materializeRows,
-                cancellationPolicy: .cooperative
+                cancellationPolicy: .cooperative,
+                observationPublicationPolicy: observationPublicationPolicy
             )
         } catch is CancellationError {
             throw CancellationError()
@@ -1424,7 +1440,8 @@ public actor Connection {
 
     private func executeUserSnapshot(
         _ snapshot: PreparedQuerySnapshot,
-        materializeRows: Bool
+        materializeRows: Bool,
+        observationPublicationPolicy: NativeObservationPublicationPolicy = .none
     ) async throws -> QueryResult {
         do {
             try Task.checkCancellation()
@@ -1432,7 +1449,8 @@ public actor Connection {
             return try await executePreparedStatement(
                 statement,
                 materializeRows: materializeRows,
-                cancellationPolicy: .cooperative
+                cancellationPolicy: .cooperative,
+                observationPublicationPolicy: observationPublicationPolicy
             )
         } catch is CancellationError {
             throw CancellationError()
@@ -1481,80 +1499,104 @@ public actor Connection {
         materializeRows: Bool,
         cancellationPolicy: NativeCancellationPolicy,
         beforePending: () -> Void = {},
-        requireReadOnlyResult: Bool = false
+        requireReadOnlyResult: Bool = false,
+        observationPublicationPolicy: NativeObservationPublicationPolicy = .none
     ) async throws -> QueryResult {
         if cancellationPolicy == .cooperative {
             try Task.checkCancellation()
         }
 
         beforePending()
-        let pending = try statement.pending()
+        var pendingAttempted = false
+        var successfulResultReadOnly: Bool?
+        var didPublish = false
 
-        executionLoop: while true {
+        do {
+            pendingAttempted = true
+            let pending = try statement.pending()
+
+            executionLoop: while true {
+                if cancellationPolicy == .cooperative {
+                    try interruptAndThrowIfCancelled()
+                }
+
+                let state: NativePendingState
+                do {
+                    state = try pending.executeTask()
+                } catch {
+                    if cancellationPolicy == .cooperative, Task.isCancelled {
+                        nativeConnection.interrupt()
+                        throw CancellationError()
+                    }
+                    throw error
+                }
+
+                switch state {
+                case .ready:
+                    break executionLoop
+                case .notReady:
+                    await Task.yield()
+                }
+            }
+
             if cancellationPolicy == .cooperative {
                 try interruptAndThrowIfCancelled()
             }
-
-            let state: NativePendingState
-            do {
-                state = try pending.executeTask()
-            } catch {
-                if cancellationPolicy == .cooperative, Task.isCancelled {
-                    nativeConnection.interrupt()
-                    throw CancellationError()
-                }
-                throw error
+            let result = try pending.execute()
+            successfulResultReadOnly = result.isReadOnly
+            if successfulResultReadOnly == false,
+               observationPublicationPolicy == .ordinary,
+               !didPublish {
+                didPublish = true
+                await database.observationCoordinator.invalidate(.database)
             }
-
-            switch state {
-            case .ready:
-                break executionLoop
-            case .notReady:
-                await Task.yield()
+            if requireReadOnlyResult, !result.isReadOnly {
+                throw DatabaseError.invalidResult(
+                    "Observation query returned a successful non-read-only native result."
+                )
             }
-        }
-
-        if cancellationPolicy == .cooperative {
-            try interruptAndThrowIfCancelled()
-        }
-        let result = try pending.execute()
-        if requireReadOnlyResult, !result.isReadOnly {
-            throw DatabaseError.invalidResult(
-                "Observation query returned a successful non-read-only native result."
-            )
-        }
-        if cancellationPolicy == .cooperative {
-            try Task.checkCancellation()
-        }
-
-        guard materializeRows else {
-            return QueryResult(columns: [], resultColumns: [], rows: [], rowsChanged: result.rowsChanged)
-        }
-
-        let resultColumns = try result.resultColumns()
-        let columns = resultColumns.map(\.name)
-        var rows: [Row] = []
-
-        while true {
             if cancellationPolicy == .cooperative {
                 try Task.checkCancellation()
             }
-            guard let chunkRows = try result.materializeNextChunk(resultColumns: resultColumns) else {
-                break
-            }
-            rows.append(contentsOf: chunkRows)
-            await Task.yield()
-        }
 
-        if cancellationPolicy == .cooperative {
-            try Task.checkCancellation()
+            guard materializeRows else {
+                return QueryResult(columns: [], resultColumns: [], rows: [], rowsChanged: result.rowsChanged)
+            }
+
+            let resultColumns = try result.resultColumns()
+            let columns = resultColumns.map(\.name)
+            var rows: [Row] = []
+
+            while true {
+                if cancellationPolicy == .cooperative {
+                    try Task.checkCancellation()
+                }
+                guard let chunkRows = try result.materializeNextChunk(resultColumns: resultColumns) else {
+                    break
+                }
+                rows.append(contentsOf: chunkRows)
+                await Task.yield()
+            }
+
+            if cancellationPolicy == .cooperative {
+                try Task.checkCancellation()
+            }
+            return QueryResult(
+                columns: columns,
+                resultColumns: resultColumns,
+                rows: rows,
+                rowsChanged: result.rowsChanged
+            )
+        } catch {
+            if pendingAttempted,
+               successfulResultReadOnly == nil,
+               observationPublicationPolicy == .ordinary,
+               !didPublish {
+                didPublish = true
+                await database.observationCoordinator.invalidate(.database)
+            }
+            throw error
         }
-        return QueryResult(
-            columns: columns,
-            resultColumns: resultColumns,
-            rows: rows,
-            rowsChanged: result.rowsChanged
-        )
     }
 
     /// Executes one observation refresh in an isolated native READ ONLY transaction.
