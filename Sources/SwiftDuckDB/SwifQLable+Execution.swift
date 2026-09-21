@@ -1,6 +1,13 @@
 import SwifQL
 
 extension SwifQLable {
+    /// Creates a reusable latest-state observation on the supplied database.
+    ///
+    /// This delegates to `Database.observe(_:)` and captures the query synchronously.
+    public func observe(on database: Database) throws -> QueryObservation {
+        try database.observe(self)
+    }
+
     public nonisolated(nonsending) func query(on connection: Connection) async throws -> QueryResult {
         try await connection.query(self)
     }

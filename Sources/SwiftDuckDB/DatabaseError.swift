@@ -14,6 +14,8 @@ public enum DatabaseError: Error, Sendable, Equatable {
     case transactionBegin(String)
     case transactionCommit(String)
     case transactionRollback(String)
+    /// The observed query is not proven to be read-only by DuckDB.
+    case observationRequiresReadOnlyQuery
     case connectionUnusable(String)
     case invalidStatementTemplate(String)
     case statementArgumentCount(expected: Int, actual: Int)

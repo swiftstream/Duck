@@ -1,14 +1,22 @@
 import Foundation
 import SwifQL
 
+/// Owns the prepared split execution SQL, normalized bindings, and plain analysis SQL.
 struct PreparedQuerySnapshot: Sendable {
+    /// SQL sent to DuckDB for real execution.
     let sql: String
+    /// Values bound to the split execution SQL.
     let bindings: [Value]
+    /// SQL passed only to observation dependency analysis.
+    let analysisSQL: String
 
+    /// Synchronously snapshots one SwifQLable into split execution SQL, normalized bindings, and plain analysis SQL.
     init(_ query: any SwifQLable) throws {
-        let prepared = query.prepare(.duck).splitted
-        sql = prepared.query
-        bindings = try prepared.values.map { try normalizeBinding($0) }
+        let prepared = query.prepare(.duck)
+        let split = prepared.splitted
+        sql = split.query
+        bindings = try split.values.map { try normalizeBinding($0) }
+        analysisSQL = prepared.plain
     }
 }
 
@@ -19,6 +27,18 @@ private struct TransactionLifecycleSnapshots {
 
     init() throws {
         begin = try PreparedQuerySnapshot(SwifQL.begin)
+        commit = try PreparedQuerySnapshot(SwifQL.commit)
+        rollback = try PreparedQuerySnapshot(SwifQL.rollback)
+    }
+}
+
+private struct ObservationLifecycleSnapshots {
+    let begin: PreparedQuerySnapshot
+    let commit: PreparedQuerySnapshot
+    let rollback: PreparedQuerySnapshot
+
+    init() throws {
+        begin = try PreparedQuerySnapshot(SwifQL.raw("BEGIN TRANSACTION READ ONLY"))
         commit = try PreparedQuerySnapshot(SwifQL.commit)
         rollback = try PreparedQuerySnapshot(SwifQL.rollback)
     }
@@ -1460,7 +1480,8 @@ public actor Connection {
         _ statement: NativePreparedStatement,
         materializeRows: Bool,
         cancellationPolicy: NativeCancellationPolicy,
-        beforePending: () -> Void = {}
+        beforePending: () -> Void = {},
+        requireReadOnlyResult: Bool = false
     ) async throws -> QueryResult {
         if cancellationPolicy == .cooperative {
             try Task.checkCancellation()
@@ -1497,6 +1518,11 @@ public actor Connection {
             try interruptAndThrowIfCancelled()
         }
         let result = try pending.execute()
+        if requireReadOnlyResult, !result.isReadOnly {
+            throw DatabaseError.invalidResult(
+                "Observation query returned a successful non-read-only native result."
+            )
+        }
         if cancellationPolicy == .cooperative {
             try Task.checkCancellation()
         }
@@ -1529,6 +1555,106 @@ public actor Connection {
             rows: rows,
             rowsChanged: result.rowsChanged
         )
+    }
+
+    /// Executes one observation refresh in an isolated native READ ONLY transaction.
+    ///
+    /// The returned dependency is analyzed from the plain SQL snapshot and the
+    /// plain SQL is never executed.
+    func refreshObservation(
+        _ snapshot: PreparedQuerySnapshot
+    ) async throws -> ObservationRefresh {
+        try Task.checkCancellation()
+        try await acquireOrdinaryLease()
+        defer { releaseOrdinaryLease() }
+
+        let lifecycle = try ObservationLifecycleSnapshots()
+        do {
+            let begin = try prepareNativeStatement(lifecycle.begin, policy: .lifecycle)
+            _ = try await executePreparedStatement(
+                begin,
+                materializeRows: false,
+                cancellationPolicy: .definitive
+            )
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw DatabaseError.transactionBegin(lifecycleFailureMessage(error))
+        }
+
+        let refresh: ObservationRefresh
+        do {
+            let statement = try prepareNativeStatement(snapshot, policy: .user)
+            guard statement.isReadOnly else {
+                throw DatabaseError.observationRequiresReadOnlyQuery
+            }
+
+            let dependency = ObservationDependency.analyze(
+                sql: snapshot.analysisSQL,
+                on: nativeConnection
+            )
+            let result = try await executePreparedStatement(
+                statement,
+                materializeRows: true,
+                cancellationPolicy: .cooperative,
+                requireReadOnlyResult: true
+            )
+            try Task.checkCancellation()
+            refresh = ObservationRefresh(result: result, dependency: dependency)
+        } catch is CancellationError {
+            try await rollbackObservation(lifecycle.rollback, originalError: CancellationError())
+            throw CancellationError()
+        } catch {
+            let primary = mapObservationError(error)
+            try await rollbackObservation(lifecycle.rollback, originalError: primary)
+            throw primary
+        }
+
+        do {
+            let commit = try prepareNativeStatement(lifecycle.commit, policy: .lifecycle)
+            _ = try await executePreparedStatement(
+                commit,
+                materializeRows: false,
+                cancellationPolicy: .definitive
+            )
+        } catch {
+            let message = lifecycleFailureMessage(error)
+            enterFailClosed("Observation READ ONLY COMMIT failed: \(message)")
+            throw DatabaseError.transactionCommit(message)
+        }
+
+        return refresh
+    }
+
+    private func rollbackObservation(
+        _ snapshot: PreparedQuerySnapshot,
+        originalError: any Error
+    ) async throws {
+        do {
+            let rollback = try prepareNativeStatement(snapshot, policy: .lifecycle)
+            _ = try await executePreparedStatement(
+                rollback,
+                materializeRows: false,
+                cancellationPolicy: .definitive
+            )
+        } catch {
+            let rollbackError = DatabaseError.transactionRollback(lifecycleFailureMessage(error))
+            enterFailClosed("Observation rollback failed: \(lifecycleFailureMessage(error))")
+            throw TransactionRollbackError(
+                originalError: originalError,
+                rollbackError: rollbackError
+            )
+        }
+    }
+
+    private func mapObservationError(_ error: any Error) -> DatabaseError {
+        if let error = error as? DatabaseError {
+            return error
+        }
+        if let error = error as? NativeDuckDBError {
+            return mapNativeError(error)
+        }
+        return .invalidResult(String(describing: error))
     }
 
     @discardableResult
@@ -1721,6 +1847,8 @@ public actor Connection {
                 return "The transaction reservation has ended."
             case .transactionControlNotAllowed:
                 return "User transaction-control execution is not allowed."
+            case .observationRequiresReadOnlyQuery:
+                return "The observed query is not read-only."
             case .statementArgumentCount(let expected, let actual):
                 return "Reusable statement expected \(expected) dynamic arguments but received \(actual)."
             case .statementConnectionMismatch:
