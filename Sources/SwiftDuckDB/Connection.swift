@@ -212,10 +212,31 @@ private struct PreparedStatementEntry {
     var unusableMessage: String?
 }
 
+/// Exact DuckDB v1.5.5 `BaseAppender::DEFAULT_FLUSH_COUNT` (`STANDARD_VECTOR_SIZE * 100ULL`).
+private let ordinaryAppenderAutoFlushRowCount = 204_800
+
+private enum AppenderObservationMode: Equatable, Sendable {
+    case ordinary
+    case transaction(TransactionReservationId)
+}
+
 private struct AppenderEntry {
     var appender: NativeAppender?
     let expectedArgumentCount: Int
     var terminalFailure: AppenderStoredFailure?
+    let targetInvalidation: ObservationInvalidation
+    let mode: AppenderObservationMode
+    var ordinaryRowsSinceFlush: Int
+}
+
+private struct AppenderDiscardResult {
+    let error: DatabaseError?
+    let bufferedDataOutcomeAmbiguous: Bool
+}
+
+private struct AppenderFinalizationSuccess: Sendable {
+    let targetInvalidation: ObservationInvalidation
+    let mode: AppenderObservationMode
 }
 
 public actor Connection {
@@ -596,7 +617,7 @@ public actor Connection {
         try Task.checkCancellation()
         try ensureUsable()
 
-        let start = try installAppenderScope(target)
+        let start = try installAppenderScope(target, mode: .ordinary)
         transfersLeaseToLiveScope = true
         return start
     }
@@ -610,7 +631,10 @@ public actor Connection {
         do {
             try Task.checkCancellation()
             try ensureUsable()
-            return try installAppenderScope(target)
+            return try installAppenderScope(
+                target,
+                mode: .transaction(token.reservationId)
+            )
         } catch is CancellationError {
             completeTransactionOperation(token, failure: .cancelled)
             throw CancellationError()
@@ -629,7 +653,8 @@ public actor Connection {
     }
 
     private func installAppenderScope(
-        _ target: AppenderTarget
+        _ target: AppenderTarget,
+        mode: AppenderObservationMode
     ) throws -> AppenderScopeStart {
 
         let nativeAppender: NativeAppender
@@ -650,7 +675,10 @@ public actor Connection {
         appenders[id] = AppenderEntry(
             appender: nativeAppender,
             expectedArgumentCount: nativeAppender.columnCount,
-            terminalFailure: nil
+            terminalFailure: nil,
+            targetInvalidation: appenderTargetInvalidation(target),
+            mode: mode,
+            ordinaryRowsSinceFlush: 0
         )
         return AppenderScopeStart(
             id: id,
@@ -658,10 +686,32 @@ public actor Connection {
         )
     }
 
+    /// Maps an Appender target to the shared Observation identity space without SQL parsing.
+    ///
+    /// Partial targets fall back to Database-wide invalidation. Only a fully qualified
+    /// safe `catalog.schema.table` target publishes a table-scoped qualification closure.
+    private func appenderTargetInvalidation(
+        _ target: AppenderTarget
+    ) -> ObservationInvalidation {
+        guard let catalog = target.catalog, let schema = target.schema else {
+            return .database
+        }
+
+        guard
+            let full = ObservationTableName(components: [catalog, schema, target.table]),
+            let schemaQualified = ObservationTableName(components: [schema, target.table]),
+            let bare = ObservationTableName(components: [target.table])
+        else {
+            return .database
+        }
+
+        return .tables([full, schemaQualified, bare])
+    }
+
     func appendAppenderRow(
         _ id: AppenderId,
         bindings: [Value]
-    ) throws {
+    ) async throws {
         try ensureUsable()
 
         guard var entry = appenders[id] else {
@@ -688,55 +738,77 @@ public actor Connection {
             if error.isPreflight {
                 throw primary
             }
-            let cleanup = discardAppenderForScope(nativeAppender)
+            let discard = discardAppenderForScope(nativeAppender)
             entry.appender = nil
 
-            if let cleanup {
-                let terminal = AppenderStoredFailure.cleanup(
-                    original: primary,
-                    cleanup: cleanup
-                )
-                entry.terminalFailure = terminal
-                appenders[id] = entry
-                try terminal.throwStored()
+            let terminal: AppenderStoredFailure
+            if let cleanup = discard.error {
+                terminal = .cleanup(original: primary, cleanup: cleanup)
+            } else {
+                terminal = .database(primary)
             }
-
-            entry.terminalFailure = .database(primary)
+            entry.terminalFailure = terminal
             appenders[id] = entry
-            throw primary
+
+            if entry.mode == .ordinary {
+                await database.observationCoordinator.invalidate(
+                    entry.targetInvalidation
+                )
+            }
+            try terminal.throwStored()
         } catch {
             let primary = DatabaseError.appenderRowCompletion(String(describing: error))
-            let cleanup = discardAppenderForScope(nativeAppender)
+            let discard = discardAppenderForScope(nativeAppender)
             entry.appender = nil
 
-            if let cleanup {
-                let terminal = AppenderStoredFailure.cleanup(
-                    original: primary,
-                    cleanup: cleanup
-                )
-                entry.terminalFailure = terminal
-                appenders[id] = entry
-                try terminal.throwStored()
+            let terminal: AppenderStoredFailure
+            if let cleanup = discard.error {
+                terminal = .cleanup(original: primary, cleanup: cleanup)
+            } else {
+                terminal = .database(primary)
             }
-
-            entry.terminalFailure = .database(primary)
+            entry.terminalFailure = terminal
             appenders[id] = entry
-            throw primary
+
+            if entry.mode == .ordinary {
+                await database.observationCoordinator.invalidate(
+                    entry.targetInvalidation
+                )
+            }
+            try terminal.throwStored()
+        }
+
+        switch entry.mode {
+        case .transaction:
+            appenders[id] = entry
+            return
+        case .ordinary:
+            entry.ordinaryRowsSinceFlush += 1
+            if entry.ordinaryRowsSinceFlush >= ordinaryAppenderAutoFlushRowCount {
+                entry.ordinaryRowsSinceFlush = 0
+                appenders[id] = entry
+                await database.observationCoordinator.invalidate(
+                    entry.targetInvalidation
+                )
+            } else {
+                appenders[id] = entry
+            }
+            return
         }
     }
 
-    func abortAppenderScope(_ id: AppenderId) -> AppenderAbortOutcome {
+    func abortAppenderScope(_ id: AppenderId) async -> AppenderAbortOutcome {
         defer { releaseOrdinaryLease() }
 
-        return abortAppenderEntry(id)
+        return await abortAppenderEntry(id)
     }
 
     func abortTransactionAppenderScope(
         _ id: AppenderId,
         token: TransactionOperationToken,
         failure: TransactionRollbackOnlyReason
-    ) -> AppenderAbortOutcome {
-        let outcome = abortAppenderEntry(id)
+    ) async -> AppenderAbortOutcome {
+        let outcome = await abortAppenderEntry(id)
         let effectiveFailure: TransactionRollbackOnlyReason
 
         switch outcome {
@@ -753,7 +825,7 @@ public actor Connection {
         return outcome
     }
 
-    private func abortAppenderEntry(_ id: AppenderId) -> AppenderAbortOutcome {
+    private func abortAppenderEntry(_ id: AppenderId) async -> AppenderAbortOutcome {
 
         guard let entry = appenders.removeValue(forKey: id) else {
             let cleanup = DatabaseError.appenderCleanup(
@@ -764,13 +836,20 @@ public actor Connection {
         }
 
         if let terminal = entry.terminalFailure {
-            if let nativeAppender = entry.appender,
-               let cleanup = discardAppenderForScope(nativeAppender) {
-                switch terminal {
-                case .database(let original):
-                    return .terminal(.cleanup(original: original, cleanup: cleanup))
-                case .cleanup:
-                    return .terminal(terminal)
+            if let nativeAppender = entry.appender {
+                let discard = discardAppenderForScope(nativeAppender)
+                if discard.bufferedDataOutcomeAmbiguous, entry.mode == .ordinary {
+                    await database.observationCoordinator.invalidate(
+                        entry.targetInvalidation
+                    )
+                }
+                if let cleanup = discard.error {
+                    switch terminal {
+                    case .database(let original):
+                        return .terminal(.cleanup(original: original, cleanup: cleanup))
+                    case .cleanup:
+                        return .terminal(terminal)
+                    }
                 }
             }
             return .terminal(terminal)
@@ -784,24 +863,49 @@ public actor Connection {
             return .cleanup(cleanup)
         }
 
-        if let cleanup = discardAppenderForScope(nativeAppender) {
+        let discard = discardAppenderForScope(nativeAppender)
+        if discard.bufferedDataOutcomeAmbiguous, entry.mode == .ordinary {
+            await database.observationCoordinator.invalidate(entry.targetInvalidation)
+        }
+        if let cleanup = discard.error {
             return .cleanup(cleanup)
         }
         return .cleaned
     }
 
-    func finishAppenderScopeSuccess(_ id: AppenderId) throws {
+    func finishAppenderScopeSuccess(_ id: AppenderId) async throws {
         defer { releaseOrdinaryLease() }
 
-        try finalizeAppenderEntry(id)
+        _ = try await finalizeAppenderEntry(id)
     }
 
     func finishTransactionAppenderScopeSuccess(
         _ id: AppenderId,
         token: TransactionOperationToken
-    ) throws {
+    ) async throws {
         do {
-            try finalizeAppenderEntry(id)
+            let success = try await finalizeAppenderEntry(id)
+            guard case .transaction(let reservationId) = success.mode,
+                  reservationId == token.reservationId else {
+                let message = "Transaction Appender observation mode lost its matching reservation."
+                enterFailClosed(message)
+                await database.observationCoordinator.invalidate(.database)
+                let error = DatabaseError.connectionUnusable(message)
+                completeTransactionOperation(token, failure: .database(error))
+                throw error
+            }
+
+            guard mergeTransactionObservation(
+                reservationId,
+                invalidation: success.targetInvalidation
+            ) else {
+                await database.observationCoordinator.invalidate(.database)
+                let message = "Transaction Appender target impact lost its active reservation."
+                let error = DatabaseError.connectionUnusable(message)
+                completeTransactionOperation(token, failure: .database(error))
+                throw error
+            }
+
             completeTransactionOperation(token, failure: nil)
         } catch is CancellationError {
             completeTransactionOperation(token, failure: .cancelled)
@@ -829,7 +933,9 @@ public actor Connection {
         }
     }
 
-    private func finalizeAppenderEntry(_ id: AppenderId) throws {
+    private func finalizeAppenderEntry(
+        _ id: AppenderId
+    ) async throws -> AppenderFinalizationSuccess {
 
         guard let entry = appenders.removeValue(forKey: id) else {
             let message = "Appender scope registry entry disappeared before finalization."
@@ -838,16 +944,23 @@ public actor Connection {
         }
 
         if let terminal = entry.terminalFailure {
-            if let nativeAppender = entry.appender,
-               let cleanup = discardAppenderForScope(nativeAppender) {
-                switch terminal {
-                case .database(let original):
-                    throw AppenderCleanupError(
-                        originalError: original,
-                        cleanupError: cleanup
+            if let nativeAppender = entry.appender {
+                let discard = discardAppenderForScope(nativeAppender)
+                if discard.bufferedDataOutcomeAmbiguous, entry.mode == .ordinary {
+                    await database.observationCoordinator.invalidate(
+                        entry.targetInvalidation
                     )
-                case .cleanup:
-                    try terminal.throwStored()
+                }
+                if let cleanup = discard.error {
+                    switch terminal {
+                    case .database(let original):
+                        throw AppenderCleanupError(
+                            originalError: original,
+                            cleanupError: cleanup
+                        )
+                    case .cleanup:
+                        try terminal.throwStored()
+                    }
                 }
             }
             try terminal.throwStored()
@@ -862,7 +975,13 @@ public actor Connection {
         do {
             try ensureUsable()
         } catch {
-            if let cleanup = discardAppenderForScope(nativeAppender) {
+            let discard = discardAppenderForScope(nativeAppender)
+            if discard.bufferedDataOutcomeAmbiguous, entry.mode == .ordinary {
+                await database.observationCoordinator.invalidate(
+                    entry.targetInvalidation
+                )
+            }
+            if let cleanup = discard.error {
                 throw AppenderCleanupError(
                     originalError: error,
                     cleanupError: cleanup
@@ -875,7 +994,13 @@ public actor Connection {
             try Task.checkCancellation()
         } catch {
             let cancellation = CancellationError()
-            if let cleanup = discardAppenderForScope(nativeAppender) {
+            let discard = discardAppenderForScope(nativeAppender)
+            if discard.bufferedDataOutcomeAmbiguous, entry.mode == .ordinary {
+                await database.observationCoordinator.invalidate(
+                    entry.targetInvalidation
+                )
+            }
+            if let cleanup = discard.error {
                 throw AppenderCleanupError(
                     originalError: cancellation,
                     cleanupError: cleanup
@@ -887,10 +1012,38 @@ public actor Connection {
         do {
             try nativeAppender.close()
         } catch let error as NativeAppenderError {
-            throw mapNativeAppenderError(error)
+            let mapped = mapNativeAppenderError(error)
+            switch entry.mode {
+            case .transaction:
+                break
+            case .ordinary:
+                switch error.stage {
+                case .finalization:
+                    await database.observationCoordinator.invalidate(
+                        entry.targetInvalidation
+                    )
+                case .cleanup:
+                    if entry.ordinaryRowsSinceFlush > 0 {
+                        await database.observationCoordinator.invalidate(
+                            entry.targetInvalidation
+                        )
+                    }
+                case .creation, .appendColumn, .rowCompletion:
+                    await database.observationCoordinator.invalidate(
+                        entry.targetInvalidation
+                    )
+                }
+            }
+            throw mapped
         } catch {
             let primary = DatabaseError.appenderFinalization(String(describing: error))
-            if let cleanup = discardAppenderForScope(nativeAppender) {
+            if entry.mode == .ordinary {
+                await database.observationCoordinator.invalidate(
+                    entry.targetInvalidation
+                )
+            }
+            let discard = discardAppenderForScope(nativeAppender)
+            if let cleanup = discard.error {
                 throw AppenderCleanupError(
                     originalError: primary,
                     cleanupError: cleanup
@@ -898,14 +1051,26 @@ public actor Connection {
             }
             throw primary
         }
+
+        let success = AppenderFinalizationSuccess(
+            targetInvalidation: entry.targetInvalidation,
+            mode: entry.mode
+        )
+        if case .ordinary = entry.mode, entry.ordinaryRowsSinceFlush > 0 {
+            await database.observationCoordinator.invalidate(entry.targetInvalidation)
+        }
+        return success
     }
 
     private func discardAppenderForScope(
         _ nativeAppender: NativeAppender
-    ) -> DatabaseError? {
+    ) -> AppenderDiscardResult {
         do {
             try nativeAppender.discard()
-            return nil
+            return AppenderDiscardResult(
+                error: nil,
+                bufferedDataOutcomeAmbiguous: false
+            )
         } catch let error as NativeAppenderError {
             let cleanup = mapNativeAppenderError(error)
             if error.bufferedDataOutcomeAmbiguous {
@@ -913,11 +1078,17 @@ public actor Connection {
                     "Appender cleanup left buffered-data outcome ambiguous: \(error.message)"
                 )
             }
-            return cleanup
+            return AppenderDiscardResult(
+                error: cleanup,
+                bufferedDataOutcomeAmbiguous: error.bufferedDataOutcomeAmbiguous
+            )
         } catch {
             let message = "Unexpected Appender cleanup failure: \(String(describing: error))"
             enterFailClosed(message)
-            return .appenderCleanup(message)
+            return AppenderDiscardResult(
+                error: .appenderCleanup(message),
+                bufferedDataOutcomeAmbiguous: false
+            )
         }
     }
 

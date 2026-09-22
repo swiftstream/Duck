@@ -28,23 +28,45 @@ struct ObservationTableName: Hashable, Sendable {
         guard (1...3).contains(rawComponents.count) else {
             return nil
         }
+        self.init(components: rawComponents.map(String.init))
+    }
+
+    /// Creates a table identity from one to three already-separated safe ASCII identifier components.
+    ///
+    /// Components are never re-split or re-parsed: dots, quotes, spaces, and other
+    /// non-identifier bytes inside a supplied component are rejected rather than treated as separators.
+    /// After that safe-ASCII validation, accepted components are stored with DuckDB-compatible
+    /// ASCII case folding (`A...Z` to `a...z`) so Hashable/Equatable identity is case-canonical.
+    init?(components: [String]) {
+        guard (1...3).contains(components.count) else {
+            return nil
+        }
 
         var normalizedComponents: [String] = []
-        normalizedComponents.reserveCapacity(rawComponents.count)
-        for component in rawComponents {
+        normalizedComponents.reserveCapacity(components.count)
+        for component in components {
             guard Self.isSafeComponent(component) else {
                 return nil
             }
-            normalizedComponents.append(String(component))
+            normalizedComponents.append(Self.canonicalizingASCII(caseOf: component))
         }
-        components = normalizedComponents
+        self.components = normalizedComponents
     }
 
-    private static func isSafeComponent(_ component: Substring) -> Bool {
+    private static func isSafeComponent(_ component: String) -> Bool {
         guard let first = component.utf8.first, isASCIIIdentifierStart(first) else {
             return false
         }
         return component.utf8.dropFirst().allSatisfy(isASCIIIdentifierContinuation)
+    }
+
+    /// Folds only ASCII `A...Z` to `a...z` after the component has already passed safe-ASCII validation.
+    private static func canonicalizingASCII(caseOf component: String) -> String {
+        var bytes = Array(component.utf8)
+        for index in bytes.indices where bytes[index] >= 65 && bytes[index] <= 90 {
+            bytes[index] += 32
+        }
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     private static func isASCIIIdentifierStart(_ byte: UInt8) -> Bool {
