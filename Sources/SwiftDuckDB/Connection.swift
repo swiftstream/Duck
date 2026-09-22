@@ -295,6 +295,12 @@ public actor Connection {
         return try await installPreparedStatement(snapshot)
     }
 
+    /// Executes `body` in a managed transaction with automatic terminal finalization.
+    ///
+    /// A normal body return commits; an error or cancellation rolls back. If an
+    /// operation made the transaction rollback-only, finalization rolls it back and
+    /// surfaces the stored reason. The supplied `Transaction` is valid only for this
+    /// managed lifecycle.
     public nonisolated(nonsending) func transaction<Result>(
         _ body: (Transaction) async throws -> Result
     ) async throws -> Result {
@@ -453,7 +459,13 @@ public actor Connection {
         }
     }
 
-    /// Begins and returns a one-shot flat transaction whose Connection remains reserved until explicit finalization.
+    /// Begins a one-shot flat transaction and reserves this `Connection` until
+    /// terminal finalization.
+    ///
+    /// The caller owns the transaction lifetime and must finish it with `commit()`
+    /// or `rollback()`; on compiler >= 6.4, `rollbackIfNeeded()` is available for
+    /// best-effort asynchronous cleanup. While the reservation is active, ordinary
+    /// direct operations on this `Connection` are rejected.
     public nonisolated(nonsending) func transaction() async throws -> Transaction {
         try Task.checkCancellation()
         try await rejectLiveTransactionBodyMisuse(asTransaction: true)

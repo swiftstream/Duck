@@ -656,18 +656,35 @@ public struct Transaction: Sendable {
         return try await connection.executeTransactionStatement(snapshot, token: token)
     }
 
-    /// Commits this one-shot transaction, or rolls it back when an earlier operation made it rollback-only.
+    /// Terminally commits this one-shot transaction, or rolls it back and throws
+    /// the stored reason when it is already rollback-only.
+    ///
+    /// A successful return means native COMMIT completed definitively. If COMMIT
+    /// fails after native scheduling has begun, the durable outcome is ambiguous;
+    /// the `Connection` becomes unusable/fail-closed and no compensating retry or
+    /// rollback is attempted.
     public nonisolated(nonsending) func commit() async throws {
         try await connection.commitManualTransaction(reservationId)
     }
 
-    /// Rolls back this one-shot transaction and releases its Connection reservation when complete.
+    /// Terminally rolls back this transaction handle.
+    ///
+    /// A successful return means native ROLLBACK completed. A flat transaction
+    /// releases its `Connection` reservation immediately; a transaction supplied by
+    /// managed `Connection.transaction(_:)` retains the outer reservation until that
+    /// body exits. A rollback failure is surfaced and leaves the `Connection`
+    /// unusable/fail-closed.
     public nonisolated(nonsending) func rollback() async throws {
         try await connection.rollbackManualTransaction(reservationId)
     }
 
     #if compiler(>=6.4)
-    /// Rolls back an active manual transaction during asynchronous cleanup. Cleanup failure is not thrown; the Connection becomes unusable and fail-closed.
+    /// Best-effort nonthrowing rollback for an active transaction during
+    /// asynchronous cleanup.
+    ///
+    /// Surrounding task cancellation does not suppress the rollback attempt. Native
+    /// cleanup failure is not rethrown; the `Connection` remains unusable/fail-closed.
+    /// A transaction that is already terminal or ended is a no-op.
     public nonisolated(nonsending) func rollbackIfNeeded() async {
         await connection.rollbackManualTransactionIfNeeded(reservationId)
     }
