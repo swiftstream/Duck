@@ -1,14 +1,24 @@
 ---
 name: swiftduckdb-transactions
-description: Use for SwiftDuckDB scoped transactions, explicit same-Connection participation, rollback-only behavior, transaction errors and cancellation, concurrent Transaction work, reusable Statement transaction execution, and Transaction Appender integration.
+description: Use for SwiftDuckDB managed or flat explicitly finalized transactions, same-Connection participation, rollback-only behavior, commit/rollback failure semantics, Swift 6.4 rollbackIfNeeded cleanup, reusable Statement transaction execution, Transaction Appender integration, and transaction Observation publication.
 license: LICENSE.txt
 ---
 
 # SwiftDuckDB Transactions
 
-Use this skill when several operations on one SwiftDuckDB `Connection` must share one explicit commit/rollback boundary. The transaction API is scoped: work that should participate uses the supplied `Transaction` capability.
+Use this skill when several operations on one SwiftDuckDB `Connection` must share one explicit commit/rollback boundary.
 
-## 1. Use `Connection.transaction`
+SwiftDuckDB supports two public transaction lifetimes:
+
+```text
+managed closure  -> connection.transaction { transaction in ... }
+flat/manual      -> let transaction = try await connection.transaction()
+                    ... explicit commit() / rollback()
+```
+
+In both forms, work that belongs to the transaction uses the supplied `Transaction` capability. SwiftDuckDB does not provide ambient same-Connection transaction joining.
+
+## 1. Prefer the managed closure for one lexical lifetime
 
 ```swift
 let users = Path.Table("users")
@@ -27,11 +37,63 @@ let result = try await connection.transaction { transaction in
 }
 ```
 
-A successful body is not the commit itself. SwiftDuckDB commits only after the body returns and transaction finalization succeeds.
+A normal body return is not itself the commit. SwiftDuckDB commits only after the body completes and native COMMIT succeeds.
 
-## 2. Same-Connection participation is explicit
+A thrown body error or observed cancellation takes the rollback path.
 
-Inside the transaction body, same-Connection query/execute work that should participate must use the supplied `Transaction`:
+## 2. Use a flat transaction when lifetime cannot fit one closure
+
+```swift
+let transaction = try await connection.transaction()
+
+try await SwifQL
+    .insertInto(users, fields: "email", "name", "role")
+    .values
+    .values("manual@example.com", "Manual", "member")
+    .execute(on: transaction)
+
+try await transaction.commit()
+```
+
+The flat handle reserves its originating `Connection` until terminal finalization.
+
+The caller owns that lifetime. Finish it with exactly one terminal path:
+- `try await transaction.commit()`
+- `try await transaction.rollback()`
+- on Swift compiler 6.4+, `await transaction.rollbackIfNeeded()` as nonthrowing cleanup when the handle might still be active.
+
+Do not retain a live flat transaction without a cleanup plan.
+
+## 3. Swift 6.4 rollbackIfNeeded works from defer
+
+With a Swift 6.4+ compiler:
+
+```swift
+let transaction = try await connection.transaction()
+defer {
+    await transaction.rollbackIfNeeded()
+}
+
+try await SwifQL
+    .insertInto(users, fields: "email", "name", "role")
+    .values
+    .values("manual@example.com", "Manual", "member")
+    .execute(on: transaction)
+
+try await transaction.commit()
+```
+
+If the transaction already committed or rolled back, `rollbackIfNeeded()` is a no-op.
+
+If it is still active, the helper attempts the same mandatory rollback cleanup path. Surrounding task cancellation does not suppress that cleanup attempt.
+
+The helper is nonthrowing. A cleanup failure is retained through fail-closed Connection state rather than escaping from `rollbackIfNeeded()`.
+
+Do not generate this API for compiler versions below 6.4.
+
+## 4. Same-Connection participation is explicit
+
+Inside either transaction lifetime, same-Connection work that should participate must use the `Transaction`:
 
 ```swift
 try await SwifQL
@@ -39,117 +101,154 @@ try await SwifQL
     .query(on: transaction)
 ```
 
-Do not call ordinary same-Connection query/execute APIs and expect ambient transaction joining. Live same-Connection ordinary work is rejected rather than silently joining the transaction.
+Ordinary query/execute work on the owning `Connection` is rejected while the transaction reservation is live rather than silently joining it.
 
-This explicit capability boundary is deliberate. It keeps transaction participation visible in code and avoids hidden connection mode.
+A second managed or flat transaction attempt on that same Connection also fails while the reservation is active.
 
-## 3. Body failure and cancellation roll back
+A separate `Connection` remains independent.
 
-If the transaction body throws, SwiftDuckDB performs mandatory rollback cleanup before the scope finishes.
+## 5. Rollback-only state preserves the first reason
 
-Swift task cancellation follows the same rollback path when it is observed. Cancellation remains cooperative; do not promise to preempt a synchronous native DuckDB call already running.
+A database operation failure or observed cancellation can make the transaction rollback-only.
 
-When rollback itself fails while another error is already being handled, SwiftDuckDB throws `TransactionRollbackError`, which preserves:
+Catching the immediate operation error changes local Swift control flow but does not make the transaction commit-eligible again.
 
-```text
-originalError
-rollbackError: DatabaseError
-```
+If managed body execution later returns normally, finalization rolls back and surfaces the stored first reason.
 
-The affected Connection is fail-closed after an unrecoverable rollback cleanup failure; later work receives `.connectionUnusable` and callers should create a fresh Connection.
+If a flat caller invokes `commit()` while rollback-only, SwiftDuckDB performs rollback and then surfaces the stored first reason rather than false-COMMITing.
 
-## 4. A caught database/cancellation operation failure still makes the transaction rollback-only
+Do not clear or replace rollback-only state in application abstractions.
 
-A database operation failure recorded inside a live transaction remains the transaction's first rollback-only reason even if the body catches that immediate error.
+## 6. commit and rollback are one-shot terminal finalizers
 
-Catching the immediate operation error may change local Swift control flow, but it does not restore transaction commit eligibility. If the body later returns successfully, finalization rolls back and surfaces the stored first failure rather than false-COMMITing.
+`commit()` and `rollback()` terminalize the public transaction handle.
 
-## 5. `Transaction` is a scoped capability
+After terminal finalization, later transaction operations fail with `.transactionEnded`.
 
-Do not retain a `Transaction` for later use after its body has finished. Work through an escaped/finalized Transaction is rejected with `.transactionEnded`.
+For a flat transaction, successful terminal finalization releases the Connection reservation immediately.
 
-Starting another transaction on the same Connection while one is pending or active is rejected with `.transactionAlreadyActive`.
+For a managed transaction, an explicit `commit()` or `rollback()` called inside the body terminalizes the Transaction but the managed outer reservation remains owned until body exit. This prevents the body from silently turning into ordinary same-Connection work after manual finalization.
 
-A separate Connection remains independent.
+Do not treat a terminal Transaction as a reusable connection mode.
 
-## 6. Structured child work may share the Transaction
+## 7. COMMIT failure has a conservative ambiguity boundary
 
-Structured child tasks may submit operations through the same live `Transaction` as long as their work is awaited before the transaction body returns.
+A successful `commit()` means native COMMIT completed definitively.
 
-Native transaction operations remain serialized through the transaction's existing Connection-owned scheduling. Do not claim parallel native execution merely because multiple Swift tasks submit work.
+If COMMIT setup fails before native scheduling begins, SwiftDuckDB can perform mandatory rollback cleanup and may keep the Connection reusable when that cleanup succeeds.
 
-Use another Connection for independent work that should not participate in the current transaction.
+Once native COMMIT scheduling has been attempted, a surfaced COMMIT failure has an ambiguous durable outcome. SwiftDuckDB:
+- does not retry COMMIT;
+- does not promise a compensating rollback;
+- fail-closes the Connection.
 
-## 7. Reusable Statements participate explicitly
+Later work on that Connection receives `.connectionUnusable`.
 
-A reusable `Statement` is owned by the Connection that prepared it. Given `insertUser` and `findUser` prepared earlier on that same Connection, use the explicit transaction overload inside the transaction scope:
+Do not parse native diagnostic strings to infer a stronger postcondition.
+
+## 8. Rollback failure fail-closes
+
+A successful `rollback()` means native rollback completed definitively.
+
+If rollback cleanup fails, SwiftDuckDB surfaces the rollback failure and fail-closes the Connection.
+
+When rollback fails while another error is already being handled, `TransactionRollbackError` preserves:
+- `originalError`
+- `rollbackError: DatabaseError`
+
+Do not discard the rollback failure when it changes whether the Connection can be reused.
+
+## 9. Forgotten flat handles do not run hidden deinit cleanup
+
+A flat transaction is explicit lifetime authority.
+
+Dropping the last Swift reference does not start an unstructured deinitializer Task that tries to rollback in the background.
+
+The caller must arrange terminal cleanup. Prefer the managed closure when that ownership requirement is inconvenient; use Swift 6.4 `rollbackIfNeeded()` in `defer` when explicit lifetime is required.
+
+## 10. Structured child work may share a live Transaction
+
+Structured child tasks may submit operations through the same live `Transaction` when all work is awaited before finalization.
+
+Native transaction operations remain serialized through the existing Connection-owned transaction scheduler.
+
+Do not claim parallel native execution merely because several Swift tasks submit work.
+
+## 11. Reusable Statements participate explicitly
+
+A reusable `Statement` is owned by the Connection that prepared it.
+
+Use the explicit Transaction overload inside either managed or flat transaction lifetime:
 
 ```swift
-try await connection.transaction { transaction in
-    try await insertUser.execute(
-        on: transaction,
-        "transaction@example.com",
-        "Transaction User"
-    )
-
-    let result = try await findUser.query(
-        on: transaction,
-        "transaction@example.com"
-    )
-
-    _ = result
-}
+let result = try await findUser.query(
+    on: transaction,
+    "transaction@example.com"
+)
 ```
 
-A Statement cannot execute on a Transaction from another Connection; that fails with `.statementConnectionMismatch` before poisoning the unrelated transaction.
+A Statement cannot execute on a Transaction from another Connection; that fails with `.statementConnectionMismatch`.
 
-Ordinary `statement.query(...)` / `statement.execute(...)` from the live same-Connection transaction body is rejected. Use the `on: transaction` forms.
+Ordinary `statement.query(...)` / `statement.execute(...)` on the same live Connection are not ambient transaction participation. Use the `on: transaction` forms.
 
-## 8. Bulk complete-row ingestion can share the transaction
+Switch to `swiftduckdb-reusable-statements` when preparation, binding layout, or reuse semantics are the main task.
 
-Use `transaction.appender(to:)` when complete-row ingestion must share the explicit transaction's commit/rollback boundary:
+## 12. Transaction Appender shares the outer boundary
+
+Use `transaction.appender(to:)` when complete-row ingestion must commit or roll back with the surrounding transaction:
 
 ```swift
 let events = Path.Table("events")
 
-try await connection.transaction { transaction in
-    try await transaction.appender(to: events) { appender in
-        try await appender.append(Int32(1), "opened", Data())
-        try await appender.append(Int32(2), "closed", Data())
-    }
+try await transaction.appender(to: events) { appender in
+    try await appender.append(Int32(1), "opened", Data())
+    try await appender.append(Int32(2), "closed", Data())
 }
 ```
 
-The Appender scope does not commit independently. Auto-flushed transaction-Appender batches remain transaction-local; outer COMMIT persists them and outer ROLLBACK removes them.
+The Appender scope does not commit independently.
 
-A failed transaction-Appender scope leaves the outer transaction rollback-only. Switch to the dedicated Appender guidance when row validation, terminal native Appender failures, live-Appender same-scope restrictions, or ordinary-vs-transaction ingestion details are central to the task.
+Auto-flushed Transaction Appender batches remain transaction-local. Outer COMMIT persists them; outer ROLLBACK removes them.
 
-## 9. Understand the COMMIT failure boundary conservatively
+A failed Transaction Appender scope leaves the outer transaction rollback-only.
 
-If COMMIT setup fails before native execution scheduling begins, SwiftDuckDB performs mandatory rollback cleanup and the Connection may remain reusable when cleanup succeeds.
+Switch to `swiftduckdb-appender` when row validation, native Appender failure, or ordinary-vs-transaction ingestion semantics are central.
 
-If COMMIT failure occurs after native execution scheduling has begun, the native postcondition is ambiguous. SwiftDuckDB does not retry COMMIT or issue a compensating rollback that could misrepresent the real native state; the Connection is conservatively fail-closed.
+## 13. Transaction Observation publication occurs at finalization
 
-Treat the typed Swift error/Connection state as the contract. Do not parse diagnostic strings to infer an internal failure stage.
+When the same `Database` has active `QueryObservation` iterators, transaction mutations accumulate Observation impact while the transaction is live.
 
-## 10. Do not issue transaction-control SQL manually
+Normal transaction operations do not publish ordinary invalidations individually.
 
-Normal SwiftDuckDB execution routes reject user-issued transaction-control statements such as manual `BEGIN`, `COMMIT`, or `ROLLBACK`.
+Definitive terminal behavior is:
+- COMMIT publishes accumulated non-empty impact after native COMMIT;
+- ROLLBACK publishes accumulated non-empty impact after native ROLLBACK;
+- a read-only/no-impact transaction publishes nothing;
+- rollback failure and ambiguous post-scheduling COMMIT conservatively publish Database-wide invalidation while fail-closing the Connection.
 
-Use `Connection.transaction` instead of building a second lifecycle around raw SQL transaction commands.
+This applies to managed automatic finalization, explicit managed finalizers, flat `commit()` / `rollback()`, and Swift 6.4 `rollbackIfNeeded()`.
 
-## 11. Current non-goals
+Use `swiftduckdb-observation` when latest-state delivery, dependency matching, or same-Database observation boundaries are the main task.
 
-The current public transaction capability does not advertise:
+## 14. Do not issue transaction-control SQL manually
+
+Normal SwiftDuckDB execution routes reject user-issued transaction-control SQL such as manual `BEGIN`, `COMMIT`, or `ROLLBACK`.
+
+The flat public API is explicit Swift lifecycle control; it is not permission to build a second raw-SQL transaction lifecycle.
+
+## 15. Current non-goals
+
+Do not infer or generate:
 
 ```text
 savepoints
-nested manual transaction lifecycles
-manual BEGIN/COMMIT/ROLLBACK control
+nested transactions
 custom isolation levels
-READ ONLY transaction modes
-transaction pooling
+public READ ONLY transaction mode
 ambient same-Connection transaction joining
+deinitializer-driven transaction cleanup
+transaction pooling
+manual raw-SQL BEGIN/COMMIT/ROLLBACK lifecycle
 ```
 
-Keep transaction participation explicit and scoped. Use the reusable-Statement or Appender skills when those capability-specific workflows are the main task.
+Keep transaction ownership explicit and use the managed closure unless a real caller lifetime requires the flat handle.

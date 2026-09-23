@@ -137,6 +137,36 @@ let result = try await connection.query(query)
 
 Both forms use the same execution engine.
 
+## Observe the latest query state
+
+Use `QueryObservation` when an application needs the latest successful `QueryResult` for a read-only query as data changes through the same `Database` instance.
+
+```swift
+let users = Path.Table("users")
+
+let observation = try SwifQL
+    .select(users.column("id"), users.column("name"))
+    .from(users)
+    .observe(on: database)
+
+for try await result in observation {
+    // Render or otherwise consume the latest successful state.
+    _ = result
+}
+```
+
+The equivalent Database-centered form is `try database.observe(query)`. Creating the observation captures the query synchronously; each iterator then owns an independent private `Connection` and refresh runtime.
+
+`QueryObservation` is a reusable `AsyncSequence` whose element is `QueryResult`. It is deliberately **latest-state**, not an event log: equal results are suppressed, delivery is bounded, and intermediate invalidated states may coalesce or be dropped when newer state supersedes them. Create another iterator when an independent consumer needs its own refresh lifetime.
+
+Observation execution keeps the normal prepared/bound SwiftDuckDB path. Plain SQL derived for dependency analysis is analysis-only and is never executed. Every refresh runs inside a native READ ONLY transaction. If DuckDB cannot prove the prepared query read-only, iteration fails with `.observationRequiresReadOnlyQuery` rather than executing it as an observation.
+
+Invalidation is local to the exact `Database` object that created the observation. Ordinary `Connection` mutations and reusable `Statement` mutations on that Database participate. Transaction mutations are published only when the transaction reaches definitive COMMIT or ROLLBACK finalization. Ordinary Appender ingestion follows native visibility, so rows already made durable by DuckDB can become observable before the Appender body itself returns; a Transaction Appender remains transaction-local until outer transaction finalization.
+
+Changes made through another `Database` instance, another process, or direct file mutation are outside the current observation contract. SwiftDuckDB does not poll the database file and does not expose a filesystem watcher, Combine/SwiftUI publisher, `Connection.observe`, `Transaction.observe`, typed/decoded observation, event history, or public observation configuration in this slice.
+
+Cancellation or refresh failure terminates only that iterator. The `QueryObservation` value remains reusable, so a later iterator starts with its own private Connection and fresh latest-state delivery.
+
 ## Decode rows into flat Codable models
 
 `Row` and `QueryResult` can project materialized result data into flat keyed `Decodable` models without giving the model access to native DuckDB result lifetime.
@@ -238,7 +268,7 @@ Transaction-backed model persistence reuses the same model query builders and ex
 
 Model payloads travel through prepared placeholders rather than being interpolated into SQL text.
 
-This model layer is not a broad ORM. It does not advertise repository identity maps, `save`/`persist` aliases, model delete/upsert/batch/arbitrary-WHERE persistence, migrations, observation/reactivity, pooling, arbitrary nested model graphs, savepoints/manual transaction lifecycle/custom isolation, new platform guarantees, or application-specific readiness claims.
+This model layer is not a broad ORM. It does not advertise repository identity maps, `save`/`persist` aliases, model delete/upsert/batch/arbitrary-WHERE persistence, migrations, model-integrated observation/reactive APIs, pooling, arbitrary nested model graphs, model-driven transaction lifecycle, savepoints/custom isolation, new platform guarantees, or application-specific readiness claims.
 
 ## Mutations and `rowsChanged`
 
@@ -469,7 +499,11 @@ The current Appender API also does not advertise free-standing/manual-close Appe
 
 ## Transactions
 
-Use `Connection.transaction` for a scoped transaction. Work on that same connection that should participate in the transaction must use the supplied `Transaction` capability. For high-volume complete rows that must share this explicit transaction's commit/rollback boundary, use `transaction.appender(to:)`; it remains a scoped Appender operation and does not commit independently.
+SwiftDuckDB supports both a managed closure transaction and an explicit flat transaction. In either form, work that should participate uses the supplied `Transaction` capability rather than ordinary same-Connection query/execute calls.
+
+### Managed transaction
+
+Use the closure form when one lexical scope owns the complete transaction lifetime:
 
 ```swift
 let users = Path.Table("users")
@@ -488,15 +522,56 @@ let result = try await connection.transaction { transaction in
 }
 ```
 
-A successful body commits only after COMMIT succeeds. A thrown body error or cancellation rolls the transaction back. A database operation failure also marks the transaction rollback-only even if you catch that error inside the body; returning successfully afterward still rolls back and surfaces the stored first database failure.
+A normal body return commits only after native COMMIT succeeds. A thrown body error or observed cancellation rolls the transaction back. If a database operation makes the transaction rollback-only, catching that immediate error does not restore commit eligibility: finalization rolls back and surfaces the stored first reason.
 
-Use the supplied `Transaction` for same-Connection work inside the scope. Calling ordinary query/execute APIs on that same `Connection` from a live transaction body is rejected rather than silently joining the transaction. Transaction work that should participate in the scope must be awaited before the body returns.
+Use the supplied `Transaction` for same-Connection work inside the body. Ordinary query/execute calls on that `Connection` are rejected while the reservation is live rather than silently joining the transaction. Structured child work may share the `Transaction` when it is awaited before the body returns.
 
-A `Transaction` is scoped capability, not a reusable connection mode. Work attempted through an escaped transaction after finalization is rejected with `.transactionEnded`. Starting another transaction on the same `Connection` while one is pending or active is rejected with `.transactionAlreadyActive`. Separate `Connection` values remain independent.
+### Flat transaction with explicit finalization
 
-If mandatory rollback cleanup fails while another error is already being handled, SwiftDuckDB throws `TransactionRollbackError`, preserving both `originalError` and the typed `rollbackError`. That `Connection` is fail-closed; later work receives `.connectionUnusable`, and callers should create a fresh connection. A COMMIT failure after native execution scheduling has begun is also treated conservatively: SwiftDuckDB does not retry or issue a compensating rollback because the native commit postcondition is no longer safe to infer, and that connection is fail-closed. A COMMIT setup failure that occurs before native scheduling runs mandatory rollback cleanup and may leave the connection reusable when cleanup succeeds. Do not parse diagnostic strings to infer which internal failure stage occurred.
+Use `connection.transaction()` when transaction lifetime must span code that does not fit one closure:
 
-The current transaction API does not advertise READ ONLY modes, custom isolation levels, savepoints, manual BEGIN/COMMIT/ROLLBACK lifecycle control, or transaction pooling.
+```swift
+let transaction = try await connection.transaction()
+
+try await SwifQL
+    .insertInto(users, fields: "email", "name", "role")
+    .values
+    .values("manual@example.com", "Manual", "member")
+    .execute(on: transaction)
+
+try await transaction.commit()
+```
+
+The returned handle owns a one-shot explicit lifetime. The `Connection` remains reserved until terminal `commit()` or `rollback()` finalization, and ordinary direct work on that same Connection is rejected while the handle is live. A second transaction attempt on the Connection also fails while the reservation is active.
+
+A flat transaction does not perform hidden deinitializer cleanup. The caller must arrange terminal finalization on every path. With a Swift 6.4+ compiler, `rollbackIfNeeded()` provides nonthrowing best-effort asynchronous cleanup and is designed to work from `defer`:
+
+```swift
+let transaction = try await connection.transaction()
+defer {
+    await transaction.rollbackIfNeeded()
+}
+
+try await SwifQL
+    .insertInto(users, fields: "email", "name", "role")
+    .values
+    .values("manual@example.com", "Manual", "member")
+    .execute(on: transaction)
+
+try await transaction.commit()
+```
+
+After a successful explicit commit or rollback, `rollbackIfNeeded()` is a no-op. Surrounding task cancellation does not suppress its rollback attempt. On Swift compilers before 6.4, finalize explicitly with `commit()` or `rollback()` and preserve any rollback failure rather than relying on hidden cleanup.
+
+Both `commit()` and `rollback()` are terminal one-shot operations. Committing a rollback-only transaction performs rollback and surfaces its stored first reason. A successful `commit()` means native COMMIT completed definitively. If COMMIT fails after native scheduling has begun, the durable outcome is ambiguous; SwiftDuckDB does not retry COMMIT or promise a compensating rollback, and the Connection becomes fail-closed. A rollback failure is surfaced and likewise fail-closes the Connection.
+
+After finalization, later work through that `Transaction` is rejected with `.transactionEnded`. Separate `Connection` values remain independent.
+
+For high-volume complete rows that must share the same commit/rollback boundary, use `transaction.appender(to:)`. A successful Transaction Appender scope does not commit independently; its mutation impact and rows remain transaction-local until outer finalization.
+
+If mandatory rollback cleanup fails while another error is already being handled, SwiftDuckDB throws `TransactionRollbackError`, preserving both `originalError` and the typed `rollbackError`. Later work on a fail-closed Connection receives `.connectionUnusable`; create a fresh Connection instead. Do not parse native diagnostic strings to infer an internal failure stage.
+
+Normal execution routes still reject user-issued transaction-control SQL. The public transaction API does not advertise savepoints, nested transactions, custom isolation levels, a public READ ONLY transaction mode, or transaction pooling.
 
 ## Reading results
 
@@ -666,6 +741,8 @@ Treat `SwifQL.raw(...)` as an escape hatch. Normal SwiftDuckDB examples should p
 
 ## Current scope
 
-The current public slice covers database/connection ownership, SwifQL query execution, reusable prepared statements, scoped transactions, ordinary scoped complete-row Appender ingestion, explicit-Transaction Appender participation, primitive, temporal, Interval, and exact Foundation.Decimal binding/result values, mutation row counts, typed-table selected-column convenience, flat keyed Codable row/result projection, exact flat `ModelEncoder` values, explicit Connection/Transaction `Table` insert/update conveniences, structured connection concurrency, and cancellation-aware execution.
+The current public slice covers database/connection ownership, SwifQL query execution, reusable prepared statements, managed and flat explicitly finalized transactions, latest-state `QueryObservation` for read-only same-Database reactive queries, ordinary scoped complete-row Appender ingestion, explicit-Transaction Appender participation, primitive, temporal, Interval, and exact Foundation.Decimal binding/result values, mutation row counts, typed-table selected-column convenience, flat keyed Codable row/result projection, exact flat `ModelEncoder` values, explicit Connection/Transaction `Table` insert/update conveniences, structured connection concurrency, and cancellation-aware execution.
 
-The current API does not advertise advanced Appender selected-column/DEFAULT/query/data-chunk/manual-lifecycle surfaces, broad ORM/repository identity semantics, model delete/upsert/batch/arbitrary-WHERE persistence, arbitrary nested model graphs, connection pooling, observation/reactive queries, migrations, savepoints/manual transaction lifecycle controls, custom transaction isolation modes, or complex result families beyond the currently implemented Value families.
+The current Observation surface is intentionally bounded to reusable latest-state `QueryResult` delivery for mutations routed through the same `Database` instance. It does not advertise event-history delivery, typed/decoded observation, `Connection.observe` or `Transaction.observe`, public observation options, polling, filesystem/process-wide watching, or UI-framework publishers.
+
+The current API also does not advertise advanced Appender selected-column/DEFAULT/query/data-chunk/manual-lifecycle surfaces, broad ORM/repository identity semantics, model delete/upsert/batch/arbitrary-WHERE persistence, arbitrary nested model graphs, connection pooling, migrations, savepoints, nested transactions, custom transaction isolation/public READ ONLY modes, or complex result families beyond the currently implemented Value families.

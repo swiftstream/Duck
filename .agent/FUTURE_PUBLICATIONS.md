@@ -16,7 +16,7 @@ Database / Connection / public query execution
 - detailed social/article source: PRESENT below as 004
 - public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-query-execution`; central federation onboarding/publication remains separate
 
-Scoped Transactions
+Transactions
 - README: PRESENT
 - detailed social/article source: PRESENT below as 005
 - public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-transactions`; central federation onboarding/publication remains separate
@@ -43,6 +43,12 @@ Codable / Model Layer
 - README: PRESENT
 - detailed social/article source: PRESENT below as 006
 - public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-codable-models`; central federation onboarding/publication remains separate
+
+Observation / Reactive Queries
+- implementation: accepted reusable latest-state `QueryObservation` with same-Database invalidation across ordinary execution, definitive Transaction finalization, and Appender visibility
+- README: PRESENT after the current public-closure candidate
+- detailed social/article source: PRESENT below as 007
+- public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-observation`; central federation onboarding/publication remains separate
 ```
 
 All future public capabilities automatically enter this register/closure model. Completing implementation without README + detailed publication source + skill coverage is not considered full public-capability closure.
@@ -869,9 +875,11 @@ Basic query execution is not meant to absorb every public workflow.
 
 Use a reusable `Statement` when one prepared SQL shape repeats with changing values.
 
-Use `Connection.transaction` and its supplied `Transaction` when multiple same-Connection operations need one explicit commit/rollback boundary.
+Use the managed `Connection.transaction { ... }` form when multiple same-Connection operations need one lexical commit/rollback boundary, or the flat `connection.transaction()` form when explicit lifetime/finalization is required.
 
 Use `Connection.appender` for bulk complete-row ingestion, or `Transaction.appender` when that ingestion must participate in an already-active explicit transaction.
+
+Use `QueryObservation` when a read-only query should refresh as same-`Database` mutations invalidate its latest state.
 
 The important design message is to keep ownership and capability boundaries explicit rather than introducing ambient behavior.
 
@@ -884,9 +892,8 @@ broad ORM/repository identity semantics beyond the dedicated flat Codable/model 
 arbitrary nested/unkeyed Codable model graphs beyond the dedicated model layer
 migrations
 connection pooling
-observation/reactive queries
-manual transaction lifecycle controls
 savepoints/custom isolation
+Observation expansion beyond the dedicated latest-state same-Database capability
 advanced Appender lifecycle surfaces
 complex nested result families beyond the current Value model
 platform-support guarantees not documented by the current public package
@@ -904,15 +911,15 @@ Preserve these user-facing angles:
 4. exact typed Row/Value reading avoids silent numeric coercion;
 5. multiple Connections are the explicit boundary for independent concurrent work.
 
-## 005 — Scoped Transactions: explicit participation without ambient magic
+## 005 — Transactions: managed scopes and explicit finalization without ambient magic
 
 Status: **implemented source material / future article-publication candidate**
 
 Trigger for publication: when the maintainer chooses to turn this durable source material into channel-specific public copy.
 
-### The smallest useful transaction
+### The smallest useful managed transaction
 
-SwiftDuckDB exposes transactions as a scoped capability supplied by `Connection.transaction`:
+SwiftDuckDB exposes a managed transaction through the closure overload of `Connection.transaction`:
 
 ```swift
 let users = Path.Table("users")
@@ -933,14 +940,46 @@ let result = try await connection.transaction { transaction in
 
 The supplied `Transaction` is how same-Connection work explicitly participates. SwiftDuckDB does not turn the underlying Connection into an ambient transaction mode that ordinary APIs silently join.
 
-### A successful body is not the COMMIT itself
+### Flat transactions cover explicit lifetime
+
+When transaction lifetime cannot fit one closure, acquire a flat handle and finalize it explicitly:
+
+```swift
+let transaction = try await connection.transaction()
+
+try await SwifQL
+    .insertInto(users, fields: "email", "name", "role")
+    .values
+    .values("manual@example.com", "Manual", "member")
+    .execute(on: transaction)
+
+try await transaction.commit()
+```
+
+The originating Connection stays reserved until terminal `commit()` or `rollback()`. Ordinary direct work on that Connection is rejected while the reservation is live.
+
+With a Swift 6.4+ compiler, `rollbackIfNeeded()` supplies nonthrowing best-effort cleanup for an active flat transaction and can be used from `defer`:
+
+```swift
+let transaction = try await connection.transaction()
+defer {
+    await transaction.rollbackIfNeeded()
+}
+
+// Transaction work...
+try await transaction.commit()
+```
+
+After commit or rollback the helper is a no-op. Cancellation does not suppress its rollback attempt. A forgotten flat handle does not launch hidden deinitializer cleanup, so callers must own terminal finalization explicitly.
+
+### A successful managed body is not the COMMIT itself
 
 The transaction body can return successfully, but the transaction is not complete until COMMIT finalization succeeds.
 
 The caller-visible sequence is:
 
 ```text
-enter scoped transaction
+enter managed transaction
 -> run awaited body work through Transaction
 -> body returns
 -> final COMMIT attempt
@@ -985,11 +1024,11 @@ rollbackError: DatabaseError
 
 The affected Connection is fail-closed after unrecoverable rollback cleanup failure, so later work receives `.connectionUnusable` and callers should create a fresh Connection.
 
-### Transaction lifetime is scoped
+### Transaction lifetime is explicit
 
-A `Transaction` is not a reusable connection mode. Once its body/finalization has ended, later work through an escaped Transaction is rejected with `.transactionEnded`.
+A `Transaction` is not a reusable connection mode. Managed closure lifetime ends with outer finalization; flat lifetime ends with explicit terminal finalization. Later work through a finalized Transaction is rejected with `.transactionEnded`.
 
-Starting another transaction on the same Connection while one is already pending or active is rejected with `.transactionAlreadyActive`.
+Starting another managed or flat transaction on the same Connection while one is already pending or active is rejected with `.transactionAlreadyActive`.
 
 Separate Connections remain independent.
 
@@ -1057,9 +1096,17 @@ Callers should rely on typed Swift errors and Connection state, not parse native
 
 ### Do not build a second transaction lifecycle with raw SQL
 
-Normal SwiftDuckDB execution routes reject user-issued transaction-control statements such as manual `BEGIN`, `COMMIT`, or `ROLLBACK`.
+Normal SwiftDuckDB execution routes reject user-issued transaction-control statements such as raw `BEGIN`, `COMMIT`, or `ROLLBACK`.
 
-Use the scoped `Connection.transaction` API instead of layering manual transaction control over the same Connection.
+Use the managed closure or flat Swift transaction API instead of layering a second raw-SQL lifecycle over the same Connection.
+
+### Observation publication follows finalization
+
+When a same-Database `QueryObservation` is active, transaction operations accumulate mutation impact without publishing ordinary per-operation invalidations.
+
+Definitive COMMIT or ROLLBACK publishes the accumulated non-empty impact after native finalization. Read-only/no-impact finalization publishes nothing. Rollback failure and ambiguous post-scheduling COMMIT conservatively publish Database-wide invalidation while fail-closing the Connection.
+
+This includes managed automatic finalization, explicit finalizers, flat `commit()` / `rollback()`, and Swift 6.4 `rollbackIfNeeded()`.
 
 ### Current non-goals
 
@@ -1067,23 +1114,26 @@ The current public transaction capability does not advertise:
 
 ```text
 savepoints
-nested manual transaction lifecycles
-manual BEGIN/COMMIT/ROLLBACK control
+nested transactions
+raw-SQL BEGIN/COMMIT/ROLLBACK lifecycle control
 custom isolation levels
-READ ONLY transaction modes
+public READ ONLY transaction modes
 transaction pooling
 ambient same-Connection joining
+deinitializer-driven flat-transaction cleanup
 ```
 
 ### Best publication angles
 
 Preserve these user-facing angles:
 
-1. a `Transaction` is an explicit scoped capability, not a hidden Connection mode;
+1. callers can choose a managed lexical transaction or a flat explicitly finalized lifetime without ambient Connection mode;
 2. catching a transaction operation failure does not restore COMMIT eligibility;
-3. Statement and Appender integrations stay explicit and share the same outer transaction boundary;
-4. separate Connections remain the clean boundary for independent concurrent work;
-5. conservative fail-close behavior is safer than pretending an ambiguous COMMIT outcome is known.
+3. Swift 6.4 `rollbackIfNeeded()` gives flat transactions a cancellation-insensitive defer cleanup path without hidden deinit work;
+4. Statement and Appender integrations stay explicit and share the same outer transaction boundary;
+5. transaction Observation impact is published at definitive finalization rather than leaking uncommitted state;
+6. separate Connections remain the clean boundary for independent concurrent work;
+7. conservative fail-close behavior is safer than pretending an ambiguous COMMIT outcome is known.
 
 ## 006 — Codable / Model Layer: typed rows and explicit persistence without a broad ORM
 
@@ -1366,9 +1416,9 @@ save/persist magic or automatic graph persistence
 model delete/upsert/batch/arbitrary-WHERE CRUD APIs
 arbitrary nested Codable object/array graphs
 migrations/schema evolution
-observation/reactive queries
+model-integrated observation/reactive APIs
 connection pooling
-savepoints/manual transaction lifecycle/custom isolation
+model-driven transaction lifecycle, savepoints, or custom isolation
 implicit ambient transaction participation
 new platform/runtime guarantees
 application-specific readiness claims
@@ -1384,3 +1434,235 @@ Preserve these user-facing angles:
 4. insert/update conveniences remain explicit about their Connection or Transaction owner;
 5. changed-field key updates cover a useful model workflow without pretending SwiftDuckDB is a broad ORM;
 6. direct SwifQL remains the escape path whenever the small model convenience surface is not the right abstraction.
+
+## 007 — Observation / Reactive Queries: latest database state without pretending it is an event log
+
+Status: **implemented source material / future article-publication candidate**
+
+Trigger for publication: when the maintainer chooses to turn this durable source material into channel-specific public copy.
+
+### The problem
+
+Many applications need to rerun a read-only query after relevant local database mutations and render the newest result.
+
+The tempting abstraction is an event stream, but database query state is usually different from an event log. If three writes happen faster than a UI can render, the useful state may simply be the newest successful query result.
+
+SwiftDuckDB therefore exposes Observation as a latest-state query capability rather than a promise to deliver every intermediate mutation.
+
+### The smallest useful observation
+
+```swift
+let users = Path.Table("users")
+
+let observation = try SwifQL
+    .select(users.column("id"), users.column("name"))
+    .from(users)
+    .observe(on: database)
+
+for try await result in observation {
+    _ = result
+}
+```
+
+The Database-centered spelling is equivalent:
+
+```swift
+let query = SwifQL
+    .select(users.column("id"), users.column("name"))
+    .from(users)
+
+let observation = try database.observe(query)
+```
+
+Both produce the public `QueryObservation` type.
+
+### QueryObservation is a reusable AsyncSequence
+
+`QueryObservation` is `AsyncSequence` + `Sendable`, with `QueryResult` as its element.
+
+The observation value is reusable. Every iterator creates an independent refresh runtime with its own private `Connection` and coordinator registration.
+
+This means one consumer can stop or fail without consuming another iterator's state or making the reusable observation value terminal.
+
+### Latest-state semantics are deliberate
+
+The contract is:
+
+```text
+same-Database mutation invalidation
+-> refresh read-only query
+-> suppress result if equal to previous state
+-> otherwise deliver latest successful QueryResult
+```
+
+Delivery is bounded. Intermediate invalidations/results may coalesce or be dropped when newer state supersedes them.
+
+That is a feature of the abstraction, not data loss relative to an event-log contract: `QueryObservation` never promises an event log in the first place.
+
+Applications that must preserve every event should model and store those events explicitly rather than infer them from query refreshes.
+
+### Refreshes use the real prepared/bound execution path
+
+Observation does not execute an analysis string.
+
+The query is captured through SwiftDuckDB's normal prepared snapshot/binding model. Plain SQL is retained only for dependency analysis and is never executed as the observation query.
+
+This keeps payload binding and execution semantics aligned with ordinary SwiftDuckDB + SwifQL queries.
+
+### Native READ ONLY is the safety boundary
+
+Every refresh executes inside a native READ ONLY transaction.
+
+If DuckDB does not prove the prepared query read-only, iteration fails with:
+
+```swift
+DatabaseError.observationRequiresReadOnlyQuery
+```
+
+SwiftDuckDB does not classify safety by checking whether SQL text starts with SELECT. Side-effecting SELECT-family expressions are not accepted merely because they look like reads.
+
+A direct sequence-advancing `nextval` query, for example, is rejected as an observation without advancing the sequence.
+
+### Dependency tracking is useful but conservative
+
+SwiftDuckDB analyzes the query to narrow invalidation when table identity is safe.
+
+A successful query with no table dependency is a valid empty dependency rather than an automatic failure.
+
+When dependency extraction or identity is unsafe, SwiftDuckDB falls back to Database-wide invalidation. Missing a required refresh is worse than refreshing conservatively.
+
+These dependency details are implementation behavior, not a public API for callers to manipulate.
+
+### The same Database instance is the boundary
+
+Observation invalidation is owned by one concrete `Database` object.
+
+Mutations routed through that same Database participate, including:
+- ordinary Connection query/execute;
+- reusable Statement query/execute;
+- transaction finalization after transaction-local work;
+- Appender visibility/finalization.
+
+SwiftDuckDB does not claim that a separate `Database` object opening the same file shares an Observation registry.
+
+It also does not watch:
+- another process;
+- direct file changes;
+- an external DuckDB client.
+
+There is no polling loop or filesystem watcher hidden behind `QueryObservation`.
+
+### Ordinary mutations publish from actual native result truth
+
+For ordinary Connection and reusable Statement execution, SwiftDuckDB decides mutation publication from the successful native result that actually occurred.
+
+The practical model is:
+
+```text
+successful read-only result     -> no invalidation
+successful non-read-only result -> Database-wide invalidation
+failure before pending attempt  -> no invalidation
+pending attempted, no result    -> conservative Database-wide invalidation
+```
+
+Publication for a successful mutation happens before later result-materialization/cancellation checks can hide the fact that native mutation already occurred.
+
+The implementation does not predict mutation from SQL text or statement family.
+
+### Transactions do not leak operation-level invalidations
+
+Transaction operations accumulate Observation impact while the transaction is live.
+
+No ordinary mutation publication escapes simply because an INSERT/UPDATE/etc. ran inside the transaction.
+
+At definitive finalization:
+- COMMIT publishes accumulated non-empty impact after native COMMIT;
+- ROLLBACK publishes accumulated non-empty impact after native ROLLBACK;
+- read-only/no-impact finalization publishes nothing.
+
+Publishing after rollback can still matter for non-transactional engine state, such as sequence advancement, even when ordinary row changes were reverted.
+
+If rollback fails, SwiftDuckDB conservatively publishes Database-wide invalidation and fail-closes the Connection.
+
+If COMMIT fails after native scheduling began and the durable result is ambiguous, SwiftDuckDB likewise publishes conservatively and fail-closes rather than pretending the outcome is known.
+
+This finalization model applies to managed transaction bodies and the flat explicit `commit()` / `rollback()` lifecycle. Swift 6.4 `rollbackIfNeeded()` flows through the same cleanup/publication boundary.
+
+### Appender visibility follows actual durability
+
+A normal `Connection.appender(to:)` scope is not one atomic transaction.
+
+DuckDB may auto-flush an earlier prefix before the Swift body returns. Once that prefix is durably visible, SwiftDuckDB may invalidate matching observations even though the Appender scope is still running.
+
+A later body error can discard still-buffered rows, but it cannot make already auto-flushed ordinary rows disappear.
+
+A `Transaction.appender(to:)` is different: completed target impact remains accumulated in the outer transaction and publishes only at definitive outer transaction finalization.
+
+The public message is about real visibility, not a fixed implementation threshold.
+
+### Cancellation and refresh errors are iterator-local
+
+Cancelling a consumer terminates that iterator's worker.
+
+A refresh error also terminates only that iterator.
+
+The original `QueryObservation` remains reusable, and a new iterator creates a fresh private Connection/runtime.
+
+Cancellation is cooperative around Swift/native boundaries rather than a promise to preempt every synchronous C call instantly.
+
+### Observation stays UI-neutral
+
+The capability deliberately returns `QueryResult` through Swift concurrency primitives.
+
+It does not add:
+- Combine publishers;
+- SwiftUI observation objects;
+- UIKit/UIKitUltra coupling;
+- callback/future wrappers as the primary API.
+
+Applications can adapt the AsyncSequence into their own state-management layer without making the database package own a UI framework.
+
+### When an ordinary query is better
+
+If a caller already knows exactly when it needs one snapshot, use normal query execution:
+
+```swift
+let result = try await query.query(on: connection)
+```
+
+Observation is useful when the caller wants the same read-only query to refresh automatically in response to mutations routed through the same Database.
+
+Do not add an observation merely to avoid writing one explicit query call.
+
+### Current v1 non-goals
+
+Do not turn Observation v1 into implied support for:
+
+```text
+Connection.observe
+Transaction.observe
+typed/decoded observation elements
+per-row/per-statement event history
+guaranteed delivery of every intermediate state
+cross-Database-instance invalidation
+cross-process/file watching
+filesystem watchers
+polling/timer correctness
+Combine/SwiftUI/UIKit publishers
+public observation configuration/options
+manual refresh controls
+connection pooling
+a guarantee that DuckDB rebinds an already-prepared handle after catalog changes
+```
+
+### Best publication angles
+
+Preserve these user-facing angles:
+
+1. `QueryObservation` models the latest successful query state, not a mutation event log;
+2. every iterator gets an independent private Connection/runtime while the observation value stays reusable;
+3. native READ ONLY execution is the safety boundary for reactive queries;
+4. same-Database invalidation integrates ordinary execution, transaction finalization, and Appender visibility without UI-framework coupling;
+5. transactions publish at definitive COMMIT/ROLLBACK boundaries rather than leaking uncommitted state;
+6. external file/process changes are explicitly outside the contract instead of being vaguely implied;
+7. conservative invalidation prefers an extra refresh over a missed state change.

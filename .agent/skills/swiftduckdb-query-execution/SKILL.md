@@ -6,7 +6,7 @@ license: LICENSE.txt
 
 # SwiftDuckDB Query Execution
 
-Use this skill for the normal database/connection/query workflow. For repeated prepared query shapes, explicit transaction semantics, or bulk complete-row ingestion, prefer the dedicated reusable-Statement, transaction, or Appender guidance instead of stretching this workflow.
+Use this skill for the normal database/connection/query workflow. For repeated prepared query shapes, explicit transaction semantics, bulk complete-row ingestion, or reactive latest-state delivery, prefer the dedicated reusable-Statement, transaction, Appender, or Observation guidance instead of stretching this workflow.
 
 ## 1. Open the database explicitly
 
@@ -149,7 +149,9 @@ Use `Connection.appender` for bulk complete-row ingestion, or `Transaction.appen
 
 Use the dedicated `swiftduckdb-codable-models` skill when work centers on `Row.decode`, `QueryResult.first/all(decoding:)`, `ModelEncoder`, or explicit `Table` insert/update through a `Connection` or `Transaction`.
 
-Do not duplicate the detailed Statement, Transaction, Appender, or Codable/model lifecycle rules in this basic query workflow; switch to the dedicated skill when those semantics become central.
+Use the dedicated `swiftduckdb-observation` skill when a read-only query should become a reusable latest-state `QueryObservation` driven by same-`Database` mutation invalidation.
+
+Do not duplicate the detailed Statement, Transaction, Appender, Codable/model, or Observation lifecycle rules in this basic query workflow; switch to the dedicated skill when those semantics become central.
 
 ## 10. Current non-goals
 
@@ -160,8 +162,7 @@ broad ORM/repository identity semantics beyond the dedicated flat Codable/model 
 arbitrary nested/unkeyed Codable model graphs beyond the current flat model boundary
 migrations
 connection pooling
-observation/reactive queries
-manual transaction lifecycle controls
+manual transaction lifecycle details beyond the dedicated Transaction capability
 savepoints/custom isolation
 advanced Appender lifecycle surfaces
 complex nested result families not implemented by the current Value model

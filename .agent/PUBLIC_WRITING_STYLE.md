@@ -49,10 +49,11 @@ Public docs must match current validated source.
 
 Do not advertise:
 
-- planned transaction features beyond the implemented scoped Transaction API;
+- transaction features beyond the implemented managed-closure and flat explicitly finalized Transaction APIs, including savepoints, custom isolation, or a public READ ONLY mode;
 - broad ORM/repository semantics beyond the validated flat Codable/model layer and explicit insert/update conveniences;
 - arbitrary nested/unkeyed Codable model graphs that are not part of the current flat keyed model boundary;
-- migrations, observation/reactivity, connection pooling, or other deferred capabilities;
+- Observation behavior beyond the implemented same-Database latest-state `QueryObservation` contract, including event-log delivery, typed/decoded observation, polling, cross-process/file watching, framework publishers, or public observation configuration;
+- migrations, connection pooling, or other capabilities that have not completed their own public documentation closure;
 - platform support not actually validated;
 - unpublished package versions.
 
