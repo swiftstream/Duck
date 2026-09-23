@@ -47,3 +47,7 @@ Added explicit `Transaction.appender` participation for all three target forms u
 ### Public capability guidance backfill
 
 Completed historical guidance coverage for query execution, Transactions, reusable Statements, and Appender. Each capability now has README coverage, durable publication source, and a source-owned public Agent Skill. Central skill onboarding remains separate.
+
+### Observation / Reactive Queries
+
+Completed the UI-neutral latest-state `QueryObservation` capability with native READ ONLY refreshes, same-`Database` invalidation, bounded/coalescing `QueryResult` delivery, ordinary Connection/Statement mutation publication, managed + flat Transaction finalization/publication, and ordinary/Transaction Appender visibility integration. Final closure includes README coverage, durable publication source, source-owned `swiftduckdb-observation` guidance, Swift 6.3.3 full-package 557/557 validation, focused Swift 6.4 public/manual-finalization validation, a CLEAN independent technical-root audit, and PRIMARY public-closure acceptance. Cross-process/file watching, event-log semantics, typed observation, reusable VIEW-rebind guarantees, and connection pooling remain outside the accepted v1 boundary.
