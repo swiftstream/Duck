@@ -209,6 +209,7 @@ private struct PreparedStatementEntry {
     var statement: NativePreparedStatement?
     let bindingLayout: [StatementBindingSource]
     let dynamicArgumentCount: Int
+    let poolLeaseToken: ConnectionPoolLeaseToken?
     var unusableMessage: String?
 }
 
@@ -245,6 +246,8 @@ public actor Connection {
     private let database: Database
     private let nativeConnection: NativeConnection
     private var usability: ConnectionUsability = .usable
+    private var poolLeaseState: ConnectionPoolLeaseStateMachine
+    private var poolLeaseDrainWaiter: CheckedContinuation<Void, Never>?
     private var outerAdmissionState = ConnectionAdmissionStateMachine()
     private var outerWaiters: [OuterAdmissionWaiterId: CheckedContinuation<Void, Error>] = [:]
     private var transactionState: TransactionReservationState?
@@ -254,10 +257,135 @@ public actor Connection {
     private var preparedStatements: [StatementId: PreparedStatementEntry] = [:]
     private var appenders: [AppenderId: AppenderEntry] = [:]
 
-    init(database: Database, nativeDatabase: NativeDatabase) throws {
+    /// Creates a standalone Connection or one idle Connection owned by the supplied Pool identity.
+    init(
+        database: Database,
+        nativeDatabase: NativeDatabase,
+        poolID: ConnectionPoolID? = nil
+    ) throws {
         self.id = ConnectionId()
         self.database = database
         self.nativeConnection = try nativeDatabase.connect()
+        self.poolLeaseState = ConnectionPoolLeaseStateMachine(poolID: poolID)
+    }
+
+    /// Activates this idle Pool-managed Connection for one exact checkout token.
+    func activatePoolLease(
+        _ token: ConnectionPoolLeaseToken
+    ) throws {
+        try poolLeaseState.activate(token, connectionID: id)
+    }
+
+    /// Returns the current Connection-side Pool ownership state for coordination and tests.
+    func poolLeaseStateSnapshot() -> ConnectionPoolLeaseState {
+        poolLeaseState.state
+    }
+
+    /// Permanently retires an idle Connection from its owning Pool.
+    func retirePooledConnection(
+        poolID: ConnectionPoolID
+    ) throws {
+        try poolLeaseState.retireIdle(poolID: poolID)
+    }
+
+    /// Closes, drains, cleans, and returns one exact Pool lease to reusable or retired state.
+    func returnPoolLease(
+        _ token: ConnectionPoolLeaseToken
+    ) async throws -> ConnectionPoolLeaseReturnOutcome {
+        let manualTransactionWasNotFinalized = try beginPoolLeaseReturn(token)
+        return try await finishPoolLeaseReturn(
+            token,
+            manualTransactionWasNotFinalized: manualTransactionWasNotFinalized
+        )
+    }
+
+    /// Stops new user admission for a returned lease and reports an unfinalized flat transaction.
+    func beginPoolLeaseReturn(
+        _ token: ConnectionPoolLeaseToken
+    ) throws -> Bool {
+        try poolLeaseState.beginClosing(token)
+        drainOuterWaitersForPoolClosing()
+        return transactionState?.ownership == .manualHandle
+            && transactionState?.terminalState == .active
+    }
+
+    /// Performs mandatory return cleanup after the lease has entered closing state.
+    func finishPoolLeaseReturn(
+        _ token: ConnectionPoolLeaseToken,
+        manualTransactionWasNotFinalized: Bool
+    ) async throws -> ConnectionPoolLeaseReturnOutcome {
+        guard case .pooledClosing(let closingToken) = poolLeaseState.state,
+              closingToken == token else {
+            throw ConnectionPoolLeaseInternalError.invalidTransition
+        }
+
+        var cleanupFailure: DatabaseError?
+
+        if manualTransactionWasNotFinalized {
+            cleanupFailure = await rollbackLeakedManualTransactionForPoolReturn()
+        }
+
+        await waitForPoolLeaseQuiescence()
+        invalidatePreparedStatements(createdBy: token)
+
+        if outerAdmissionState.lease != nil
+            || transactionState != nil
+            || !appenders.isEmpty {
+            let message = "Pooled Connection did not reach a quiescent return state."
+            enterFailClosed(message)
+            if cleanupFailure == nil {
+                cleanupFailure = .connectionUnusable(message)
+            }
+        }
+
+        let reusable: Bool
+        if cleanupFailure != nil {
+            reusable = false
+        } else {
+            switch usability {
+            case .usable:
+                reusable = true
+            case .unusable:
+                reusable = false
+            }
+        }
+
+        try poolLeaseState.completeReturn(token, reusable: reusable)
+
+        return ConnectionPoolLeaseReturnOutcome(
+            disposition: reusable ? .reusable : .retired,
+            manualTransactionWasNotFinalized: manualTransactionWasNotFinalized,
+            cleanupFailure: cleanupFailure
+        )
+    }
+
+    private func ensurePoolLeaseAdmission() throws {
+        guard poolLeaseState.authorizes(
+            ConnectionPoolLeaseContext.current,
+            connectionID: id
+        ) else {
+            throw ConnectionPoolLeaseInternalError.expired
+        }
+    }
+
+    private func isPoolLeaseAdmissionAuthorized() -> Bool {
+        poolLeaseState.authorizes(
+            ConnectionPoolLeaseContext.current,
+            connectionID: id
+        )
+    }
+
+    private func currentPoolLeaseTokenForResource() throws -> ConnectionPoolLeaseToken? {
+        switch poolLeaseState.state {
+        case .standalone:
+            return nil
+        case .pooledActive(let token)
+            where token == ConnectionPoolLeaseContext.current
+                && token.connectionID == id:
+            return token
+        case .pooledIdle, .pooledActive, .pooledClosing, .pooledRetired:
+            throw ConnectionPoolLeaseInternalError.expired
+        }
     }
 
     public nonisolated(nonsending) func query(_ query: any SwifQLable) async throws -> QueryResult {
@@ -587,6 +715,7 @@ public actor Connection {
                 statement: nativeStatement,
                 bindingLayout: snapshot.bindingLayout,
                 dynamicArgumentCount: snapshot.dynamicArgumentCount,
+                poolLeaseToken: try currentPoolLeaseTokenForResource(),
                 unusableMessage: nil
             )
             return Statement(
@@ -724,6 +853,7 @@ public actor Connection {
         _ id: AppenderId,
         bindings: [Value]
     ) async throws {
+        try ensurePoolLeaseAdmission()
         try ensureUsable()
 
         guard var entry = appenders[id] else {
@@ -1266,6 +1396,7 @@ public actor Connection {
 
     /// Acquires an ordinary-operation lease without bypassing a live flat transaction.
     func acquireOrdinaryLease() async throws {
+        try ensurePoolLeaseAdmission()
         try ensureUsable()
         guard !isManualTransactionLive() else {
             throw DatabaseError.transactionScopeViolation
@@ -1286,6 +1417,7 @@ public actor Connection {
     func acquireTransactionReservation(
         ownership: TransactionOwnershipMode = .managedClosure
     ) async throws -> TransactionReservationId {
+        try ensurePoolLeaseAdmission()
         try ensureUsable()
         let reservationId = TransactionReservationId()
         let waiterId = OuterAdmissionWaiterId()
@@ -1330,11 +1462,107 @@ public actor Connection {
         }
     }
 
+    private func drainOuterWaitersForPoolClosing() {
+        let queuedRequests = outerAdmissionState.drainQueuedRequests()
+
+        for request in queuedRequests {
+            if case .transaction(_, let reservationId) = request,
+               outerAdmissionState.lease != .transaction(reservationId) {
+                if transactionState?.id == reservationId {
+                    transactionState = nil
+                    lifecycleStateMachine = TransactionLifecycleStateMachine()
+                }
+                outerAdmissionState.endTransaction(reservationId)
+            }
+
+            guard let continuation = outerWaiters.removeValue(forKey: request.waiterId) else {
+                enterFailClosed(
+                    "Connection admission scheduler lost a queued continuation during pooled return."
+                )
+                continue
+            }
+            continuation.resume(throwing: ConnectionPoolLeaseInternalError.expired)
+        }
+
+        if !outerWaiters.isEmpty {
+            enterFailClosed(
+                "Connection admission scheduler retained an unknown waiter during pooled return."
+            )
+        }
+
+        resumePoolLeaseDrainWaiterIfQuiescent()
+    }
+
+    private func waitForPoolLeaseQuiescence() async {
+        guard outerAdmissionState.lease != nil else {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            guard outerAdmissionState.lease != nil else {
+                continuation.resume()
+                return
+            }
+            guard poolLeaseDrainWaiter == nil else {
+                enterFailClosed("Pooled Connection installed more than one return drain waiter.")
+                continuation.resume()
+                return
+            }
+            poolLeaseDrainWaiter = continuation
+        }
+    }
+
+    private func resumePoolLeaseDrainWaiterIfQuiescent() {
+        guard poolLeaseState.isClosing,
+              outerAdmissionState.lease == nil,
+              let waiter = poolLeaseDrainWaiter else {
+            return
+        }
+        poolLeaseDrainWaiter = nil
+        waiter.resume()
+    }
+
+    private func invalidatePreparedStatements(
+        createdBy token: ConnectionPoolLeaseToken
+    ) {
+        let ids = preparedStatements.compactMap { id, entry in
+            entry.poolLeaseToken == token ? id : nil
+        }
+        for id in ids {
+            preparedStatements.removeValue(forKey: id)
+        }
+    }
+
+    private func rollbackLeakedManualTransactionForPoolReturn() async -> DatabaseError? {
+        guard let state = transactionState,
+              state.ownership == .manualHandle,
+              state.terminalState == .active else {
+            return nil
+        }
+
+        do {
+            let lifecycle = try TransactionLifecycleSnapshots()
+            _ = try await beginManualTransactionFinalization(state.id)
+            return await rollbackTransaction(
+                state.id,
+                rollback: lifecycle.rollback
+            )
+        } catch let error as DatabaseError {
+            return error
+        } catch {
+            return .transactionRollback(lifecycleFailureMessage(error))
+        }
+    }
+
     func releaseOrdinaryLease() {
         guard outerAdmissionState.lease == .ordinary else {
             return
         }
         outerAdmissionState.releaseOrdinary()
+        if poolLeaseState.isClosing {
+            resumePoolLeaseDrainWaiterIfQuiescent()
+            return
+        }
         admitNextOuterWaiter()
     }
 
@@ -1373,6 +1601,7 @@ public actor Connection {
     func registerTransactionOperation(
         _ reservationId: TransactionReservationId
     ) throws -> TransactionOperationToken {
+        try ensurePoolLeaseAdmission()
         try ensureUsable()
         guard var state = transactionState, state.id == reservationId else {
             throw DatabaseError.transactionEnded
@@ -1824,6 +2053,7 @@ public actor Connection {
     func commitManualTransaction(
         _ reservationId: TransactionReservationId
     ) async throws {
+        try ensurePoolLeaseAdmission()
         let lifecycle = try TransactionLifecycleSnapshots()
         let admission = try await beginManualTransactionFinalization(reservationId)
         let rollbackOnlyReason = admission.rollbackOnlyReason
@@ -1903,6 +2133,7 @@ public actor Connection {
     func rollbackManualTransaction(
         _ reservationId: TransactionReservationId
     ) async throws {
+        try ensurePoolLeaseAdmission()
         let lifecycle = try TransactionLifecycleSnapshots()
         let admission = try await beginManualTransactionFinalization(reservationId)
         let retainTerminalState = admission.retainsTerminalState
@@ -1939,7 +2170,8 @@ public actor Connection {
     func rollbackManualTransactionIfNeeded(
         _ reservationId: TransactionReservationId
     ) async {
-        guard let snapshot = transactionTerminalSnapshot(reservationId),
+        guard isPoolLeaseAdmissionAuthorized(),
+              let snapshot = transactionTerminalSnapshot(reservationId),
               snapshot.state == .active else {
             return
         }
@@ -2374,7 +2606,9 @@ public actor Connection {
         transactionDrainWaiter = nil
         outerAdmissionState.endTransaction(reservationId)
 
-        if case .usable = usability {
+        if poolLeaseState.isClosing {
+            resumePoolLeaseDrainWaiterIfQuiescent()
+        } else if case .usable = usability {
             admitNextOuterWaiter()
         }
     }

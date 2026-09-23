@@ -41,4 +41,19 @@ public final class Database: Sendable {
             throw DatabaseError.connectionOpen(error.message)
         }
     }
+
+    /// Creates one idle Pool-managed Connection owned by this exact Database.
+    func makePooledConnection(
+        poolID: ConnectionPoolID
+    ) throws -> Connection {
+        do {
+            return try Connection(
+                database: self,
+                nativeDatabase: nativeDatabase,
+                poolID: poolID
+            )
+        } catch let error as NativeDuckDBError {
+            throw DatabaseError.connectionOpen(error.message)
+        }
+    }
 }
