@@ -42,6 +42,16 @@ public final class Database: Sendable {
         }
     }
 
+    /// Creates a lazy bounded pool owned by this exact Database.
+    public func pool(
+        maximumConnections: Int
+    ) throws -> ConnectionPool {
+        try ConnectionPool(
+            database: self,
+            maximumConnections: maximumConnections
+        )
+    }
+
     /// Creates one idle Pool-managed Connection owned by this exact Database.
     func makePooledConnection(
         poolID: ConnectionPoolID

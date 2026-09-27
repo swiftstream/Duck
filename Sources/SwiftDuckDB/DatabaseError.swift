@@ -30,4 +30,16 @@ public enum DatabaseError: Error, Sendable, Equatable {
     case appenderFinalization(String)
     case appenderCleanup(String)
     case appenderTransactionAborted(String)
+    /// Pool configuration is invalid before any Connection is opened.
+    case invalidPoolConfiguration(String)
+    /// The Pool no longer accepts checkout because shutdown has started.
+    case poolClosed
+    /// The current task already owns an exact live lease from this Pool.
+    case poolReentrantCheckout
+    /// Shutdown was requested from inside this Pool's exact live lease.
+    case poolShutdownFromLease
+    /// A pooled resource was used without its exact current Connection lease.
+    case poolLeaseExpired
+    /// A scoped Connection body returned while a flat transaction remained active.
+    case poolTransactionNotFinalized
 }

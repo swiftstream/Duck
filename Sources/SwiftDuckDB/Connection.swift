@@ -248,6 +248,7 @@ public actor Connection {
     private var usability: ConnectionUsability = .usable
     private var poolLeaseState: ConnectionPoolLeaseStateMachine
     private var poolLeaseDrainWaiter: CheckedContinuation<Void, Never>?
+    private var poolLeaseClosingWaiters: [CheckedContinuation<Void, Never>] = []
     private var outerAdmissionState = ConnectionAdmissionStateMachine()
     private var outerWaiters: [OuterAdmissionWaiterId: CheckedContinuation<Void, Error>] = [:]
     private var transactionState: TransactionReservationState?
@@ -281,6 +282,17 @@ public actor Connection {
         poolLeaseState.state
     }
 
+    /// Waits until this Connection's current Pool lease enters closing state.
+    func waitForPoolLeaseClosing() async {
+        if case .pooledClosing = poolLeaseState.state {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            poolLeaseClosingWaiters.append(continuation)
+        }
+    }
+
     /// Permanently retires an idle Connection from its owning Pool.
     func retirePooledConnection(
         poolID: ConnectionPoolID
@@ -304,6 +316,11 @@ public actor Connection {
         _ token: ConnectionPoolLeaseToken
     ) throws -> Bool {
         try poolLeaseState.beginClosing(token)
+        let closingWaiters = poolLeaseClosingWaiters
+        poolLeaseClosingWaiters.removeAll()
+        for waiter in closingWaiters {
+            waiter.resume()
+        }
         drainOuterWaitersForPoolClosing()
         return transactionState?.ownership == .manualHandle
             && transactionState?.terminalState == .active
@@ -364,7 +381,7 @@ public actor Connection {
             ConnectionPoolLeaseContext.current,
             connectionID: id
         ) else {
-            throw ConnectionPoolLeaseInternalError.expired
+            throw DatabaseError.poolLeaseExpired
         }
     }
 
@@ -384,7 +401,7 @@ public actor Connection {
                 && token.connectionID == id:
             return token
         case .pooledIdle, .pooledActive, .pooledClosing, .pooledRetired:
-            throw ConnectionPoolLeaseInternalError.expired
+            throw DatabaseError.poolLeaseExpired
         }
     }
 
@@ -1481,7 +1498,7 @@ public actor Connection {
                 )
                 continue
             }
-            continuation.resume(throwing: ConnectionPoolLeaseInternalError.expired)
+            continuation.resume(throwing: DatabaseError.poolLeaseExpired)
         }
 
         if !outerWaiters.isEmpty {
@@ -2724,7 +2741,8 @@ public actor Connection {
                  .appenderRowCompletion(let message),
                  .appenderFinalization(let message),
                  .appenderCleanup(let message),
-                 .appenderTransactionAborted(let message):
+                 .appenderTransactionAborted(let message),
+                 .invalidPoolConfiguration(let message):
                 return message
             case .binding(_, let message):
                 return message
@@ -2750,6 +2768,16 @@ public actor Connection {
                 return "Appender expected \(expected) row values but received \(actual)."
             case .appenderAppend(_, let message):
                 return message
+            case .poolClosed:
+                return "The Pool no longer accepts checkout because shutdown has started."
+            case .poolReentrantCheckout:
+                return "The current task already owns an exact live lease from this Pool."
+            case .poolShutdownFromLease:
+                return "Shutdown was requested from inside this Pool's exact live lease."
+            case .poolLeaseExpired:
+                return "A pooled resource was used without its exact current Connection lease."
+            case .poolTransactionNotFinalized:
+                return "A scoped Connection body returned while a flat transaction remained active."
             }
         }
 

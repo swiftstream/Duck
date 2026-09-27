@@ -38,10 +38,8 @@ enum ConnectionPoolLeaseContext {
     @TaskLocal static var current: ConnectionPoolLeaseToken?
 }
 
-/// Internal substrate failures used before the public ConnectionPool API is introduced.
+/// Internal substrate failures that are not part of the public Pool error surface.
 enum ConnectionPoolLeaseInternalError: Error, Equatable, Sendable {
-    /// The current task does not hold the exact active lease required by this Connection.
-    case expired
     /// An internal Pool lease transition did not match the Connection's current ownership state.
     case invalidTransition
 }
