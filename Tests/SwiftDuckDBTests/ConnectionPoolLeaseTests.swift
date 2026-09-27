@@ -64,10 +64,10 @@ private func expectPoolLeaseExpired(
     do {
         try await operation()
         Issue.record("Expected expired pooled Connection lease.")
-    } catch let error as ConnectionPoolLeaseInternalError {
-        #expect(error == .expired)
+    } catch let error as DatabaseError {
+        #expect(error == .poolLeaseExpired)
     } catch {
-        Issue.record("Expected ConnectionPoolLeaseInternalError.expired, got \(error).")
+        Issue.record("Expected DatabaseError.poolLeaseExpired, got \(error).")
     }
 }
 
@@ -185,8 +185,11 @@ func pooledConnectionEnforcesExactDynamicLease() async throws {
                     SwifQL.select(Int32(4) => "value")
                 )
                 return false
-            } catch let error as ConnectionPoolLeaseInternalError {
-                return error == .expired
+            } catch let error as DatabaseError {
+                guard case .poolLeaseExpired = error else {
+                    return false
+                }
+                return true
             } catch {
                 return false
             }
