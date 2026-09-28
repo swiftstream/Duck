@@ -9,8 +9,8 @@ P0 `Codable / Model Layer`, P1 `Migrations`, Observation / Reactive Queries, and
 Promote each remaining future item separately through fresh research, reviewed planning, implementation, and audit.
 
 1. Address the two verified technical-debt capabilities in `.agent/TECH_DEBT.md` before Advanced Appender expansion:
-   - deterministic active-pending cancellation integration coverage;
-   - post-COMMIT scheduling Connection recovery research.
+   - deterministic active-pending cancellation integration coverage — **DONE** (test-only pending-gate coverage; debt entry closed);
+   - post-COMMIT scheduling Connection recovery research — **DONE** (2026-09-28 research wave `RECOVERY_CONTRACT_FOUND: NO`; fail-close retained; reopen only on a proven public recovery contract).
 2. **Advanced Appender APIs** before nested/complex value families: evaluate selected columns / `DEFAULT`, QueryAppender, public DataChunk/vector append, manual lifecycle controls, and other justified high-throughput surfaces.
 3. **Nested/complex Value/result families** (`LIST`, `ARRAY`, `MAP`, `STRUCT`, `UNION`, `ENUM`) remain explicitly deferred nice-to-have capability debt and must not be lost.
 

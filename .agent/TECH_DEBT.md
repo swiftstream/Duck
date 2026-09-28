@@ -23,6 +23,8 @@ A debt entry is not implementation authorization. Promote it into executable wor
 
 ### Post-COMMIT scheduling Connection recovery
 
+**Status:** OPEN limitation. Research wave 2026-09-28 completed with `RECOVERY_CONTRACT_FOUND: NO`. The reviewed fail-close policy is retained. This entry is not closed as implemented recovery.
+
 **Priority:** after active-pending cancellation coverage and before Advanced Appender API.
 
 **Current limitation:** after COMMIT crosses the reviewed native scheduling boundary at `NativePreparedStatement.pending()` / `duckdb_pending_prepared`, any surfaced COMMIT error forces the public `Connection` into terminal fail-closed state even when DuckDB may internally have completed the commit or rolled the failed commit back and the native connection might technically be reusable.
@@ -31,7 +33,9 @@ A debt entry is not implementation authorization. Promote it into executable wor
 
 **Evidence boundary:** pinned DuckDB v1.5.5 source proves `duckdb_pending_prepared` initializes/schedules Executor work onto `TaskScheduler`, so COMMIT may begin before the call returns. Pinned public `duckdb.h` exposes no reviewed machine-readable `isAutocommit` / `hasActiveTransaction` / transaction-state getter sufficient to distinguish durable commit, native rollback, or still-live/invalidated explicit transaction after every post-scheduling error. Diagnostic error text is not a safe state oracle. The accepted plan intentionally uses no compensating rollback/retry plus Connection fail-close for every post-scheduling COMMIT error.
 
-**Closure condition:** perform a separately reviewed research wave against the then-pinned DuckDB/public C API (or a future DuckDB version) and prove a machine-readable, ownership-safe post-error recovery contract that can establish Connection reuse without diagnostic parsing, private/C++ implementation coupling, unsafe handle escape, or false commit/rollback claims. Only then may the fail-close policy be narrowed through normal plan/audit/implementation gates.
+**Research disposition (2026-09-28):** a separately reviewed research wave against the pinned DuckDB v1.5.5 public C API found no machine-readable post-error transaction/reuse oracle. Typed surfaces such as pending state, execution-finished, error category, statement type, progress, and client-context identifiers do not document a correlated prior-COMMIT outcome or native quiescence/reuse guarantee. Keep terminal fail-close for every post-scheduling COMMIT error. Do not parse diagnostics, issue compensating SQL under unknown state, or couple to private C++ internals.
+
+**Reopen condition:** a newly pinned public C header (or independently reviewed public C API revision) that exposes a machine-readable, correlated prior-COMMIT outcome plus native quiescence/reuse safety across pending creation, task/check-state, final execute, interrupt/cancellation, result cleanup, and connection/session failure. Only then may the fail-close policy be narrowed through normal plan/audit/implementation gates.
 
 Do not weaken the reviewed fail-close policy merely to preserve Connection reuse.
 
