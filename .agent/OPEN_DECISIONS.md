@@ -10,7 +10,7 @@ The current pre-Vortegy capability order is:
 Codable / Model Layer (P0 COMPLETE; technical root + public closure accepted; both original blockers CLOSED_BY_CORRECTION_01)
 -> Migrations (P1 COMPLETE)
 -> Observation / Reactive Queries (COMPLETE; technical root + public closure accepted)
--> Connection Pooling (Task 01-03 technical slice IMPLEMENTED + COMMITTED; Task 04 Observation integration + Task 05 public closure remain)
+-> Connection Pooling (COMPLETE; Tasks 01-05 accepted)
 -> verified cancellation / post-COMMIT debt
 -> Advanced Appender API
 -> Nested / Complex Value & Result Families
@@ -31,7 +31,7 @@ The current `Database` / `Connection` / `Transaction` / `Statement` / `Appender`
 
 Still unresolved for future separately reviewed capabilities:
 
-- **Connection Pooling — Observation interaction and product closure remain open.** Task 01-03 accepted current state owns bounded lazy `ConnectionPool` ownership, scoped `pool.connection` / thin `pool.transaction` ergonomics, FIFO cancellation-safe checkout, exact full-token liveness, fail-closed retirement/replacement, and graceful shutdown/drain. Still unresolved: Task 04 Observation × Pool interaction (invalidation/publication across lease return, retirement, replacement) and Task 05 public README/publication/Agent Skill closure. Do not revive NIO/EventLoop ownership.
+- **Advanced Connection Pooling extensions — only if later justified.** Accepted current state owns bounded lazy `ConnectionPool` ownership, scoped `pool.connection` / thin `pool.transaction` ergonomics, FIFO cancellation-safe checkout, exact full-token liveness, fail-closed retirement/replacement, graceful shutdown/drain, Observation × Pool integration, and public README/publication/Agent Skill closure. Future extensions that would require a new reviewed decision: manual lease/release, checkout timeout, idle lifetime policy, session reset, statement cache, pool metrics, global registry. Do not revive NIO/EventLoop ownership.
 - **Advanced Appender APIs — after verified transaction/cancellation debt and before nested values:** decide which of selected columns/`DEFAULT`, QueryAppender, public DataChunk/vector append, manual lifecycle controls, and additional batching surfaces are justified.
 
 ## Higher-Level Features
