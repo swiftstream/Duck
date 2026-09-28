@@ -457,6 +457,12 @@ let package = Package(
         .define("DUCKDB_BUILD_LIBRARY")
       ]
     ),
+    .target(
+        name: "A1PendingGate",
+        dependencies: ["Cduckdb"],
+        path: "Tests/A1PendingGate",
+        publicHeadersPath: "include"
+    ),
         .testTarget(
             name: "CDuckDBTests",
             dependencies: [
@@ -468,6 +474,8 @@ let package = Package(
             name: "SwiftDuckDBTests",
             dependencies: [
                 "SwiftDuckDB",
+                "Cduckdb",
+                "A1PendingGate",
                 .product(name: "SwifQL", package: "SwifQL")
             ]
         )
