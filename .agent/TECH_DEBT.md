@@ -1,40 +1,63 @@
-# Technical Debt
+# Technical / Capability Debt
 
-Verified current debt only.
+This file deliberately separates two categories so verified defects/limitations are not confused with maintainer-directed deferred capabilities.
 
-Do not use this file for speculative ideas, future feature wishes, or unresolved architecture decisions. Those belong in `TODO.md` or `OPEN_DECISIONS.md`.
+## Category A — Verified Current Technical Debt
 
-Each debt entry must be supported by current repository/compiler/runtime evidence and state:
+Entries in this category must be supported by current repository/compiler/runtime evidence and state:
 
 - the current limitation/defect;
 - why it matters;
 - the evidence boundary that proves it;
 - the explicit closure condition.
 
-A debt entry is not implementation authorization. Promote it into `TASKS.md` through normal planning/review before changing production code.
+A debt entry is not implementation authorization. Promote it into executable work through normal planning/review before changing production code.
 
-## Current Verified Debt
+### Deterministic active-pending cancellation integration coverage — CLOSED
 
-### Deterministic active-pending cancellation integration coverage
+**Status:** CLOSED (2026-09-28). Maintainer authorized durable closure after CLEAN Sol audit.
 
-**Current limitation:** the public cancellation path includes actor-owned interruption while DuckDB pending execution is active, but the automated suite has no deterministic integration harness that proves a query has actually entered the native pending loop before cancellation is requested.
+**Closed by:** test-only `A1PendingGate` C ABI (volatile DuckDB scalar callback + condition-variable gate) and `Tests/SwiftDuckDBTests/ActivePendingCancellationTests.swift`. The harness synchronizes on actual native pending entry without sleeps, timing guesses, or production test hooks: `threads = 1` / `external_threads = 1` are asserted; callback count stays zero through `EXPLAIN`, `duckdb_prepare`, and `duckdb_pending_prepared`; the callback enters once only during public `Connection.query`; cancellation is requested only after entry and surfaces `CancellationError`; the same `Connection` remains reusable. Provenance is attributed to `duckdb_pending_execute_task` on the caller with zero worker threads. Local commit `07e9b17`. Independent Sol audit CLEAN at `87ee4c2678fd3cfbca36c678b608c00e195597065387d8b17021ffdb8a2c33cf` (one non-blocking LOW A1R-01 style note on a raw `current_setting` SELECT, deferred until that test is next edited).
 
-**Why it matters:** a future execution/native change could regress active-pending interrupt, cancellation, or post-cancellation Connection reuse while the existing deterministic cancellation test still passes because it exercises cancellation before native query work begins.
-
-**Evidence boundary:** current Swift source and vendored DuckDB audits establish the pending-task, same-owner `duckdb_interrupt`, cleanup, and interruption-reset contracts. Runtime coverage deterministically proves pre-native cancellation and subsequent Connection reuse. The public API exposes no pending-entry synchronization signal, and sleeps, timing thresholds, or production-only test hooks are not acceptable substitutes for deterministic evidence.
-
-**Closure condition:** add a production-safe or external deterministic harness that synchronizes on actual native pending entry without sleeps, timing guesses, or test-only production hooks, then verifies cancellation surfaces correctly and the same Connection remains reusable afterward.
-
-This debt entry is not implementation authorization. Do not add a flaky timing test or a production test hook; promote any proposed closure work through the normal research, planning, implementation, and audit workflow.
+**Residual known style note (not debt):** A1R-01 — express the settings-inspection `SELECT` with SwifQL constructs when `ActivePendingCancellationTests.swift` is next edited.
 
 ### Post-COMMIT scheduling Connection recovery
+
+**Priority:** after active-pending cancellation coverage and before Advanced Appender API.
 
 **Current limitation:** after COMMIT crosses the reviewed native scheduling boundary at `NativePreparedStatement.pending()` / `duckdb_pending_prepared`, any surfaced COMMIT error forces the public `Connection` into terminal fail-closed state even when DuckDB may internally have completed the commit or rolled the failed commit back and the native connection might technically be reusable.
 
 **Why it matters:** the conservative policy can discard a potentially healthy Connection after an exceptional COMMIT failure. This is intentionally safer than reusing a connection whose explicit transaction postcondition cannot be proven, but it may be stricter than necessary and can impose avoidable reconnect/recovery work on callers.
 
-**Evidence boundary:** pinned DuckDB v1.5.5 source proves `duckdb_pending_prepared` initializes/schedules Executor work onto `TaskScheduler`, so COMMIT may begin before the call returns. Pinned public `duckdb.h` exposes no reviewed machine-readable `isAutocommit` / `hasActiveTransaction` / transaction-state getter sufficient to distinguish durable commit, native rollback, or still-live/invalidated explicit transaction after every post-scheduling error. Diagnostic error text is not a safe state oracle. Plan Correction 04 therefore intentionally uses no compensating rollback/retry plus Connection fail-close for every post-scheduling COMMIT error.
+**Evidence boundary:** pinned DuckDB v1.5.5 source proves `duckdb_pending_prepared` initializes/schedules Executor work onto `TaskScheduler`, so COMMIT may begin before the call returns. Pinned public `duckdb.h` exposes no reviewed machine-readable `isAutocommit` / `hasActiveTransaction` / transaction-state getter sufficient to distinguish durable commit, native rollback, or still-live/invalidated explicit transaction after every post-scheduling error. Diagnostic error text is not a safe state oracle. The accepted plan intentionally uses no compensating rollback/retry plus Connection fail-close for every post-scheduling COMMIT error.
 
 **Closure condition:** perform a separately reviewed research wave against the then-pinned DuckDB/public C API (or a future DuckDB version) and prove a machine-readable, ownership-safe post-error recovery contract that can establish Connection reuse without diagnostic parsing, private/C++ implementation coupling, unsafe handle escape, or false commit/rollback claims. Only then may the fail-close policy be narrowed through normal plan/audit/implementation gates.
 
-This debt entry is not implementation authorization. Do not weaken the reviewed fail-close policy merely to preserve Connection reuse.
+Do not weaken the reviewed fail-close policy merely to preserve Connection reuse.
+
+## Category B — Maintainer-Directed Deferred Capability Debt
+
+Entries here are **not verified defects**. They are intentionally deferred capabilities that the maintainer wants durably tracked so they cannot disappear from the roadmap.
+
+They remain subject to fresh research, planning, implementation, and audit before source changes.
+
+### Nested / Complex Value and Result Families
+
+**Priority:** after Advanced Appender API unless a critical consumer requirement explicitly promotes it earlier.
+
+**Deferred capability:** first-class binding, result materialization, Row/Value convenience, logical metadata, Statement, Appender, NULL/Optional, and exact round-trip semantics for:
+
+```text
+LIST
+ARRAY
+MAP
+STRUCT
+UNION
+ENUM
+```
+
+**Why it matters:** these are significant DuckDB-native type families and will eventually improve model expressiveness and analytical workloads. They are not required before the maintainer's current pre-Vortegy critical capabilities (`Codable`, migrations, observation, pooling) and are therefore intentionally lower priority.
+
+**Current boundary:** scalar/exact Value/result work is complete for Bool, signed/unsigned integer widths, Float/Double, String/Data, UUID, Int128/UInt128 availability bridges, PureDate/PureTime/DateTime, Foundation.Date/TIMESTAMPTZ, SwifQL.Interval, and Foundation.Decimal. Nested/complex families remain separately gated.
+
+**Closure condition:** promote a dedicated nested/complex Value/result capability and implement the existing universal value-vertical contract across query binding, reusable Statement, Appender, result materialization, NULL/Optional, logical metadata, boundaries, and exact rejection behavior.
