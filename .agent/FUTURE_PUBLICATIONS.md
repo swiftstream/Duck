@@ -49,6 +49,12 @@ Observation / Reactive Queries
 - README: PRESENT after the current public-closure candidate
 - detailed social/article source: PRESENT below as 007
 - public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-observation`; central federation onboarding/publication remains separate
+
+Connection Pooling
+- implementation: accepted bounded scoped pool and Observation interaction
+- README: PRESENT after closure
+- detailed source: PRESENT below as 008
+- Agent Skill: source-owned `swiftduckdb-connection-pooling`, with central federation separately gated
 ```
 
 All future public capabilities automatically enter this register/closure model. Completing implementation without README + detailed publication source + skill coverage is not considered full public-capability closure.
@@ -891,7 +897,7 @@ Do not turn the baseline query API into implied support for:
 broad ORM/repository identity semantics beyond the dedicated flat Codable/model capability
 arbitrary nested/unkeyed Codable model graphs beyond the dedicated model layer
 migrations
-connection pooling
+connection pooling (see the dedicated Connection Pooling surface, entry 008)
 savepoints/custom isolation
 Observation expansion beyond the dedicated latest-state same-Database capability
 advanced Appender lifecycle surfaces
@@ -1417,7 +1423,7 @@ model delete/upsert/batch/arbitrary-WHERE CRUD APIs
 arbitrary nested Codable object/array graphs
 migrations/schema evolution
 model-integrated observation/reactive APIs
-connection pooling
+pool ownership/configuration (leased Connection/Transaction work can use the dedicated Connection Pooling surface, entry 008)
 model-driven transaction lifecycle, savepoints, or custom isolation
 implicit ambient transaction participation
 new platform/runtime guarantees
@@ -1651,7 +1657,7 @@ polling/timer correctness
 Combine/SwiftUI/UIKit publishers
 public observation configuration/options
 manual refresh controls
-connection pooling
+pool-owned Observation iterators or a `pool.observe` / `Connection.observe` API (Observation stays Database-bound even when work uses the dedicated Connection Pooling surface, entry 008)
 a guarantee that DuckDB rebinds an already-prepared handle after catalog changes
 ```
 
@@ -1666,3 +1672,103 @@ Preserve these user-facing angles:
 5. transactions publish at definitive COMMIT/ROLLBACK boundaries rather than leaking uncommitted state;
 6. external file/process changes are explicitly outside the contract instead of being vaguely implied;
 7. conservative invalidation prefers an extra refresh over a missed state change.
+
+## 008 — Connection Pooling: bound concurrent database work to a lease
+
+Status: **implemented source material / future article-publication candidate**
+
+Trigger for publication: when the maintainer chooses a channel and completes its separate release or publication decision.
+
+### Start with one scope
+
+```swift
+let database = try Database()
+let pool = try database.pool(maximumConnections: 4)
+let users = Path.Table("users")
+
+let rows = try await pool.connection { connection in
+    try await SwifQL
+        .select(users.column("id"), users.column("name"))
+        .from(users)
+        .query(on: connection)
+}
+```
+
+The caller receives a `QueryResult` whose values are Swift-owned. The leased Connection stays inside the closure. The pool performs return cleanup before the call completes.
+
+### Why a pool exists
+
+An embedded application can have several independent units of database work: a request reading a dashboard, a background import, and a command updating one row. A single Connection serializes its native work. Creating an unbounded new Connection for every unit of work gives the application no capacity limit. `Database.pool(maximumConnections:)` offers a bounded, lazy set of Connections with one explicit scope per checkout. It opens them on demand and keeps reuse behind the pool. The count must be positive.
+
+The bound concerns live or reserved Connections, not an automatic limit on task creation. When every slot is occupied, checkout waits in FIFO order. Cancellation of a queued checkout removes that request; it does not leak a slot. A body should release its lease promptly rather than waiting on work that needs another lease of the same pool.
+
+### Keep ownership lexical
+
+```swift
+let count = try await pool.connection { connection in
+    let result = try await SwifQL
+        .select(Int32(1) => "value")
+        .query(on: connection)
+    return result.rows.count
+}
+```
+
+This closure is the validity boundary. Await any child work that uses the Connection before returning. A reference kept beyond the scope cannot be used as a fresh pooled Connection, even if a later checkout happens to reuse the same actor. Statements, Transactions, and Appenders created under a lease also remain bound to their originating Connection and lease lifetime. A stale pooled operation fails with `.poolLeaseExpired`.
+
+Reentering `pool.connection` from within an active lease of the same pool fails with `.poolReentrantCheckout`. Independent work that needs another Connection should be structured outside that live lease. Separate `Database` instances have separate pool ownership; a pool belongs to the exact `Database` that created it.
+
+### Put a transaction inside the lease
+
+```swift
+try await pool.transaction { transaction in
+    try await SwifQL
+        .insertInto(users, fields: "id", "name")
+        .values
+        .values(Int32(42), "Mira")
+        .execute(on: transaction)
+}
+```
+
+`pool.transaction` is the short spelling for checking out a Connection and running `connection.transaction` in that scope. It does not create another transaction engine or a reusable Transaction pool. Use the supplied `Transaction` for every operation intended to share its commit boundary. A normal body return leads to commit only after native COMMIT succeeds. A thrown body error or observed cancellation takes rollback; catching a database operation error cannot clear rollback-only state.
+
+Flat transactions are available through a leased Connection when a lexical managed body is unsuitable, but the caller must explicitly finish them before leaving the pool closure. An unfinalized flat transaction is rolled back during return and a successful body receives `.poolTransactionNotFinalized`; cleanup failure may produce `TransactionRollbackError`.
+
+### Observation stays with the Database
+
+```swift
+let observation = try database.observe(
+    SwifQL
+        .select(users.column("id"), users.column("name"))
+        .from(users)
+)
+
+try await pool.connection { connection in
+    try await SwifQL
+        .insertInto(users, fields: "id", "name")
+        .values
+        .values(Int32(43), "Ari")
+        .execute(on: connection)
+}
+```
+
+An observation iterator has its own private refresh Connection; it does not hold a pool lease. Mutations made through a Connection from the same `Database` publish through the existing Observation coordinator. Managed transaction finalization and Appender native visibility keep their existing publication boundaries. Returning a lease, retiring an unusable Connection, or opening its replacement is not itself a mutation and produces no synthetic observation signal. `QueryObservation` remains a latest-state read-only query sequence, not a per-write event log or an external-file watcher. There is no `pool.observe` or `Connection.observe` method.
+
+### Close intentionally
+
+```swift
+try await pool.shutdown()
+```
+
+Call shutdown after the application's active pool work has a path to finish. Shutdown rejects new checkouts, fails queued ones with `.poolClosed`, and drains active leases before returning. Calling shutdown from inside a live lease of that same pool fails with `.poolShutdownFromLease`, so the lease cannot wait for itself. The method can be called again after closure.
+
+### Boundaries to preserve
+
+Pool capacity is not a claim that all DuckDB work runs in parallel: each individual Connection serializes its own operations. Cancellation is cooperative at supported boundaries. The current public API offers no manual checkout/release, timeout, idle lifetime, session reset, statement cache, metrics, or global pool registry. It also makes no new platform or performance guarantee.
+
+### Useful publication angles
+
+1. One bounded pool can serve independent app requests while keeping Connection lifetime explicit.
+2. Scoped leases keep stale resources from silently participating in later work.
+3. The transaction convenience reuses managed Connection semantics instead of adding a parallel commit model.
+4. Database-bound Observation continues across lease return and reuse without claiming event delivery.
+5. Graceful shutdown has an explicit stop-and-drain boundary.

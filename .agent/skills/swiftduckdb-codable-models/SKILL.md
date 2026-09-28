@@ -238,7 +238,7 @@ model delete/upsert/batch/arbitrary-WHERE persistence
 arbitrary nested Codable object/array graphs
 migrations/schema evolution
 observation/reactive queries
-connection pooling
+pool ownership/configuration (leased work can use `swiftduckdb-connection-pooling`)
 savepoints/manual transaction lifecycle/custom isolation
 implicit ambient transaction participation
 new platform/runtime guarantees

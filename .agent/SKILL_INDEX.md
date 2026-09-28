@@ -7,6 +7,7 @@ Source-owned skill packages live under `.agent/skills/<name>/SKILL.md`. Load at 
 ## Public / downstream skills
 
 - `swiftduckdb-query-execution` — open databases, create Connections, build normal SwifQL queries, choose query versus execute, read QueryResult/Row/Value data, reason about basic Connection concurrency/cancellation/errors, and use raw SQL only as an explicit escape hatch.
+- `swiftduckdb-connection-pooling` — create a bounded Database-owned pool, keep Connection/Transaction/Statement/Appender work inside exact scoped leases, handle checkout/shutdown/cancellation errors, and preserve Database-bound Observation.
 - `swiftduckdb-observation` — create and consume reusable latest-state `QueryObservation` values, preserve native READ ONLY refresh safety and same-Database invalidation boundaries, and reason about ordinary/Transaction/Appender publication without inventing event-log or cross-process semantics.
 - `swiftduckdb-transactions` — use managed-closure or flat explicitly finalized Transactions with explicit same-Connection participation, rollback-only/error/cancellation rules, `commit()` / `rollback()`, compiler-gated `rollbackIfNeeded()`, reusable Statement execution, Transaction Appender integration, and transaction Observation publication.
 - `swiftduckdb-reusable-statements` — prepare one SwifQL shape for repeated query/execute calls, use Statement.Parameters, preserve Connection ownership/reuse/concurrency semantics, and execute explicitly inside the owning Transaction.

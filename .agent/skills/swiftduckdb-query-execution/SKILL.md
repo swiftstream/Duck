@@ -161,7 +161,7 @@ Do not infer these capabilities from basic query execution:
 broad ORM/repository identity semantics beyond the dedicated flat Codable/model layer
 arbitrary nested/unkeyed Codable model graphs beyond the current flat model boundary
 migrations
-connection pooling
+connection pooling (use the dedicated `swiftduckdb-connection-pooling` skill)
 manual transaction lifecycle details beyond the dedicated Transaction capability
 savepoints/custom isolation
 advanced Appender lifecycle surfaces

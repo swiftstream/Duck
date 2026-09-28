@@ -211,7 +211,7 @@ SwiftUI/UIKit/UIKitUltra coupling
 public observation configuration/options
 manual refresh controls
 a guarantee that DuckDB rebinds an already-prepared handle after catalog changes
-connection pooling
+pool-owned Observation iterators or `pool.observe` / `Connection.observe` (use `swiftduckdb-connection-pooling` for pool work; Observation stays Database-bound)
 ```
 
 Keep Observation v1 UI-neutral, latest-state, same-Database, read-only, and QueryResult-based.

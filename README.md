@@ -68,6 +68,68 @@ let connection = try database.connect()
 
 A `Connection` retains its parent `Database`, so the database lifetime remains valid while the connection is in use.
 
+## Pool connections for scoped concurrent work
+
+Create a bounded pool from the `Database` that owns the work:
+
+```swift
+let database = try Database()
+let pool = try database.pool(maximumConnections: 4)
+
+let users = Path.Table("users")
+let result = try await pool.connection { connection in
+    try await SwifQL
+        .select(users.column("id"), users.column("name"))
+        .from(users)
+        .query(on: connection)
+}
+```
+
+`maximumConnections` must be greater than zero. The pool opens Connections only when needed and owns at most that many at once. Concurrent checkout waits when all slots are in use; queued requests are served in order, and cancellation of a queued request frees its place. Each native Connection still serializes its own operations. A pool permits work on separate Connections; it does not make one Connection execute native operations in parallel.
+
+The closure owns one exact lease. Finish and await all work using its `Connection` before returning. The pool completes mandatory return cleanup before `connection` completes. Do not store the Connection, a Statement prepared on it, a Transaction, or an Appender for use after the lease. A later checkout of the same Connection does not restore authority to resources from an earlier lease. Using a stale pooled Connection fails with `.poolLeaseExpired`. Starting another `pool.connection` from within a live lease of that same pool fails with `.poolReentrantCheckout`.
+
+For one managed commit boundary, use `pool.transaction`:
+
+```swift
+let users = Path.Table("users")
+
+try await pool.transaction { transaction in
+    try await SwifQL
+        .insertInto(users, fields: "id", "name")
+        .values
+        .values(Int32(42), "Mira")
+        .execute(on: transaction)
+}
+```
+
+`pool.transaction` checks out a Connection and calls its managed `connection.transaction` inside that lease. The existing managed transaction rules apply: a successful body commits only after native COMMIT succeeds; a thrown error or observed cancellation takes the rollback path; a database operation can make the transaction rollback-only even if its immediate error is caught. Use the supplied `Transaction` for participating work. This is the same transaction engine used without a pool.
+
+If you create a flat transaction inside `pool.connection`, explicitly commit or roll it back before the lease ends. Returning successfully with a live flat transaction triggers rollback cleanup and `.poolTransactionNotFinalized`; a rollback cleanup failure is surfaced as `TransactionRollbackError`. Prefer `pool.transaction` when the whole transaction fits one closure.
+
+Observation remains attached to the `Database`, not to the pool:
+
+```swift
+let users = Path.Table("users")
+let observation = try database.observe(
+    SwifQL
+        .select(users.column("id"), users.column("name"))
+        .from(users)
+)
+```
+
+Each observation iterator owns its own private refresh Connection. Mutations through a pooled Connection belonging to that same `Database` use the existing Connection/Transaction/Appender invalidation path. Definitive COMMIT or ROLLBACK and Appender visibility retain their normal Observation rules; returning a lease or replacing a fail-closed Connection does not invent a change signal. Observation is still latest-state, not an event log; it does not watch another `Database` instance or external file changes. There is no `pool.observe` or `Connection.observe` API.
+
+When the owner is finished with the pool, call `try await pool.shutdown()` outside its lease:
+
+```swift
+try await pool.shutdown()
+```
+
+Shutdown stops new checkouts, fails queued checkouts with `.poolClosed`, and waits for active leases to return. Calling it inside a live lease of the same pool fails with `.poolShutdownFromLease`. A checkout attempted after shutdown starts also fails with `.poolClosed`. Cancellation is cooperative at the library's Swift/native boundaries; it does not promise immediate interruption of every synchronous DuckDB call.
+
+The current pool has scoped checkout only. It has no manual checkout/release, checkout timeout, idle lifetime policy, session reset, statement cache, pool metrics, or global registry.
+
 ## Query with SwifQL
 
 SwiftDuckDB does not expose ordinary handwritten SQL strings as its normal query API. Build executable queries with SwifQL.
@@ -268,7 +330,7 @@ Transaction-backed model persistence reuses the same model query builders and ex
 
 Model payloads travel through prepared placeholders rather than being interpolated into SQL text.
 
-This model layer is not a broad ORM. It does not advertise repository identity maps, `save`/`persist` aliases, model delete/upsert/batch/arbitrary-WHERE persistence, migrations, model-integrated observation/reactive APIs, pooling, arbitrary nested model graphs, model-driven transaction lifecycle, savepoints/custom isolation, new platform guarantees, or application-specific readiness claims.
+This model layer is not a broad ORM. It does not advertise repository identity maps, `save`/`persist` aliases, model delete/upsert/batch/arbitrary-WHERE persistence, migrations, model-integrated observation/reactive APIs, arbitrary nested model graphs, model-driven transaction lifecycle, savepoints/custom isolation, new platform guarantees, or application-specific readiness claims. Model helpers execute through an ordinary `Connection` or `Transaction` lease when a pool is used; they do not own or configure a `ConnectionPool`.
 
 ## Mutations and `rowsChanged`
 
@@ -571,7 +633,7 @@ For high-volume complete rows that must share the same commit/rollback boundary,
 
 If mandatory rollback cleanup fails while another error is already being handled, SwiftDuckDB throws `TransactionRollbackError`, preserving both `originalError` and the typed `rollbackError`. Later work on a fail-closed Connection receives `.connectionUnusable`; create a fresh Connection instead. Do not parse native diagnostic strings to infer an internal failure stage.
 
-Normal execution routes still reject user-issued transaction-control SQL. The public transaction API does not advertise savepoints, nested transactions, custom isolation levels, a public READ ONLY transaction mode, or transaction pooling.
+Normal execution routes still reject user-issued transaction-control SQL. The public transaction API does not advertise savepoints, nested transactions, custom isolation levels, a public READ ONLY transaction mode, or transaction pooling. `pool.transaction` is managed transaction composition inside a pool lease, not a pool of reusable `Transaction` handles.
 
 ## Reading results
 
@@ -723,7 +785,7 @@ Cancellation is cooperative at those boundaries. SwiftDuckDB does not promise in
 
 ## Errors
 
-Public database/query/transaction/statement/Appender failures use `DatabaseError` cases for database opening, connection opening, preparation, binding, execution, unsupported bind/result types, invalid native result state, reusable-statement template/argument/ownership/usability failures, transaction scope/lifecycle failures, Appender scope/row/finalization/cleanup failures, and terminal `.connectionUnusable` state.
+Public database/query/transaction/statement/Appender failures use `DatabaseError` cases for database opening, connection opening, preparation, binding, execution, unsupported bind/result types, invalid native result state, reusable-statement template/argument/ownership/usability failures, transaction scope/lifecycle failures, Appender scope/row/finalization/cleanup failures, pool configuration/closed/reentry/lease-expiry/unfinalized-flat-transaction failures, and terminal `.connectionUnusable` state.
 
 Native diagnostic strings are useful diagnostics, but their exact text is not a stable symbolic-type contract.
 
@@ -741,8 +803,8 @@ Treat `SwifQL.raw(...)` as an escape hatch. Normal SwiftDuckDB examples should p
 
 ## Current scope
 
-The current public slice covers database/connection ownership, SwifQL query execution, reusable prepared statements, managed and flat explicitly finalized transactions, latest-state `QueryObservation` for read-only same-Database reactive queries, ordinary scoped complete-row Appender ingestion, explicit-Transaction Appender participation, primitive, temporal, Interval, and exact Foundation.Decimal binding/result values, mutation row counts, typed-table selected-column convenience, flat keyed Codable row/result projection, exact flat `ModelEncoder` values, explicit Connection/Transaction `Table` insert/update conveniences, structured connection concurrency, and cancellation-aware execution.
+The current public slice covers database/connection ownership, SwifQL query execution, bounded scoped `ConnectionPool` checkout with managed `pool.transaction` and graceful shutdown, reusable prepared statements, managed and flat explicitly finalized transactions, latest-state `QueryObservation` for read-only same-Database reactive queries, ordinary scoped complete-row Appender ingestion, explicit-Transaction Appender participation, primitive, temporal, Interval, and exact Foundation.Decimal binding/result values, mutation row counts, typed-table selected-column convenience, flat keyed Codable row/result projection, exact flat `ModelEncoder` values, explicit Connection/Transaction `Table` insert/update conveniences, structured connection concurrency, and cancellation-aware execution.
 
 The current Observation surface is intentionally bounded to reusable latest-state `QueryResult` delivery for mutations routed through the same `Database` instance. It does not advertise event-history delivery, typed/decoded observation, `Connection.observe` or `Transaction.observe`, public observation options, polling, filesystem/process-wide watching, or UI-framework publishers.
 
-The current API also does not advertise advanced Appender selected-column/DEFAULT/query/data-chunk/manual-lifecycle surfaces, broad ORM/repository identity semantics, model delete/upsert/batch/arbitrary-WHERE persistence, arbitrary nested model graphs, connection pooling, migrations, savepoints, nested transactions, custom transaction isolation/public READ ONLY modes, or complex result families beyond the currently implemented Value families.
+The current API also does not advertise advanced Appender selected-column/DEFAULT/query/data-chunk/manual-lifecycle surfaces, broad ORM/repository identity semantics, model delete/upsert/batch/arbitrary-WHERE persistence, arbitrary nested model graphs, manual pool checkout/release, pool timeouts/idle lifetimes/session reset/statement cache/metrics/registry, savepoints, nested transactions, custom transaction isolation/public READ ONLY modes, or complex result families beyond the currently implemented Value families.
