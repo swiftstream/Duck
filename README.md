@@ -435,7 +435,7 @@ Reusable preparation means SwiftDuckDB retains and reuses one native prepared-st
 
 ## Bulk ingestion with Appender
 
-Use `Connection.appender(to:)` when you already have many complete rows to load into one existing table and the import does not need transaction-wide rollback. For high-volume complete rows that must share an explicit transaction's commit/rollback boundary, use `transaction.appender(to:)` inside `connection.transaction`. Both modes use the same scoped `Appender` row API.
+Use `Connection.appender(to:)` when you have many rows to load into one existing table and the import does not need transaction-wide rollback. Rows may cover the complete table or one fixed selected-column list. For high-volume rows that must share an explicit transaction's commit/rollback boundary, use `transaction.appender(to:)` inside `connection.transaction`. Both modes use the same scoped `Appender` row API.
 
 ```swift
 let users = Path.Table("users")
@@ -457,9 +457,9 @@ try await connection.appender(to: users) { appender in
 }
 ```
 
-Each `append(...)` call supplies one **complete row** in table-column order. The public API does not expose per-column append, `endRow`, manual flush, clear, or close.
+Without `columns:`, each `append(...)` call supplies one **complete table row** in table-column order. The public API does not expose per-column append, `endRow`, manual flush, clear, or close.
 
-Appender is a good fit for bulk complete-row ingestion into one table. Choose ordinary `connection.appender(to:)` for a scoped, non-atomic import, or `transaction.appender(to:)` when the rows must participate in the surrounding explicit transaction. Prefer a reusable prepared `Statement` when you need a repeated SQL shape such as INSERT/UPDATE/SELECT, per-row SQL expressions, query/update/select flexibility, or explicit transaction execution that is not a complete-row ingest.
+Appender is a good fit for bulk rows with one fixed shape into one table. Choose ordinary `connection.appender(to:)` for a scoped, non-atomic import, or `transaction.appender(to:)` when the rows must participate in the surrounding explicit transaction. Prefer a reusable prepared `Statement` when you need a repeated SQL shape such as INSERT/UPDATE/SELECT, per-row SQL expressions, or query/update/select flexibility.
 
 ### Appender targets
 
@@ -480,7 +480,27 @@ let catalogSchemaTable = Path.CatalogWithSchemaAndTable(
 )
 ```
 
-Pass the matching value to either `connection.appender(to:)` or `transaction.appender(to:)`. Both overload families support `Path.Table`, `Path.SchemaWithTable`, and `Path.CatalogWithSchemaAndTable`. SwiftDuckDB does not currently expose selected-column Appender configuration or DEFAULT-column filling, so every public row must match the target table's complete active column width.
+Pass the matching value to either `connection.appender(to:)` or `transaction.appender(to:)`. Both overload families support `Path.Table`, `Path.SchemaWithTable`, and `Path.CatalogWithSchemaAndTable`, with or without `columns:`. Without `columns:`, every row must match the table's complete active column width.
+
+### Append selected columns
+
+Choose the columns once when opening the scope. Each row then supplies exactly one value per selected column, in the listed order:
+
+```swift
+let events = Path.Table("events")
+
+try await connection.appender(to: events, columns: ["kind", "id"]) { appender in
+    try await appender.append("opened", Int32(1))
+    try await appender.append("closed", Int32(2))
+    try await appender.append(Optional<String>.none, Int32(3))
+}
+```
+
+Here `kind` receives the first argument and `id` the second, regardless of table-column order; the example assumes `kind` is nullable. Omitted columns receive their DuckDB `DEFAULT`, or `NULL` if they have no default. A selected column passed `nil` receives explicit SQL `NULL`; omit the column from `columns:` to request its default. The selection is fixed for the scope; there is no per-row `DEFAULT` marker or mid-scope selection change.
+
+The same `columns: [String]` form is public for all six combinations of `Connection` or `Transaction` with `Path.Table`, `Path.SchemaWithTable`, or `Path.CatalogWithSchemaAndTable`. For example, `transaction.appender(to: schemaTable, columns: ["kind", "id"])` uses the same argument order inside the outer transaction.
+
+The list must be nonempty and contain valid, distinct, appendable column names. Empty, duplicate, unknown, or generated columns fail creation before the body runs; pass names as plain column names, including any embedded quote characters, rather than SQL-quoted identifiers. Wrong selected-row width, unsupported Swift values, and deterministic whole-row preflight errors occur before native row mutation and can be caught while the scope remains live. A native append, row-completion, or auto-flush error is terminal for that scope even when caught in its body.
 
 ### Supported Appender values
 
@@ -557,7 +577,7 @@ Wrong row width, unsupported Swift-value normalization, and deterministic whole-
 
 While a transaction Appender body is live, inherited same-Transaction work that would self-depend is rejected, including `transaction.query`, `transaction.execute`, transaction-bound `Statement.query` / `Statement.execute`, and nested `transaction.appender`. Ordinary same-Connection APIs are not an escape hatch. Use another `Connection` for independent concurrent work. A deliberately pre-created or otherwise non-inheriting same-Transaction child may queue behind the live Appender scope; awaiting that queued work from inside the still-live body can create a caller dependency cycle.
 
-The current Appender API also does not advertise free-standing/manual-close Appenders, manual flush/clear, per-column mutation/endRow, selected columns, DEFAULT append, QueryAppender, public DataChunk/vector append, new value families, or Appender pooling/cache.
+The current Appender API also does not advertise free-standing/manual-close Appenders, manual flush/clear, per-column mutation/endRow, per-row `DEFAULT` append, QueryAppender, public DataChunk/vector append, new value families, or Appender pooling/cache.
 
 ## Transactions
 
@@ -803,8 +823,8 @@ Treat `SwifQL.raw(...)` as an escape hatch. Normal SwiftDuckDB examples should p
 
 ## Current scope
 
-The current public slice covers database/connection ownership, SwifQL query execution, bounded scoped `ConnectionPool` checkout with managed `pool.transaction` and graceful shutdown, reusable prepared statements, managed and flat explicitly finalized transactions, latest-state `QueryObservation` for read-only same-Database reactive queries, ordinary scoped complete-row Appender ingestion, explicit-Transaction Appender participation, primitive, temporal, Interval, and exact Foundation.Decimal binding/result values, mutation row counts, typed-table selected-column convenience, flat keyed Codable row/result projection, exact flat `ModelEncoder` values, explicit Connection/Transaction `Table` insert/update conveniences, structured connection concurrency, and cancellation-aware execution.
+The current public slice covers database/connection ownership, SwifQL query execution, bounded scoped `ConnectionPool` checkout with managed `pool.transaction` and graceful shutdown, reusable prepared statements, managed and flat explicitly finalized transactions, latest-state `QueryObservation` for read-only same-Database reactive queries, ordinary and explicit-Transaction scoped Appender ingestion with complete-table or fixed selected columns, primitive, temporal, Interval, and exact Foundation.Decimal binding/result values, mutation row counts, typed-table selected-column convenience, flat keyed Codable row/result projection, exact flat `ModelEncoder` values, explicit Connection/Transaction `Table` insert/update conveniences, structured connection concurrency, and cancellation-aware execution.
 
 The current Observation surface is intentionally bounded to reusable latest-state `QueryResult` delivery for mutations routed through the same `Database` instance. It does not advertise event-history delivery, typed/decoded observation, `Connection.observe` or `Transaction.observe`, public observation options, polling, filesystem/process-wide watching, or UI-framework publishers.
 
-The current API also does not advertise advanced Appender selected-column/DEFAULT/query/data-chunk/manual-lifecycle surfaces, broad ORM/repository identity semantics, model delete/upsert/batch/arbitrary-WHERE persistence, arbitrary nested model graphs, manual pool checkout/release, pool timeouts/idle lifetimes/session reset/statement cache/metrics/registry, savepoints, nested transactions, custom transaction isolation/public READ ONLY modes, or complex result families beyond the currently implemented Value families.
+The current API also does not advertise per-row Appender `DEFAULT`, QueryAppender, public data-chunk/vector, or manual-lifecycle surfaces, broad ORM/repository identity semantics, model delete/upsert/batch/arbitrary-WHERE persistence, arbitrary nested model graphs, manual pool checkout/release, pool timeouts/idle lifetimes/session reset/statement cache/metrics/registry, savepoints, nested transactions, custom transaction isolation/public READ ONLY modes, or complex result families beyond the currently implemented Value families.

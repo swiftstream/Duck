@@ -27,7 +27,7 @@ Reusable prepared Statements
 - public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-reusable-statements`; central federation onboarding/publication remains separate
 
 Scoped Appender
-- implementation: implemented scoped public API
+- implementation: implemented scoped public API with complete-table or fixed selected columns
 - README: PRESENT
 - detailed social/article source: PRESENT below
 - public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-appender`; central federation onboarding/publication remains separate
@@ -273,7 +273,7 @@ Trigger for publication: after the scoped Appender capability completes final pr
 
 ### The practical problem
 
-When an application already has many complete rows in memory or arriving from an import pipeline, expressing every row as another INSERT statement is not always the clearest ingestion model.
+When an application already has many rows in memory or arriving from an import pipeline, expressing every row as another INSERT statement is not always the clearest ingestion model.
 
 SwiftDuckDB now exposes DuckDB's Appender mechanism through a deliberately small Swift surface:
 
@@ -287,6 +287,28 @@ try await connection.appender(to: events) { appender in
 ```
 
 The public contract is intentionally row-shaped: one `append(...)` call is one complete table row. SwiftDuckDB owns the native Appender and its finalization behind the scope rather than asking application code to manage a native handle.
+
+### Fixed selected columns for sparse imports
+
+An import often supplies only part of a table row. Choose those columns once when opening the Appender:
+
+```swift
+let events = Path.Table("events")
+
+try await connection.appender(to: events, columns: ["kind", "id"]) { appender in
+    try await appender.append("opened", Int32(1))
+    try await appender.append("closed", Int32(2))
+    try await appender.append(Optional<String>.none, Int32(3))
+}
+```
+
+The first value goes to `kind`, the second to `id`, even when table order differs; the example assumes `kind` is nullable. Every `append` call is still one complete row relative to this fixed selection. Omitting a table column lets DuckDB supply its `DEFAULT`, or `NULL` when no default exists. Passing `nil` for a **selected** column writes explicit SQL `NULL` and does not request its default. This allows a caller to distinguish a missing import field from an explicit null without adding a per-cell default marker. Existing no-`columns:` overloads keep complete-table-row behavior.
+
+Both `Connection` and `Transaction` expose `columns: [String]` for all three target forms: `Path.Table`, `Path.SchemaWithTable`, and `Path.CatalogWithSchemaAndTable`. The list cannot be empty, and duplicate, unknown, or generated columns fail creation before the body starts. Column names are passed as names, not SQL-quoted identifier fragments; a name containing a quote carries that quote literally. Selection cannot change during the scope. A wrong selected-row width, unsupported Swift value, or deterministic whole-row preflight mismatch mutates no native row columns and is recoverable inside the live body. Native append, end-row, or automatic-flush failure remains terminal.
+
+Selected columns retain the Appender's ownership boundary. The ordinary scope may auto-flush a durable prefix before body completion, so a later error or cancellation cannot promise to roll it back. A `Transaction.appender(to: events, columns: ["kind", "id"])` scope instead participates in the explicit outer transaction: auto-flushed rows remain transaction-local until finalization, and a failed scope makes the outer transaction rollback-only even when its error is caught by the surrounding transaction body. Cancellation remains cooperative at Swift boundaries. The scoped Appender must finish within any pool lease that supplied its Connection; lease return does not create a mutation signal. Same-`Database` `QueryObservation` follows ordinary native visibility or definitive transaction finalization, delivering latest query state rather than one event per row. Separate Database instances and external file/process writes are outside that invalidation contract.
+
+The choice remains workload based: a selected-column Appender works when every row shares one fixed set and order of supplied columns; a reusable `Statement` is better when each row needs SQL expressions, UPDATE/SELECT behavior, or another repeated query shape. This slice adds no manual flush/close, mid-scope column changes, per-cell `DEFAULT`, QueryAppender, or public chunk/vector writer. It implies no release, new platform validation, central Agent Skill publication, or support for arbitrary default expressions beyond the tested pinned-engine behavior.
 
 ### Why DuckDB calls this Appender
 
@@ -532,8 +554,7 @@ Keep the future boundary explicit:
 free-standing/manual-close Appender
 manual flush/clear
 public per-column append/endRow
-selected columns
-DEFAULT append
+per-row DEFAULT append
 QueryAppender
 public DataChunk/vector append
 implicit ambient or nested Appender transaction

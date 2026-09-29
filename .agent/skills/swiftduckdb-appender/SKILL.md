@@ -1,27 +1,27 @@
 ---
 name: swiftduckdb-appender
-description: Use SwiftDuckDB's scoped Appender API for bulk complete-row ingestion into an existing DuckDB table, either through ordinary Connection admission or explicit Transaction participation. Use when downstream Swift code needs high-volume row loading, Appender lifetime/concurrency/error guidance, or a choice between Appender, transaction Appender, and repeated prepared INSERT execution.
+description: Use SwiftDuckDB's scoped Appender API for bulk ingestion into an existing DuckDB table, with complete table rows or a fixed selected-column list. Use when downstream Swift code needs ordinary or Transaction Appender usage, omission/default behavior, lifetime/error guidance, or a choice between Appender and repeated prepared INSERT execution.
 license: LICENSE.txt
 ---
 
 # Bulk-Ingest Rows with SwiftDuckDB Appender
 
-Use this skill for downstream code that imports SwiftDuckDB and needs to append many complete rows to one existing DuckDB table.
+Use this skill for downstream code that imports SwiftDuckDB and needs to append many rows to one existing DuckDB table.
 
 ## Choose Appender for the right workload
 
 Use ordinary `Connection.appender(to:)` when:
 
 - the target table already exists;
-- you have many complete rows to ingest;
+- you have many rows to ingest, either in full table-column order or in one fixed selected-column order;
 - each row can be supplied as ordinary supported Swift values or `Value` values;
-- you do not need per-row SQL expressions, selected-column/default handling, or rollback across the whole import.
+- you do not need per-row SQL expressions or rollback across the whole import.
 
 Use `Transaction.appender(to:)` inside `connection.transaction` when:
 
-- you need high-volume complete rows to share the explicit outer transaction's COMMIT/ROLLBACK boundary;
+- you need high-volume full or selected-column rows to share the explicit outer transaction's COMMIT/ROLLBACK boundary;
 - you want auto-flushed Appender batches to remain transaction-local until the outer transaction commits;
-- you do not need per-row SQL expressions, selected-column/default handling, or an Appender savepoint/nested transaction.
+- you do not need per-row SQL expressions or an Appender savepoint/nested transaction.
 
 Prefer a reusable `Statement` when you need a repeated SQL shape such as INSERT/UPDATE/SELECT, fixed and dynamic query values, or explicit execution inside a supported `Transaction`.
 
@@ -51,7 +51,27 @@ try await connection.appender(to: users) { appender in
 }
 ```
 
-Each `append(...)` call supplies one **complete row** in table-column order. The public API does not expose per-column append, `endRow`, manual flush, manual clear, or manual close.
+Without `columns:`, each `append(...)` call supplies one **complete table row** in table-column order. The public API does not expose per-column append, `endRow`, manual flush, manual clear, or manual close.
+
+## Fixed selected columns
+
+For sparse imports, choose the column list at scope creation and supply one value for each selected column in that exact order:
+
+```swift
+let events = Path.Table("events")
+
+try await connection.appender(to: events, columns: ["kind", "id"]) { appender in
+    try await appender.append("opened", Int32(1))
+    try await appender.append("closed", Int32(2))
+    try await appender.append(Optional<String>.none, Int32(3))
+}
+```
+
+`kind` receives the first value and `id` the second even if the table declares them in another order; the example assumes `kind` is nullable. An omitted table column receives its DuckDB `DEFAULT`, or `NULL` when it has no default. A selected `nil` is explicit SQL `NULL`; omission is how a column's default participates. The selected list is fixed for the scope, and each call remains a complete row relative to that list. There is no per-cell `DEFAULT` marker or mid-scope column change.
+
+The `columns: [String]` overload exists for each of `Path.Table`, `Path.SchemaWithTable`, and `Path.CatalogWithSchemaAndTable` on both `Connection` and `Transaction` (six forms). For example, use `transaction.appender(to: events, columns: ["kind", "id"])` inside `connection.transaction` when the selected rows must roll back with the outer transaction.
+
+The list must be nonempty. Empty, duplicate, unknown, or generated names fail creation before the body runs with an Appender creation error; supply plain names, including any embedded quote character, rather than SQL-quoted identifiers. Selection setup failure releases the scope. A wrong selected-row width, unsupported Swift value, or deterministic whole-row preflight failure is recoverable before native mutation while the scope remains live. Native append, end-row, or auto-flush failure is terminal.
 
 The scoped target may be:
 
@@ -82,7 +102,7 @@ try await connection.transaction { transaction in
 }
 ```
 
-The same public `Appender` type, complete-row values, and scoped lifetime are used in both modes. The transaction variant participates in the already-active explicit outer transaction; it is not a nested transaction or an implicit ambient transaction. A successful Appender scope does not commit by itself: outer COMMIT persists rows, while outer ROLLBACK removes buffered and already auto-flushed transaction-Appender batches.
+The same public `Appender` type, row values, and scoped lifetime are used in both modes, including fixed selected columns. The transaction variant participates in the already-active explicit outer transaction; it is not a nested transaction or an implicit ambient transaction. A successful Appender scope does not commit by itself: outer COMMIT persists rows, while outer ROLLBACK removes buffered and already auto-flushed transaction-Appender batches.
 
 ## Supported row values
 
@@ -128,6 +148,8 @@ Treat the `Appender` as scoped authority supplied by either `Connection.appender
 - There is no public initializer or native Appender handle to manage manually.
 
 The public `Appender` is `Sendable`, so structured child tasks may capture it while the scope remains live and the parent awaits them before returning.
+
+When using a pooled Connection, finish the Appender scope within the exact live `pool.connection` lease; `pool.transaction` offers the transaction form. A stale pooled capability fails with `.poolLeaseExpired`, and a fail-closed Connection is retired under the pool's existing policy. Appender mutations routed through the same `Database` participate in its existing latest-state `QueryObservation` invalidation: ordinary auto-flushed prefixes may become visible before scope end, while transaction impact publishes at definitive outer finalization. Observation is not a per-row event stream or cross-process watcher.
 
 ## Concurrency rules
 
@@ -193,8 +215,7 @@ Do not invent or teach these as current SwiftDuckDB Appender API:
 free-standing/manual-close Appender
 manual flush or clear
 public per-column append/endRow
-selected columns
-DEFAULT append
+per-row DEFAULT append
 QueryAppender
 public DataChunk/vector append
 implicit ambient or nested Appender transaction

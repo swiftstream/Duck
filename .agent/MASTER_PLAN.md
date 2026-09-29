@@ -103,11 +103,11 @@ The public slice does not add manual native parameter indices, named-parameter d
 
 The current public Appender capability includes:
 
-- scoped `Connection.appender(to:)` and explicit `Transaction.appender(to:)` entrypoints for the same table, schema+table, and catalog+schema+table SwifQL `Path` target forms, reusing the same public `Appender` type;
-- one complete-row `Appender.append(...)` operation with current `Value`/Optional/primitive/String/Data normalization, including SQL NULL and empty BLOB;
+- scoped `Connection.appender(to:)` and explicit `Transaction.appender(to:)` entrypoints for the same table, schema+table, and catalog+schema+table SwifQL `Path` target forms, each with optional fixed `columns: [String]` selection, reusing the same public `Appender` type;
+- one complete-row `Appender.append(...)` operation relative to either the physical table columns or the fixed selected list, with current `Value`/Optional/primitive/String/Data normalization, including SQL NULL and empty BLOB; omitted physical columns use DuckDB DEFAULT or NULL, while selected `nil` is explicit NULL;
 - exact Foundation.Date/TIMESTAMPTZ row support is accepted; whole-row Phase-1 conversion and typed-value creation preserve zero native-column mutation for deterministic Date failures, while native Phase-2 failure remains terminal;
 - exact Foundation.Decimal/DECIMAL row support is accepted; whole-row Phase-1 exact conversion and `duckdb_create_decimal` typed-value construction occur before native mutation, deterministic rounding/width/nonfinite failures are zero-mutation and recoverable, and Phase 2 uses `duckdb_append_value` with caller-owned temporary destruction while native Phase-2 failures remain terminal;
-- no public native handle, initializer, manual close/flush/clear, per-column append/endRow, selected columns, DEFAULT, QueryAppender, or DataChunk surface;
+- no public native handle, initializer, manual close/flush/clear, per-column append/endRow, per-row DEFAULT marker, QueryAppender, or DataChunk surface;
 - ordinary mode holds ordinary Connection admission for the complete awaited Appender scope, with setup ownership transferring to actor-registered live Appender state only after native creation succeeds;
 - transaction mode participates in the already-active explicit transaction, holds one transaction operation across the awaited Appender body and finalization/cleanup, and keeps auto-flushed batches rollback-safe under the outer transaction;
 - inherited same-Connection Connection/ordinary-Statement/transaction/nested-Appender work rejected while the scope is live, while separate Connections remain independent;
@@ -150,7 +150,7 @@ The following are not yet approved/implemented architecture unless later resolve
 - long-term DuckDB upgrade/version policy beyond the current v1.5.5 pin;
 - optional extension and bundle-size strategy beyond the current generated extension set;
 - any reusable prepared-statement behavior beyond the implemented first-slice capability;
-- advanced Appender behavior beyond the approved complete-row modes, including selected-column/default/query/data-chunk/manual-lifecycle surfaces, savepoints, and pooling/cache;
+- advanced Appender behavior beyond complete-table and fixed selected-column rows, including per-cell DEFAULT/query/data-chunk/manual-lifecycle surfaces, savepoints, and pooling/cache;
 - Observation expansion beyond the accepted same-Database latest-state `QueryObservation` v1 boundary, including event-log semantics, typed/decoded observation, cross-process/file watching, framework publishers, public observation configuration, or a reusable prepared-handle VIEW-rebind guarantee;
 - migration execution/history/public closure beyond the currently accepted P1 wave state;
 - ORM/repository persistence features beyond the currently accepted P0 Codable / Model Layer boundaries;
