@@ -57,13 +57,36 @@ final class NativeAppender {
         case typedValue
     }
 
+    /// Creates an Appender owner and fixes an optional active column list before copying target metadata.
     init(
         connection: NativeConnection,
         catalog: String? = nil,
         schema: String? = nil,
-        table: String
+        table: String,
+        selectedColumns: [String]? = nil
     ) throws {
         self.connection = connection
+
+        if let selectedColumns {
+            guard !selectedColumns.isEmpty else {
+                throw NativeAppenderError(
+                    stage: .creation,
+                    message: "An appender column selection must not be empty."
+                )
+            }
+            guard !selectedColumns.contains(where: \.isEmpty) else {
+                throw NativeAppenderError(
+                    stage: .creation,
+                    message: "Appender column names must not be empty."
+                )
+            }
+            guard !selectedColumns.contains(where: { $0.contains("\0") }) else {
+                throw NativeAppenderError(
+                    stage: .creation,
+                    message: "Appender column names must not contain NUL characters."
+                )
+            }
+        }
 
         var appender: duckdb_appender?
         let state = connection.withUnsafeHandle { connectionHandle in
@@ -129,12 +152,31 @@ final class NativeAppender {
             throw NativeAppenderError(stage: .creation, message: message)
         }
 
+        for column in selectedColumns ?? [] {
+            let addState = column.withCString {
+                duckdb_appender_add_column(createdAppender, $0)
+            }
+            guard addState == DuckDBSuccess else {
+                let message = Self.copyDiagnostic(
+                    from: createdAppender,
+                    fallback: "DuckDB failed to select appender column \(String(reflecting: column))."
+                )
+                var appenderToDestroy: duckdb_appender? = createdAppender
+                _ = duckdb_appender_destroy(&appenderToDestroy)
+                throw NativeAppenderError(stage: .creation, message: message)
+            }
+        }
+
         guard let count = Int(exactly: duckdb_appender_column_count(createdAppender)) else {
+            let message = Self.copyDiagnostic(
+                from: createdAppender,
+                fallback: "DuckDB appender column count does not fit in Swift Int."
+            )
             var appenderToDestroy: duckdb_appender? = createdAppender
             _ = duckdb_appender_destroy(&appenderToDestroy)
             throw NativeAppenderError(
                 stage: .creation,
-                message: "DuckDB appender column count does not fit in Swift Int."
+                message: message
             )
         }
 
@@ -153,15 +195,20 @@ final class NativeAppender {
                 descriptors.append(try NativeLogicalTypeCopier.copyBorrowed(logicalType))
             }
         } catch let error as NativeAppenderError {
+            let message = Self.copyDiagnostic(from: createdAppender, fallback: error.message)
             var appenderToDestroy: duckdb_appender? = createdAppender
             _ = duckdb_appender_destroy(&appenderToDestroy)
-            throw error
+            throw NativeAppenderError(stage: .creation, message: message)
         } catch {
+            let message = Self.copyDiagnostic(
+                from: createdAppender,
+                fallback: "DuckDB failed to copy appender target metadata: \(error)."
+            )
             var appenderToDestroy: duckdb_appender? = createdAppender
             _ = duckdb_appender_destroy(&appenderToDestroy)
             throw NativeAppenderError(
                 stage: .creation,
-                message: "DuckDB failed to copy appender target metadata: \(error)."
+                message: message
             )
         }
 

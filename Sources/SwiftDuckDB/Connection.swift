@@ -761,8 +761,10 @@ public actor Connection {
         preparedStatements[id]?.dynamicArgumentCount
     }
 
+    /// Acquires ordinary admission and installs a fully initialized Appender scope.
     func acquireAndInstallAppenderScope(
-        _ target: AppenderTarget
+        _ target: AppenderTarget,
+        selectedColumns: [String]? = nil
     ) async throws -> AppenderScopeStart {
         try await acquireOrdinaryLease()
         var transfersLeaseToLiveScope = false
@@ -775,14 +777,20 @@ public actor Connection {
         try Task.checkCancellation()
         try ensureUsable()
 
-        let start = try installAppenderScope(target, mode: .ordinary)
+        let start = try installAppenderScope(
+            target,
+            mode: .ordinary,
+            selectedColumns: selectedColumns
+        )
         transfersLeaseToLiveScope = true
         return start
     }
 
+    /// Installs a Transaction Appender scope for an already registered operation.
     func acquireAndInstallTransactionAppenderScope(
         _ target: AppenderTarget,
-        token: TransactionOperationToken
+        token: TransactionOperationToken,
+        selectedColumns: [String]? = nil
     ) async throws -> AppenderScopeStart {
         try await acquireTransactionNativeAdmission(token)
 
@@ -791,7 +799,8 @@ public actor Connection {
             try ensureUsable()
             return try installAppenderScope(
                 target,
-                mode: .transaction(token.reservationId)
+                mode: .transaction(token.reservationId),
+                selectedColumns: selectedColumns
             )
         } catch is CancellationError {
             completeTransactionOperation(token, failure: .cancelled)
@@ -812,7 +821,8 @@ public actor Connection {
 
     private func installAppenderScope(
         _ target: AppenderTarget,
-        mode: AppenderObservationMode
+        mode: AppenderObservationMode,
+        selectedColumns: [String]?
     ) throws -> AppenderScopeStart {
 
         let nativeAppender: NativeAppender
@@ -821,7 +831,8 @@ public actor Connection {
                 connection: nativeConnection,
                 catalog: target.catalog,
                 schema: target.schema,
-                table: target.table
+                table: target.table,
+                selectedColumns: selectedColumns
             )
         } catch let error as NativeAppenderError {
             throw mapNativeAppenderError(error)
