@@ -11,14 +11,14 @@ Codable / Model Layer (P0 COMPLETE; technical root + public closure accepted; bo
 -> Migrations (P1 COMPLETE)
 -> Observation / Reactive Queries (COMPLETE; technical root + public closure accepted)
 -> Connection Pooling (COMPLETE; Tasks 01-05 accepted)
--> verified cancellation / post-COMMIT debt
--> Advanced Appender API
+-> active-pending cancellation closure COMPLETE; post-COMMIT recovery research COMPLETE, limitation remains OPEN under retained fail-close
+-> Advanced Appender API (fixed selected-column slice COMPLETE; remaining surfaces separately gated)
 -> Nested / Complex Value & Result Families
 ```
 
 Platform validation continues in parallel when its required environment is available.
 
-This priority order is durable product direction, not implementation authorization. Active P0 execution is owned by `.agent/TASKS.md`; each later capability still requires separate research, reviewed planning, implementation, and audit.
+This priority order is durable product direction, not implementation authorization. Executable work is owned by `.agent/TASKS.md`; the current task state authorizes no next feature. Every future capability still requires separate research, reviewed planning, implementation, and audit.
 
 ## DuckDB Integration
 
@@ -32,7 +32,7 @@ The current `Database` / `Connection` / `Transaction` / `Statement` / `Appender`
 Still unresolved for future separately reviewed capabilities:
 
 - **Advanced Connection Pooling extensions — only if later justified.** Accepted current state owns bounded lazy `ConnectionPool` ownership, scoped `pool.connection` / thin `pool.transaction` ergonomics, FIFO cancellation-safe checkout, exact full-token liveness, fail-closed retirement/replacement, graceful shutdown/drain, Observation × Pool integration, and public README/publication/Agent Skill closure. Future extensions that would require a new reviewed decision: manual lease/release, checkout timeout, idle lifetime policy, session reset, statement cache, pool metrics, global registry. Do not revive NIO/EventLoop ownership.
-- **Advanced Appender APIs — after verified transaction/cancellation debt and before nested values:** decide which of selected columns/`DEFAULT`, QueryAppender, public DataChunk/vector append, manual lifecycle controls, and additional batching surfaces are justified.
+- **Advanced Appender APIs — after the completed debt research/closure work and before nested values under the current durable priority order.** Fixed selected-column Appender scopes are accepted current state. Remaining separately reviewed choices are per-cell `DEFAULT`, QueryAppender, public DataChunk/vector append, manual lifecycle controls, and other justified batching/high-throughput surfaces. This entry does not authorize any one of them or establish an implementation order among them.
 
 ## Higher-Level Features
 
