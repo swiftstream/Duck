@@ -1,9 +1,9 @@
-import SwifQL
+import SQL
 
 /// An ordered, ephemeral migration authoring plan.
 public struct MigrationPlan {
     fileprivate enum Entry {
-        case query(any SwifQLable)
+        case query(any SQLable)
         case run(Run)
     }
 
@@ -36,11 +36,11 @@ public struct Run {
     }
 }
 
-/// Builds non-empty ordered migration plans from SwifQL expressions and Run steps.
+/// Builds non-empty ordered migration plans from SQL expressions and Run steps.
 @resultBuilder
 public enum MigrationBuilder {
-    /// Converts a SwifQL expression into one migration-plan entry.
-    public static func buildExpression(_ expression: any SwifQLable) -> MigrationPlan {
+    /// Converts a SQL expression into one migration-plan entry.
+    public static func buildExpression(_ expression: any SQLable) -> MigrationPlan {
         MigrationPlan(entries: [.query(expression)])
     }
 

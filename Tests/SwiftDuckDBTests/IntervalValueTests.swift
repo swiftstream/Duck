@@ -1,5 +1,5 @@
 @testable import SwiftDuckDB
-import SwifQL
+import SQL
 import Testing
 
 private func intervalResultValue(
@@ -16,7 +16,7 @@ private func makeIntervalTable(
 ) async throws -> Path.Table {
     let table = Path.Table(name)
     try await connection.execute(
-        SwifQL.create.table[any: table].tableDefinitions(
+        SQL.create.table[any: table].tableDefinitions(
             NewColumn("id", .integer),
             NewColumn("value", .interval)
         )
@@ -24,7 +24,7 @@ private func makeIntervalTable(
     return table
 }
 
-@Test("Interval Value facade, normalization, and Row conveniences preserve exact families")
+@Test("Interval Value facade, normalization, and ResultRow conveniences preserve exact families")
 func intervalValueFacadeAndRowConveniences() throws {
     let finite = Interval(months: -7, days: 40, microseconds: -123_456)
     let positiveInfinity = Interval.positiveInfinity
@@ -45,7 +45,7 @@ func intervalValueFacadeAndRowConveniences() throws {
     #expect(Value.null.get(Interval.self) == nil)
     #expect(Value.int32(1).get(Interval.self) == nil)
 
-    let row = Row(
+    let row = ResultRow(
         columns: ["value", "null", "other"],
         values: [wrapped, .null, .int32(1)]
     )
@@ -67,22 +67,22 @@ func intervalValueFacadeAndRowConveniences() throws {
     #expect(try normalizeBinding(wrapped) == wrapped)
 }
 
-@Test("Ordinary SwifQL Interval binding uses natural INTERVAL and Optional NULL")
+@Test("Ordinary SQL Interval binding uses natural INTERVAL and Optional NULL")
 func ordinaryIntervalUsesTargetlessNaturalIntervalAndOptionalNull() async throws {
     let connection = try Database().connect()
     let finite = Interval(months: -2, days: 40, microseconds: -123_456)
     let some: Interval? = finite
     let none: Interval? = nil
 
-    let direct = try await connection.query(SwifQL.select(finite => "value"))
+    let direct = try await connection.query(SQL.select(finite => "value"))
     #expect(try intervalResultValue(direct) == .interval(finite))
     #expect(direct.resultColumns.first?.logicalType.id == .interval)
 
-    let optionalSome = try await connection.query(SwifQL.select(some => "value"))
+    let optionalSome = try await connection.query(SQL.select(some => "value"))
     #expect(try intervalResultValue(optionalSome) == .interval(finite))
     #expect(optionalSome.resultColumns.first?.logicalType.id == .interval)
 
-    let optionalNone = try await connection.query(SwifQL.select(none => "value"))
+    let optionalNone = try await connection.query(SQL.select(none => "value"))
     #expect(try intervalResultValue(optionalNone) == .null)
 }
 
@@ -91,13 +91,13 @@ func reusableIntervalStatementTargetMatrixAndReuse() async throws {
     let connection = try Database().connect()
     let finite = Interval(months: -2, days: 40, microseconds: -123_456)
     let targetless = try await connection.prepare { parameters in
-        SwifQL.select(parameters.parameter() => "value")
+        SQL.select(parameters.parameter() => "value")
     }
     let resolved = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .interval) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .interval) => "value")
     }
     let nonInterval = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
 
     let targetlessResult = try await targetless.query(finite)
@@ -126,7 +126,7 @@ func reusableIntervalStatementTargetMatrixAndReuse() async throws {
 func intervalStatementRejectsInfinityAndOutOfRangeAndRemainsReusable() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(parameters.parameter() => "value")
+        SQL.select(parameters.parameter() => "value")
     }
     let valid = Interval(months: -2, days: 40, microseconds: -123_456)
     let invalidValues = [
@@ -164,13 +164,13 @@ func intervalStatementTransactionFailureParticipatesInRollbackOnly() async throw
     let connection = try Database().connect()
     let table = Path.Table("interval_statement_transaction")
     try await connection.execute(
-        SwifQL.create.table[any: table].tableDefinitions(NewColumn("id", .integer))
+        SQL.create.table[any: table].tableDefinitions(NewColumn("id", .integer))
     )
     let insert = try await connection.prepare { parameters in
-        SwifQL.insertInto(table, fields: "id").values.values(parameters.parameter())
+        SQL.insertInto(table, fields: "id").values.values(parameters.parameter())
     }
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(parameters.parameter() => "value")
+        SQL.select(parameters.parameter() => "value")
     }
     let invalid = Interval.positiveInfinity
     let valid = Interval.zero
@@ -208,7 +208,7 @@ func intervalStatementTransactionFailureParticipatesInRollbackOnly() async throw
         #expect(error == firstBindingFailure)
     }
 
-    let rows = try await connection.query(SwifQL.select(table.column("id")).from(table))
+    let rows = try await connection.query(SQL.select(table.column("id")).from(table))
     #expect(rows.rows.isEmpty)
 }
 
@@ -233,7 +233,7 @@ func intervalAppenderRoundTripAndExtrema() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(table.column("id"), table.column("value"))
+        SQL.select(table.column("id"), table.column("value"))
             .from(table)
             .orderBy(.asc(table.column("id")))
     )
@@ -275,7 +275,7 @@ func intervalAppenderPhaseOneFailureIsZeroMutationAndReusable() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(table.column("id"), table.column("value"))
+        SQL.select(table.column("id"), table.column("value"))
             .from(table)
             .orderBy(.asc(table.column("id")))
     )
@@ -309,7 +309,7 @@ func intervalResultMaterializesExtremaAllMinimumAndNullValidity() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(table.column("id"), table.column("value"))
+        SQL.select(table.column("id"), table.column("value"))
             .from(table)
             .orderBy(.asc(table.column("id")))
     )
@@ -323,7 +323,7 @@ func intervalResultMaterializesExtremaAllMinimumAndNullValidity() async throws {
 func intervalResultPreservesStructuralBasisWithoutNormalization() async throws {
     let connection = try Database().connect()
     let value = Interval(months: 1, days: 40, microseconds: 2)
-    let result = try await connection.query(SwifQL.select(value => "value"))
+    let result = try await connection.query(SQL.select(value => "value"))
 
     #expect(try intervalResultValue(result) == .interval(value))
     #expect(result.rows.first?.interval("value") == value)

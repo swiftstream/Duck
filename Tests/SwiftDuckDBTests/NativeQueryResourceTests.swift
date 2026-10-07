@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 @Test("Binds and materializes the first primitive result slice through pending execution")
@@ -11,7 +11,7 @@ func bindsAndMaterializesPrimitiveResultSlice() throws {
     let longText = "this string is longer than twelve bytes"
     let blob = Data([0x00, 0x01, 0x7F, 0x80, 0xFF])
     let emptyBlob = Data()
-    let sql = SwifQL
+    let sql = SQL
         .raw(
             """
             SELECT
@@ -91,7 +91,7 @@ func bindsAndMaterializesPrimitiveResultSlice() throws {
 func failedNativeQueryResourcesLeaveConnectionReusable() throws {
     let database = try NativeDatabase()
     let connection = try database.connect()
-    let invalidSQL = SwifQL.raw("SELECT FROM").prepare(.duck).plain
+    let invalidSQL = SQL.raw("SELECT FROM").prepare(.duck).plain
 
     do {
         _ = try connection.prepare(invalidSQL)
@@ -100,7 +100,7 @@ func failedNativeQueryResourcesLeaveConnectionReusable() throws {
         #expect(error.operation.rawValue == NativeDuckDBOperation.preparation.rawValue)
     }
 
-    let parameterSQL = SwifQL
+    let parameterSQL = SQL
         .raw("SELECT CAST($1 AS INTEGER) AS value")
         .prepare(.duck)
         .plain
@@ -121,7 +121,7 @@ func failedNativeQueryResourcesLeaveConnectionReusable() throws {
         #expect(error.operation.rawValue == NativeDuckDBOperation.pendingCreation.rawValue)
     }
 
-    let validQuery = SwifQL
+    let validQuery = SQL
         .select(Fn.cast(Int32(42), .integer) => "answer")
         .prepare(.duck)
         .splitted
@@ -138,7 +138,7 @@ func failedNativeQueryResourcesLeaveConnectionReusable() throws {
 func unsupportedResultTypesFailExplicitly() throws {
     let database = try NativeDatabase()
     let connection = try database.connect()
-    let sql = SwifQL
+    let sql = SQL
         .raw("SELECT DATE '2026-08-29' AS unsupported_value")
         .prepare(.duck)
         .plain
@@ -154,7 +154,7 @@ func unsupportedResultTypesFailExplicitly() throws {
 func clearsRebindsAndReusesNativeStatementThroughPendingExecution() throws {
     let database = try NativeDatabase()
     let connection = try database.connect()
-    let query = SwifQL
+    let query = SQL
         .select(Fn.cast(Int32(1), .integer) => "value")
         .prepare(.duck)
         .splitted
@@ -182,7 +182,7 @@ func clearsRebindsAndReusesNativeStatementThroughPendingExecution() throws {
 func nativeStatementRemainsReusableAfterNonTerminalExecutionFailure() throws {
     let database = try NativeDatabase()
     let connection = try database.connect()
-    let query = SwifQL
+    let query = SQL
         .select(Fn.cast("seed", .integer) => "value")
         .prepare(.duck)
         .splitted

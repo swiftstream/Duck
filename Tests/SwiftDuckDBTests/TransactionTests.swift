@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 private struct TransactionTestItem: Table {
@@ -21,20 +21,20 @@ private final class TransactionCallerBox {
     var value: Int32 = 0
 }
 
-private final class TransactionPreparationProbe: SwifQLable {
+private final class TransactionPreparationProbe: SQLable {
     private(set) var partsAccessCount = 0
 
-    var parts: [SwifQLPart] {
+    var parts: [SQLPart] {
         partsAccessCount += 1
-        return SwifQL.select(Fn.cast(Int32(1), .integer) => "value").parts
+        return SQL.select(Fn.cast(Int32(1), .integer) => "value").parts
     }
 }
 
-private struct TransactionBoundValue<Value: Encodable>: SwifQLable {
+private struct TransactionBoundValue<Value: Encodable>: SQLable {
     let value: Value
 
-    var parts: [SwifQLPart] {
-        [SwifQLPartUnsafeValue(value)]
+    var parts: [SQLPart] {
+        [SQLPartUnsafeValue(value)]
     }
 }
 
@@ -147,7 +147,7 @@ private func makeTransactionTestConnection() async throws -> (Connection, Path.T
     let connection = try database.connect()
     let table = Path.Table(TransactionTestItem.tableName)
 
-    try await SwifQL
+    try await SQL
         .create
         .table[any: table]
         .tableDefinitions(
@@ -163,7 +163,7 @@ private func selectTransactionRows(
     from table: Path.Table,
     on connection: Connection
 ) async throws -> QueryResult {
-    try await SwifQL
+    try await SQL
         .select(table.column("id"), table.column("name"))
         .from(table)
         .orderBy(.asc(table.column("id")))
@@ -175,19 +175,19 @@ func transactionCommitsAndPreservesBodyResult() async throws {
     let (connection, table) = try await makeTransactionTestConnection()
 
     let returned: String = try await connection.transaction { transaction in
-        try await SwifQL
+        try await SQL
             .insertInto(table, fields: "id", "name")
             .values
             .values(Int32(1), "first")
             .execute(on: transaction)
 
-        try await SwifQL
+        try await SQL
             .insertInto(table, fields: "id", "name")
             .values
             .values(Int32(2), "second")
             .execute(on: transaction)
 
-        let inside = try await SwifQL
+        let inside = try await SQL
             .select(table.column("id"), table.column("name"))
             .from(table)
             .query(on: transaction)
@@ -209,7 +209,7 @@ func transactionPreservesNonSendableCallerState() async throws {
     let box = TransactionCallerBox()
 
     let returned: TransactionCallerBox = try await connection.transaction { transaction in
-        let result = try await SwifQL
+        let result = try await SQL
             .select(Fn.cast(Int32(42), .integer) => "value")
             .query(on: transaction)
         if result.rows.first?["value"] == .int32(42) {
@@ -229,7 +229,7 @@ func transactionBodyErrorRollsBackAndPreservesIdentity() async throws {
 
     do {
         try await connection.transaction { transaction in
-            try await SwifQL
+            try await SQL
                 .insertInto(table, fields: "id", "name")
                 .values
                 .values(Int32(1), "rolled back")
@@ -244,7 +244,7 @@ func transactionBodyErrorRollsBackAndPreservesIdentity() async throws {
     let rows = try await selectTransactionRows(from: table, on: connection)
     #expect(rows.rows.isEmpty)
 
-    let reused = try await SwifQL
+    let reused = try await SQL
         .select(Fn.cast(Int32(42), .integer) => "answer")
         .query(on: connection)
     #expect(reused.rows.first?["answer"] == .int32(42))
@@ -260,7 +260,7 @@ func caughtOperationFailureMakesTransactionRollbackOnly() async throws {
     do {
         try await connection.transaction { transaction in
             do {
-                _ = try await SwifQL
+                _ = try await SQL
                     .insertInto(missingTable, fields: "id")
                     .values
                     .values(Int32(1))
@@ -296,14 +296,14 @@ func laterBodyErrorWinsAfterCaughtOperationFailure() async throws {
 
     do {
         try await connection.transaction { transaction in
-            try await SwifQL
+            try await SQL
                 .insertInto(table, fields: "id", "name")
                 .values
                 .values(Int32(1), "must roll back")
                 .execute(on: transaction)
 
             do {
-                _ = try await SwifQL
+                _ = try await SQL
                     .insertInto(missingTable, fields: "id")
                     .values
                     .values(Int32(2))
@@ -332,14 +332,14 @@ func callerLocalPreparationFailureRegistersBeforePreparation() async throws {
 
     do {
         try await connection.transaction { transaction in
-            try await SwifQL
+            try await SQL
                 .insertInto(table, fields: "id", "name")
                 .values
                 .values(Int32(1), "must roll back")
                 .execute(on: transaction)
 
             do {
-                _ = try await SwifQL
+                _ = try await SQL
                     .select(TransactionBoundValue(value: UnsupportedTransactionBinding()) => "unsupported")
                     .query(on: transaction)
                 Issue.record("Expected caller-local binding normalization to fail.")
@@ -377,12 +377,12 @@ func callerLocalPreparationFailureRegistersBeforePreparation() async throws {
 @Test("Transaction rejects user BEGIN COMMIT and ROLLBACK control and rolls back")
 func transactionRejectsUserTransactionControl() async throws {
     let (connection, table) = try await makeTransactionTestConnection()
-    let controls = [SwifQL.begin, SwifQL.commit, SwifQL.rollback]
+    let controls = [SQL.begin, SQL.commit, SQL.rollback]
 
     for (offset, control) in controls.enumerated() {
         do {
             try await connection.transaction { transaction in
-                try await SwifQL
+                try await SQL
                     .insertInto(table, fields: "id", "name")
                     .values
                     .values(Int32(offset + 1), "before rejection")
@@ -404,7 +404,7 @@ func transactionRejectsUserTransactionControl() async throws {
     do {
         try await connection.transaction { transaction in
             do {
-                _ = try await transaction.query(SwifQL.begin)
+                _ = try await transaction.query(SQL.begin)
                 Issue.record("Expected query route transaction-control rejection.")
             } catch let error as DatabaseError {
                 #expect(error == .transactionControlNotAllowed)
@@ -427,7 +427,7 @@ func transactionBodyScopeGuardsConnectionIdentity() async throws {
 
     let value = try await connectionA.transaction { transactionA in
         do {
-            _ = try await SwifQL
+            _ = try await SQL
                 .select(Fn.cast(Int32(1), .integer) => "value")
                 .query(on: connectionA)
             Issue.record("Expected ordinary same-Connection scope violation.")
@@ -444,7 +444,7 @@ func transactionBodyScopeGuardsConnectionIdentity() async throws {
 
         let nestedValue = try await connectionB.transaction { transactionB in
             do {
-                _ = try await SwifQL
+                _ = try await SQL
                     .select(Fn.cast(Int32(2), .integer) => "value")
                     .query(on: connectionA)
                 Issue.record("Expected inherited outer Connection scope violation.")
@@ -452,13 +452,13 @@ func transactionBodyScopeGuardsConnectionIdentity() async throws {
                 #expect(error == .transactionScopeViolation)
             }
 
-            let result = try await SwifQL
+            let result = try await SQL
                 .select(Fn.cast(Int32(7), .integer) => "value")
                 .query(on: transactionB)
             return result.rows.first?["value"]
         }
 
-        let result = try await SwifQL
+        let result = try await SQL
             .select(Fn.cast(Int32(5), .integer) => "value")
             .query(on: transactionA)
         #expect(nestedValue == .int32(7))
@@ -576,7 +576,7 @@ func staleInheritedTransactionScopeIsIgnored() async throws {
     try await connection.transaction { _ in
         inheritedTask = Task {
             await release.wait()
-            return try await SwifQL
+            return try await SQL
                 .select(Fn.cast(Int32(8), .integer) => "value")
                 .query(on: connection)
         }
@@ -602,7 +602,7 @@ func structuredChildrenShareTransaction() async throws {
             for value in 1...8 {
                 group.addTask {
                     let childTable = Path.Table(tableName)
-                    return try await SwifQL
+                    return try await SQL
                         .insertInto(childTable, fields: "id", "name")
                         .values
                         .values(Int32(value), "value \(value)")
@@ -643,7 +643,7 @@ func ordinaryWorkQueuesBehindTransaction() async throws {
 
     let ordinaryTask = Task {
         await ordinaryStarted.signal()
-        return try await SwifQL
+        return try await SQL
             .select(Fn.cast(Int32(9), .integer) => "value")
             .query(on: connection)
     }
@@ -681,7 +681,7 @@ func alreadyCancelledTransactionDoesNotBeginBody() async throws {
 
     let bodyDidRun = await bodyRan.value()
     #expect(bodyDidRun == false)
-    let reused = try await SwifQL
+    let reused = try await SQL
         .select(Fn.cast(Int32(11), .integer) => "value")
         .query(on: connection)
     #expect(reused.rows.first?["value"] == .int32(11))
@@ -694,7 +694,7 @@ func cancelledTransactionOperationMakesScopeRollbackOnly() async throws {
 
     do {
         try await connection.transaction { transaction in
-            try await SwifQL
+            try await SQL
                 .insertInto(table, fields: "id", "name")
                 .values
                 .values(Int32(1), "must roll back")
@@ -703,7 +703,7 @@ func cancelledTransactionOperationMakesScopeRollbackOnly() async throws {
             let operationStart = TransactionTestSignal()
             let cancelledOperation = Task {
                 await operationStart.wait()
-                return try await SwifQL
+                return try await SQL
                     .select(Fn.cast(Int32(7), .integer) => "value")
                     .query(on: transaction)
             }
@@ -745,7 +745,7 @@ func cancellationBeforeCommitRollsBack() async throws {
     let task = Task {
         let taskTable = Path.Table(tableName)
         return try await connection.transaction { transaction in
-            try await SwifQL
+            try await SQL
                 .insertInto(taskTable, fields: "id", "name")
                 .values
                 .values(Int32(1), "cancelled")
@@ -817,7 +817,7 @@ func cancelledTransactionWaiterExitsAtBeginPreflight() async throws {
 
     let bodyDidRun = await bodyRan.value()
     #expect(bodyDidRun == false)
-    let reused = try await SwifQL
+    let reused = try await SQL
         .select(Fn.cast(Int32(12), .integer) => "value")
         .query(on: connection)
     #expect(reused.rows.first?["value"] == .int32(12))
@@ -874,7 +874,7 @@ func failCloseDrainsPendingTransactionReservation() async throws {
     #expect(bodyDidRun == false)
 
     do {
-        _ = try await SwifQL
+        _ = try await SQL
             .select(Fn.cast(Int32(13), .integer) => "value")
             .query(on: connection)
         Issue.record("Expected fail-closed Connection to reject later ordinary work.")
@@ -889,7 +889,7 @@ func failCloseDrainsPendingTransactionReservation() async throws {
         #expect(error == .connectionUnusable(failureMessage))
     }
 
-    let otherResult = try await SwifQL
+    let otherResult = try await SQL
         .select(Fn.cast(Int32(15), .integer) => "value")
         .query(on: otherConnection)
     #expect(otherResult.rows.first?["value"] == .int32(15))

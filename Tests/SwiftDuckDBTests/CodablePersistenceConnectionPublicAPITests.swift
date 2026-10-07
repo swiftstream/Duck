@@ -1,6 +1,6 @@
 import Foundation
 import SwiftDuckDB
-import SwifQL
+import SQL
 import Testing
 
 // MARK: - Public consumer model

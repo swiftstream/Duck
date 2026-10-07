@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 // MARK: - Models
@@ -304,7 +304,7 @@ func transactionModelFailureParticipatesInRollbackOnly() async throws {
 
             do {
                 _ = try await transaction.query(
-                    SwifQL.select(Fn.cast(Int32(1), .integer) => "value")
+                    SQL.select(Fn.cast(Int32(1), .integer) => "value")
                 )
                 Issue.record("Expected later transaction.query to throw stored first failure")
             } catch let laterError as DatabaseError {

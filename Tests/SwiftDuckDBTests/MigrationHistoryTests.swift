@@ -1,5 +1,5 @@
 import Foundation
-import SwifQL
+import SQL
 import Testing
 @testable import SwiftDuckDB
 
@@ -38,8 +38,8 @@ private func bootstrappedFixture() async throws -> HistoryFixture {
 private func malformedFixture(_ definition: String) async throws -> HistoryFixture {
     let database = try Database()
     let connection = try database.connect()
-    try await SwifQL.raw("CREATE SCHEMA __swiftduckdb").execute(on: connection)
-    try await SwifQL.raw(
+    try await SQL.raw("CREATE SCHEMA __swiftduckdb").execute(on: connection)
+    try await SQL.raw(
         "CREATE TABLE __swiftduckdb.migrations (\(definition))"
     ).execute(on: connection)
     return HistoryFixture(database: database, connection: connection)
@@ -144,7 +144,7 @@ func canonicalConstraintsAreAccepted() async throws {
 @Test("extra history column is rejected")
 func extraHistoryColumnIsRejected() async throws {
     let fixture = try await bootstrappedFixture()
-    try await SwifQL.raw(
+    try await SQL.raw(
         "ALTER TABLE __swiftduckdb.migrations ADD COLUMN extra VARCHAR"
     ).execute(on: fixture.connection)
 

@@ -1,5 +1,5 @@
 import Foundation
-import SwifQL
+import SQL
 
 struct ConnectionId: Hashable, Sendable {
     let rawValue: UUID
@@ -614,7 +614,7 @@ public struct Transaction: Sendable {
     }
 
     public nonisolated(nonsending) func query(
-        _ query: any SwifQLable
+        _ query: any SQLable
     ) async throws -> QueryResult {
         try await connection.rejectLiveAppenderBodyMisuse()
         let token = try await connection.registerTransactionOperation(reservationId)
@@ -636,7 +636,7 @@ public struct Transaction: Sendable {
 
     @discardableResult
     public nonisolated(nonsending) func execute(
-        _ query: any SwifQLable
+        _ query: any SQLable
     ) async throws -> UInt64 {
         try await connection.rejectLiveAppenderBodyMisuse()
         let token = try await connection.registerTransactionOperation(reservationId)

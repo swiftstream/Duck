@@ -1,22 +1,22 @@
 @testable import SwiftDuckDB
 import Cduckdb
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 private enum TemporalTestError: Error {
     case invalidValue
 }
 
-private struct TemporalBoundValue<Value: Encodable>: SwifQLable {
+private struct TemporalBoundValue<Value: Encodable>: SQLable {
     let value: Value
 
     init(_ value: Value) {
         self.value = value
     }
 
-    var parts: [SwifQLPart] {
-        [SwifQLPartUnsafeValue(value)]
+    var parts: [SQLPart] {
+        [SQLPartUnsafeValue(value)]
     }
 }
 
@@ -67,7 +67,7 @@ private func temporalStatement(
 ) async throws -> Statement {
     let connection = try Database().connect()
     return try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), type) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), type) => "value")
     }
 }
 
@@ -88,7 +88,7 @@ private func expectFoundationDateFailure(
     }
 }
 
-@Test("Temporal Value facade and Row conveniences preserve exact families")
+@Test("Temporal Value facade and ResultRow conveniences preserve exact families")
 func temporalValueFacadeAndRowConveniences() throws {
     let date = try makeDate(2026, 9, 7)
     let time = try makeTime(3_600_000_001)
@@ -130,7 +130,7 @@ func temporalValueFacadeAndRowConveniences() throws {
     #expect(dateValue.get(PureTime.self) == nil)
     #expect(Value.null.get(PureDate.self) == nil)
 
-    let row = Row(columns: ["date", "time", "date_time", "null"], values: [dateValue, timeValue, dateTimeValue, .null])
+    let row = ResultRow(columns: ["date", "time", "date_time", "null"], values: [dateValue, timeValue, dateTimeValue, .null])
     #expect(row.value("date", as: PureDate.self) == date)
     #expect(row.value(1, as: PureTime.self) == time)
     #expect(row.value("date_time", as: DateTime.self) == dateTime)
@@ -247,7 +247,7 @@ func ordinaryQueryTemporalVertical() async throws {
     let time = try makeTime(12_345_678_000)
     let dateTime = try makeDateTime(date, try makeTime(12_000_000_000))
     let result = try await connection.query(
-        SwifQL.select(
+        SQL.select(
             Fn.cast(date, .date) => "date_value",
             Fn.cast(time, .time) => "time_value",
             Fn.cast(time, .timeNs) => "time_ns_value",
@@ -312,7 +312,7 @@ func reusableStatementTemporalVerticalAndReuse() async throws {
 func appenderTemporalVerticalAndC07Preflight() async throws {
     let connection = try Database().connect()
     let table = Path.Table("temporal_appender_rows")
-    try await connection.execute(SwifQL.create.table[any: table].tableDefinitions(
+    try await connection.execute(SQL.create.table[any: table].tableDefinitions(
         NewColumn("date_value", .date),
         NewColumn("time_value", .time),
         NewColumn("time_ns_value", .timeNs),
@@ -328,7 +328,7 @@ func appenderTemporalVerticalAndC07Preflight() async throws {
         try await appender.append(date, time, time, dateTime, dateTime, dateTime, dateTime)
     }
     let result = try await connection.query(
-        SwifQL.select(
+        SQL.select(
             table.column("date_value"), table.column("time_value"), table.column("time_ns_value"),
             table.column("timestamp_s_value"), table.column("timestamp_ms_value"), table.column("timestamp_value"),
             table.column("timestamp_ns_value")
@@ -343,7 +343,7 @@ func appenderTemporalVerticalAndC07Preflight() async throws {
     #expect(try firstValue(result, column: "timestamp_ns_value") == .dateTime(dateTime))
 
     let precisionTable = Path.Table("temporal_appender_time_precision")
-    try await connection.execute(SwifQL.create.table[any: precisionTable].tableDefinitions(
+    try await connection.execute(SQL.create.table[any: precisionTable].tableDefinitions(
         NewColumn("id", .integer), NewColumn("time_value", .time)
     ))
     let oneNanosecond = try makeTime(1)
@@ -362,7 +362,7 @@ func appenderTemporalVerticalAndC07Preflight() async throws {
         try await appender.append(Int32(2), oneMicrosecond)
     }
     let precisionResult = try await connection.query(
-        SwifQL.select(precisionTable.column("id"), precisionTable.column("time_value")).from(precisionTable)
+        SQL.select(precisionTable.column("id"), precisionTable.column("time_value")).from(precisionTable)
     )
     #expect(precisionResult.rows.count == 1)
     #expect(precisionResult.rows.first?.value("id", as: Int32.self) == 2)
@@ -373,7 +373,7 @@ func appenderTemporalVerticalAndC07Preflight() async throws {
 func temporalNullOptionalAndNakedNil() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .date) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .date) => "value")
     }
     let none: PureDate? = nil
     #expect(try firstValue(await statement.query(nil), column: "value") == .null)
@@ -382,16 +382,16 @@ func temporalNullOptionalAndNakedNil() async throws {
 
     let date = try makeDate(2026, 9, 7)
     let ordinaryNone = try await connection.query(
-        SwifQL.select(TemporalBoundValue(Optional<PureDate>.none) => "value")
+        SQL.select(TemporalBoundValue(Optional<PureDate>.none) => "value")
     )
     let ordinarySome = try await connection.query(
-        SwifQL.select(TemporalBoundValue(Optional<PureDate>.some(date)) => "value")
+        SQL.select(TemporalBoundValue(Optional<PureDate>.some(date)) => "value")
     )
     #expect(try firstValue(ordinaryNone, column: "value") == .null)
     #expect(try firstValue(ordinarySome, column: "value") == .date(date))
 
     let table = Path.Table("temporal_optional_values")
-    try await connection.execute(SwifQL.create.table[any: table].tableDefinitions(
+    try await connection.execute(SQL.create.table[any: table].tableDefinitions(
         NewColumn("date_value", .date), NewColumn("time_value", .timeNs), NewColumn("date_time_value", .timestampNs)
     ))
     let time = try makeTime(123)
@@ -407,7 +407,7 @@ func temporalNullOptionalAndNakedNil() async throws {
         try await appender.append(dateNone, timeNone, dateTimeNone)
         try await appender.append(dateSome, timeSome, dateTimeSome)
     }
-    let rows = try await connection.query(SwifQL.select(
+    let rows = try await connection.query(SQL.select(
         table.column("date_value"), table.column("time_value"), table.column("date_time_value")
     ).from(table))
     #expect(rows.rows.count == 3)
@@ -425,7 +425,7 @@ func temporalResultLogicalPrecisionPreserved() async throws {
     let date = try makeDate(2026, 9, 7)
     let time = try makeTime(1_234_567_000)
     let dateTime = try makeDateTime(date, try makeTime(1_000_000_000))
-    let result = try await connection.query(SwifQL.select(
+    let result = try await connection.query(SQL.select(
         Fn.cast(time, .time) => "time",
         Fn.cast(time, .timeNs) => "time_ns",
         Fn.cast(dateTime, .timestampS) => "s",
@@ -441,13 +441,13 @@ func temporalResultLogicalPrecisionPreserved() async throws {
 func dateTimeTargetlessAndResolvedRangePolicy() async throws {
     let connection = try Database().connect()
     let dateTime = try makeDateTime(try makeDate(2026, 9, 7), try makeTime(123))
-    let result = try await connection.query(SwifQL.select(dateTime => "value"))
+    let result = try await connection.query(SQL.select(dateTime => "value"))
     #expect(try firstValue(result, column: "value") == .dateTime(dateTime))
     #expect(result.resultColumns.first?.logicalType.id == .timestampNS)
 
     let widerTimestampDateTime = try makeDateTime(try makeDate(3000, 1, 1), .midnight)
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(parameters.parameter() => "value")
+        SQL.select(parameters.parameter() => "value")
     }
     do {
         _ = try await statement.query(widerTimestampDateTime)
@@ -464,7 +464,7 @@ func dateTimeTargetlessAndResolvedRangePolicy() async throws {
 func b01PreparedStatementOutOfDomainDateRemainsReusable() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .date) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .date) => "value")
     }
     do {
         _ = try await statement.query(try makeDate(-5_877_641, 6, 24))
@@ -480,7 +480,7 @@ func b01PreparedStatementOutOfDomainDateRemainsReusable() async throws {
 func b01AppenderLaterColumnOutOfDomainDateIsRecoverable() async throws {
     let connection = try Database().connect()
     let table = Path.Table("temporal_b01_appender")
-    try await connection.execute(SwifQL.create.table[any: table].tableDefinitions(
+    try await connection.execute(SQL.create.table[any: table].tableDefinitions(
         NewColumn("id", .integer), NewColumn("date_value", .date)
     ))
     let valid = try makeDate(2026, 9, 7)
@@ -493,7 +493,7 @@ func b01AppenderLaterColumnOutOfDomainDateIsRecoverable() async throws {
         }
         try await appender.append(Int32(2), valid)
     }
-    let result = try await connection.query(SwifQL.select(table.column("id")).from(table))
+    let result = try await connection.query(SQL.select(table.column("id")).from(table))
     #expect(result.rows.count == 1)
     #expect(result.rows.first?.value(0, as: Int32.self) == 2)
 }
@@ -504,7 +504,7 @@ func b01DateTimeOutOfDomainRejectedResolvedAndTargetless() async throws {
     let dateTime = try makeDateTime(date, .midnight)
     let connection = try Database().connect()
     let targetless = try await connection.prepare { parameters in
-        SwifQL.select(parameters.parameter() => "value")
+        SQL.select(parameters.parameter() => "value")
     }
     let resolved = try await temporalStatement(.timestampS)
     do {
@@ -525,7 +525,7 @@ func b01DateTimeOutOfDomainRejectedResolvedAndTargetless() async throws {
     #expect(try firstValue(await resolved.query(valid), column: "value") == .dateTime(valid))
 }
 
-@Test("Foundation.Date Value and Row conveniences preserve the TIMESTAMPTZ family")
+@Test("Foundation.Date Value and ResultRow conveniences preserve the TIMESTAMPTZ family")
 func foundationDateValueFacadeAndRowConveniences() throws {
     let date = try makeFoundationDate(1_234_567_890_123)
     let value = Value.timestampTZ(date)
@@ -559,7 +559,7 @@ func foundationDateValueFacadeAndRowConveniences() throws {
     #expect(Value.date(try makeDate(2026, 9, 7)).get(Date.self) == nil)
     #expect(Value.null.get(Date.self) == nil)
 
-    let row = Row(columns: ["value", "null"], values: [value, .null])
+    let row = ResultRow(columns: ["value", "null"], values: [value, .null])
     #expect(row.value("value", as: Date.self) == date)
     #expect(row.value(0, as: Date.self) == date)
     #expect(row.timestampTZ("value") == date)
@@ -643,12 +643,12 @@ func ordinaryFoundationDateUsesTargetlessTimestampTZ() async throws {
     let connection = try Database().connect()
     let date = try makeFoundationDate(1_788_739_200_123_456)
 
-    let literalResult = try await connection.query(SwifQL.select(date => "value"))
+    let literalResult = try await connection.query(SQL.select(date => "value"))
     #expect(try firstValue(literalResult, column: "value") == .timestampTZ(date))
     #expect(literalResult.resultColumns.first?.logicalType.id == .timestampTZ)
 
     let boundResult = try await connection.query(
-        SwifQL.select(TemporalBoundValue(date) => "value")
+        SQL.select(TemporalBoundValue(date) => "value")
     )
     #expect(try firstValue(boundResult, column: "value") == .timestampTZ(date))
     #expect(boundResult.resultColumns.first?.logicalType.id == .timestampTZ)
@@ -659,7 +659,7 @@ func foundationDateNullOptionalAndValueWrapping() async throws {
     let connection = try Database().connect()
     let date = try makeFoundationDate(1_234_567)
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(parameters.parameter() => "value")
+        SQL.select(parameters.parameter() => "value")
     }
     let none: Date? = nil
     let some: Date? = date
@@ -671,10 +671,10 @@ func foundationDateNullOptionalAndValueWrapping() async throws {
     #expect(try firstValue(await statement.query(nil), column: "value") == .null)
 
     let ordinaryNone = try await connection.query(
-        SwifQL.select(TemporalBoundValue(Optional<Date>.none) => "value")
+        SQL.select(TemporalBoundValue(Optional<Date>.none) => "value")
     )
     let ordinarySome = try await connection.query(
-        SwifQL.select(TemporalBoundValue(Optional<Date>.some(date)) => "value")
+        SQL.select(TemporalBoundValue(Optional<Date>.some(date)) => "value")
     )
     #expect(try firstValue(ordinaryNone, column: "value") == .null)
     #expect(try firstValue(ordinarySome, column: "value") == .timestampTZ(date))
@@ -689,7 +689,7 @@ func reusableFoundationDateStatementTargetMatrix() async throws {
     #expect(try firstValue(await resolved.query(dateB), column: "value") == .timestampTZ(dateB))
 
     let targetlessDate = try await Database().connect().prepare { parameters in
-        SwifQL.select(parameters.parameter() => "value")
+        SQL.select(parameters.parameter() => "value")
     }
     #expect(try firstValue(await targetlessDate.query(dateA), column: "value") == .timestampTZ(dateA))
 
@@ -749,7 +749,7 @@ func foundationDateStatementRejectsInexactNonFiniteAndMismatchedTargets() async 
 func foundationDateAppenderPhaseOneFailureIsZeroMutationAndReusable() async throws {
     let connection = try Database().connect()
     let table = Path.Table("foundation_date_phase_one_appender")
-    try await connection.execute(SwifQL.create.table[any: table].tableDefinitions(
+    try await connection.execute(SQL.create.table[any: table].tableDefinitions(
         NewColumn("id", .integer), NewColumn("value", .timestamptz)
     ))
     let exact = try makeFoundationDate(1_000_001)
@@ -778,7 +778,7 @@ func foundationDateAppenderPhaseOneFailureIsZeroMutationAndReusable() async thro
         try await appender.append(Int32(3), exact)
     }
 
-    let result = try await connection.query(SwifQL.select(
+    let result = try await connection.query(SQL.select(
         table.column("id"), table.column("value")
     ).from(table))
     #expect(result.rows.count == 1)
@@ -790,7 +790,7 @@ func foundationDateAppenderPhaseOneFailureIsZeroMutationAndReusable() async thro
 func foundationDateAppenderAndResultRoundTrip() async throws {
     let connection = try Database().connect()
     let table = Path.Table("foundation_date_round_trip_appender")
-    try await connection.execute(SwifQL.create.table[any: table].tableDefinitions(
+    try await connection.execute(SQL.create.table[any: table].tableDefinitions(
         NewColumn("id", .integer), NewColumn("value", .timestamptz)
     ))
     let beforeEpoch = try makeFoundationDate(-1_000_001)
@@ -804,7 +804,7 @@ func foundationDateAppenderAndResultRoundTrip() async throws {
         try await appender.append(Int32(4), none)
     }
 
-    let result = try await connection.query(SwifQL.select(
+    let result = try await connection.query(SQL.select(
         table.column("id"), table.column("value")
     ).from(table))
     #expect(result.resultColumns.map(\.logicalType.id) == [.integer, .timestampTZ])
@@ -826,7 +826,7 @@ func foundationDateResultRejectsInfinityAndInexactRawValues() async throws {
     ]
     for sql in queries {
         do {
-            _ = try await connection.query(SwifQL.raw(sql))
+            _ = try await connection.query(SQL.raw(sql))
             Issue.record("Expected invalid TIMESTAMPTZ result for \(sql).")
         } catch let error as DatabaseError {
             guard case .invalidResult = error else {
@@ -837,7 +837,7 @@ func foundationDateResultRejectsInfinityAndInexactRawValues() async throws {
     }
 
     let control = try makeFoundationDate(1_000_001)
-    let valid = try await connection.query(SwifQL.select(control => "value"))
+    let valid = try await connection.query(SQL.select(control => "value"))
     #expect(try firstValue(valid, column: "value") == .timestampTZ(control))
     #expect(valid.resultColumns.first?.logicalType.id == .timestampTZ)
 }

@@ -1,9 +1,9 @@
 import Foundation
-import SwifQL
+import SQL
 
 // MARK: - Public decoding API
 
-extension Row {
+extension ResultRow {
     /// Decodes this row into a flat `Decodable` model.
     ///
     /// Column matching uses visible names. When `prefix` is non-empty, only
@@ -369,7 +369,7 @@ struct RowModelDecoder: Decoder {
                     DecodingError.Context(
                         codingPath: codingPath + [RowCodingKey(key)],
                         debugDescription:
-                            "Row values count is inconsistent with column layout at index \(index) for key '\(key)'"
+                            "ResultRow values count is inconsistent with column layout at index \(index) for key '\(key)'"
                     )
                 )
             }

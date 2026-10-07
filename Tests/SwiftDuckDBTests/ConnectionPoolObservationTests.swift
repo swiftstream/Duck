@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 private struct ConnectionPoolObservationBodyError: Error {}
@@ -14,7 +14,7 @@ private func createConnectionPoolObservationTable(
     on connection: Connection
 ) async throws {
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(
@@ -26,22 +26,22 @@ private func createConnectionPoolObservationTable(
 
 private func connectionPoolObservationQuery(
     for table: Path.Table
-) -> any SwifQLable {
-    SwifQL.select(table.column("id"), table.column("value")).from(table)
+) -> any SQLable {
+    SQL.select(table.column("id"), table.column("value")).from(table)
 }
 
 private func connectionPoolObservationSequenceQuery(
     _ sequenceName: String
-) -> any SwifQLable {
-    SwifQL.raw(
+) -> any SQLable {
+    SQL.raw(
         "SELECT last_value FROM duckdb_sequences() WHERE sequence_name = '\(sequenceName)'"
     )
 }
 
 private func connectionPoolObservationNextValueQuery(
     _ sequenceName: String
-) -> any SwifQLable {
-    SwifQL.raw("SELECT nextval('\(sequenceName)') AS value")
+) -> any SQLable {
+    SQL.raw("SELECT nextval('\(sequenceName)') AS value")
 }
 
 private func insertConnectionPoolObservationRow(
@@ -51,7 +51,7 @@ private func insertConnectionPoolObservationRow(
     on connection: Connection
 ) async throws {
     try await connection.execute(
-        SwifQL
+        SQL
             .insertInto(table, fields: "id", "value")
             .values
             .values(id, value)
@@ -176,7 +176,7 @@ struct ConnectionPoolObservationTests {
         try await pool.connection { connection in
             try await createConnectionPoolObservationTable(table, on: connection)
             try await connection.execute(
-                SwifQL.raw("CREATE SEQUENCE \(sequenceName) START 1")
+                SQL.raw("CREATE SEQUENCE \(sequenceName) START 1")
             )
         }
 
@@ -192,7 +192,7 @@ struct ConnectionPoolObservationTests {
         let readOnly = await connectionPoolObservationInvalidationEvidence(on: database) {
             try await pool.transaction { transaction in
                 _ = try await transaction.query(
-                    SwifQL.select(Fn.cast(Int32(42), .integer) => "value")
+                    SQL.select(Fn.cast(Int32(42), .integer) => "value")
                 )
             }
         }
@@ -202,7 +202,7 @@ struct ConnectionPoolObservationTests {
         let commit = await connectionPoolObservationInvalidationEvidence(on: database) {
             try await pool.transaction { transaction in
                 try await transaction.execute(
-                    SwifQL
+                    SQL
                         .insertInto(table, fields: "id", "value")
                         .values
                         .values(Int32(1), Int32(10))
@@ -219,7 +219,7 @@ struct ConnectionPoolObservationTests {
             do {
                 try await pool.transaction { transaction in
                     try await transaction.execute(
-                        SwifQL
+                        SQL
                             .insertInto(table, fields: "id", "value")
                             .values
                             .values(Int32(2), Int32(20))

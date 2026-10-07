@@ -1,5 +1,5 @@
 import Foundation
-import SwifQL
+import SQL
 import SwiftDuckDB
 import Testing
 
@@ -13,11 +13,11 @@ private struct HardeningFixture: Sendable, Equatable {
     let interval: Interval
 }
 
-private struct UnsafeBinding: SwifQLable {
+private struct UnsafeBinding: SQLable {
     let raw: any Encodable & Sendable
 
-    var parts: [SwifQLPart] {
-        [SwifQLPartUnsafeValue(raw)]
+    var parts: [SQLPart] {
+        [SQLPartUnsafeValue(raw)]
     }
 }
 
@@ -92,7 +92,7 @@ private func universalResult(
     fixture: HardeningFixture
 ) async throws -> QueryResult {
     try await connection.query(
-        SwifQL.select(
+        SQL.select(
             Fn.cast(fixture.uuid, .uuid) => "uuid_value",
             Fn.cast(fixture.date, .date) => "date_value",
             Fn.cast(fixture.time, .timeNs) => "time_value",
@@ -108,7 +108,7 @@ private func universalStatement(
     _ type: Type
 ) async throws -> Statement {
     try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), type) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), type) => "value")
     }
 }
 
@@ -119,10 +119,10 @@ private func ownerScoped128Results(
     let signed = (Int128(1) << 100) + 17
     let unsigned = (UInt128(1) << 100) + 29
     let signedResult = try await connection.query(
-        SwifQL.select(Fn.cast(int128Binding(signed), .hugeint) => "signed_value")
+        SQL.select(Fn.cast(int128Binding(signed), .hugeint) => "signed_value")
     )
     let unsignedResult = try await connection.query(
-        SwifQL.select(Fn.cast(uint128Binding(unsigned), .uhugeint) => "unsigned_value")
+        SQL.select(Fn.cast(uint128Binding(unsigned), .uhugeint) => "unsigned_value")
     )
     return (signedResult, unsignedResult, .int128(signed), .uint128(unsigned))
 }
@@ -393,7 +393,7 @@ func concurrentMixedFamilyAppenderRowsPreserveCorrelation() async throws {
     let connection = try Database().connect()
     let table = Path.Table("value_hardening_appender_rows")
     try await connection.execute(
-        SwifQL.create.table[any: table].tableDefinitions(
+        SQL.create.table[any: table].tableDefinitions(
             NewColumn("id", .integer),
             NewColumn("uuid_value", .uuid),
             NewColumn("date_value", .date),
@@ -425,7 +425,7 @@ func concurrentMixedFamilyAppenderRowsPreserveCorrelation() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(
+        SQL.select(
             table.column("id"),
             table.column("uuid_value"),
             table.column("date_value"),
@@ -530,7 +530,7 @@ private func targetlessDecimalStatement(
     on connection: Connection
 ) async throws -> Statement {
     try await connection.prepare { parameters in
-        SwifQL.select(parameters.parameter() => "value")
+        SQL.select(parameters.parameter() => "value")
     }
 }
 
@@ -569,7 +569,7 @@ func decimalResultSurvivesOwnerScope() async throws {
             let connection = try database.connect()
             weakConnection = connection
             return try await connection.query(
-                SwifQL.select(
+                SQL.select(
                     Fn.cast(expected, .decimal(19, 0)) => "value"
                 )
             )
@@ -678,7 +678,7 @@ func concurrentDecimalAppenderRowsPreserveCorrelation() async throws {
     let connection = try Database().connect()
     let table = Path.Table("value_hardening_decimal_appender_rows")
     try await connection.execute(
-        SwifQL.create.table[any: table].tableDefinitions(
+        SQL.create.table[any: table].tableDefinitions(
             NewColumn("id", .integer),
             NewColumn("amount", .decimal(19, 0))
         )
@@ -700,7 +700,7 @@ func concurrentDecimalAppenderRowsPreserveCorrelation() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(
+        SQL.select(
             table.column("id"),
             table.column("amount")
         )
@@ -758,7 +758,7 @@ func decimalStatementFailuresRecoverWithoutStaleTargets() async throws {
     let connection = try Database().connect()
 
     let roundingStatement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .decimal(3, 1)) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .decimal(3, 1)) => "value")
     }
     do {
         _ = try await roundingStatement.query(try hardeningDecimal("1.23"))
@@ -780,7 +780,7 @@ func decimalStatementFailuresRecoverWithoutStaleTargets() async throws {
     )
 
     let nonfiniteStatement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .decimal(4, 2)) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .decimal(4, 2)) => "value")
     }
     do {
         _ = try await nonfiniteStatement.query(Decimal.nan)
@@ -818,7 +818,7 @@ func decimalStatementFailuresRecoverWithoutStaleTargets() async throws {
     }
 
     do {
-        _ = try await connection.query(SwifQL.select(Decimal.nan => "value"))
+        _ = try await connection.query(SQL.select(Decimal.nan => "value"))
         Issue.record("Expected ordinary Connection Decimal conversion rejection.")
     } catch let error as DatabaseError {
         guard case .binding(let index, let message) = error else {
@@ -831,7 +831,7 @@ func decimalStatementFailuresRecoverWithoutStaleTargets() async throws {
 
     let ordinaryRecovery = try hardeningDecimal("1.23")
     try requireHardeningDecimalResult(
-        try await connection.query(SwifQL.select(ordinaryRecovery => "value")),
+        try await connection.query(SQL.select(ordinaryRecovery => "value")),
         value: ordinaryRecovery,
         width: 3,
         scale: 2
@@ -843,7 +843,7 @@ func decimalAppenderFailuresRemainAtomicAndReusable() async throws {
     let connection = try Database().connect()
     let table = Path.Table("value_hardening_decimal_appender_recovery")
     try await connection.execute(
-        SwifQL.create.table[any: table].tableDefinitions(
+        SQL.create.table[any: table].tableDefinitions(
             NewColumn("id", .integer),
             NewColumn("label", .varchar),
             NewColumn("amount", .decimal(3, 1))
@@ -893,7 +893,7 @@ func decimalAppenderFailuresRemainAtomicAndReusable() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(
+        SQL.select(
             table.column("id"),
             table.column("label"),
             table.column("amount")

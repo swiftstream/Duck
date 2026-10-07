@@ -1,5 +1,5 @@
 import Cduckdb
-import SwifQL
+import SQL
 import Testing
 
 private func openIntervalMemoryDatabase() throws -> (
@@ -13,7 +13,7 @@ private func openIntervalMemoryDatabase() throws -> (
     return (database, connection)
 }
 
-private func intervalQuerySQL(_ query: any SwifQLable) -> String {
+private func intervalQuerySQL(_ query: any SQLable) -> String {
     query.prepare(.duck).plain
 }
 
@@ -37,7 +37,7 @@ private func executePreparedInterval(
 
 private func queryIntervalVector(
     _ connection: duckdb_connection,
-    _ query: any SwifQLable
+    _ query: any SQLable
 ) throws -> [duckdb_interval] {
     var result = duckdb_result()
     try #require(duckdb_query(connection, intervalQuerySQL(query), &result) == DuckDBSuccess)
@@ -104,7 +104,7 @@ func preparedIntervalVectorRoundTrip() throws {
     defer { duckdb_disconnect(&connection) }
     let connected = try #require(connection)
 
-    let sql = intervalQuerySQL(SwifQL.select(SwifQL.raw("?") => "value"))
+    let sql = intervalQuerySQL(SQL.select(SQL.raw("?") => "value"))
     var statement: duckdb_prepared_statement?
     try #require(duckdb_prepare(connected, sql, &statement) == DuckDBSuccess)
     defer { duckdb_destroy_prepare(&statement) }
@@ -125,7 +125,7 @@ func preparedIntervalAllExtremaVectorRoundTrip() throws {
     defer { duckdb_disconnect(&connection) }
     let connected = try #require(connection)
 
-    let sql = intervalQuerySQL(SwifQL.select(SwifQL.raw("?") => "value"))
+    let sql = intervalQuerySQL(SQL.select(SQL.raw("?") => "value"))
     var statement: duckdb_prepared_statement?
     try #require(duckdb_prepare(connected, sql, &statement) == DuckDBSuccess)
     defer { duckdb_destroy_prepare(&statement) }
@@ -153,10 +153,10 @@ func preparedIntervalTargetMatrixNativePermissiveness() throws {
     defer { duckdb_disconnect(&connection) }
     let connected = try #require(connection)
 
-    let queries: [any SwifQLable] = [
-        SwifQL.select(SwifQL.raw("?") => "value"),
-        SwifQL.select(Fn.cast(SwifQL.raw("?"), .interval) => "value"),
-        SwifQL.select(Fn.cast(SwifQL.raw("?"), .varchar) => "value")
+    let queries: [any SQLable] = [
+        SQL.select(SQL.raw("?") => "value"),
+        SQL.select(Fn.cast(SQL.raw("?"), .interval) => "value"),
+        SQL.select(Fn.cast(SQL.raw("?"), .varchar) => "value")
     ]
     let expected = duckdb_interval(months: -2, days: 3, micros: 4)
 
@@ -178,7 +178,7 @@ func appenderIntervalRoundTrip() throws {
     let connected = try #require(connection)
 
     let table = Path.Table("interval_contract_appender")
-    let create = SwifQL.create.table[any: table].tableDefinitions(
+    let create = SQL.create.table[any: table].tableDefinitions(
         NewColumn("value", .interval)
     )
     var setup = duckdb_result()
@@ -207,7 +207,7 @@ func appenderIntervalRoundTrip() throws {
 
     let actual = try queryIntervalVector(
         connected,
-        SwifQL.select(table.column("value")).from(table)
+        SQL.select(table.column("value")).from(table)
     )
     #expect(actual.count == expected.count)
     for (actual, expected) in zip(actual, expected) {
@@ -224,7 +224,7 @@ func intervalPhysicalFieldPreservation() throws {
     defer { duckdb_disconnect(&connection) }
     let connected = try #require(connection)
 
-    let query = SwifQL.raw(
+    let query = SQL.raw(
         "SELECT (INTERVAL '1 month' + INTERVAL '40 days' + INTERVAL '2 microseconds') + INTERVAL '0 microseconds' AS value"
     )
     let values = try queryIntervalVector(connected, query)

@@ -1,5 +1,5 @@
 import Cduckdb
-import SwifQL
+import SQL
 import Testing
 
 private func openDecimalMemoryDatabase() throws -> (
@@ -13,7 +13,7 @@ private func openDecimalMemoryDatabase() throws -> (
     return (database, connection)
 }
 
-private func decimalSQL(_ query: any SwifQLable) -> String {
+private func decimalSQL(_ query: any SQLable) -> String {
     query.prepare(.duck).plain
 }
 
@@ -76,7 +76,7 @@ func directCDecimalLogicalOwnership() throws {
     defer { duckdb_disconnect(&connection) }
 
     var statement: duckdb_prepared_statement?
-    let sql = SwifQL.raw("SELECT CAST(? AS DECIMAL(19, 4)) AS value").prepare(.duck).plain
+    let sql = SQL.raw("SELECT CAST(? AS DECIMAL(19, 4)) AS value").prepare(.duck).plain
     try #require(
         sql.withCString { query in
             duckdb_prepare(connection, query, &statement)
@@ -109,7 +109,7 @@ func directCDecimalAppendValueOwnership() throws {
         duckdb_query(
             connected,
             decimalSQL(
-                SwifQL.create.table[any: table].tableDefinitions(
+                SQL.create.table[any: table].tableDefinitions(
                     NewColumn("value", .decimal(19, 0))
                 )
             ),
@@ -145,7 +145,7 @@ func directCDecimalAppendValueOwnership() throws {
 
     var result = duckdb_result()
     try #require(
-        duckdb_query(connected, decimalSQL(SwifQL.select(table.column("value")).from(table)), &result)
+        duckdb_query(connected, decimalSQL(SQL.select(table.column("value")).from(table)), &result)
             == DuckDBSuccess
     )
     defer { duckdb_destroy_result(&result) }

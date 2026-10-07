@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 private struct UnsupportedAppenderValue: Sendable {}
@@ -15,7 +15,7 @@ func scopedAppenderWritesTableRows() async throws {
     let table = Path.Table("appender_public_rows")
 
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(
@@ -42,7 +42,7 @@ func scopedAppenderWritesTableRows() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL
+        SQL
             .select(
                 table.column("id"),
                 table.column("name"),
@@ -69,9 +69,9 @@ func scopedAppenderWritesTableRows() async throws {
 @Test("Scoped Appender accepts a schema-qualified target")
 func scopedAppenderWritesSchemaTarget() async throws {
     let connection = try Database().connect()
-    _ = try await connection.execute(SwifQL.raw("CREATE SCHEMA appender_public_schema"))
+    _ = try await connection.execute(SQL.raw("CREATE SCHEMA appender_public_schema"))
     _ = try await connection.execute(
-        SwifQL.raw("CREATE TABLE appender_public_schema.events (id INTEGER)")
+        SQL.raw("CREATE TABLE appender_public_schema.events (id INTEGER)")
     )
 
     let table = Path.SchemaWithTable(
@@ -83,7 +83,7 @@ func scopedAppenderWritesSchemaTarget() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.raw("SELECT id FROM appender_public_schema.events")
+        SQL.raw("SELECT id FROM appender_public_schema.events")
     )
     #expect(result.rows.count == 1)
     #expect(result.rows.first?["id"] == .int32(7))
@@ -93,7 +93,7 @@ func scopedAppenderWritesSchemaTarget() async throws {
 func scopedAppenderWritesCatalogTarget() async throws {
     let connection = try Database().connect()
     let catalogResult = try await connection.query(
-        SwifQL.raw("SELECT current_database() AS catalog")
+        SQL.raw("SELECT current_database() AS catalog")
     )
     let catalogRow = try #require(catalogResult.rows.first)
     let catalogValue = try #require(catalogRow["catalog"])
@@ -102,9 +102,9 @@ func scopedAppenderWritesCatalogTarget() async throws {
         return
     }
 
-    _ = try await connection.execute(SwifQL.raw("CREATE SCHEMA appender_catalog_schema"))
+    _ = try await connection.execute(SQL.raw("CREATE SCHEMA appender_catalog_schema"))
     _ = try await connection.execute(
-        SwifQL.raw("CREATE TABLE appender_catalog_schema.events (id INTEGER)")
+        SQL.raw("CREATE TABLE appender_catalog_schema.events (id INTEGER)")
     )
 
     let table = Path.CatalogWithSchemaAndTable(
@@ -117,7 +117,7 @@ func scopedAppenderWritesCatalogTarget() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.raw("SELECT id FROM appender_catalog_schema.events")
+        SQL.raw("SELECT id FROM appender_catalog_schema.events")
     )
     #expect(result.rows.count == 1)
     #expect(result.rows.first?["id"] == .int32(8))
@@ -138,7 +138,7 @@ func appenderCreateFailureReleasesOrdinaryAdmission() async throws {
         #expect(!message.isEmpty)
     }
 
-    let result = try await connection.query(SwifQL.select(Int32(11) => "value"))
+    let result = try await connection.query(SQL.select(Int32(11) => "value"))
     #expect(result.rows.first?["value"] == .int32(11))
 }
 
@@ -147,7 +147,7 @@ func postAdmissionAppenderCancellationReleasesOrdinaryAdmission() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_cancelled_setup")
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(NewColumn("id", .integer))
@@ -170,7 +170,7 @@ func postAdmissionAppenderCancellationReleasesOrdinaryAdmission() async throws {
         // Expected.
     }
 
-    let result = try await connection.query(SwifQL.select(Int32(12) => "value"))
+    let result = try await connection.query(SQL.select(Int32(12) => "value"))
     #expect(result.rows.first?["value"] == .int32(12))
 }
 
@@ -179,7 +179,7 @@ func escapedAppenderRejectsAfterScopeEnd() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_escaped_scope")
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(NewColumn("id", .integer))
@@ -204,26 +204,26 @@ func appenderBodyRejectsSameConnectionOuterOperations() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_scope_guards")
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(NewColumn("id", .integer))
     )
-    let statement = try await connection.prepare(SwifQL.select(Int32(1) => "value"))
+    let statement = try await connection.prepare(SQL.select(Int32(1) => "value"))
 
     try await connection.appender(to: table) { appender in
         await expectAppenderScopeViolation {
-            _ = try await connection.query(SwifQL.select(Int32(1) => "value"))
+            _ = try await connection.query(SQL.select(Int32(1) => "value"))
         }
         await expectAppenderScopeViolation {
-            _ = try await connection.execute(SwifQL.select(Int32(1) => "value"))
+            _ = try await connection.execute(SQL.select(Int32(1) => "value"))
         }
         await expectAppenderScopeViolation {
-            _ = try await connection.prepare(SwifQL.select(Int32(1) => "value"))
+            _ = try await connection.prepare(SQL.select(Int32(1) => "value"))
         }
         await expectAppenderScopeViolation {
             _ = try await connection.prepare { parameters in
-                SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+                SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
             }
         }
         await expectAppenderScopeViolation {
@@ -243,7 +243,7 @@ func appenderBodyRejectsSameConnectionOuterOperations() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(table.column("id")).from(table)
+        SQL.select(table.column("id")).from(table)
     )
     #expect(result.rows.count == 1)
 }
@@ -253,7 +253,7 @@ func appenderRejectsLiveTransactionBody() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_transaction_exclusion")
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(NewColumn("id", .integer))
@@ -276,7 +276,7 @@ func appenderScopePermitsDifferentConnectionWork() async throws {
     let independentConnection = try database.connect()
     let table = Path.Table("appender_other_connection")
     try await appenderConnection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(NewColumn("id", .integer))
@@ -284,7 +284,7 @@ func appenderScopePermitsDifferentConnectionWork() async throws {
 
     try await appenderConnection.appender(to: table) { appender in
         let independent = try await independentConnection.query(
-            SwifQL.select(Int32(21) => "value")
+            SQL.select(Int32(21) => "value")
         )
         #expect(independent.rows.first?["value"] == .int32(21))
         try await appender.append(Int32(1))
@@ -296,7 +296,7 @@ func appenderCallerValidationRemainsRecoverable() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_caller_validation")
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(
@@ -327,7 +327,7 @@ func appenderCallerValidationRemainsRecoverable() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(table.column("id"), table.column("name")).from(table)
+        SQL.select(table.column("id"), table.column("name")).from(table)
     )
     #expect(result.rows.count == 1)
     #expect(result.rows.first?["id"] == .int32(1))
@@ -339,7 +339,7 @@ func appenderDeterministicPreflightMismatchStaysRecoverable() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_terminal_error")
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(NewColumn("id", .integer))
@@ -365,7 +365,7 @@ func appenderDeterministicPreflightMismatchStaysRecoverable() async throws {
     #expect(!message.isEmpty)
 
     let result = try await connection.query(
-        SwifQL.select(table.column("id")).from(table)
+        SQL.select(table.column("id")).from(table)
     )
     #expect(result.rows.count == 1)
     #expect(result.rows.first?["id"] == .int32(1))
@@ -376,13 +376,13 @@ func appenderFinalizationFailureLeavesConnectionUsable() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_finalization_error")
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(NewColumn("id", .integer).primaryKey())
     )
     _ = try await connection.execute(
-        SwifQL.insertInto(table, fields: "id").values.values(Int32(1))
+        SQL.insertInto(table, fields: "id").values.values(Int32(1))
     )
 
     do {
@@ -399,7 +399,7 @@ func appenderFinalizationFailureLeavesConnectionUsable() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(table.column("id")).from(table)
+        SQL.select(table.column("id")).from(table)
     )
     #expect(result.rows.count == 1)
 }
@@ -409,7 +409,7 @@ func appenderBodyErrorDiscardsBufferedRows() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_body_error")
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(NewColumn("id", .integer))
@@ -426,7 +426,7 @@ func appenderBodyErrorDiscardsBufferedRows() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(table.column("id")).from(table)
+        SQL.select(table.column("id")).from(table)
     )
     #expect(result.rows.isEmpty)
 }
@@ -436,7 +436,7 @@ func appenderAcceptsNakedNilAndOptionalValues() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_nullable_inputs")
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(
@@ -463,7 +463,7 @@ func appenderAcceptsNakedNilAndOptionalValues() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL
+        SQL
             .select(table.column("id"), table.column("name"), table.column("note"))
             .from(table)
             .orderBy(.asc(table.column("id")))

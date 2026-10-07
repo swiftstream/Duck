@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 // MARK: - Models
@@ -469,7 +469,7 @@ func updateReturningZeroRowsAfterDelete() async throws {
     let decoded = try await makeUser(name: "to-delete").insert(on: connection)
     decoded.name = "will-not-apply"
 
-    try await SwifQL
+    try await SQL
         .delete(from: Path.Table(WaveDUser.tableName))
         .where(Path.Column("id") == Int64(42))
         .execute(on: connection)
@@ -515,7 +515,7 @@ func schemaQualifiedInsertAndUpdate() async throws {
     #expect(inserted.label == uniqueLiteralProbe)
 
     // Prove the unqualified sentinel was not used.
-    let sentinelRows = try await SwifQL
+    let sentinelRows = try await SQL
         .select(Path.Column("id"), Path.Column("label"))
         .from(Path.Table(WaveDSchemaSentinel.tableName))
         .query(on: connection)
@@ -523,7 +523,7 @@ func schemaQualifiedInsertAndUpdate() async throws {
     #expect(sentinelModels.isEmpty || sentinelModels.allSatisfy { $0.label != uniqueLiteralProbe })
 
     // Schema table has the row.
-    let schemaRow = try await SwifQL
+    let schemaRow = try await SQL
         .select(Path.Column("id"), Path.Column("label"))
         .from(WaveDSchemaUser.table)
         .query(on: connection)
@@ -536,7 +536,7 @@ func schemaQualifiedInsertAndUpdate() async throws {
     #expect(updated.label == "schema-updated")
     #expect(updated.id == 7)
 
-    let schemaUpdated = try await SwifQL
+    let schemaUpdated = try await SQL
         .select(Path.Column("id"), Path.Column("label"))
         .from(WaveDSchemaUser.table)
         .query(on: connection)

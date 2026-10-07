@@ -1,18 +1,18 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
-// MARK: - Test-only SwifQL binding wrapper
+// MARK: - Test-only SQL binding wrapper
 
 /// Narrow test-only carrier that moves an already-encoded Swift value into the
-/// existing `.prepare(.duck).splitted` pipeline without mutating SwifQL and
+/// existing `.prepare(.duck).splitted` pipeline without mutating SQL and
 /// without adding production conformances.
-private struct UnsafeBinding: SwifQLable {
+private struct UnsafeBinding: SQLable {
     let raw: any Encodable & Sendable
 
-    var parts: [SwifQLPart] {
-        [SwifQLPartUnsafeValue(raw)]
+    var parts: [SQLPart] {
+        [SQLPartUnsafeValue(raw)]
     }
 }
 
@@ -145,24 +145,24 @@ func valueUUIDExactExtraction() {
     #expect(Value.null.uuidValue == nil)
 }
 
-// MARK: - Row conveniences
+// MARK: - ResultRow conveniences
 
-@Test("Row raw subscripts keep existing behavior")
+@Test("ResultRow raw subscripts keep existing behavior")
 func rowRawSubscripts() {
-    let row = Row(columns: ["id", "name"], values: [.int32(1), .string("Mike")])
+    let row = ResultRow(columns: ["id", "name"], values: [.int32(1), .string("Mike")])
     #expect(row[0] == .int32(1))
     #expect(row[1] == .string("Mike"))
     #expect(row["id"] == .int32(1))
     #expect(row["missing"] == nil)
 
-    let nullRow = Row(columns: ["nullable"], values: [.null])
+    let nullRow = ResultRow(columns: ["nullable"], values: [.null])
     #expect(nullRow["nullable"] == .null)
     #expect(nullRow["missing"] == nil)
 }
 
-@Test("Row typed conveniences extract exact values")
+@Test("ResultRow typed conveniences extract exact values")
 func rowTypedConveniences() {
-    let row = Row(
+    let row = ResultRow(
         columns: ["id", "email", "nothing"],
         values: [.int64(7), .string("mike@example.com"), .null]
     )
@@ -284,13 +284,13 @@ func uint128BoundaryRoundTrip() {
     #expect(Value.null.uint128Value == nil)
 }
 
-@Test("Row Int128 and UInt128 conveniences are exact and availability-gated")
+@Test("ResultRow Int128 and UInt128 conveniences are exact and availability-gated")
 func row128Conveniences() {
     guard #available(macOS 15.0, iOS 18.0, *) else {
         return
     }
 
-    let row = Row(
+    let row = ResultRow(
         columns: ["signed", "unsigned"],
         values: [Value.int128(-1), Value.uint128(1)]
     )
@@ -365,7 +365,7 @@ func ordinaryQueryUUIDVertical() async throws {
     let uuid = UUID(uuidString: "123E4567-E89B-12D3-A456-426614174000")!
 
     let resolved = try await connection.query(
-        SwifQL.select(Fn.cast(uuid, .uuid) => "value")
+        SQL.select(Fn.cast(uuid, .uuid) => "value")
     )
     let resolvedValue = try scalarResultValue(resolved, column: "value")
     #expect(resolvedValue == .uuid(uuid))
@@ -373,7 +373,7 @@ func ordinaryQueryUUIDVertical() async throws {
     #expect(try #require(resolved.resultColumns.first).logicalType.id == .uuid)
 
     let targetless = try await connection.query(
-        SwifQL.select(uuid => "value")
+        SQL.select(uuid => "value")
     )
     let targetlessValue = try scalarResultValue(targetless, column: "value")
     #expect(targetlessValue == .uuid(uuid))
@@ -381,7 +381,7 @@ func ordinaryQueryUUIDVertical() async throws {
 
     let none: UUID? = nil
     let nullResult = try await connection.query(
-        SwifQL.select(none => "value")
+        SQL.select(none => "value")
     )
     #expect(try scalarResultValue(nullResult, column: "value") == .null)
 }
@@ -405,7 +405,7 @@ func ordinaryQueryInt128Vertical() async throws {
 
     for value in values {
         let resolved = try await connection.query(
-            SwifQL.select(Fn.cast(int128Binding(value), .hugeint) => "value")
+            SQL.select(Fn.cast(int128Binding(value), .hugeint) => "value")
         )
         let resolvedValue = try scalarResultValue(resolved, column: "value")
         #expect(resolvedValue == .int128(value))
@@ -415,7 +415,7 @@ func ordinaryQueryInt128Vertical() async throws {
     }
 
     let targetless = try await connection.query(
-        SwifQL.select(int128Binding(Int128(1) << 64) => "value")
+        SQL.select(int128Binding(Int128(1) << 64) => "value")
     )
     let targetlessValue = try scalarResultValue(targetless, column: "value")
     #expect(targetlessValue.get(Int128.self) == Int128(1) << 64)
@@ -440,7 +440,7 @@ func ordinaryQueryUInt128Vertical() async throws {
 
     for value in values {
         let resolved = try await connection.query(
-            SwifQL.select(Fn.cast(uint128Binding(value), .uhugeint) => "value")
+            SQL.select(Fn.cast(uint128Binding(value), .uhugeint) => "value")
         )
         let resolvedValue = try scalarResultValue(resolved, column: "value")
         #expect(resolvedValue == .uint128(value))
@@ -450,7 +450,7 @@ func ordinaryQueryUInt128Vertical() async throws {
     }
 
     let targetless = try await connection.query(
-        SwifQL.select(uint128Binding(UInt128(1) << 64) => "value")
+        SQL.select(uint128Binding(UInt128(1) << 64) => "value")
     )
     let targetlessValue = try scalarResultValue(targetless, column: "value")
     #expect(targetlessValue.get(UInt128.self) == UInt128(1) << 64)
@@ -468,7 +468,7 @@ func reusableStatementInt128Vertical() async throws {
 
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .hugeint) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .hugeint) => "value")
     }
 
     let first = try await statement.query(Value.int128(Int128.min))
@@ -484,7 +484,7 @@ func reusableStatementInt128Vertical() async throws {
     #expect(try scalarResultValue(try await statement.query(nil), column: "value") == .null)
 
     let mismatched = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
     do {
         _ = try await mismatched.query(Value.int128(1))
@@ -507,7 +507,7 @@ func reusableStatementUInt128UUIDVertical() async throws {
 
     let connection = try Database().connect()
     let unsigned = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .uhugeint) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .uhugeint) => "value")
     }
     #expect(try scalarResultValue(try await unsigned.query(Value.uint128(0)), column: "value").get(UInt128.self) == 0)
     #expect(try scalarResultValue(try await unsigned.query(Value.uint128(UInt128.max)), column: "value").get(UInt128.self) == UInt128.max)
@@ -515,7 +515,7 @@ func reusableStatementUInt128UUIDVertical() async throws {
 
     let uuid = UUID(uuidString: "123E4567-E89B-12D3-A456-426614174000")!
     let uuidStatement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .uuid) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .uuid) => "value")
     }
     let firstUUID = try await uuidStatement.query(uuid)
     #expect(try scalarResultValue(firstUUID, column: "value") == .uuid(uuid))
@@ -524,7 +524,7 @@ func reusableStatementUInt128UUIDVertical() async throws {
     #expect(try scalarResultValue(secondUUID, column: "value").get(UUID.self) == uuid)
 
     let uuidMismatch = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
     do {
         _ = try await uuidMismatch.query(Value.uuid(uuid))
@@ -542,7 +542,7 @@ func reusableStatementUInt128UUIDVertical() async throws {
 
 private func nativeRowCount(_ connection: NativeConnection, table: String) throws -> Int64 {
     let statement = try connection.prepare(
-        SwifQL.raw("SELECT CAST(COUNT(*) AS BIGINT) AS count FROM \(table)").prepare(.duck).plain
+        SQL.raw("SELECT CAST(COUNT(*) AS BIGINT) AS count FROM \(table)").prepare(.duck).plain
     )
     let pending = try statement.pending()
     while try pending.executeTask() == .notReady {}
@@ -559,14 +559,14 @@ func appenderC07SameSignMatrix() throws {
     let connection = try database.connect()
 
     func readback(_ table: String) throws -> Value {
-        let result = try execute(connection, SwifQL.raw("SELECT value FROM \(table)"))
+        let result = try execute(connection, SQL.raw("SELECT value FROM \(table)"))
         let rows = try #require(try result.materializeNextChunk())
         let row = try #require(rows.first)
         return try #require(row["value"])
     }
 
     func roundTrip(table: String, type: String, value: Value, expected: Value) throws {
-        _ = try execute(connection, SwifQL.raw("CREATE TABLE \(table) (value \(type))"))
+        _ = try execute(connection, SQL.raw("CREATE TABLE \(table) (value \(type))"))
         let appender = try NativeAppender(connection: connection, table: table)
         try appender.appendRow([value])
         try appender.close()
@@ -575,7 +575,7 @@ func appenderC07SameSignMatrix() throws {
     }
 
     func rejects(table: String, type: String, value: Value) throws {
-        _ = try execute(connection, SwifQL.raw("CREATE TABLE \(table) (value \(type))"))
+        _ = try execute(connection, SQL.raw("CREATE TABLE \(table) (value \(type))"))
         let appender = try NativeAppender(connection: connection, table: table)
         do {
             try appender.appendRow([value])
@@ -642,7 +642,7 @@ func appenderB1Vertical() async throws {
     let connection = try Database().connect()
     let table = Path.Table("b1_vertical_rows")
     _ = try await connection.execute(
-        SwifQL.raw("CREATE TABLE b1_vertical_rows (huge HUGEINT, uhuge UHUGEINT, id UUID, note VARCHAR)")
+        SQL.raw("CREATE TABLE b1_vertical_rows (huge HUGEINT, uhuge UHUGEINT, id UUID, note VARCHAR)")
     )
 
     let uuids = [
@@ -674,7 +674,7 @@ func appenderB1Vertical() async throws {
         }
 
         let result = try await connection.query(
-            SwifQL.raw("SELECT huge, uhuge, id, note FROM b1_vertical_rows ORDER BY note NULLS LAST, huge")
+            SQL.raw("SELECT huge, uhuge, id, note FROM b1_vertical_rows ORDER BY note NULLS LAST, huge")
         )
         #expect(result.rows.count == signed.count + 2)
 
@@ -704,7 +704,7 @@ func appenderB1Vertical() async throws {
             )
         }
         let result = try await connection.query(
-            SwifQL.raw("SELECT huge, uhuge, id, note FROM b1_vertical_rows")
+            SQL.raw("SELECT huge, uhuge, id, note FROM b1_vertical_rows")
         )
         #expect(result.rows.count == 2)
         #expect(result.resultColumns.map(\.logicalType.id) == [.hugeint, .uhugeint, .uuid, .varchar])
@@ -720,7 +720,7 @@ func appenderNoPartialRowOnLaterColumnMismatch() async throws {
     let connection = try Database().connect()
     let table = Path.Table("b1_no_partial_rows")
     _ = try await connection.execute(
-        SwifQL.raw("CREATE TABLE b1_no_partial_rows (id INTEGER, big HUGEINT, label VARCHAR)")
+        SQL.raw("CREATE TABLE b1_no_partial_rows (id INTEGER, big HUGEINT, label VARCHAR)")
     )
 
     try await connection.appender(to: table) { appender in
@@ -741,7 +741,7 @@ func appenderNoPartialRowOnLaterColumnMismatch() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.raw("SELECT id, big, label FROM b1_no_partial_rows ORDER BY id")
+        SQL.raw("SELECT id, big, label FROM b1_no_partial_rows ORDER BY id")
     )
     #expect(result.rows.count == 2)
     #expect(result.rows[0].value("id", as: Int32.self) == 1)
@@ -752,7 +752,7 @@ func appenderNoPartialRowOnLaterColumnMismatch() async throws {
 
 private func execute(
     _ connection: NativeConnection,
-    _ query: any SwifQLable
+    _ query: any SQLable
 ) throws -> NativeResult {
     let statement = try connection.prepare(query.prepare(.duck).plain)
     let pending = try statement.pending()

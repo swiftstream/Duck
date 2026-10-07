@@ -65,7 +65,7 @@ final class NativeResult {
         return columns
     }
 
-    func materializeNextChunk(resultColumns: [ResultColumn]? = nil) throws -> [Row]? {
+    func materializeNextChunk(resultColumns: [ResultColumn]? = nil) throws -> [ResultRow]? {
         var chunk = duckdb_fetch_chunk(result)
         guard let chunkHandle = chunk else {
             return nil
@@ -123,7 +123,7 @@ final class NativeResult {
             }
         }
 
-        return valuesByRow.map { Row(columns: columns, values: $0) }
+        return valuesByRow.map { ResultRow(columns: columns, values: $0) }
     }
 
     private func materializeValue(

@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 private actor PoolTransactionSignal {
@@ -60,7 +60,7 @@ private func createPoolTransactionTable(
     on pool: ConnectionPool
 ) async throws {
     _ = try await pool.connection { connection in
-        try await SwifQL
+        try await SQL
             .create
             .table[any: table]
             .tableDefinitions(NewColumn("id", .integer))
@@ -77,7 +77,7 @@ struct ConnectionPoolTransactionTests {
         try await createPoolTransactionTable(table, on: pool)
 
         let result = try await pool.transaction { transaction in
-            try await SwifQL
+            try await SQL
                 .insertInto(table, fields: "id")
                 .values
                 .values(Int32(11))
@@ -87,7 +87,7 @@ struct ConnectionPoolTransactionTests {
 
         #expect(result == "committed")
         let rows = try await pool.connection { connection in
-            try await SwifQL
+            try await SQL
                 .select(table.column("id"))
                 .from(table)
                 .query(on: connection)
@@ -105,7 +105,7 @@ struct ConnectionPoolTransactionTests {
 
         do {
             try await pool.transaction { transaction in
-                try await SwifQL
+                try await SQL
                     .insertInto(table, fields: "id")
                     .values
                     .values(Int32(22))
@@ -118,7 +118,7 @@ struct ConnectionPoolTransactionTests {
         }
 
         let rows = try await pool.connection { connection in
-            try await SwifQL
+            try await SQL
                 .select(table.column("id"))
                 .from(table)
                 .query(on: connection)
@@ -132,7 +132,7 @@ struct ConnectionPoolTransactionTests {
         let pool = try Database().pool(maximumConnections: 1)
 
         let transactionConnectionId = try await pool.transaction { transaction in
-            let result = try await transaction.query(SwifQL.select(Int32(33) => "value"))
+            let result = try await transaction.query(SQL.select(Int32(33) => "value"))
             #expect(result.rows.first?["value"] == .int32(33))
             return transaction.connection.id
         }
@@ -155,7 +155,7 @@ struct ConnectionPoolTransactionTests {
         let transactionTask = Task {
             let taskTable = Path.Table(tableName)
             try await pool.transaction { transaction in
-                try await SwifQL
+                try await SQL
                     .insertInto(taskTable, fields: "id")
                     .values
                     .values(Int32(44))
@@ -170,7 +170,7 @@ struct ConnectionPoolTransactionTests {
             return try await pool.connection { connection in
                 await checkoutEntered.signal()
                 let taskTable = Path.Table(tableName)
-                let rows = try await SwifQL
+                let rows = try await SQL
                     .select(taskTable.column("id"))
                     .from(taskTable)
                     .query(on: connection)
@@ -232,7 +232,7 @@ struct ConnectionPoolTransactionTests {
         do {
             try await pool.connection { connection in
                 let transaction = try await connection.transaction()
-                try await SwifQL
+                try await SQL
                     .insertInto(table, fields: "id")
                     .values
                     .values(Int32(66))
@@ -244,7 +244,7 @@ struct ConnectionPoolTransactionTests {
         }
 
         let rows = try await pool.connection { connection in
-            try await SwifQL
+            try await SQL
                 .select(table.column("id"))
                 .from(table)
                 .query(on: connection)
@@ -262,7 +262,7 @@ struct ConnectionPoolTransactionTests {
         do {
             try await pool.connection { connection in
                 let transaction = try await connection.transaction()
-                try await SwifQL
+                try await SQL
                     .insertInto(table, fields: "id")
                     .values
                     .values(Int32(77))
@@ -275,7 +275,7 @@ struct ConnectionPoolTransactionTests {
         }
 
         let rows = try await pool.connection { connection in
-            try await SwifQL
+            try await SQL
                 .select(table.column("id"))
                 .from(table)
                 .query(on: connection)
@@ -291,12 +291,12 @@ struct ConnectionPoolTransactionTests {
 
         try await pool.transaction { transaction in
             escapedTransaction = transaction
-            _ = try await transaction.query(SwifQL.select(Int32(99) => "value"))
+            _ = try await transaction.query(SQL.select(Int32(99) => "value"))
         }
 
         let transaction = try #require(escapedTransaction)
         do {
-            _ = try await transaction.query(SwifQL.select(Int32(100) => "value"))
+            _ = try await transaction.query(SQL.select(Int32(100) => "value"))
             Issue.record("Expected the returned Transaction to reject native work.")
         } catch let error as DatabaseError {
             #expect(error == .poolLeaseExpired)
@@ -322,7 +322,7 @@ struct ConnectionPoolTransactionTests {
                 let managedTask = Task {
                     let taskTable = Path.Table(tableName)
                     try await connection.transaction { transaction in
-                        try await SwifQL
+                        try await SQL
                             .insertInto(taskTable, fields: "id")
                             .values
                             .values(Int32(1010))
@@ -356,7 +356,7 @@ struct ConnectionPoolTransactionTests {
 
         let freshConnection = try database.connect()
         let resultTable = Path.Table(tableName)
-        let rows = try await SwifQL
+        let rows = try await SQL
             .select(resultTable.column("id"))
             .from(resultTable)
             .query(on: freshConnection)

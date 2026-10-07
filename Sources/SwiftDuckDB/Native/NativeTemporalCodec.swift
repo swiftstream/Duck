@@ -1,5 +1,5 @@
 import Cduckdb
-import SwifQL
+import SQL
 
 struct NativeTemporalConversionError: Error, Sendable, Equatable {
     let message: String

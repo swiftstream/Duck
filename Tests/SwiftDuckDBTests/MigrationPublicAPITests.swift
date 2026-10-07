@@ -1,5 +1,5 @@
 import Foundation
-import SwifQL
+import SQL
 import Testing
 import SwiftDuckDB
 
@@ -23,7 +23,7 @@ struct MigrationPublicAPITests {
         #expect(try await publicRows(on: connection, tableName: ExplicitNamedMigration.tableName) == [11])
 
         let history = Path.Schema("__swiftduckdb").table("migrations")
-        let historyResult = try await SwifQL
+        let historyResult = try await SQL
             .select(
                 history.column("id"),
                 history.column("name"),
@@ -44,7 +44,7 @@ struct MigrationPublicAPITests {
         #expect(historyResult.rows[1].value("applied_at", as: Date.self) != nil)
 
         let columns = Path.Schema("information_schema").table("columns")
-        let columnResult = try await SwifQL
+        let columnResult = try await SQL
             .select(columns.column("column_name"))
             .from(columns)
             .where(
@@ -69,7 +69,7 @@ struct MigrationPublicAPITests {
 
         #expect(try await publicRows(on: connection, tableName: DefaultNamedMigration.tableName) == [])
         #expect(try await publicRows(on: connection, tableName: ExplicitNamedMigration.tableName) == [])
-        let finalHistory = try await SwifQL
+        let finalHistory = try await SQL
             .select(history.column("name"))
             .from(history)
             .query(on: connection)
@@ -97,12 +97,12 @@ private struct DefaultNamedMigration: Migration {
 
     @MigrationBuilder
     var up: MigrationPlan {
-        SwifQL
+        SQL
             .create
             .table[any: Path.Table(Self.tableName)]
             .tableDefinitions(NewColumn("value", .integer))
         Run { transaction in
-            try await SwifQL
+            try await SQL
                 .insertInto(Path.Table(Self.tableName), fields: "value")
                 .values
                 .values(Int32(7))
@@ -113,7 +113,7 @@ private struct DefaultNamedMigration: Migration {
     @MigrationBuilder
     var down: MigrationPlan {
         Run { transaction in
-            try await SwifQL
+            try await SQL
                 .delete
                 .from(Path.Table(Self.tableName))
                 .execute(on: transaction)
@@ -127,12 +127,12 @@ private struct ExplicitNamedMigration: Migration {
 
     @MigrationBuilder
     var up: MigrationPlan {
-        SwifQL
+        SQL
             .create
             .table[any: Path.Table(Self.tableName)]
             .tableDefinitions(NewColumn("value", .integer))
         Run { transaction in
-            try await SwifQL
+            try await SQL
                 .insertInto(Path.Table(Self.tableName), fields: "value")
                 .values
                 .values(Int32(11))
@@ -143,7 +143,7 @@ private struct ExplicitNamedMigration: Migration {
     @MigrationBuilder
     var down: MigrationPlan {
         Run { transaction in
-            try await SwifQL
+            try await SQL
                 .delete
                 .from(Path.Table(Self.tableName))
                 .execute(on: transaction)
@@ -169,7 +169,7 @@ private struct InvalidPublicMigration: Migration {
 
 private func publicRows(on connection: Connection, tableName: String) async throws -> [Int32] {
     let table = Path.Table(tableName)
-    let result = try await SwifQL
+    let result = try await SQL
         .select(table.column("value"))
         .from(table)
         .query(on: connection)

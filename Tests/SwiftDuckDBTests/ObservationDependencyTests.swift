@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Cduckdb
-import SwifQL
+import SQL
 import Testing
 
 @Suite("ObservationDependencyTests")
@@ -15,21 +15,21 @@ struct ObservationDependencyTests {
         try execute(tableCreationSQL(for: table), on: connection)
         try execute(tableCreationSQL(for: logs), on: connection)
         try execute(
-            SwifQL.raw("CREATE VIEW obs_parameters_view AS SELECT * FROM obs_parameters").prepare(.duck).plain,
+            SQL.raw("CREATE VIEW obs_parameters_view AS SELECT * FROM obs_parameters").prepare(.duck).plain,
             on: connection
         )
 
-        let simpleSQL = SwifQL.select(table.column("value")).from(table).prepare(.duck).plain
+        let simpleSQL = SQL.select(table.column("value")).from(table).prepare(.duck).plain
         let simpleNames = try #require(connection.tableNames(in: simpleSQL, qualified: true))
         let simpleTables = try normalized(simpleNames)
         #expect(!simpleTables.isEmpty)
         #expect(ObservationDependency.analyze(sql: simpleSQL, on: connection) == .tables(simpleTables))
 
-        let logsSQL = SwifQL.select(logs.column("value")).from(logs).prepare(.duck).plain
+        let logsSQL = SQL.select(logs.column("value")).from(logs).prepare(.duck).plain
         let logsNames = try #require(connection.tableNames(in: logsSQL, qualified: true))
         let logsTables = try normalized(logsNames)
 
-        let boundQuery = SwifQL
+        let boundQuery = SQL
             .select(table.column("value"))
             .from(table)
             .where(table.column("id") == Int32(1))
@@ -41,7 +41,7 @@ struct ObservationDependencyTests {
         #expect(boundDependency == .tables(simpleTables))
 
         let hostile = "x' OR 1=1; DROP TABLE obs_parameters; --"
-        let hostileQuery = SwifQL
+        let hostileQuery = SQL
             .select(table.column("value"))
             .from(table)
             .where(table.column("value") == hostile)
@@ -51,7 +51,7 @@ struct ObservationDependencyTests {
         #expect(ObservationDependency.analyze(sql: hostilePlain, on: connection) == .tables(simpleTables))
         _ = try connection.prepare(simpleSQL)
 
-        let joinSQL = SwifQL.raw(
+        let joinSQL = SQL.raw(
             "SELECT obs_parameters.id FROM obs_parameters JOIN obs_logs ON obs_parameters.id = obs_logs.id"
         ).prepare(.duck).plain
         let joinNames = try #require(connection.tableNames(in: joinSQL, qualified: true))
@@ -59,7 +59,7 @@ struct ObservationDependencyTests {
         #expect(joinTables == simpleTables.union(logsTables))
         #expect(ObservationDependency.analyze(sql: joinSQL, on: connection) == .tables(joinTables))
 
-        let cteSQL = SwifQL.raw(
+        let cteSQL = SQL.raw(
             "WITH selected AS (SELECT * FROM obs_parameters) SELECT * FROM selected"
         ).prepare(.duck).plain
         let cteNames = try #require(connection.tableNames(in: cteSQL, qualified: true))
@@ -67,22 +67,22 @@ struct ObservationDependencyTests {
         #expect(cteTables == simpleTables)
         #expect(ObservationDependency.analyze(sql: cteSQL, on: connection) == .tables(simpleTables))
 
-        let viewSQL = SwifQL.raw("SELECT * FROM obs_parameters_view").prepare(.duck).plain
+        let viewSQL = SQL.raw("SELECT * FROM obs_parameters_view").prepare(.duck).plain
         let viewNames = try #require(connection.tableNames(in: viewSQL, qualified: true))
         let viewTables = try normalized(viewNames)
         #expect(viewTables == simpleTables)
         #expect(ObservationDependency.analyze(sql: viewSQL, on: connection) == .tables(simpleTables))
 
-        let aliasSQL = SwifQL.raw("SELECT * FROM obs_parameters AS a").prepare(.duck).plain
+        let aliasSQL = SQL.raw("SELECT * FROM obs_parameters AS a").prepare(.duck).plain
         #expect(ObservationDependency.analyze(sql: aliasSQL, on: connection) == .database)
 
-        let unresolvedSQL = SwifQL.raw("SELECT * FROM obs_parameters WHERE id = $1").prepare(.duck).plain
+        let unresolvedSQL = SQL.raw("SELECT * FROM obs_parameters WHERE id = $1").prepare(.duck).plain
         #expect(ObservationDependency.analyze(sql: unresolvedSQL, on: connection) == .database)
 
-        let noTableSQL = SwifQL.raw("SELECT 42").prepare(.duck).plain
+        let noTableSQL = SQL.raw("SELECT 42").prepare(.duck).plain
         #expect(ObservationDependency.analyze(sql: noTableSQL, on: connection) == .tables([]))
 
-        let sequenceSQL = SwifQL.raw(
+        let sequenceSQL = SQL.raw(
             "SELECT last_value FROM duckdb_sequences() WHERE sequence_name = 'some_sequence'"
         ).prepare(.duck).plain
         #expect(ObservationDependency.analyze(sql: sequenceSQL, on: connection) == .tables([]))
@@ -183,7 +183,7 @@ struct ObservationDependencyTests {
 }
 
 private func tableCreationSQL(for table: Path.Table) -> String {
-    SwifQL.create.table[any: table]
+    SQL.create.table[any: table]
         .tableDefinitions(
             NewColumn("id", .integer),
             NewColumn("value", .text)

@@ -1,5 +1,5 @@
 import Cduckdb
-import SwifQL
+import SQL
 import Testing
 
 @Suite("ObservationBridgeTests")
@@ -14,7 +14,7 @@ struct ObservationBridgeTests {
         defer { duckdb_disconnect(&connection) }
         let connected = try #require(connection)
 
-        let selectSQL = SwifQL
+        let selectSQL = SQL
             .select(Fn.cast(Int32(42), .integer) => "answer")
             .prepare(.duck)
             .plain
@@ -26,12 +26,12 @@ struct ObservationBridgeTests {
         #expect(duckdb_bind_int32(preparedSelect, 1, 1) == DuckDBError)
         #expect(!swiftduckdb_prepared_statement_is_read_only(preparedSelect))
 
-        let createSequenceSQL = SwifQL.raw("CREATE SEQUENCE observation_bridge_sequence START 7").prepare(.duck).plain
+        let createSequenceSQL = SQL.raw("CREATE SEQUENCE observation_bridge_sequence START 7").prepare(.duck).plain
         var createSequenceResult = duckdb_result()
         try #require(duckdb_query(connected, createSequenceSQL, &createSequenceResult) == DuckDBSuccess)
         defer { duckdb_destroy_result(&createSequenceResult) }
 
-        let nextValueSQL = SwifQL.raw("SELECT nextval('observation_bridge_sequence')").prepare(.duck).plain
+        let nextValueSQL = SQL.raw("SELECT nextval('observation_bridge_sequence')").prepare(.duck).plain
         var nextValueStatement: duckdb_prepared_statement?
         try #require(duckdb_prepare(connected, nextValueSQL, &nextValueStatement) == DuckDBSuccess)
         let preparedNextValue = try #require(nextValueStatement)
@@ -49,12 +49,12 @@ struct ObservationBridgeTests {
         defer { duckdb_destroy_result(&ordinaryResult) }
         #expect(swiftduckdb_result_is_read_only(&ordinaryResult))
 
-        let createTableSQL = SwifQL.raw("CREATE TABLE observation_bridge_rows (value INTEGER)").prepare(.duck).plain
+        let createTableSQL = SQL.raw("CREATE TABLE observation_bridge_rows (value INTEGER)").prepare(.duck).plain
         var createTableResult = duckdb_result()
         try #require(duckdb_query(connected, createTableSQL, &createTableResult) == DuckDBSuccess)
         defer { duckdb_destroy_result(&createTableResult) }
 
-        let insertSQL = SwifQL.raw("INSERT INTO observation_bridge_rows VALUES (1)").prepare(.duck).plain
+        let insertSQL = SQL.raw("INSERT INTO observation_bridge_rows VALUES (1)").prepare(.duck).plain
         var insertResult = duckdb_result()
         try #require(duckdb_query(connected, insertSQL, &insertResult) == DuckDBSuccess)
         defer { duckdb_destroy_result(&insertResult) }
@@ -74,7 +74,7 @@ struct ObservationBridgeTests {
         defer { duckdb_disconnect(&connection) }
         let connected = try #require(connection)
 
-        let invalidSQL = SwifQL.raw("SELECT FROM").prepare(.duck).plain
+        let invalidSQL = SQL.raw("SELECT FROM").prepare(.duck).plain
         var errorResult = duckdb_result()
         #expect(duckdb_query(connected, invalidSQL, &errorResult) == DuckDBError)
         #expect(!swiftduckdb_result_is_read_only(&errorResult))

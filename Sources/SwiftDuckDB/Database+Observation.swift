@@ -1,4 +1,4 @@
-import SwifQL
+import SQL
 
 extension Database {
     /// Captures a reusable latest successful state observation synchronously.
@@ -10,7 +10,7 @@ extension Database {
     /// `Database` instance participate in invalidation; changes made through another
     /// `Database` instance, another process, or directly to the database file are
     /// outside this observation contract.
-    public func observe(_ query: any SwifQLable) throws -> QueryObservation {
+    public func observe(_ query: any SQLable) throws -> QueryObservation {
         QueryObservation(database: self, snapshot: try PreparedQuerySnapshot(query))
     }
 }

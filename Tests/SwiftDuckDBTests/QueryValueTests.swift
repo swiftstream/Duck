@@ -2,9 +2,9 @@
 import Foundation
 import Testing
 
-@Test("Row named lookup returns the first matching duplicate column")
+@Test("ResultRow named lookup returns the first matching duplicate column")
 func rowNamedLookupReturnsFirstDuplicateColumn() {
-    let row = Row(
+    let row = ResultRow(
         columns: ["id", "name", "id"],
         values: [.int32(1), .string("first"), .int32(2)]
     )
@@ -13,9 +13,9 @@ func rowNamedLookupReturnsFirstDuplicateColumn() {
     #expect(row[2] == Value.int32(2))
 }
 
-@Test("Row distinguishes SQL null from a missing column")
+@Test("ResultRow distinguishes SQL null from a missing column")
 func rowDistinguishesNullFromMissingColumn() {
-    let row = Row(columns: ["nullable"], values: [.null])
+    let row = ResultRow(columns: ["nullable"], values: [.null])
 
     #expect(row["nullable"] == Value.null)
     #expect(row["missing"] == nil)
@@ -24,7 +24,7 @@ func rowDistinguishesNullFromMissingColumn() {
 @Test("Query value surface is Sendable and Equatable")
 func queryValueSurfaceIsSendableAndEquatable() {
     let value = Value.blob(Data([0x00, 0x7F, 0xFF]))
-    let row = Row(columns: ["payload"], values: [value])
+    let row = ResultRow(columns: ["payload"], values: [value])
     let resultColumn = ResultColumn(
         name: "payload",
         logicalType: LogicalType(id: .blob)

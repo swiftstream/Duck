@@ -1,7 +1,7 @@
 @testable import SwiftDuckDB
 import A1PendingGate
 import Cduckdb
-import SwifQL
+import SQL
 import Testing
 
 private enum ActivePendingQueryOutcome: Equatable, Sendable {
@@ -58,10 +58,10 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
     }
 
     let connection = try Connection(database: database, nativeDatabase: nativeDatabase)
-    _ = try await connection.query(SwifQL.raw("SET threads = 1"))
+    _ = try await connection.query(SQL.raw("SET threads = 1"))
 
     let settings = try await connection.query(
-        SwifQL.raw(
+        SQL.raw(
             "SELECT CAST(current_setting('threads') AS INTEGER) AS threads, " +
                 "CAST(current_setting('external_threads') AS INTEGER) AS external_threads"
         )
@@ -73,10 +73,10 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
         return
     }
 
-    let gatedQuery = SwifQL.raw("SELECT \(functionName)() AS value")
+    let gatedQuery = SQL.raw("SELECT \(functionName)() AS value")
     let probeSQL = gatedQuery.prepare(.duck).plain
     let explainResult = try await connection.query(
-        SwifQL.raw("EXPLAIN SELECT \(functionName)()")
+        SQL.raw("EXPLAIN SELECT \(functionName)()")
     )
     let physicalPlan = explainResult.rows
         .compactMap { $0["explain_value"]?.stringValue }
@@ -101,7 +101,7 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
             }
         }
         guard prepareState == DuckDBSuccess, let preparedStatement = prepared else {
-            Issue.record("The public DuckDB C API could not prepare the SwifQL-generated callback probe.")
+            Issue.record("The public DuckDB C API could not prepare the SQL-generated callback probe.")
             duckdb_destroy_prepare(&prepared)
             return
         }
@@ -148,7 +148,7 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
     let queryTask = Task { () -> ActivePendingTaskOutcome in
         let queryOutcome: ActivePendingQueryOutcome
         do {
-            let result = try await connection.query(SwifQL.raw("SELECT \(functionName)() AS value"))
+            let result = try await connection.query(SQL.raw("SELECT \(functionName)() AS value"))
             queryOutcome = .value(result.rows.first?["value"])
         } catch is CancellationError {
             queryOutcome = .cancellation
@@ -200,7 +200,7 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
     #expect(executionCallbackCount == 1)
 
     let reuseResult = try await connection.query(
-        SwifQL.select(Fn.cast(Int32(7), .integer) => "value")
+        SQL.select(Fn.cast(Int32(7), .integer) => "value")
     )
     #expect(reuseResult.rows.first?["value"] == .int32(7))
 

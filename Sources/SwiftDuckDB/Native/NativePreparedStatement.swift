@@ -1,6 +1,6 @@
 import Cduckdb
 import Foundation
-import SwifQL
+import SQL
 
 final class NativePreparedStatement {
     let connection: NativeConnection

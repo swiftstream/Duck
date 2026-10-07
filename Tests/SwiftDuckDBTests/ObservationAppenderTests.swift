@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 private let ordinaryThreshold = 204_800
@@ -29,7 +29,7 @@ private func makeAppenderContext(
     let connection = try database.connect()
     let table = Path.Table(uniqueTableName(prefix))
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(columns)
@@ -46,7 +46,7 @@ private func rowCount(
     on connection: Connection
 ) async throws -> Int64 {
     let result = try await connection.query(
-        SwifQL.select(Fn.count(table.column("id")) => "count").from(table)
+        SQL.select(Fn.count(table.column("id")) => "count").from(table)
     )
     let row = try #require(result.rows.first)
     let value = try #require(row["count"])
@@ -116,7 +116,7 @@ private func currentCatalog(
     sourceLocation: SourceLocation = #_sourceLocation
 ) async throws -> String {
     let result = try await connection.query(
-        SwifQL.raw("SELECT current_database() AS catalog")
+        SQL.raw("SELECT current_database() AS catalog")
     )
     let row = try #require(result.rows.first, sourceLocation: sourceLocation)
     let value = try #require(row["catalog"], sourceLocation: sourceLocation)
@@ -212,7 +212,7 @@ struct ObservationAppenderTests {
         let schema = "main"
         let schemaTable = Path.SchemaWithTable(schema: schema, table: uniqueTableName("oa02_schema"))
         try await context.connection.execute(
-            SwifQL
+            SQL
                 .create
                 .table[any: schemaTable]
                 .tableDefinitions(NewColumn("id", .integer))
@@ -405,7 +405,7 @@ struct ObservationAppenderTests {
         let tableB = Path.Table(nameB)
         for table in [tableA, tableB] {
             try await connection.execute(
-                SwifQL
+                SQL
                     .create
                     .table[any: table]
                     .tableDefinitions(NewColumn("id", .integer))
@@ -456,7 +456,7 @@ struct ObservationAppenderTests {
         let connection = try database.connect()
         let tableName = "Oa09_MiXeD_" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
         try await connection.execute(
-            SwifQL
+            SQL
                 .create
                 .table[any: Path.Table(tableName)]
                 .tableDefinitions(NewColumn("id", .integer))
@@ -495,13 +495,13 @@ struct ObservationAppenderTests {
         #expect(catalogSpelling != catalog)
 
         let bareObservation = try database.observe(
-            SwifQL.raw("SELECT id FROM \(bareTableSpelling)")
+            SQL.raw("SELECT id FROM \(bareTableSpelling)")
         )
         let schemaObservation = try database.observe(
-            SwifQL.raw("SELECT id FROM \(schemaSpelling).\(schemaTableSpelling)")
+            SQL.raw("SELECT id FROM \(schemaSpelling).\(schemaTableSpelling)")
         )
         let catalogObservation = try database.observe(
-            SwifQL.raw("SELECT id FROM \(catalogSpelling).\(schemaSpelling).\(schemaTableSpelling)")
+            SQL.raw("SELECT id FROM \(catalogSpelling).\(schemaSpelling).\(schemaTableSpelling)")
         )
         var bareIterator = bareObservation.makeAsyncIterator()
         var schemaIterator = schemaObservation.makeAsyncIterator()
@@ -536,7 +536,7 @@ struct ObservationAppenderTests {
         let catalog = try await currentCatalog(on: connection)
         let unsafeName = "oa10 unsafe target table"
         _ = try await connection.execute(
-            SwifQL.raw(#"CREATE TABLE "oa10 unsafe target table" (id INTEGER)"#)
+            SQL.raw(#"CREATE TABLE "oa10 unsafe target table" (id INTEGER)"#)
         )
         #expect(ObservationTableName(components: [catalog, "main", unsafeName]) == nil)
 
@@ -558,7 +558,7 @@ struct ObservationAppenderTests {
         #expect(count == 1)
 
         let result = try await connection.query(
-            SwifQL.raw(#"SELECT count(*) AS count FROM "oa10 unsafe target table""#)
+            SQL.raw(#"SELECT count(*) AS count FROM "oa10 unsafe target table""#)
         )
         let row = try #require(result.rows.first)
         let value = try #require(row["count"])
@@ -621,7 +621,7 @@ struct ObservationAppenderTests {
         let connection = try database.connect()
         let table = Path.Table(uniqueTableName("oa12"))
         _ = try await connection.execute(
-            SwifQL.raw(
+            SQL.raw(
                 "CREATE TABLE \(table.name) (id INTEGER CHECK(id >= 0))"
             )
         )
@@ -677,7 +677,7 @@ struct ObservationAppenderTests {
         #expect(try await rowCount(from: table, on: connection) == 0)
 
         let reused = try await connection.query(
-            SwifQL.select(Fn.cast(Int32(42), .integer) => "value")
+            SQL.select(Fn.cast(Int32(42), .integer) => "value")
         )
         #expect(reused.rows.first?["value"] == .int32(42))
     }
@@ -688,13 +688,13 @@ struct ObservationAppenderTests {
         let connection = try database.connect()
         let table = Path.Table(uniqueTableName("oa13"))
         try await connection.execute(
-            SwifQL
+            SQL
                 .create
                 .table[any: table]
                 .tableDefinitions(NewColumn("id", .integer).primaryKey())
         )
         _ = try await connection.execute(
-            SwifQL.insertInto(table, fields: "id").values.values(Int32(1))
+            SQL.insertInto(table, fields: "id").values.values(Int32(1))
         )
 
         let registration = await database.observationCoordinator.register(
@@ -724,7 +724,7 @@ struct ObservationAppenderTests {
         #expect(try await rowCount(from: table, on: connection) == 1)
 
         let result = try await connection.query(
-            SwifQL.select(Fn.cast(Int32(7), .integer) => "value")
+            SQL.select(Fn.cast(Int32(7), .integer) => "value")
         )
         #expect(result.rows.first?["value"] == .int32(7))
     }
@@ -738,12 +738,12 @@ struct ObservationAppenderTests {
         let analysisDatabase = try NativeDatabase()
         let analysisConnection = try analysisDatabase.connect()
         try executeNative(
-            SwifQL.raw(
+            SQL.raw(
                 "CREATE TABLE \(context.table.name) (id INTEGER, value INTEGER)"
             ).prepare(.duck).plain,
             on: analysisConnection
         )
-        let aliasSQL = SwifQL.raw(
+        let aliasSQL = SQL.raw(
             "SELECT * FROM \(context.table.name) AS a"
         ).prepare(.duck).plain
         #expect(
@@ -752,7 +752,7 @@ struct ObservationAppenderTests {
         )
 
         let observation = try context.database.observe(
-            SwifQL.raw("SELECT * FROM \(context.table.name) AS a")
+            SQL.raw("SELECT * FROM \(context.table.name) AS a")
         )
         var iterator = observation.makeAsyncIterator()
         let initial = try #require(try await iterator.next())
@@ -801,7 +801,7 @@ struct ObservationAppenderTests {
         let otherName = uniqueTableName("oa16_other")
         let otherTable = Path.Table(otherName)
         try await independent.execute(
-            SwifQL
+            SQL
                 .create
                 .table[any: otherTable]
                 .tableDefinitions(NewColumn("id", .integer))
@@ -977,7 +977,7 @@ struct ObservationAppenderTests {
         let nameB = uniqueTableName("oa20_b")
         for name in [nameA, nameB] {
             try await connection.execute(
-                SwifQL
+                SQL
                     .create
                     .table[any: Path.Table(name)]
                     .tableDefinitions(NewColumn("id", .integer))
@@ -1035,7 +1035,7 @@ struct ObservationAppenderTests {
         let tableB = Path.Table(nameB)
         for table in [tableA, tableB] {
             try await connection.execute(
-                SwifQL
+                SQL
                     .create
                     .table[any: table]
                     .tableDefinitions(NewColumn("id", .integer))
@@ -1095,7 +1095,7 @@ struct ObservationAppenderTests {
         let catalog = try await currentCatalog(on: connection)
         let unsafeName = "oa22 unsafe target table"
         _ = try await connection.execute(
-            SwifQL.raw(#"CREATE TABLE "oa22 unsafe target table" (id INTEGER)"#)
+            SQL.raw(#"CREATE TABLE "oa22 unsafe target table" (id INTEGER)"#)
         )
         #expect(ObservationTableName(components: [catalog, "main", unsafeName]) == nil)
 
@@ -1129,7 +1129,7 @@ struct ObservationAppenderTests {
         #expect(count == 1)
 
         let result = try await connection.query(
-            SwifQL.raw(#"SELECT count(*) AS count FROM "oa22 unsafe target table""#)
+            SQL.raw(#"SELECT count(*) AS count FROM "oa22 unsafe target table""#)
         )
         let row = try #require(result.rows.first)
         let value = try #require(row["count"])
@@ -1281,7 +1281,7 @@ struct ObservationAppenderTests {
         #expect(try await rowCount(from: context.table, on: independent) == 0)
 
         let reusable = try await context.connection.query(
-            SwifQL.select(Fn.cast(Int32(11), .integer) => "value")
+            SQL.select(Fn.cast(Int32(11), .integer) => "value")
         )
         #expect(reusable.rows.first?["value"] == .int32(11))
     }

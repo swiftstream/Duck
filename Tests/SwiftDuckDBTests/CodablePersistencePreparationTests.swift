@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 // MARK: - Models
@@ -210,7 +210,7 @@ func decodedStateExtraction() async throws {
     let connection = try Database().connect()
     let table = Path.Table(PersistenceUser.tableName)
 
-    try await SwifQL
+    try await SQL
         .create
         .table[any: table]
         .tableDefinitions(
@@ -226,7 +226,7 @@ func decodedStateExtraction() async throws {
         )
         .execute(on: connection)
 
-    try await SwifQL
+    try await SQL
         .insertInto(
             table,
             fields: "required_name", "optional_note", "optional_default_code",
@@ -304,7 +304,7 @@ func preparedPlaceholderAndExactBindings() throws {
         significand: Decimal(987_654)
     )
 
-    let query = SwifQL
+    let query = SQL
         .insertInto(table, fields: "required_name", "id", "payload", "amount")
         .values
         .values(
@@ -340,7 +340,7 @@ func preparedPlaceholderAndExactBindings() throws {
 @Test("PreparedModelValue.encode is never used on the ordinary prepare path")
 func preparedModelValueEncodeNotUsed() throws {
     let table = Path.Table(PersistenceUser.tableName)
-    let query = SwifQL
+    let query = SQL
         .insertInto(table, fields: "required_name")
         .values
         .values(BoundModelValue(value: .string(uniqueLiteralProbe)))
@@ -370,7 +370,7 @@ func normalizeBindingCarrierUnwrap() throws {
 func statementFixedBindingForBoundModelValue() throws {
     let table = Path.Table(PersistenceUser.tableName)
     let uniqueString = uniqueLiteralProbe
-    let query = SwifQL
+    let query = SQL
         .insertInto(table, fields: "required_name", "id")
         .values
         .values(
@@ -393,7 +393,7 @@ func statementMixedFixedAndDynamicProvenance() throws {
     let parameters = Statement.Parameters()
     let dynamicAge = parameters.parameter()
 
-    let query = SwifQL
+    let query = SQL
         .insertInto(table, fields: "required_name", "age")
         .values
         .values(

@@ -1,5 +1,5 @@
 @testable import SwiftDuckDB
-import SwifQL
+import SQL
 import Testing
 
 @Test("Prepared statements classify transaction control through DuckDB metadata")
@@ -7,11 +7,11 @@ func preparedStatementsClassifyTransactionControl() throws {
     let database = try NativeDatabase()
     let connection = try database.connect()
 
-    let begin = try connection.prepare(SwifQL.begin.prepare(.duck).plain)
-    let commit = try connection.prepare(SwifQL.commit.prepare(.duck).plain)
-    let rollback = try connection.prepare(SwifQL.rollback.prepare(.duck).plain)
+    let begin = try connection.prepare(SQL.begin.prepare(.duck).plain)
+    let commit = try connection.prepare(SQL.commit.prepare(.duck).plain)
+    let rollback = try connection.prepare(SQL.rollback.prepare(.duck).plain)
     let select = try connection.prepare(
-        SwifQL
+        SQL
             .select(Fn.cast(Int32(1), .integer) => "value")
             .prepare(.duck)
             .plain
@@ -29,35 +29,35 @@ func connectionRejectsUserTransactionControl() async throws {
     let connection = try database.connect()
 
     do {
-        _ = try await connection.execute(SwifQL.begin)
+        _ = try await connection.execute(SQL.begin)
         Issue.record("Expected BEGIN to be rejected as user transaction control.")
     } catch let error as DatabaseError {
         #expect(error == .transactionControlNotAllowed)
     }
 
     do {
-        _ = try await connection.execute(SwifQL.commit)
+        _ = try await connection.execute(SQL.commit)
         Issue.record("Expected COMMIT to be rejected as user transaction control.")
     } catch let error as DatabaseError {
         #expect(error == .transactionControlNotAllowed)
     }
 
     do {
-        _ = try await connection.execute(SwifQL.rollback)
+        _ = try await connection.execute(SQL.rollback)
         Issue.record("Expected ROLLBACK to be rejected as user transaction control.")
     } catch let error as DatabaseError {
         #expect(error == .transactionControlNotAllowed)
     }
 
     do {
-        _ = try await connection.query(SwifQL.begin)
+        _ = try await connection.query(SQL.begin)
         Issue.record("Expected query execution of transaction control to be rejected.")
     } catch let error as DatabaseError {
         #expect(error == .transactionControlNotAllowed)
     }
 
     let result = try await connection.query(
-        SwifQL.select(Fn.cast(Int32(42), .integer) => "answer")
+        SQL.select(Fn.cast(Int32(42), .integer) => "answer")
     )
     #expect(result.rows.first?["answer"] == .int32(42))
 }

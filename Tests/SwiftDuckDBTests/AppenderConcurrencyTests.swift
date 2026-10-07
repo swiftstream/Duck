@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 @Test("Appender persists many complete rows across native chunks")
@@ -8,7 +8,7 @@ func appenderPersistsManyCompleteRows() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_many_rows")
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(
@@ -24,7 +24,7 @@ func appenderPersistsManyCompleteRows() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL
+        SQL
             .select(table.column("id"), table.column("name"))
             .from(table)
             .orderBy(.asc(table.column("id")))
@@ -42,7 +42,7 @@ func publicAppenderPreservesCompleteValueFamily() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_value_family")
     _ = try await connection.execute(
-        SwifQL.raw(
+        SQL.raw(
             """
             CREATE TABLE appender_value_family (
                 boolean_value BOOLEAN,
@@ -105,7 +105,7 @@ func publicAppenderPreservesCompleteValueFamily() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL
+        SQL
             .select(
                 table.column("boolean_value"),
                 table.column("int8_value"),
@@ -169,7 +169,7 @@ func appenderRowCompletionFailureIsTerminal() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_row_completion")
     _ = try await connection.execute(
-        SwifQL.raw(
+        SQL.raw(
             "CREATE TABLE appender_row_completion (id INTEGER CHECK(id >= 0))"
         )
     )
@@ -214,7 +214,7 @@ func appenderRowCompletionFailureIsTerminal() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(table.column("id")).from(table)
+        SQL.select(table.column("id")).from(table)
     )
     #expect(result.rows.isEmpty)
 }
@@ -224,7 +224,7 @@ func actorSideAppenderCancellationLeavesRowUntouched() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_actor_cancel")
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(NewColumn("id", .integer))
@@ -257,7 +257,7 @@ func actorSideAppenderCancellationLeavesRowUntouched() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(table.column("id")).from(table)
+        SQL.select(table.column("id")).from(table)
     )
     #expect(result.rows.isEmpty)
 }
@@ -267,7 +267,7 @@ func appenderCancellationBeforeCloseAbortsBufferedData() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_close_cancel")
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(NewColumn("id", .integer))
@@ -291,11 +291,11 @@ func appenderCancellationBeforeCloseAbortsBufferedData() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(table.column("id")).from(table)
+        SQL.select(table.column("id")).from(table)
     )
     #expect(result.rows.isEmpty)
 
-    let reused = try await connection.query(SwifQL.select(Int32(56) => "value"))
+    let reused = try await connection.query(SQL.select(Int32(56) => "value"))
     #expect(reused.rows.first?["value"] == .int32(56))
 }
 
@@ -304,7 +304,7 @@ func concurrentAppenderCallsPreserveRowAtomicity() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_concurrent_rows")
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(
@@ -325,7 +325,7 @@ func concurrentAppenderCallsPreserveRowAtomicity() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(table.column("id"), table.column("name")).from(table)
+        SQL.select(table.column("id"), table.column("name")).from(table)
     )
     #expect(result.rows.count == 32)
 
@@ -352,7 +352,7 @@ func failClosedConnectionDominatesLiveAppender() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_fail_closed")
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(NewColumn("id", .integer))

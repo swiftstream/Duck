@@ -1,5 +1,5 @@
 @testable import SwiftDuckDB
-import SwifQL
+import SQL
 import Testing
 
 private actor PoolSignal {
@@ -304,7 +304,7 @@ struct ConnectionPoolTests {
         try await pool.connection { connection in
             try await connection.transaction { transaction in
                 let result = try await transaction.query(
-                    SwifQL.select(Int32(9) => "value")
+                    SQL.select(Int32(9) => "value")
                 )
                 #expect(result.rows.first?["value"] == .int32(9))
             }
@@ -339,7 +339,7 @@ struct ConnectionPoolTests {
         }
 
         let outcome = await poolTaskOutcome {
-            _ = try await escaped.query(SwifQL.select(Int32(1) => "value"))
+            _ = try await escaped.query(SQL.select(Int32(1) => "value"))
         }
         #expect(outcome == .poolLeaseExpired)
 
@@ -354,7 +354,7 @@ struct ConnectionPoolTests {
             let outcome = await Task.detached {
                 await poolTaskOutcome {
                     _ = try await connection.query(
-                        SwifQL.select(Int32(1) => "value")
+                        SQL.select(Int32(1) => "value")
                     )
                 }
             }.value
@@ -373,7 +373,7 @@ struct ConnectionPoolTests {
             try await withThrowingTaskGroup(of: QueryResult.self) { group in
                 group.addTask {
                     try await connection.query(
-                        SwifQL.select(Int32(13) => "value")
+                        SQL.select(Int32(13) => "value")
                     )
                 }
 
@@ -396,7 +396,7 @@ struct ConnectionPoolTests {
                 await releaseChild.wait()
                 return await poolTaskOutcome {
                     _ = try await connection.query(
-                        SwifQL.select(Int32(15) => "value")
+                        SQL.select(Int32(15) => "value")
                     )
                 }
             }
@@ -426,7 +426,7 @@ struct ConnectionPoolTests {
             let activeB = await connectionB.wait()
             let outcome = await poolTaskOutcome {
                 _ = try await activeB.query(
-                    SwifQL.select(Int32(16) => "value")
+                    SQL.select(Int32(16) => "value")
                 )
             }
             #expect(outcome == .poolLeaseExpired)
@@ -450,7 +450,7 @@ struct ConnectionPoolTests {
                 let other = await connectionB.wait()
                 let outcome = await poolTaskOutcome {
                     _ = try await other.query(
-                        SwifQL.select(Int32(19) => "value")
+                        SQL.select(Int32(19) => "value")
                     )
                 }
                 await releaseB.signal()
@@ -503,7 +503,7 @@ struct ConnectionPoolTests {
                 await releaseChild.wait()
                 return await poolTaskOutcome {
                     _ = try await connection.query(
-                        SwifQL.select(Int32(17) => "value")
+                        SQL.select(Int32(17) => "value")
                     )
                 }
             }
@@ -516,7 +516,7 @@ struct ConnectionPoolTests {
             #expect(await pair.child.value == .poolLeaseExpired)
 
             let result = try await connection.query(
-                SwifQL.select(Int32(18) => "value")
+                SQL.select(Int32(18) => "value")
             )
             #expect(result.rows.first?["value"] == .int32(18))
         }
@@ -653,7 +653,7 @@ struct ConnectionPoolTests {
             await connection.enterFailClosed(message)
 
             do {
-                _ = try await connection.query(SwifQL.select(Int32(1) => "value"))
+                _ = try await connection.query(SQL.select(Int32(1) => "value"))
                 Issue.record("Expected the fail-closed Connection query to fail.")
             } catch let error as DatabaseError {
                 #expect(error == .connectionUnusable(message))
@@ -696,7 +696,7 @@ struct ConnectionPoolTests {
         let replacementId = try await pool.connection { connection in
             #expect(connection.id != retired.id)
             let result = try await connection.query(
-                SwifQL.select(Int32(2) => "value")
+                SQL.select(Int32(2) => "value")
             )
             #expect(result.rows.first?["value"] == .int32(2))
             return connection.id
@@ -741,7 +741,7 @@ struct ConnectionPoolTests {
         let replacementId = try await pool.connection { connection in
             #expect(connection.id != retired.id)
             let result = try await connection.query(
-                SwifQL.select(Int32(3) => "value")
+                SQL.select(Int32(3) => "value")
             )
             #expect(result.rows.first?["value"] == .int32(3))
             return connection.id

@@ -1,31 +1,31 @@
 @testable import SwiftDuckDB
-import SwifQL
+import SQL
 import Testing
 
-private struct UnsupportedStatementBinding: Encodable, SwifQLable {
+private struct UnsupportedStatementBinding: Encodable, SQLable {
     let value: String
 
-    var parts: [SwifQLPart] {
-        [SwifQLPartUnsafeValue(self)]
+    var parts: [SQLPart] {
+        [SQLPartUnsafeValue(self)]
     }
 }
 
-private final class StatefulStatementTemplateValue: SwifQLable {
-    private let builder: (Int) -> [SwifQLPart]
+private final class StatefulStatementTemplateValue: SQLable {
+    private let builder: (Int) -> [SQLPart]
     private(set) var evaluationCount = 0
 
-    init(builder: @escaping (Int) -> [SwifQLPart]) {
+    init(builder: @escaping (Int) -> [SQLPart]) {
         self.builder = builder
     }
 
-    var parts: [SwifQLPart] {
+    var parts: [SQLPart] {
         evaluationCount += 1
         return builder(evaluationCount)
     }
 }
 
-private struct StatementTemplateProbeArray: SwifQLPartArray {
-    let elements: [SwifQLable]
+private struct StatementTemplateProbeArray: SQLPartArray {
+    let elements: [SQLable]
 }
 
 private func requireSendable<ValueType: Sendable>(_: ValueType.Type) {}
@@ -36,9 +36,9 @@ func statefulTopLevelStatementTemplateUsesOneRender() throws {
     let parameter = parameters.parameter()
     let query = StatefulStatementTemplateValue { evaluation in
         if evaluation == 1 {
-            return SwifQL.select(Fn.cast(parameter, .integer) => "value").parts
+            return SQL.select(Fn.cast(parameter, .integer) => "value").parts
         }
-        return SwifQL.select(Fn.cast(Int32(99), .integer) => "value").parts
+        return SQL.select(Fn.cast(Int32(99), .integer) => "value").parts
     }
 
     let snapshot = try StatementTemplateSnapshot(query, parameters: parameters)
@@ -56,10 +56,10 @@ func statefulNestedStatementTemplateUsesOneRender() throws {
         if evaluation == 1 {
             return parameter.parts
         }
-        return [SwifQLPartUnsafeValue(Int32(99))]
+        return [SQLPartUnsafeValue(Int32(99))]
     }
-    let arrayPart: SwifQLPart = StatementTemplateProbeArray(elements: [child])
-    let query = SwifQL.select(SwifQLableParts(parts: [arrayPart]))
+    let arrayPart: SQLPart = StatementTemplateProbeArray(elements: [child])
+    let query = SQL.select(SQLableParts(parts: [arrayPart]))
 
     let snapshot = try StatementTemplateSnapshot(query, parameters: parameters)
 
@@ -75,7 +75,7 @@ func directStatementTemplateRejectsEscapedBoundParameter() throws {
 
     do {
         _ = try StatementTemplateSnapshot(
-            SwifQL.select(Fn.cast(escaped, .integer) => "value")
+            SQL.select(Fn.cast(escaped, .integer) => "value")
         )
         Issue.record("Expected direct prepare of an escaped bound Statement.Parameter to be rejected.")
     } catch let error as DatabaseError {
@@ -91,9 +91,9 @@ func statementSendabilityAndSingleParameter() async throws {
     requireSendable(Statement.self)
 
     let connection = try Database().connect()
-    let statement = try await connection.prepare { parameters -> any SwifQLable in
+    let statement = try await connection.prepare { parameters -> any SQLable in
         let value = parameters.parameter()
-        return SwifQL.select(Fn.cast(value, .integer) => "value")
+        return SQL.select(Fn.cast(value, .integer) => "value")
     }
 
     #expect(statement.dynamicArgumentCount == 1)
@@ -107,7 +107,7 @@ func statementParameterCreationOrderIsIndependentFromOccurrenceOrder() async thr
     let statement = try await connection.prepare { parameters in
         let first = parameters.parameter()
         let second = parameters.parameter()
-        return SwifQL.select(
+        return SQL.select(
             Fn.cast(second, .integer) => "second",
             Fn.cast(first, .integer) => "first"
         )
@@ -125,7 +125,7 @@ func repeatedStatementParameterUsesOneDynamicArgument() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
         let value = parameters.parameter()
-        return SwifQL.select(
+        return SQL.select(
             Fn.cast(value, .integer) => "first",
             Fn.cast(value, .integer) => "second"
         )
@@ -143,7 +143,7 @@ func fixedAndDynamicStatementBindingOrder() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
         let value = parameters.parameter()
-        return SwifQL.select(
+        return SQL.select(
             Fn.cast(Int32(7), .integer) => "fixed",
             Fn.cast(value, .integer) => "dynamic"
         )
@@ -160,7 +160,7 @@ func fixedAndDynamicStatementBindingOrder() async throws {
 func directStatementPrepareHasZeroDynamicArguments() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare(
-        SwifQL.select(Fn.cast(Int32(42), .integer) => "value")
+        SQL.select(Fn.cast(Int32(42), .integer) => "value")
     )
 
     #expect(statement.dynamicArgumentCount == 0)
@@ -178,7 +178,7 @@ func unusedStatementParameterIsRejected() async throws {
     do {
         _ = try await connection.prepare { parameters in
             _ = parameters.parameter()
-            return SwifQL.select(Fn.cast(Int32(1), .integer) => "value")
+            return SQL.select(Fn.cast(Int32(1), .integer) => "value")
         }
         Issue.record("Expected an unused Statement.Parameter to be rejected.")
     } catch let error as DatabaseError {
@@ -197,7 +197,7 @@ func foreignStatementParameterIsRejected() async throws {
     do {
         _ = try await connection.prepare { parameters in
             foreignParameter = parameters.parameter()
-            return SwifQL.select(Fn.cast(Int32(1), .integer) => "value")
+            return SQL.select(Fn.cast(Int32(1), .integer) => "value")
         }
         Issue.record("Expected the source builder's unused parameter to be rejected.")
     } catch let error as DatabaseError {
@@ -210,7 +210,7 @@ func foreignStatementParameterIsRejected() async throws {
     let foreign = try #require(foreignParameter)
     do {
         _ = try await connection.prepare { _ in
-            SwifQL.select(Fn.cast(foreign, .integer) => "value")
+            SQL.select(Fn.cast(foreign, .integer) => "value")
         }
         Issue.record("Expected a foreign Statement.Parameter to be rejected.")
     } catch let error as DatabaseError {
@@ -229,7 +229,7 @@ func foreignInlineStatementParameterIsRejected() async throws {
     do {
         _ = try await connection.prepare { parameters in
             foreignParameter = parameters.parameter()
-            return SwifQL.select(Fn.cast(Int32(1), .integer) => "value")
+            return SQL.select(Fn.cast(Int32(1), .integer) => "value")
         }
         Issue.record("Expected the source builder's unused parameter to be rejected.")
     } catch let error as DatabaseError {
@@ -242,7 +242,7 @@ func foreignInlineStatementParameterIsRejected() async throws {
     let foreign = try #require(foreignParameter)
     do {
         _ = try await connection.prepare { _ in
-            SwifQL.select(SwifQL.asterisk.like(foreign))
+            SQL.select(SQL.asterisk.like(foreign))
         }
         Issue.record("Expected a foreign inline Statement.Parameter to be rejected.")
     } catch let error as DatabaseError {
@@ -253,7 +253,7 @@ func foreignInlineStatementParameterIsRejected() async throws {
     }
 
     do {
-        _ = try await connection.prepare(SwifQL.select(SwifQL.asterisk.like(foreign)))
+        _ = try await connection.prepare(SQL.select(SQL.asterisk.like(foreign)))
         Issue.record("Expected direct prepare of an escaped inline Statement.Parameter to be rejected.")
     } catch let error as DatabaseError {
         guard case .invalidStatementTemplate = error else {
@@ -270,7 +270,7 @@ func starPatternStatementParameterIsRejected() async throws {
     do {
         _ = try await connection.prepare { parameters in
             let pattern = parameters.parameter()
-            return SwifQL.select(SwifQL.asterisk.like(pattern))
+            return SQL.select(SQL.asterisk.like(pattern))
         }
         Issue.record("Expected a star-pattern inline Parameter to be rejected.")
     } catch let error as DatabaseError {
@@ -288,7 +288,7 @@ func samplingStatementParameterIsRejected() async throws {
     do {
         _ = try await connection.prepare { parameters in
             let percentage = parameters.parameter()
-            return SwifQL
+            return SQL
                 .select(Fn.cast(Int32(1), .integer) => "value")
                 .usingSample(
                     Sample(
@@ -313,9 +313,9 @@ func mixedBoundAndInlineStatementParameterIsRejected() async throws {
     do {
         _ = try await connection.prepare { parameters in
             let value = parameters.parameter()
-            return SwifQL.select(
+            return SQL.select(
                 Fn.cast(value, .integer) => "bound_value",
-                SwifQL.asterisk.like(value)
+                SQL.asterisk.like(value)
             )
         }
         Issue.record("Expected a mixed bound/inline Parameter to be rejected.")
@@ -333,7 +333,7 @@ func unsupportedFixedStatementValueIsRejected() async throws {
 
     do {
         _ = try await connection.prepare(
-            SwifQL.select(UnsupportedStatementBinding(value: "unsupported"))
+            SQL.select(UnsupportedStatementBinding(value: "unsupported"))
         )
         Issue.record("Expected unsupported fixed Statement binding to be rejected.")
     } catch let error as DatabaseError {
@@ -349,7 +349,7 @@ func transactionControlStatementCannotBePreparedForReuse() async throws {
     let connection = try Database().connect()
 
     do {
-        _ = try await connection.prepare(SwifQL.begin)
+        _ = try await connection.prepare(SQL.begin)
         Issue.record("Expected transaction-control prepare to be rejected.")
     } catch let error as DatabaseError {
         #expect(error == .transactionControlNotAllowed)
@@ -365,7 +365,7 @@ func statementPrepareRejectsTransactionScopeBeforeBuilderRuns() async throws {
         do {
             _ = try await connection.prepare { _ in
                 builderRan = true
-                return SwifQL.select(Fn.cast(Int32(1), .integer) => "value")
+                return SQL.select(Fn.cast(Int32(1), .integer) => "value")
             }
             Issue.record("Expected prepare inside transaction body to be rejected.")
         } catch let error as DatabaseError {
@@ -381,7 +381,7 @@ func reusableStatementParameterCountMismatchIsRejected() async throws {
     let connection = try Database().connect()
 
     do {
-        _ = try await connection.prepare(SwifQL.raw("SELECT $1"))
+        _ = try await connection.prepare(SQL.raw("SELECT $1"))
         Issue.record("Expected native/template parameter-count mismatch to be rejected.")
     } catch let error as DatabaseError {
         guard case .invalidResult = error else {
@@ -395,7 +395,7 @@ func reusableStatementParameterCountMismatchIsRejected() async throws {
 func statementOperationLifetimeHelperSurvivesSuspension() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare(
-        SwifQL.select(Fn.cast(Int32(1), .integer) => "value")
+        SQL.select(Fn.cast(Int32(1), .integer) => "value")
     )
     let expectedId = statement.id
 
@@ -417,7 +417,7 @@ func statementRetainsOriginatingConnectionAndDatabase() async throws {
 
     let strongConnection = try #require(connection)
     let statement = try await strongConnection.prepare(
-        SwifQL.select(Fn.cast(Int32(1), .integer) => "value")
+        SQL.select(Fn.cast(Int32(1), .integer) => "value")
     )
 
     database = nil

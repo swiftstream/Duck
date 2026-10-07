@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 private actor PoolAppenderGate {
@@ -102,7 +102,7 @@ private func createPoolAppenderTable(
     on connection: Connection
 ) async throws {
     _ = try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(
@@ -128,7 +128,7 @@ struct ConnectionPoolAppenderTests {
             }
 
             let result = try await connection.query(
-                SwifQL
+                SQL
                     .select(table.column("id"), table.column("name"))
                     .from(table)
                     .orderBy(.asc(table.column("id")))
@@ -180,12 +180,12 @@ struct ConnectionPoolAppenderTests {
         let installation = await coordination.waitForInstallation()
         await installation.connection.waitForPoolLeaseClosing()
 
-        let l2Task = Task<(ConnectionId, [Row]), Error> {
+        let l2Task = Task<(ConnectionId, [ResultRow]), Error> {
             try await pool.connection { connection in
                 await coordination.record(.l2Entered)
                 let table = Path.Table(tableName)
                 let result = try await connection.query(
-                    SwifQL
+                    SQL
                         .select(table.column("id"), table.column("name"))
                         .from(table)
                         .orderBy(.asc(table.column("id")))
@@ -306,7 +306,7 @@ struct ConnectionPoolAppenderTests {
         let table = Path.Table(tableName)
         let result = try await pool.connection { connection in
             let beforeRecovery = try await connection.query(
-                SwifQL
+                SQL
                     .select(table.column("id"), table.column("name"))
                     .from(table)
                     .orderBy(.asc(table.column("id")))
@@ -319,7 +319,7 @@ struct ConnectionPoolAppenderTests {
             }
 
             return try await connection.query(
-                SwifQL
+                SQL
                     .select(table.column("id"), table.column("name"))
                     .from(table)
                     .orderBy(.asc(table.column("id")))
@@ -389,7 +389,7 @@ struct ConnectionPoolAppenderTests {
         let replacementId = try await pool.connection { connection in
             #expect(connection.id != firstLease.0)
             let result = try await connection.query(
-                SwifQL.select(Int32(3) => "value")
+                SQL.select(Int32(3) => "value")
             )
             #expect(result.rows.first?["value"] == .int32(3))
             return connection.id

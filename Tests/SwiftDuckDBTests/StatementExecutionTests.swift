@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 private struct UnsupportedStatementArgument: Sendable {
@@ -19,7 +19,7 @@ private func statementResultValue(
 func reusableStatementSelectsDifferentValues() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
 
     let first = try await statement.query(Int32(11))
@@ -34,7 +34,7 @@ func reusableStatementInsertsDifferentValues() async throws {
     let connection = try Database().connect()
     let table = Path.Table("statement_insert_events")
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(
@@ -46,7 +46,7 @@ func reusableStatementInsertsDifferentValues() async throws {
     let statement = try await connection.prepare { parameters in
         let id = parameters.parameter()
         let name = parameters.parameter()
-        return SwifQL
+        return SQL
             .insertInto(table, fields: "id", "name")
             .values
             .values(id, name)
@@ -56,13 +56,13 @@ func reusableStatementInsertsDifferentValues() async throws {
     #expect(try await statement.execute(Int32(2), "second") == 1)
 
     let first = try await connection.query(
-        SwifQL
+        SQL
             .select(table.column("name"))
             .from(table)
             .where(table.column("id") == Int32(1))
     )
     let second = try await connection.query(
-        SwifQL
+        SQL
             .select(table.column("name"))
             .from(table)
             .where(table.column("id") == Int32(2))
@@ -76,7 +76,7 @@ func reusableStatementUpdatesDifferentValues() async throws {
     let connection = try Database().connect()
     let table = Path.Table("statement_update_events")
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(
@@ -85,12 +85,12 @@ func reusableStatementUpdatesDifferentValues() async throws {
             )
     )
     try await connection.execute(
-        SwifQL.insertInto(table, fields: "id", "name").values.values(Int32(1), "seed")
+        SQL.insertInto(table, fields: "id", "name").values.values(Int32(1), "seed")
     )
 
     let statement = try await connection.prepare { parameters in
         let name = parameters.parameter()
-        return SwifQL
+        return SQL
             .update(table)
             .set[items: table.column("name") == name]
             .where(table.column("id") == Int32(1))
@@ -100,7 +100,7 @@ func reusableStatementUpdatesDifferentValues() async throws {
     #expect(try await statement.execute("second") == 1)
 
     let result = try await connection.query(
-        SwifQL.select(table.column("name")).from(table)
+        SQL.select(table.column("name")).from(table)
     )
     #expect(try statementResultValue(result, column: "name") == .string("second"))
 }
@@ -110,7 +110,7 @@ func reusableStatementExecutesRepeatedParameterOccurrence() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
         let value = parameters.parameter()
-        return SwifQL.select(
+        return SQL.select(
             Fn.cast(value, .integer) => "first",
             Fn.cast(value, .integer) => "second"
         )
@@ -125,7 +125,7 @@ func reusableStatementExecutesRepeatedParameterOccurrence() async throws {
 func reusableStatementExecutesFixedAndDynamicBindings() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(
+        SQL.select(
             Fn.cast(Int32(7), .integer) => "fixed",
             Fn.cast(parameters.parameter(), .integer) => "dynamic"
         )
@@ -140,7 +140,7 @@ func reusableStatementExecutesFixedAndDynamicBindings() async throws {
 func reusableStatementRecoversAfterWrongArgumentCount() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
 
     let initial = try await statement.query(Int32(31))
@@ -161,7 +161,7 @@ func reusableStatementRecoversAfterWrongArgumentCount() async throws {
 func reusableStatementRecoversAfterUnsupportedArgumentType() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
 
     let initial = try await statement.query(Int32(33))
@@ -185,7 +185,7 @@ func reusableStatementRecoversAfterUnsupportedArgumentType() async throws {
 func reusableStatementSupportsTypedOptionalValues() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
     let none: Int32? = nil
     let some: Int32? = 17
@@ -201,7 +201,7 @@ func reusableStatementSupportsTypedOptionalValues() async throws {
 func reusableStatementSupportsDirectValueArguments() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
 
     let nullResult = try await statement.query(Value.null)
@@ -215,7 +215,7 @@ func reusableStatementSupportsDirectValueArguments() async throws {
 func reusableStatementSupportsBlobArguments() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .blob) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .blob) => "value")
     }
     let bytes = Data([0x00, 0x7F, 0xFF])
 
@@ -230,7 +230,7 @@ func reusableStatementSupportsBlobArguments() async throws {
 func reusableStatementRecoversAfterNativeExecutionFailure() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
 
     let initial = try await statement.query("40")
@@ -254,7 +254,7 @@ func reusableStatementRecoversAfterNativeExecutionFailure() async throws {
 func reusableStatementAcceptsNakedNilValues() async throws {
     let connection = try Database().connect()
     let queryStatement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
 
     let nilResult = try await queryStatement.query(nil)
@@ -268,7 +268,7 @@ func reusableStatementAcceptsNakedNilValues() async throws {
 
     let table = Path.Table("statement_naked_nil_events")
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(
@@ -279,7 +279,7 @@ func reusableStatementAcceptsNakedNilValues() async throws {
     let insert = try await connection.prepare { parameters in
         let id = parameters.parameter()
         let name = parameters.parameter()
-        return SwifQL
+        return SQL
             .insertInto(table, fields: "id", "name")
             .values
             .values(id, name)
@@ -291,7 +291,7 @@ func reusableStatementAcceptsNakedNilValues() async throws {
     #expect(try await insert.execute(a, someName) == 1)
 
     let rows = try await connection.query(
-        SwifQL.select(table.column("id"), table.column("name")).from(table)
+        SQL.select(table.column("id"), table.column("name")).from(table)
     )
     #expect(rows.rows.count == 2)
 
@@ -313,7 +313,7 @@ func reusableStatementAcceptsNakedNilValues() async throws {
 func reusableStatementRejectsLiveTransactionBeforeNormalization() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
 
     try await connection.transaction { _ in
@@ -330,7 +330,7 @@ func reusableStatementRejectsLiveTransactionBeforeNormalization() async throws {
 func concurrentReusableStatementCallsKeepBindingsIsolated() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
 
     async let first = statement.query(Int32(101))
@@ -345,7 +345,7 @@ func concurrentReusableStatementCallsKeepBindingsIsolated() async throws {
 func manyConcurrentReusableStatementCallsPreserveBindings() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
 
     let observed = try await withThrowingTaskGroup(of: Int32.self, returning: [Int32].self) { group in
@@ -379,10 +379,10 @@ func manyConcurrentReusableStatementCallsPreserveBindings() async throws {
 func differentReusableStatementsShareConnectionSchedulerSafely() async throws {
     let connection = try Database().connect()
     let firstStatement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
     let secondStatement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .varchar) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .varchar) => "value")
     }
 
     async let first = firstStatement.query(Int32(303))
@@ -399,10 +399,10 @@ func reusableStatementsOnSeparateConnectionsExecuteIndependently() async throws 
     let firstConnection = try database.connect()
     let secondConnection = try database.connect()
     let firstStatement = try await firstConnection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
     let secondStatement = try await secondConnection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
 
     async let first = firstStatement.query(Int32(404))
@@ -420,7 +420,7 @@ func reusableStatementExecutesAfterExternalOwnersAreDropped() async throws {
         let database = try Database()
         let connection = try database.connect()
         statement = try await connection.prepare { parameters in
-            SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+            SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
         }
     }
 
@@ -432,7 +432,7 @@ func reusableStatementExecutesAfterExternalOwnersAreDropped() async throws {
 func alreadyCancelledReusableStatementCallLeavesStatementReusable() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
 
     let task = Task {
@@ -458,7 +458,7 @@ func alreadyCancelledReusableStatementCallLeavesStatementReusable() async throws
 func failClosedConnectionDominatesReusableStatement() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
     let message = "task05 fail-closed statement proof"
 

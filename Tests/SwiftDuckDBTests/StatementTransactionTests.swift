@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 private struct UnsupportedStatementTransactionArgument: Sendable {
@@ -47,7 +47,7 @@ private func makeStatementTransactionTable(
 ) async throws -> Path.Table {
     let table = Path.Table(name)
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(
@@ -68,14 +68,14 @@ func reusableStatementsExecuteInsideTransactionAndAfterCommit() async throws {
     let insert = try await connection.prepare { parameters in
         let id = parameters.parameter()
         let name = parameters.parameter()
-        return SwifQL
+        return SQL
             .insertInto(table, fields: "id", "name")
             .values
             .values(id, name)
     }
     let select = try await connection.prepare { parameters in
         let id = parameters.parameter()
-        return SwifQL
+        return SQL
             .select(table.column("name"))
             .from(table)
             .where(table.column("id") == id)
@@ -99,7 +99,7 @@ func statementTransactionOwnerMismatchDoesNotPoisonTransaction() async throws {
     let connectionA = try database.connect()
     let connectionB = try database.connect()
     let statementA = try await connectionA.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
 
     let committed = try await connectionB.transaction { transactionB in
@@ -110,7 +110,7 @@ func statementTransactionOwnerMismatchDoesNotPoisonTransaction() async throws {
             #expect(error == .statementConnectionMismatch)
         }
 
-        let result = try await SwifQL
+        let result = try await SQL
             .select(Fn.cast(Int32(7), .integer) => "value")
             .query(on: transactionB)
         return result.rows.first?["value"]
@@ -123,7 +123,7 @@ func statementTransactionOwnerMismatchDoesNotPoisonTransaction() async throws {
 func statementWrongArgumentCountMakesTransactionRollbackOnly() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
     let expected = DatabaseError.statementArgumentCount(expected: 1, actual: 0)
 
@@ -137,7 +137,7 @@ func statementWrongArgumentCountMakesTransactionRollbackOnly() async throws {
             }
 
             do {
-                _ = try await SwifQL
+                _ = try await SQL
                     .select(Fn.cast(Int32(2), .integer) => "value")
                     .query(on: transaction)
                 Issue.record("Expected stored Statement count failure to reject later transaction work.")
@@ -155,7 +155,7 @@ func statementWrongArgumentCountMakesTransactionRollbackOnly() async throws {
 func unsupportedStatementTransactionArgumentMakesRollbackOnly() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
     var storedFailure: DatabaseError?
 
@@ -200,13 +200,13 @@ func caughtNativeStatementFailurePreventsFalseCommit() async throws {
         named: "statement transaction rollback"
     )
     let insert = try await connection.prepare { parameters in
-        SwifQL
+        SQL
             .insertInto(table, fields: "id", "name")
             .values
             .values(parameters.parameter(), "must roll back")
     }
     let integerCast = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
     var storedFailure: DatabaseError?
 
@@ -242,7 +242,7 @@ func caughtNativeStatementFailurePreventsFalseCommit() async throws {
     }
 
     let rows = try await connection.query(
-        SwifQL.select(table.column("id")).from(table)
+        SQL.select(table.column("id")).from(table)
     )
     #expect(rows.rows.isEmpty)
 }
@@ -251,7 +251,7 @@ func caughtNativeStatementFailurePreventsFalseCommit() async throws {
 func concurrentStatementTransactionCallsPreserveBindings() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
 
     let values = try await connection.transaction { transaction in
@@ -282,19 +282,19 @@ func concurrentStatementTransactionCallsPreserveBindings() async throws {
 func statementTransactionVariantsAcceptNakedNil() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
     let some: Int32? = 17
     let none: Int32? = nil
 
     let table = Path.Table("statement_transaction_naked_nil")
-    _ = try await SwifQL
+    _ = try await SQL
         .create
         .table[any: table]
         .tableDefinitions(NewColumn("id", .integer))
         .execute(on: connection)
     let insert = try await connection.prepare { parameters in
-        SwifQL
+        SQL
             .insertInto(table, fields: "id")
             .values
             .values(parameters.parameter())
@@ -315,7 +315,7 @@ func statementTransactionVariantsAcceptNakedNil() async throws {
     }
 
     let rows = try await connection.query(
-        SwifQL.select(table.column("id")).from(table).orderBy(.asc(table.column("id")))
+        SQL.select(table.column("id")).from(table).orderBy(.asc(table.column("id")))
     )
     #expect(rows.rows.count == 2)
 }
@@ -324,7 +324,7 @@ func statementTransactionVariantsAcceptNakedNil() async throws {
 func finalizedTransactionRejectsReusableStatement() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
     var escaped: Transaction?
 
@@ -347,7 +347,7 @@ func finalizedTransactionRejectsReusableStatement() async throws {
 func cancelledStatementTransactionOperationMakesRollbackOnly() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
     let start = StatementTransactionSignal()
 
@@ -386,10 +386,10 @@ func separateConnectionRemainsIndependentDuringStatementTransaction() async thro
     let connectionA = try database.connect()
     let connectionB = try database.connect()
     let statementA = try await connectionA.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
     let statementB = try await connectionB.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
 
     let resultA = try await connectionA.transaction { transactionA in

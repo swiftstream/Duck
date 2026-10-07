@@ -1,5 +1,5 @@
 @testable import SwiftDuckDB
-import SwifQL
+import SQL
 import Testing
 
 private enum TransactionStateMachineTestError: Error {
@@ -10,8 +10,8 @@ private func openStateMachineTransaction(
     on connection: Connection
 ) async throws -> (TransactionReservationId, PreparedQuerySnapshot) {
     let reservationId = try await connection.acquireTransactionReservation()
-    let begin = try PreparedQuerySnapshot(SwifQL.begin)
-    let rollback = try PreparedQuerySnapshot(SwifQL.rollback)
+    let begin = try PreparedQuerySnapshot(SQL.begin)
+    let rollback = try PreparedQuerySnapshot(SQL.rollback)
 
     let outcome = await connection.beginTransaction(
         reservationId,
@@ -412,7 +412,7 @@ func failCloseDrainsQueuedAndRejectsFutureAdmission() async throws {
     await connection.enterFailClosed("state-machine fail-close")
 
     do {
-        _ = try await SwifQL
+        _ = try await SQL
             .select(Fn.cast(Int32(2), .integer) => "value")
             .query(on: connection)
         Issue.record("Expected future ordinary admission to fail closed.")
@@ -435,7 +435,7 @@ func failCloseDrainsQueuedAndRejectsFutureAdmission() async throws {
         }
     }
 
-    let otherResult = try await SwifQL
+    let otherResult = try await SQL
         .select(Fn.cast(Int32(4), .integer) => "value")
         .query(on: otherConnection)
     #expect(otherResult.rows.first?["value"] == .int32(4))
@@ -487,15 +487,15 @@ func commitC0ClassificationFailureRollsBackAndReusesConnection() async throws {
     let connection = try database.connect()
     let table = Path.Table("transaction c0 cleanup items")
 
-    try await SwifQL
+    try await SQL
         .create
         .table[any: table]
         .tableDefinitions(NewColumn("id", .integer))
         .execute(on: connection)
 
     let reservationId = try await connection.acquireTransactionReservation()
-    let begin = try PreparedQuerySnapshot(SwifQL.begin)
-    let rollback = try PreparedQuerySnapshot(SwifQL.rollback)
+    let begin = try PreparedQuerySnapshot(SQL.begin)
+    let rollback = try PreparedQuerySnapshot(SQL.rollback)
 
     let beginOutcome = await connection.beginTransaction(
         reservationId,
@@ -508,7 +508,7 @@ func commitC0ClassificationFailureRollsBackAndReusesConnection() async throws {
     }
 
     let transaction = Transaction(connection: connection, reservationId: reservationId)
-    try await SwifQL
+    try await SQL
         .insertInto(table, fields: "id")
         .values
         .values(Int32(1))
@@ -517,7 +517,7 @@ func commitC0ClassificationFailureRollsBackAndReusesConnection() async throws {
     _ = try await connection.beginTransactionFinalization(reservationId)
 
     let nonTransactionCommit = try PreparedQuerySnapshot(
-        SwifQL.select(Fn.cast(Int32(1), .integer) => "value")
+        SQL.select(Fn.cast(Int32(1), .integer) => "value")
     )
     let outcome = await connection.commitTransaction(
         reservationId,
@@ -539,13 +539,13 @@ func commitC0ClassificationFailureRollsBackAndReusesConnection() async throws {
         Issue.record("Expected deterministic C0 classification failure, not cancellation.")
     }
 
-    let rows = try await SwifQL
+    let rows = try await SQL
         .select(table.column("id"))
         .from(table)
         .query(on: connection)
     #expect(rows.rows.isEmpty)
 
-    let reused = try await SwifQL
+    let reused = try await SQL
         .select(Fn.cast(Int32(16), .integer) => "value")
         .query(on: connection)
     #expect(reused.rows.first?["value"] == .int32(16))

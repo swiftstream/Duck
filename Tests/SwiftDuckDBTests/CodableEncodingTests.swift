@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 // MARK: - Shared models
@@ -563,9 +563,9 @@ func topLevelScalarRejected() throws {
     }
 }
 
-// MARK: - SwifQL Table encode compatibility
+// MARK: - SQL Table encode compatibility
 
-@Test("SwifQL Table @Column encode uses SQL keys and exact Values")
+@Test("SQL Table @Column encode uses SQL keys and exact Values")
 func swifQLTableEncodeCompatibility() throws {
     let id = sampleEncodeUUID
     let createdAt = Date(timeIntervalSince1970: 1_700_000_000)

@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 private struct ObservationTransactionContext {
@@ -19,7 +19,7 @@ private func makeObservationTransactionContext() async throws -> ObservationTran
     let table = Path.Table("observation_transaction_\(suffix)")
     let sequenceName = "observation_sequence_\(suffix)"
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(
@@ -28,7 +28,7 @@ private func makeObservationTransactionContext() async throws -> ObservationTran
             )
     )
     try await connection.execute(
-        SwifQL.raw("CREATE SEQUENCE \(sequenceName) START 1")
+        SQL.raw("CREATE SEQUENCE \(sequenceName) START 1")
     )
     return ObservationTransactionContext(
         database: database,
@@ -45,19 +45,19 @@ private func insert(
     on transaction: Transaction
 ) async throws {
     try await transaction.execute(
-        SwifQL
+        SQL
             .insertInto(table, fields: "id", "value")
             .values
             .values(id, value)
     )
 }
 
-private func nextvalQuery(_ sequenceName: String) -> any SwifQLable {
-    SwifQL.raw("SELECT nextval('\(sequenceName)') AS value")
+private func nextvalQuery(_ sequenceName: String) -> any SQLable {
+    SQL.raw("SELECT nextval('\(sequenceName)') AS value")
 }
 
-private func sequenceObservationQuery(_ sequenceName: String) -> any SwifQLable {
-    SwifQL.raw(
+private func sequenceObservationQuery(_ sequenceName: String) -> any SQLable {
+    SQL.raw(
         "SELECT last_value FROM duckdb_sequences() WHERE sequence_name = '\(sequenceName)'"
     )
 }
@@ -67,7 +67,7 @@ private func rows(
     on connection: Connection
 ) async throws -> QueryResult {
     try await connection.query(
-        SwifQL.select(table.column("id"), table.column("value")).from(table)
+        SQL.select(table.column("id"), table.column("value")).from(table)
     )
 }
 
@@ -111,7 +111,7 @@ func readOnlyManagedAutomaticCommitPublishesNothing() async throws {
     let context = try await makeObservationTransactionContext()
     let count = try await countSignals(context.database) {
         try await context.connection.transaction { transaction in
-            _ = try await transaction.query(SwifQL.select(Fn.cast(Int32(42), .integer)))
+            _ = try await transaction.query(SQL.select(Fn.cast(Int32(42), .integer)))
         }
     }
     #expect(count == 0)
@@ -163,7 +163,7 @@ func pendingAmbiguityAccumulatesDatabaseImpact() async throws {
     let (count, outcome) = await runWithSignals(context.database) {
         try await context.connection.transaction { transaction in
             _ = try await transaction.query(
-                SwifQL.select(Fn.cast("not-an-integer", .integer) => "value")
+                SQL.select(Fn.cast("not-an-integer", .integer) => "value")
             )
         }
     }
@@ -201,7 +201,7 @@ func flatCommitPublishesOnceAndReleasesConnection() async throws {
         try await transaction.commit()
     }
     #expect(count == 1)
-    _ = try await context.connection.query(SwifQL.select(Fn.cast(Int32(1), .integer)))
+    _ = try await context.connection.query(SQL.select(Fn.cast(Int32(1), .integer)))
 }
 
 @Test("OT08 automatic clean rollback publishes once and removes the row")
@@ -226,7 +226,7 @@ func sequenceObserverDependencyIsExactlyEmptyTables() throws {
     let database = try NativeDatabase()
     let connection = try database.connect()
     let sql = try PreparedQuerySnapshot(
-        SwifQL.raw(
+        SQL.raw(
             "SELECT last_value FROM duckdb_sequences() WHERE sequence_name = 'some_sequence'"
         )
     ).analysisSQL
@@ -325,7 +325,7 @@ func flatManualRollbackPublishesOnceAndReleasesLease() async throws {
         try await transaction.rollback()
     }
     #expect(count == 1)
-    _ = try await context.connection.query(SwifQL.select(Fn.cast(Int32(1), .integer)))
+    _ = try await context.connection.query(SQL.select(Fn.cast(Int32(1), .integer)))
 }
 
 @Test("OT15 rollback-only commit publishes rollback impact and preserves its error")
@@ -336,7 +336,7 @@ func rollbackOnlyCommitPublishesImpactAndPreservesError() async throws {
     var expected: DatabaseError?
     do {
         _ = try await transaction.execute(
-            SwifQL.insertInto(Path.Table("observation_transaction_missing"), fields: "id")
+            SQL.insertInto(Path.Table("observation_transaction_missing"), fields: "id")
                 .values.values(Int32(1))
         )
         Issue.record("Expected missing-table operation to fail.")
@@ -360,7 +360,7 @@ func readOnlyRollbackPublishesNothing() async throws {
     let context = try await makeObservationTransactionContext()
     let count = try await countSignals(context.database) {
         let transaction = try await context.connection.transaction()
-        _ = try await transaction.query(SwifQL.select(Fn.cast(Int32(42), .integer)))
+        _ = try await transaction.query(SQL.select(Fn.cast(Int32(42), .integer)))
         try await transaction.rollback()
     }
     #expect(count == 0)
@@ -373,7 +373,7 @@ func rollbackCleanupFailurePublishesDatabaseInvalidation() async throws {
     let reservationId = transaction.reservationId
     _ = try await context.connection.beginTransactionFinalization(reservationId)
     let malformedRollback = try PreparedQuerySnapshot(
-        SwifQL.select(Fn.cast(Int32(1), .integer))
+        SQL.select(Fn.cast(Int32(1), .integer))
     )
     let (count, outcome) = await runWithSignals(context.database) {
         let failure = await context.connection.rollbackTransaction(
@@ -385,7 +385,7 @@ func rollbackCleanupFailurePublishesDatabaseInvalidation() async throws {
     #expect(count == 1)
     try outcome.get()
     do {
-        _ = try await context.connection.query(SwifQL.select(Fn.cast(Int32(1), .integer)))
+        _ = try await context.connection.query(SQL.select(Fn.cast(Int32(1), .integer)))
         Issue.record("Expected fail-closed Connection.")
     } catch let error as DatabaseError {
         guard case .connectionUnusable = error else {
@@ -400,8 +400,8 @@ func postSchedulingAmbiguousCommitPublishesDatabaseInvalidation() async throws {
     let context = try await makeObservationTransactionContext()
     let transaction = try await context.connection.transaction()
     let reservationId = transaction.reservationId
-    let rollback = try PreparedQuerySnapshot(SwifQL.rollback)
-    let commit = try PreparedQuerySnapshot(SwifQL.commit)
+    let rollback = try PreparedQuerySnapshot(SQL.rollback)
+    let commit = try PreparedQuerySnapshot(SQL.commit)
 
     #expect(
         await context.connection.rollbackTransaction(
@@ -434,7 +434,7 @@ func postSchedulingAmbiguousCommitPublishesDatabaseInvalidation() async throws {
     try outcome.get()
     #expect(await context.connection.isTransactionReservationLive(reservationId) == false)
     do {
-        _ = try await context.connection.query(SwifQL.select(Fn.cast(Int32(1), .integer)))
+        _ = try await context.connection.query(SQL.select(Fn.cast(Int32(1), .integer)))
         Issue.record("Expected fail-closed Connection.")
     } catch let error as DatabaseError {
         guard case .connectionUnusable = error else {
@@ -494,7 +494,7 @@ func rollbackIfNeededReadOnlyPublishesNothing() async throws {
     let context = try await makeObservationTransactionContext()
     let count = try await countSignals(context.database) {
         let transaction = try await context.connection.transaction()
-        _ = try await transaction.query(SwifQL.select(Fn.cast(Int32(42), .integer)))
+        _ = try await transaction.query(SQL.select(Fn.cast(Int32(42), .integer)))
         await transaction.rollbackIfNeeded()
     }
     #expect(count == 0)
@@ -505,7 +505,7 @@ func rollbackIfNeededCleanupFailurePublishesOnce() async throws {
     let context = try await makeObservationTransactionContext()
     let transaction = try await context.connection.transaction()
     let reservationId = transaction.reservationId
-    let validRollback = try PreparedQuerySnapshot(SwifQL.rollback)
+    let validRollback = try PreparedQuerySnapshot(SQL.rollback)
     #expect(
         await context.connection.rollbackTransaction(
             reservationId,
@@ -520,7 +520,7 @@ func rollbackIfNeededCleanupFailurePublishesOnce() async throws {
     try outcome.get()
     #expect(await context.connection.isTransactionReservationLive(reservationId) == false)
     do {
-        _ = try await context.connection.query(SwifQL.select(Fn.cast(Int32(1), .integer)))
+        _ = try await context.connection.query(SQL.select(Fn.cast(Int32(1), .integer)))
         Issue.record("Expected fail-closed Connection.")
     } catch let error as DatabaseError {
         guard case .connectionUnusable = error else {

@@ -1,5 +1,5 @@
 import Foundation
-import SwifQL
+import SQL
 
 struct AppenderId: Hashable, Sendable {
     let rawValue: UUID

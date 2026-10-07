@@ -1,5 +1,5 @@
 import Foundation
-import SwifQL
+import SQL
 import Testing
 @testable import SwiftDuckDB
 
@@ -395,7 +395,7 @@ private func createValuesTable(on transaction: Transaction) async throws {
 
 private func insertValue(_ value: String, on transaction: Transaction) async throws {
     let table = Path.Table(MigrationValues.tableName)
-    try await SwifQL.insertInto(table, fields: "value")
+    try await SQL.insertInto(table, fields: "value")
         .values
         .values(value)
         .execute(on: transaction)
@@ -403,7 +403,7 @@ private func insertValue(_ value: String, on transaction: Transaction) async thr
 
 private func valueRows(on connection: Connection) async throws -> [String] {
     let table = Path.Table(MigrationValues.tableName)
-    let result = try await SwifQL
+    let result = try await SQL
         .select(table.column("value"))
         .from(table)
         .orderBy(.asc(table.column("value")))
@@ -415,7 +415,7 @@ private func valueRows(on connection: Connection) async throws -> [String] {
 
 private func valuesTableExists(on connection: Connection) async throws -> Bool {
     let table = Path.Schema("information_schema").table("tables")
-    let result = try await SwifQL
+    let result = try await SQL
         .select(Path.Column("table_name"))
         .from(table)
         .where(

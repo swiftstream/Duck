@@ -1,6 +1,6 @@
 import Cduckdb
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 @Test("Reports the linked DuckDB v1.5.5 version")
@@ -33,7 +33,7 @@ func fetchesQueryChunk() throws {
     try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
     defer { duckdb_disconnect(&connection) }
 
-    let sql = SwifQL
+    let sql = SQL
         .select(Fn.cast(42, .integer) => "answer")
         .prepare(.duck)
         .plain
@@ -65,8 +65,8 @@ func destroysFailedQueryResult() throws {
     defer { duckdb_disconnect(&connection) }
 
     let missingTable = Path.Table("table_that_does_not_exist")
-    let sql = SwifQL
-        .select(SwifQL.asterisk)
+    let sql = SQL
+        .select(SQL.asterisk)
         .from(missingTable)
         .prepare(.duck)
         .plain
@@ -90,7 +90,7 @@ func executesPreparedStatement() throws {
     try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
     defer { duckdb_disconnect(&connection) }
 
-    let query = SwifQL
+    let query = SQL
         .select(Fn.cast(42, .integer) => "answer")
         .prepare(.duck)
         .splitted
@@ -128,7 +128,7 @@ func clearsRebindsAndReusesCPreparedStatement() throws {
     try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
     defer { duckdb_disconnect(&connection) }
 
-    let query = SwifQL
+    let query = SQL
         .select(Fn.cast(Int32(1), .integer) => "value")
         .prepare(.duck)
         .splitted
@@ -162,7 +162,7 @@ func destroysFailedPreparedStatement() {
     #expect(duckdb_connect(database, &connection) == DuckDBSuccess)
     defer { duckdb_disconnect(&connection) }
 
-    let sql = SwifQL
+    let sql = SQL
         .raw("SELECT FROM")
         .prepare(.duck)
         .plain
@@ -183,7 +183,7 @@ func reopensPersistentDatabase() throws {
     defer { try? FileManager.default.removeItem(at: databaseURL) }
 
     let valuesTable = Path.Table("values_table")
-    let writeSQL = SwifQL
+    let writeSQL = SQL
         .create
         .table[any: valuesTable]
         .as
@@ -202,7 +202,7 @@ func reopensPersistentDatabase() throws {
     duckdb_disconnect(&connection)
     duckdb_close(&database)
 
-    let readSQL = SwifQL
+    let readSQL = SQL
         .select(valuesTable.column("answer"))
         .from(valuesTable)
         .prepare(.duck)

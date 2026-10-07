@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 private struct ManualTransactionContext {
@@ -77,7 +77,7 @@ private func makeManualTransactionContext() async throws -> ManualTransactionCon
     let name = "task04_" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
     let table = Path.Table(name)
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(
@@ -94,7 +94,7 @@ private func insert(
     into table: Path.Table,
     on transaction: Transaction
 ) async throws {
-    try await SwifQL
+    try await SQL
         .insertInto(table, fields: "id", "value")
         .values
         .values(id, value)
@@ -105,7 +105,7 @@ private func rows(
     from table: Path.Table,
     on connection: Connection
 ) async throws -> QueryResult {
-    try await SwifQL
+    try await SQL
         .select(table.column("id"), table.column("value"))
         .from(table)
         .query(on: connection)
@@ -271,8 +271,8 @@ func postCommitTransactionOperationsAreEnded() async throws {
     let context = try await makeManualTransactionContext()
     let transaction = try await context.connection.transaction()
     try await transaction.commit()
-    try await expectEnded { _ = try await transaction.query(SwifQL.select(Fn.cast(Int32(1), .integer))) }
-    try await expectEnded { _ = try await transaction.execute(SwifQL.select(Fn.cast(Int32(1), .integer))) }
+    try await expectEnded { _ = try await transaction.query(SQL.select(Fn.cast(Int32(1), .integer))) }
+    try await expectEnded { _ = try await transaction.execute(SQL.select(Fn.cast(Int32(1), .integer))) }
     try await expectEnded { try await transaction.commit() }
     try await expectEnded { try await transaction.rollback() }
 }
@@ -282,8 +282,8 @@ func postRollbackTransactionOperationsAreEnded() async throws {
     let context = try await makeManualTransactionContext()
     let transaction = try await context.connection.transaction()
     try await transaction.rollback()
-    try await expectEnded { _ = try await transaction.query(SwifQL.select(Fn.cast(Int32(1), .integer))) }
-    try await expectEnded { _ = try await transaction.execute(SwifQL.select(Fn.cast(Int32(1), .integer))) }
+    try await expectEnded { _ = try await transaction.query(SQL.select(Fn.cast(Int32(1), .integer))) }
+    try await expectEnded { _ = try await transaction.execute(SQL.select(Fn.cast(Int32(1), .integer))) }
     try await expectEnded { try await transaction.commit() }
     try await expectEnded { try await transaction.rollback() }
 }
@@ -292,22 +292,22 @@ func postRollbackTransactionOperationsAreEnded() async throws {
 func flatTransactionsFailFastForDirectOrdinaryWork() async throws {
     let context = try await makeManualTransactionContext()
     let statement = try await context.connection.prepare(
-        SwifQL.select(Fn.cast(Int32(1), .integer) => "value")
+        SQL.select(Fn.cast(Int32(1), .integer) => "value")
     )
     let transaction = try await context.connection.transaction()
 
     try await expectScopeViolation {
-        _ = try await context.connection.query(SwifQL.select(Fn.cast(Int32(1), .integer)))
+        _ = try await context.connection.query(SQL.select(Fn.cast(Int32(1), .integer)))
     }
     try await expectScopeViolation {
-        _ = try await context.connection.execute(SwifQL.select(Fn.cast(Int32(1), .integer)))
+        _ = try await context.connection.execute(SQL.select(Fn.cast(Int32(1), .integer)))
     }
     try await expectScopeViolation {
-        _ = try await context.connection.prepare(SwifQL.select(Fn.cast(Int32(1), .integer)))
+        _ = try await context.connection.prepare(SQL.select(Fn.cast(Int32(1), .integer)))
     }
     try await expectScopeViolation {
         _ = try await context.connection.prepare { _ in
-            SwifQL.select(Fn.cast(Int32(1), .integer))
+            SQL.select(Fn.cast(Int32(1), .integer))
         }
     }
     try await expectScopeViolation {
@@ -346,7 +346,7 @@ func secondTransactionsFailImmediately() async throws {
 func flatTransactionSupportsStatementAndAppender() async throws {
     let context = try await makeManualTransactionContext()
     let statement = try await context.connection.prepare(
-        SwifQL.insertInto(context.table, fields: "id", "value").values.values(Int32(1), Int32(10))
+        SQL.insertInto(context.table, fields: "id", "value").values.values(Int32(1), Int32(10))
     )
     let transaction = try await context.connection.transaction()
     _ = try await statement.execute(on: transaction)
@@ -365,10 +365,10 @@ func managedManualCommitRetainsLeaseUntilBodyExit() async throws {
         try await transaction.commit()
         _ = UUID()
         try await expectScopeViolation {
-            _ = try await context.connection.query(SwifQL.select(Fn.cast(Int32(1), .integer)))
+            _ = try await context.connection.query(SQL.select(Fn.cast(Int32(1), .integer)))
         }
     }
-    _ = try await context.connection.query(SwifQL.select(Fn.cast(Int32(1), .integer)))
+    _ = try await context.connection.query(SQL.select(Fn.cast(Int32(1), .integer)))
 }
 
 @Test("TM12 managed manual rollback retains its lease until body exit")
@@ -379,7 +379,7 @@ func managedManualRollbackRetainsLeaseUntilBodyExit() async throws {
         try await transaction.rollback()
         _ = UUID()
         try await expectScopeViolation {
-            _ = try await context.connection.query(SwifQL.select(Fn.cast(Int32(1), .integer)))
+            _ = try await context.connection.query(SQL.select(Fn.cast(Int32(1), .integer)))
         }
     }
     #expect((try await rows(from: context.table, on: context.connection)).rows.isEmpty)
@@ -424,7 +424,7 @@ func commitOnRollbackOnlyStateThrowsFirstReason() async throws {
     var firstReason: DatabaseError?
     do {
         _ = try await transaction.execute(
-            SwifQL.insertInto(Path.Table("task04_missing"), fields: "id", "value")
+            SQL.insertInto(Path.Table("task04_missing"), fields: "id", "value")
                 .values.values(Int32(1), Int32(1))
         )
         Issue.record("Expected the missing-table operation to fail.")
@@ -449,7 +449,7 @@ func caughtManualFinalizerFailureDominatesNormalReturn() async throws {
         try await context.connection.transaction { transaction in
             do {
                 _ = try await transaction.execute(
-                    SwifQL.insertInto(Path.Table("task04_missing"), fields: "id", "value")
+                    SQL.insertInto(Path.Table("task04_missing"), fields: "id", "value")
                         .values.values(Int32(1), Int32(1))
                 )
             } catch let error as DatabaseError {
@@ -475,7 +475,7 @@ func caughtManualFinalizerFailureDominatesLaterBodyError() async throws {
         try await context.connection.transaction { transaction in
             do {
                 _ = try await transaction.execute(
-                    SwifQL.insertInto(Path.Table("task04_missing"), fields: "id", "value")
+                    SQL.insertInto(Path.Table("task04_missing"), fields: "id", "value")
                         .values.values(Int32(1), Int32(1))
                 )
             } catch let error as DatabaseError {
@@ -534,10 +534,10 @@ func forgottenFlatHandleDoesNotRunDeinitCleanup() async throws {
     forgotten = nil
 
     try await expectScopeViolation {
-        _ = try await context.connection.query(SwifQL.select(Fn.cast(Int32(1), .integer)))
+        _ = try await context.connection.query(SQL.select(Fn.cast(Int32(1), .integer)))
     }
     try await context.connection.rollbackManualTransaction(reservationId)
-    _ = try await context.connection.query(SwifQL.select(Fn.cast(Int32(1), .integer)))
+    _ = try await context.connection.query(SQL.select(Fn.cast(Int32(1), .integer)))
 }
 
 @Test("TM21 flat commit mutation publishes one Observation signal")
@@ -625,7 +625,7 @@ func cancellationDoesNotPreventRollbackIfNeededCleanup() async throws {
     task.cancel()
     await release.signal()
     _ = try await task.value
-    _ = try await context.connection.query(SwifQL.select(Fn.cast(Int32(1), .integer)))
+    _ = try await context.connection.query(SQL.select(Fn.cast(Int32(1), .integer)))
 }
 
 @Test("S64-06 rollback cleanup failure fail-closes without escaping rollbackIfNeeded")
@@ -633,7 +633,7 @@ func rollbackCleanupFailureFailClosesWithoutEscapingHelper() async throws {
     let context = try await makeManualTransactionContext()
     let transaction = try await context.connection.transaction()
     let reservationId = transaction.reservationId
-    let validRollback = try PreparedQuerySnapshot(SwifQL.rollback)
+    let validRollback = try PreparedQuerySnapshot(SQL.rollback)
     let firstRollbackFailure = await context.connection.rollbackTransaction(
         reservationId,
         rollback: validRollback,
@@ -647,7 +647,7 @@ func rollbackCleanupFailureFailClosesWithoutEscapingHelper() async throws {
 
     #expect(await context.connection.isTransactionReservationLive(reservationId) == false)
     do {
-        _ = try await context.connection.query(SwifQL.select(Fn.cast(Int32(1), .integer)))
+        _ = try await context.connection.query(SQL.select(Fn.cast(Int32(1), .integer)))
         Issue.record("Expected fail-closed Connection.")
     } catch let error as DatabaseError {
         if case .connectionUnusable = error {

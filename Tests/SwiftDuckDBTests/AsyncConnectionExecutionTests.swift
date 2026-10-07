@@ -1,14 +1,14 @@
 @testable import SwiftDuckDB
-import SwifQL
+import SQL
 import Testing
 
-@Test("Public query executes caller-local SwifQL through the pending engine")
-func publicQueryExecutesSwifQL() async throws {
+@Test("Public query executes caller-local SQL through the pending engine")
+func publicQueryExecutesSQL() async throws {
     let database = try Database()
     let connection = try database.connect()
 
     let result = try await connection.query(
-        SwifQL.select(Fn.cast(42, .bigint) => "answer")
+        SQL.select(Fn.cast(42, .bigint) => "answer")
     )
 
     #expect(result.columns == ["answer"])
@@ -23,7 +23,7 @@ func publicExecuteBindsMutationAndReportsRowsChanged() async throws {
     let connection = try database.connect()
     let table = Path.Table("task05_events")
 
-    let create = SwifQL
+    let create = SQL
         .create
         .table[any: table]
         .tableDefinitions(
@@ -33,7 +33,7 @@ func publicExecuteBindsMutationAndReportsRowsChanged() async throws {
     try await connection.execute(create)
 
     let inserted = try await connection.execute(
-        SwifQL
+        SQL
             .insertInto(table, fields: "id", "name")
             .values
             .values(Int32(2), "bound")
@@ -41,7 +41,7 @@ func publicExecuteBindsMutationAndReportsRowsChanged() async throws {
     #expect(inserted == 1)
 
     let result = try await connection.query(
-        SwifQL
+        SQL
             .select(table.column("id"), table.column("name"))
             .from(table)
             .where(table.column("id") == Int32(2))
@@ -58,7 +58,7 @@ func connectionRemainsReusableAfterPublicQueryError() async throws {
     let connection = try database.connect()
 
     do {
-        _ = try await connection.query(SwifQL.raw("SELECT FROM"))
+        _ = try await connection.query(SQL.raw("SELECT FROM"))
         Issue.record("Expected malformed SQL to fail during preparation.")
     } catch let error as DatabaseError {
         guard case .preparation = error else {
@@ -68,7 +68,7 @@ func connectionRemainsReusableAfterPublicQueryError() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(Fn.cast(Int32(7), .integer) => "value")
+        SQL.select(Fn.cast(Int32(7), .integer) => "value")
     )
     #expect(result.rows.first?["value"] == Value.int32(7))
 }
@@ -84,7 +84,7 @@ func alreadyCancelledPublicQueryStopsBeforeNativeExecution() async throws {
         }
 
         return try await connection.query(
-            SwifQL.select(Fn.cast(Int32(99), .integer) => "cancelled_value")
+            SQL.select(Fn.cast(Int32(99), .integer) => "cancelled_value")
         )
     }
 
@@ -98,7 +98,7 @@ func alreadyCancelledPublicQueryStopsBeforeNativeExecution() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(Fn.cast(Int32(5), .integer) => "value")
+        SQL.select(Fn.cast(Int32(5), .integer) => "value")
     )
     #expect(result.rows.first?["value"] == Value.int32(5))
 }

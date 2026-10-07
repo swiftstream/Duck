@@ -1,5 +1,5 @@
 import Foundation
-import SwifQL
+import SQL
 
 // MARK: - Public API
 

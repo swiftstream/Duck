@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 private struct SelectedAppenderUnsupported: Sendable {}
@@ -11,7 +11,7 @@ private enum SelectedAppenderFailure: Error, Equatable, Sendable {
 
 private func selectedNativeExecute(
     _ connection: NativeConnection,
-    _ query: any SwifQLable
+    _ query: any SQLable
 ) throws -> NativeResult {
     let statement = try connection.prepare(query.prepare(.duck).plain)
     let pending = try statement.pending()
@@ -24,7 +24,7 @@ private func selectedAppenderCount(
     on connection: Connection
 ) async throws -> Int64 {
     let result = try await connection.query(
-        SwifQL.select(Fn.count(table.column("id")) => "count").from(table)
+        SQL.select(Fn.count(table.column("id")) => "count").from(table)
     )
     let row = try #require(result.rows.first)
     let value = try #require(row["count"])
@@ -52,7 +52,7 @@ struct SelectedColumnAppenderTests {
         let connection = try database.connect()
         _ = try selectedNativeExecute(
             connection,
-            SwifQL.raw("CREATE TABLE selected_native_order (first INTEGER, second VARCHAR, third BOOLEAN)")
+            SQL.raw("CREATE TABLE selected_native_order (first INTEGER, second VARCHAR, third BOOLEAN)")
         )
 
         let appender = try NativeAppender(
@@ -67,7 +67,7 @@ struct SelectedColumnAppenderTests {
 
         let result = try selectedNativeExecute(
             connection,
-            SwifQL.raw("SELECT first, second, third FROM selected_native_order")
+            SQL.raw("SELECT first, second, third FROM selected_native_order")
         )
         let rows = try #require(try result.materializeNextChunk())
         let row = try #require(rows.first)
@@ -80,13 +80,13 @@ struct SelectedColumnAppenderTests {
     func selectedOmissionAndNullSemantics() async throws {
         let connection = try Database().connect()
         _ = try await connection.execute(
-            SwifQL.raw("CREATE TABLE selected_defaults (id INTEGER, constant_value INTEGER DEFAULT 17, absent_value INTEGER)")
+            SQL.raw("CREATE TABLE selected_defaults (id INTEGER, constant_value INTEGER DEFAULT 17, absent_value INTEGER)")
         )
         _ = try await connection.execute(
-            SwifQL.raw("CREATE SEQUENCE selected_sequence START 50")
+            SQL.raw("CREATE SEQUENCE selected_sequence START 50")
         )
         _ = try await connection.execute(
-            SwifQL.raw("CREATE TABLE selected_sequence_defaults (id INTEGER, sequence_value INTEGER DEFAULT nextval('selected_sequence'))")
+            SQL.raw("CREATE TABLE selected_sequence_defaults (id INTEGER, sequence_value INTEGER DEFAULT nextval('selected_sequence'))")
         )
         let table = Path.Table("selected_defaults")
         try await connection.appender(to: table, columns: ["id"]) { appender in
@@ -101,7 +101,7 @@ struct SelectedColumnAppenderTests {
         }
 
         let result = try await connection.query(
-            SwifQL.raw("SELECT id, constant_value, absent_value FROM selected_defaults ORDER BY id")
+            SQL.raw("SELECT id, constant_value, absent_value FROM selected_defaults ORDER BY id")
         )
         #expect(result.rows.count == 2)
         #expect(result.rows[0]["constant_value"] == .int32(17))
@@ -109,7 +109,7 @@ struct SelectedColumnAppenderTests {
         #expect(result.rows[1]["constant_value"] == .null)
 
         let sequence = try await connection.query(
-            SwifQL.raw("SELECT sequence_value FROM selected_sequence_defaults")
+            SQL.raw("SELECT sequence_value FROM selected_sequence_defaults")
         )
         #expect(sequence.rows.first?["sequence_value"] == .int32(50))
     }
@@ -118,7 +118,7 @@ struct SelectedColumnAppenderTests {
     func selectedNameFailuresReleaseSetup() async throws {
         let connection = try Database().connect()
         _ = try await connection.execute(
-            SwifQL.raw("CREATE TABLE selected_name_failures (id INTEGER, MixedCase INTEGER, \"literal\"\"quote\" INTEGER, generated INTEGER GENERATED ALWAYS AS (id + 1))")
+            SQL.raw("CREATE TABLE selected_name_failures (id INTEGER, MixedCase INTEGER, \"literal\"\"quote\" INTEGER, generated INTEGER GENERATED ALWAYS AS (id + 1))")
         )
         let table = Path.Table("selected_name_failures")
         let invalidSelections: [[String]] = [
@@ -145,11 +145,11 @@ struct SelectedColumnAppenderTests {
             try await appender.append(Int32(8), Int32(9))
         }
         let result = try await connection.query(
-            SwifQL.raw("SELECT \"literal\"\"quote\", \"MixedCase\" FROM selected_name_failures")
+            SQL.raw("SELECT \"literal\"\"quote\", \"MixedCase\" FROM selected_name_failures")
         )
         #expect(result.rows.first?["literal\"quote"] == .int32(8))
         #expect(result.rows.first?["MixedCase"] == .int32(9))
-        let usable = try await connection.query(SwifQL.select(Int32(11) => "value"))
+        let usable = try await connection.query(SQL.select(Int32(11) => "value"))
         #expect(usable.rows.first?["value"] == .int32(11))
     }
 
@@ -158,7 +158,7 @@ struct SelectedColumnAppenderTests {
         let database = try Database()
         let connection = try database.connect()
         _ = try await connection.execute(
-            SwifQL.raw("CREATE TABLE selected_preflight (id INTEGER, name VARCHAR, late INTEGER)")
+            SQL.raw("CREATE TABLE selected_preflight (id INTEGER, name VARCHAR, late INTEGER)")
         )
         let table = Path.Table("selected_preflight")
         let abortedObservation = await database.observationCoordinator
@@ -208,7 +208,7 @@ struct SelectedColumnAppenderTests {
             try await appender.append("valid", Int32(7))
         }
         let result = try await connection.query(
-            SwifQL.select(table.column("name"), table.column("late")).from(table)
+            SQL.select(table.column("name"), table.column("late")).from(table)
         )
         #expect(result.rows.count == 1)
         #expect(result.rows.first?["name"] == .string("valid"))
@@ -228,7 +228,7 @@ struct SelectedColumnAppenderTests {
         let connection = try database.connect()
         let table = Path.Table("selected_constraint")
         _ = try await connection.execute(
-            SwifQL.raw("CREATE TABLE selected_constraint (id INTEGER CHECK (id > 0), ignored VARCHAR)")
+            SQL.raw("CREATE TABLE selected_constraint (id INTEGER CHECK (id > 0), ignored VARCHAR)")
         )
         let registration = await database.observationCoordinator.register(initial: .database)
         do {
@@ -253,7 +253,7 @@ struct SelectedColumnAppenderTests {
         let connection = try database.connect()
         let table = Path.Table("selected_autoflush")
         _ = try await connection.execute(
-            SwifQL.raw("CREATE TABLE selected_autoflush (id INTEGER, omitted VARCHAR DEFAULT 'default')")
+            SQL.raw("CREATE TABLE selected_autoflush (id INTEGER, omitted VARCHAR DEFAULT 'default')")
         )
         let registration = await database.observationCoordinator.register(initial: .database)
         do {
@@ -278,7 +278,7 @@ struct SelectedColumnAppenderTests {
         let observer = try database.connect()
         let table = Path.Table("selected_transaction")
         _ = try await connection.execute(
-            SwifQL.raw("CREATE TABLE selected_transaction (id INTEGER, omitted VARCHAR DEFAULT 'x')")
+            SQL.raw("CREATE TABLE selected_transaction (id INTEGER, omitted VARCHAR DEFAULT 'x')")
         )
         let committed = await database.observationCoordinator.register(initial: .database)
         try await connection.transaction { transaction in
@@ -328,17 +328,17 @@ struct SelectedColumnAppenderTests {
         let other = try database.connect()
         let table = Path.Table("selected_guards")
         _ = try await connection.execute(
-            SwifQL.raw("CREATE TABLE selected_guards (id INTEGER, ignored INTEGER)")
+            SQL.raw("CREATE TABLE selected_guards (id INTEGER, ignored INTEGER)")
         )
         try await connection.appender(to: table, columns: ["id"]) { appender in
             do {
-                _ = try await connection.query(SwifQL.select(Int32(1) => "value"))
+                _ = try await connection.query(SQL.select(Int32(1) => "value"))
                 Issue.record("Expected same-Connection scope guard.")
             } catch let error as DatabaseError {
                 #expect(error == .appenderScopeViolation)
             }
             try await appender.append(Int32(3))
-            let independent = try await other.query(SwifQL.select(Int32(4) => "value"))
+            let independent = try await other.query(SQL.select(Int32(4) => "value"))
             #expect(independent.rows.first?["value"] == .int32(4))
         }
 
@@ -355,7 +355,7 @@ struct SelectedColumnAppenderTests {
         } catch is CancellationError {
             // Expected.
         }
-        let usable = try await connection.query(SwifQL.select(Int32(6) => "value"))
+        let usable = try await connection.query(SQL.select(Int32(6) => "value"))
         #expect(usable.rows.first?["value"] == .int32(6))
         #expect(try await selectedAppenderCount(table, on: connection) == 1)
     }
@@ -367,7 +367,7 @@ struct SelectedColumnAppenderTests {
         let table = Path.Table("selected_pool")
         let firstId = try await pool.connection { connection in
             _ = try await connection.execute(
-                SwifQL.raw("CREATE TABLE selected_pool (id INTEGER, omitted INTEGER DEFAULT 12)")
+                SQL.raw("CREATE TABLE selected_pool (id INTEGER, omitted INTEGER DEFAULT 12)")
             )
             try await connection.appender(to: table, columns: ["id"]) { appender in
                 try await appender.append(Int32(1))

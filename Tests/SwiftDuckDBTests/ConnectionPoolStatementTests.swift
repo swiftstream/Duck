@@ -1,5 +1,5 @@
 @testable import SwiftDuckDB
-import SwifQL
+import SQL
 import Testing
 
 private func statementResultValue(
@@ -47,7 +47,7 @@ struct ConnectionPoolStatementTests {
 
         try await pool.connection { connection in
             let statement = try await connection.prepare { parameters in
-                SwifQL.select(
+                SQL.select(
                     Fn.cast(parameters.parameter(), .integer) => "value"
                 )
             }
@@ -72,7 +72,7 @@ struct ConnectionPoolStatementTests {
         let pool = try Database().pool(maximumConnections: 1)
         let statement = try await pool.connection { connection in
             let statement = try await connection.prepare { parameters in
-                SwifQL.select(
+                SQL.select(
                     Fn.cast(parameters.parameter(), .integer) => "value"
                 )
             }
@@ -97,7 +97,7 @@ struct ConnectionPoolStatementTests {
         let pool = try Database().pool(maximumConnections: 1)
         let firstLease = try await pool.connection { connection in
             let statement = try await connection.prepare { parameters in
-                SwifQL.select(
+                SQL.select(
                     Fn.cast(parameters.parameter(), .integer) => "value"
                 )
             }
@@ -118,7 +118,7 @@ struct ConnectionPoolStatementTests {
             }
 
             let freshStatement = try await connection.prepare { parameters in
-                SwifQL.select(
+                SQL.select(
                     Fn.cast(parameters.parameter(), .integer) => "value"
                 )
             }
@@ -135,7 +135,7 @@ struct ConnectionPoolStatementTests {
     func standaloneStatementRemainsReusable() async throws {
         let connection = try Database().connect()
         let statement = try await connection.prepare { parameters in
-            SwifQL.select(
+            SQL.select(
                 Fn.cast(parameters.parameter(), .integer) => "value"
             )
         }
@@ -161,7 +161,7 @@ struct ConnectionPoolStatementTests {
         let pool = try Database().pool(maximumConnections: 1)
         var retainedStatement: Statement? = try await pool.connection { connection in
             let statement = try await connection.prepare { parameters in
-                SwifQL.select(
+                SQL.select(
                     Fn.cast(parameters.parameter(), .integer) => "value"
                 )
             }
@@ -182,7 +182,7 @@ struct ConnectionPoolStatementTests {
         try await pool.connection { freshConnection in
             #expect(freshConnection.id == connection.id)
             let freshStatement = try await freshConnection.prepare { parameters in
-                SwifQL.select(
+                SQL.select(
                     Fn.cast(parameters.parameter(), .integer) => "value"
                 )
             }

@@ -1,5 +1,5 @@
 @testable import SwiftDuckDB
-import SwifQL
+import SQL
 import Testing
 
 private struct Task06User: Table {
@@ -60,7 +60,7 @@ func queryCenteredConveniencesDelegateToConnection() async throws {
     let connection = try database.connect()
     let table = Path.Table(Task06User.tableName)
 
-    try await SwifQL
+    try await SQL
         .create
         .table[any: table]
         .tableDefinitions(
@@ -71,7 +71,7 @@ func queryCenteredConveniencesDelegateToConnection() async throws {
         )
         .execute(on: connection)
 
-    let rowsChanged = try await SwifQL
+    let rowsChanged = try await SQL
         .insertInto(table, fields: "email", "name", "role", "age")
         .values
         .values("user@example.com", "Mira", "admin", Int32(30))

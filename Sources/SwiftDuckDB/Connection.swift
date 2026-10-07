@@ -1,5 +1,5 @@
 import Foundation
-import SwifQL
+import SQL
 
 /// Owns the prepared split execution SQL, normalized bindings, and plain analysis SQL.
 struct PreparedQuerySnapshot: Sendable {
@@ -10,8 +10,8 @@ struct PreparedQuerySnapshot: Sendable {
     /// SQL passed only to observation dependency analysis.
     let analysisSQL: String
 
-    /// Synchronously snapshots one SwifQLable into split execution SQL, normalized bindings, and plain analysis SQL.
-    init(_ query: any SwifQLable) throws {
+    /// Synchronously snapshots one SQLable into split execution SQL, normalized bindings, and plain analysis SQL.
+    init(_ query: any SQLable) throws {
         let prepared = query.prepare(.duck)
         let split = prepared.splitted
         sql = split.query
@@ -26,9 +26,9 @@ private struct TransactionLifecycleSnapshots {
     let rollback: PreparedQuerySnapshot
 
     init() throws {
-        begin = try PreparedQuerySnapshot(SwifQL.begin)
-        commit = try PreparedQuerySnapshot(SwifQL.commit)
-        rollback = try PreparedQuerySnapshot(SwifQL.rollback)
+        begin = try PreparedQuerySnapshot(SQL.begin)
+        commit = try PreparedQuerySnapshot(SQL.commit)
+        rollback = try PreparedQuerySnapshot(SQL.rollback)
     }
 }
 
@@ -38,9 +38,9 @@ private struct ObservationLifecycleSnapshots {
     let rollback: PreparedQuerySnapshot
 
     init() throws {
-        begin = try PreparedQuerySnapshot(SwifQL.raw("BEGIN TRANSACTION READ ONLY"))
-        commit = try PreparedQuerySnapshot(SwifQL.commit)
-        rollback = try PreparedQuerySnapshot(SwifQL.rollback)
+        begin = try PreparedQuerySnapshot(SQL.raw("BEGIN TRANSACTION READ ONLY"))
+        commit = try PreparedQuerySnapshot(SQL.commit)
+        rollback = try PreparedQuerySnapshot(SQL.rollback)
     }
 }
 
@@ -405,7 +405,7 @@ public actor Connection {
         }
     }
 
-    public nonisolated(nonsending) func query(_ query: any SwifQLable) async throws -> QueryResult {
+    public nonisolated(nonsending) func query(_ query: any SQLable) async throws -> QueryResult {
         try await rejectLiveTransactionBodyMisuse(asTransaction: false)
         try await rejectLiveAppenderBodyMisuse()
         let snapshot = try PreparedQuerySnapshot(query)
@@ -413,7 +413,7 @@ public actor Connection {
     }
 
     @discardableResult
-    public nonisolated(nonsending) func execute(_ query: any SwifQLable) async throws -> UInt64 {
+    public nonisolated(nonsending) func execute(_ query: any SQLable) async throws -> UInt64 {
         try await rejectLiveTransactionBodyMisuse(asTransaction: false)
         try await rejectLiveAppenderBodyMisuse()
         let snapshot = try PreparedQuerySnapshot(query)
@@ -421,7 +421,7 @@ public actor Connection {
     }
 
     public nonisolated(nonsending) func prepare(
-        _ query: any SwifQLable
+        _ query: any SQLable
     ) async throws -> Statement {
         try await rejectLiveTransactionBodyMisuse(asTransaction: false)
         try await rejectLiveAppenderBodyMisuse()
@@ -430,7 +430,7 @@ public actor Connection {
     }
 
     public nonisolated(nonsending) func prepare(
-        _ build: (Statement.Parameters) throws -> any SwifQLable
+        _ build: (Statement.Parameters) throws -> any SQLable
     ) async throws -> Statement {
         try await rejectLiveTransactionBodyMisuse(asTransaction: false)
         try await rejectLiveAppenderBodyMisuse()
@@ -2427,7 +2427,7 @@ public actor Connection {
 
             let resultColumns = try result.resultColumns()
             let columns = resultColumns.map(\.name)
-            var rows: [Row] = []
+            var rows: [ResultRow] = []
 
             while true {
                 if cancellationPolicy == .cooperative {

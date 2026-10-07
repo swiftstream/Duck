@@ -1,7 +1,7 @@
 import Foundation
-import SwifQL
+import SQL
 
-public struct Row: Sendable, Equatable {
+public struct ResultRow: Sendable, Equatable {
     public let columns: [String]
     public let values: [Value]
 

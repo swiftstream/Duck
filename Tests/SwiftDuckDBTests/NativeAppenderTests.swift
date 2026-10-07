@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 @Test("Native appender persists the current primitive value family")
@@ -10,7 +10,7 @@ func nativeAppenderPersistsCurrentPrimitiveValueFamily() throws {
 
     _ = try execute(
         connection,
-        SwifQL.raw(
+        SQL.raw(
             """
             CREATE TABLE native_appender_values (
                 boolean_value BOOLEAN,
@@ -60,7 +60,7 @@ func nativeAppenderPersistsCurrentPrimitiveValueFamily() throws {
 
     let result = try execute(
         connection,
-        SwifQL.raw(
+        SQL.raw(
             """
             SELECT
                 boolean_value,
@@ -119,7 +119,7 @@ func failedNativeAppenderCreationLeavesConnectionUsable() throws {
 
     _ = try execute(
         connection,
-        SwifQL.raw("CREATE TABLE native_appender_after_create_failure (value INTEGER)")
+        SQL.raw("CREATE TABLE native_appender_after_create_failure (value INTEGER)")
     )
     let appender = try NativeAppender(
         connection: connection,
@@ -138,7 +138,7 @@ func nativeAppenderDiscardDropsBufferedRows() throws {
 
     _ = try execute(
         connection,
-        SwifQL.raw("CREATE TABLE native_appender_discard (value INTEGER)")
+        SQL.raw("CREATE TABLE native_appender_discard (value INTEGER)")
     )
     let appender = try NativeAppender(connection: connection, table: "native_appender_discard")
     try appender.appendRow([.int32(7)])
@@ -154,7 +154,7 @@ func nativeAppenderDeinitDiscardsBufferedRows() throws {
 
     _ = try execute(
         connection,
-        SwifQL.raw("CREATE TABLE native_appender_deinit_discard (value INTEGER)")
+        SQL.raw("CREATE TABLE native_appender_deinit_discard (value INTEGER)")
     )
 
     do {
@@ -175,7 +175,7 @@ func nativeAppenderRowCountMismatchIsRecoverable() throws {
 
     _ = try execute(
         connection,
-        SwifQL.raw("CREATE TABLE native_appender_row_count (first INTEGER, second INTEGER)")
+        SQL.raw("CREATE TABLE native_appender_row_count (first INTEGER, second INTEGER)")
     )
     let appender = try NativeAppender(connection: connection, table: "native_appender_row_count")
 
@@ -200,7 +200,7 @@ func nativeAppenderReportsFailingPrimitiveColumn() throws {
 
     _ = try execute(
         connection,
-        SwifQL.raw("CREATE TABLE native_appender_column_error (value INTEGER)")
+        SQL.raw("CREATE TABLE native_appender_column_error (value INTEGER)")
     )
     let appender = try NativeAppender(connection: connection, table: "native_appender_column_error")
 
@@ -223,7 +223,7 @@ func nativeAppenderCloseReportsConstraintFinalizationFailure() throws {
 
     _ = try execute(
         connection,
-        SwifQL.raw("CREATE TABLE native_appender_unique (id INTEGER PRIMARY KEY)")
+        SQL.raw("CREATE TABLE native_appender_unique (id INTEGER PRIMARY KEY)")
     )
 
     let initial = try NativeAppender(connection: connection, table: "native_appender_unique")
@@ -252,7 +252,7 @@ func nativeAppenderStronglyRetainsNativeConnection() throws {
 
     _ = try execute(
         try #require(connection),
-        SwifQL.raw("CREATE TABLE native_appender_parent_lifetime (value INTEGER)")
+        SQL.raw("CREATE TABLE native_appender_parent_lifetime (value INTEGER)")
     )
 
     weak let weakConnection = connection
@@ -273,7 +273,7 @@ func nativeAppenderStronglyRetainsNativeConnection() throws {
 
 private func execute(
     _ connection: NativeConnection,
-    _ query: any SwifQLable
+    _ query: any SQLable
 ) throws -> NativeResult {
     let statement = try connection.prepare(query.prepare(.duck).plain)
     let pending = try statement.pending()
@@ -289,7 +289,7 @@ private func rowCount(
 ) throws -> Int64 {
     let result = try execute(
         connection,
-        SwifQL.raw("SELECT CAST(COUNT(*) AS BIGINT) AS count FROM \(table)")
+        SQL.raw("SELECT CAST(COUNT(*) AS BIGINT) AS count FROM \(table)")
     )
     let rows = try #require(try result.materializeNextChunk())
     let row = try #require(rows.first)

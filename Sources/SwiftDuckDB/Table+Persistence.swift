@@ -1,5 +1,5 @@
 import Foundation
-import SwifQL
+import SQL
 
 // MARK: - Persistence field
 
@@ -12,8 +12,8 @@ struct TablePersistenceField: Sendable, Equatable {
 
 // MARK: - Prepared binding carriers
 
-/// Encodable transport box so SwifQL can carry an exact `Value` through
-/// `SwifQLPartUnsafeValue`. This is not a database representation; production
+/// Encodable transport box so SQL can carry an exact `Value` through
+/// `SQLPartUnsafeValue`. This is not a database representation; production
 /// binding unwraps the stored `Value` in `normalizeBinding`.
 struct PreparedModelValue: Encodable, Sendable {
     let value: Value
@@ -30,12 +30,12 @@ struct PreparedModelValue: Encodable, Sendable {
     }
 }
 
-/// SwifQLable carrier that emits an unsafe bind slot, never a SQL literal.
-struct BoundModelValue: SwifQLable {
+/// SQLable carrier that emits an unsafe bind slot, never a SQL literal.
+struct BoundModelValue: SQLable {
     let value: Value
 
-    var parts: [SwifQLPart] {
-        [SwifQLPartUnsafeValue(PreparedModelValue(value: value))]
+    var parts: [SQLPart] {
+        [SQLPartUnsafeValue(PreparedModelValue(value: value))]
     }
 }
 
@@ -96,7 +96,7 @@ extension Table {
     ///
     /// `returning == true` appends `RETURNING *`. Throws
     /// `DatabaseError.invalidResult` when no initialized field is present.
-    func persistenceInsertQuery(returning: Bool) throws -> any SwifQLable {
+    func persistenceInsertQuery(returning: Bool) throws -> any SQLable {
         let fields = try persistenceFields()
         guard !fields.isEmpty else {
             throw DatabaseError.invalidResult(
@@ -104,7 +104,7 @@ extension Table {
             )
         }
 
-        let query = SwifQL
+        let query = SQL
             .insertInto(
                 Self.table,
                 fields: fields.map { Path.Column($0.name) }
@@ -125,7 +125,7 @@ extension Table {
     func persistenceUpdateQuery<C: ColumnRepresentable>(
         on keyColumn: KeyPath<Self, C>,
         returning: Bool
-    ) throws -> (any SwifQLable)? {
+    ) throws -> (any SQLable)? {
         let keyName = Self.key(for: keyColumn)
         let fields = try persistenceFields()
 
@@ -146,7 +146,7 @@ extension Table {
             return nil
         }
 
-        let query = SwifQL
+        let query = SQL
             .update(Self.table)
             .set[items: changed.map { field in
                 Path.Column(field.name) == BoundModelValue(value: field.value)

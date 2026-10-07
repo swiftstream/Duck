@@ -1,5 +1,5 @@
 import Foundation
-import SwifQL
+import SQL
 
 /// The public Swift value facade for DuckDB scalar results and bindings.
 ///

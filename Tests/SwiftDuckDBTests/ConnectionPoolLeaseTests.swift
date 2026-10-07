@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 private actor PoolLeaseSignal {
@@ -145,7 +145,7 @@ func poolLeaseStateMachineRequiresExactToken() throws {
 func standaloneConnectionRemainsUnchanged() async throws {
     let connection = try Database().connect()
     let result = try await connection.query(
-        SwifQL.select(Int32(7) => "value")
+        SQL.select(Int32(7) => "value")
     )
     #expect(result.rows.count == 1)
     #expect(result.rows.first?["value"] == .int32(7))
@@ -157,20 +157,20 @@ func pooledConnectionEnforcesExactDynamicLease() async throws {
     let token = fixture.token()
 
     await expectPoolLeaseExpired {
-        _ = try await fixture.connection.query(SwifQL.select(Int32(1) => "value"))
+        _ = try await fixture.connection.query(SQL.select(Int32(1) => "value"))
     }
 
     try await fixture.connection.activatePoolLease(token)
 
     let active = try await withPoolLease(token) {
-        try await fixture.connection.query(SwifQL.select(Int32(2) => "value"))
+        try await fixture.connection.query(SQL.select(Int32(2) => "value"))
     }
     #expect(active.rows.first?["value"] == .int32(2))
 
     let structured = try await withPoolLease(token) {
         try await withThrowingTaskGroup(of: QueryResult.self) { group in
             group.addTask {
-                try await fixture.connection.query(SwifQL.select(Int32(3) => "value"))
+                try await fixture.connection.query(SQL.select(Int32(3) => "value"))
             }
             let result = try await group.next()
             return try #require(result)
@@ -182,7 +182,7 @@ func pooledConnectionEnforcesExactDynamicLease() async throws {
         await Task.detached {
             do {
                 _ = try await fixture.connection.query(
-                    SwifQL.select(Int32(4) => "value")
+                    SQL.select(Int32(4) => "value")
                 )
                 return false
             } catch let error as DatabaseError {
@@ -206,7 +206,7 @@ func pooledConnectionEnforcesExactDynamicLease() async throws {
 
     await expectPoolLeaseExpired {
         try await withPoolLease(token) {
-            _ = try await fixture.connection.query(SwifQL.select(Int32(5) => "value"))
+            _ = try await fixture.connection.query(SQL.select(Int32(5) => "value"))
         }
     }
 
@@ -215,12 +215,12 @@ func pooledConnectionEnforcesExactDynamicLease() async throws {
 
     await expectPoolLeaseExpired {
         try await withPoolLease(token) {
-            _ = try await fixture.connection.query(SwifQL.select(Int32(6) => "value"))
+            _ = try await fixture.connection.query(SQL.select(Int32(6) => "value"))
         }
     }
 
     let nextResult = try await withPoolLease(next) {
-        try await fixture.connection.query(SwifQL.select(Int32(7) => "value"))
+        try await fixture.connection.query(SQL.select(Int32(7) => "value"))
     }
     #expect(nextResult.rows.first?["value"] == .int32(7))
 
@@ -239,7 +239,7 @@ func pooledConnectionClosingRejectsNewAdmission() async throws {
 
     await expectPoolLeaseExpired {
         try await withPoolLease(token) {
-            _ = try await fixture.connection.query(SwifQL.select(Int32(1) => "value"))
+            _ = try await fixture.connection.query(SQL.select(Int32(1) => "value"))
         }
     }
 
@@ -259,7 +259,7 @@ func pooledStatementDoesNotCrossLeaseBoundary() async throws {
 
     let statement = try await withPoolLease(first) {
         try await fixture.connection.prepare { parameters in
-            SwifQL.select(
+            SQL.select(
                 Fn.cast(parameters.parameter(), .integer) => "value"
             )
         }
@@ -302,14 +302,14 @@ func pooledReturnRollsBackLeakedFlatTransaction() async throws {
 
     let transaction = try await withPoolLease(first) {
         try await fixture.connection.execute(
-            SwifQL
+            SQL
                 .create
                 .table[any: table]
                 .tableDefinitions(NewColumn("id", .integer))
         )
 
         let transaction = try await fixture.connection.transaction()
-        try await SwifQL
+        try await SQL
             .insertInto(table, fields: "id")
             .values
             .values(Int32(1))
@@ -326,7 +326,7 @@ func pooledReturnRollsBackLeakedFlatTransaction() async throws {
     try await fixture.connection.activatePoolLease(second)
 
     let rows = try await withPoolLease(second) {
-        try await SwifQL
+        try await SQL
             .select(table.column("id"))
             .from(table)
             .query(on: fixture.connection)
@@ -395,7 +395,7 @@ func pooledClosingRejectsNewTransactionOperation() async throws {
 
     await expectPoolLeaseExpired {
         try await withPoolLease(token) {
-            _ = try await transaction.query(SwifQL.select(Int32(1) => "value"))
+            _ = try await transaction.query(SQL.select(Int32(1) => "value"))
         }
     }
 
@@ -425,7 +425,7 @@ func idlePooledConnectionCanRetire() async throws {
 
     await expectPoolLeaseExpired {
         try await withPoolLease(token) {
-            _ = try await fixture.connection.query(SwifQL.select(Int32(1) => "value"))
+            _ = try await fixture.connection.query(SQL.select(Int32(1) => "value"))
         }
     }
 }

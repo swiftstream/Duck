@@ -1,4 +1,4 @@
-import SwifQL
+import SQL
 
 extension TableSelector {
     public func callAsFunction<each SelectedColumn>(

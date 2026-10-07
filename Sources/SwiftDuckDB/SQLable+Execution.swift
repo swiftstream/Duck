@@ -1,6 +1,6 @@
-import SwifQL
+import SQL
 
-extension SwifQLable {
+extension SQLable {
     /// Creates a reusable latest-state observation on the supplied database.
     ///
     /// This delegates to `Database.observe(_:)` and captures the query synchronously.

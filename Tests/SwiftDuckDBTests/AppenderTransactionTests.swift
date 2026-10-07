@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 private struct UnsupportedAppenderTransactionValue: Sendable {}
@@ -42,7 +42,7 @@ private func makeAppenderTransactionTable(
 ) async throws -> Path.Table {
     let table = Path.Table(name)
     try await connection.execute(
-        SwifQL
+        SQL
             .create
             .table[any: table]
             .tableDefinitions(columns)
@@ -55,7 +55,7 @@ private func rowCount(
     on connection: Connection
 ) async throws -> Int64 {
     let result = try await connection.query(
-        SwifQL.select(Fn.count(table.column("id")) => "count").from(table)
+        SQL.select(Fn.count(table.column("id")) => "count").from(table)
     )
     let row = try #require(result.rows.first)
     let value = try #require(row["count"])
@@ -80,7 +80,7 @@ func ordinaryConnectionAppenderRemainsExcludedInsideTransaction() async throws {
         }
 
         try await transaction.execute(
-            SwifQL.select(Fn.cast(Int32(1), .integer) => "value")
+            SQL.select(Fn.cast(Int32(1), .integer) => "value")
         )
     }
 }
@@ -167,7 +167,7 @@ func uncaughtTransactionAppenderBodyErrorRollsBack() async throws {
 
     #expect(try await rowCount(from: table, on: connection) == 0)
     let reused = try await connection.query(
-        SwifQL.select(Fn.cast(Int32(42), .integer) => "value")
+        SQL.select(Fn.cast(Int32(42), .integer) => "value")
     )
     #expect(reused.rows.first?["value"] == .int32(42))
 }
@@ -205,7 +205,7 @@ func caughtArbitraryTransactionAppenderErrorPreventsFalseCommit() async throws {
 
     #expect(try await rowCount(from: table, on: connection) == 0)
     let reused = try await connection.query(
-        SwifQL.select(Fn.cast(Int32(43), .integer) => "value")
+        SQL.select(Fn.cast(Int32(43), .integer) => "value")
     )
     #expect(reused.rows.first?["value"] == .int32(43))
 }
@@ -251,7 +251,7 @@ func transactionAppenderFinalizationFailureRollsBack() async throws {
         columns: [NewColumn("id", .integer).primaryKey()]
     )
     _ = try await connection.execute(
-        SwifQL.insertInto(table, fields: "id").values.values(Int32(1))
+        SQL.insertInto(table, fields: "id").values.values(Int32(1))
     )
 
     do {
@@ -280,7 +280,7 @@ func transactionAppenderFinalizationFailureRollsBack() async throws {
 
     #expect(try await rowCount(from: table, on: connection) == 1)
     let reused = try await connection.query(
-        SwifQL.select(Fn.cast(Int32(44), .integer) => "value")
+        SQL.select(Fn.cast(Int32(44), .integer) => "value")
     )
     #expect(reused.rows.first?["value"] == .int32(44))
 }
@@ -308,7 +308,7 @@ func transactionAppenderIsolatesAcrossConnections() async throws {
             }
 
             let inside = try await transaction.query(
-                SwifQL.select(taskTable.column("id")).from(taskTable)
+                SQL.select(taskTable.column("id")).from(taskTable)
             )
             #expect(inside.rows.count == 2)
             await ready.signal()
@@ -336,7 +336,7 @@ func inheritedTransactionQueryAndExecuteAreRejectedWithoutPoisoning() async thro
         try await transaction.appender(to: table) { appender in
             do {
                 _ = try await transaction.query(
-                    SwifQL.select(Fn.cast(Int32(1), .integer) => "value")
+                    SQL.select(Fn.cast(Int32(1), .integer) => "value")
                 )
                 Issue.record("Expected Transaction query scope violation.")
             } catch let error as DatabaseError {
@@ -345,7 +345,7 @@ func inheritedTransactionQueryAndExecuteAreRejectedWithoutPoisoning() async thro
 
             do {
                 _ = try await transaction.execute(
-                    SwifQL.select(Fn.cast(Int32(2), .integer) => "value")
+                    SQL.select(Fn.cast(Int32(2), .integer) => "value")
                 )
                 Issue.record("Expected Transaction execute scope violation.")
             } catch let error as DatabaseError {
@@ -368,13 +368,13 @@ func inheritedTransactionBoundStatementsAreRejectedWithoutPoisoning() async thro
         columns: [NewColumn("id", .integer)]
     )
     let queryStatement = try await connection.prepare { parameters in
-        SwifQL
+        SQL
             .select(table.column("id"))
             .from(table)
             .where(table.column("id") == parameters.parameter())
     }
     let executeStatement = try await connection.prepare { parameters in
-        SwifQL
+        SQL
             .insertInto(table, fields: "id")
             .values
             .values(parameters.parameter())
@@ -445,7 +445,7 @@ func precreatedExternalSiblingSucceedsAfterTransactionAppenderScope() async thro
             await childGate.wait()
             let childTable = Path.Table(tableName)
             let result = try await transaction.query(
-                SwifQL.select(childTable.column("id")).from(childTable)
+                SQL.select(childTable.column("id")).from(childTable)
             )
             return result.rows.count
         }
@@ -484,7 +484,7 @@ func structuredConcurrentTransactionAppenderRowsPreserveCorrelation() async thro
     }
 
     let result = try await connection.query(
-        SwifQL.select(table.column("id"), table.column("name")).from(table)
+        SQL.select(table.column("id"), table.column("name")).from(table)
     )
     var rowsById: [Int32: String] = [:]
     for row in result.rows {
@@ -560,11 +560,11 @@ func separateConnectionRemainsIndependentDuringLiveTransactionAppender() async t
 
     await live.wait()
     let independentQuery = try await connectionB.query(
-        SwifQL.select(Fn.cast(Int32(21), .integer) => "value")
+        SQL.select(Fn.cast(Int32(21), .integer) => "value")
     )
     #expect(independentQuery.rows.first?["value"] == .int32(21))
     _ = try await connectionB.execute(
-        SwifQL.insertInto(otherTable, fields: "id").values.values(Int32(22))
+        SQL.insertInto(otherTable, fields: "id").values.values(Int32(22))
     )
     await release.signal()
     try await transactionTask.value
@@ -635,7 +635,7 @@ func caughtFailClosedTransactionAppenderFailureForcesRollback() async throws {
 
     do {
         _ = try await connectionA.query(
-            SwifQL.select(Fn.cast(Int32(45), .integer) => "value")
+            SQL.select(Fn.cast(Int32(45), .integer) => "value")
         )
         Issue.record("Expected fail-closed Connection rejection.")
     } catch let error as DatabaseError {
@@ -685,7 +685,7 @@ func storedRollbackOnlyAppenderReasonOutranksLaterFailClose() async throws {
 
     do {
         _ = try await connectionA.query(
-            SwifQL.select(Fn.cast(Int32(46), .integer) => "value")
+            SQL.select(Fn.cast(Int32(46), .integer) => "value")
         )
         Issue.record("Expected fail-closed Connection rejection.")
     } catch let error as DatabaseError {
@@ -698,7 +698,7 @@ func terminalTransactionAppenderNativeFailureRemainsFirstTruth() async throws {
     let connection = try Database().connect()
     let table = Path.Table("transaction_appender_terminal_failure")
     _ = try await connection.execute(
-        SwifQL.raw(
+        SQL.raw(
             "CREATE TABLE transaction_appender_terminal_failure (id INTEGER CHECK(id >= 0))"
         )
     )
@@ -758,7 +758,7 @@ func terminalTransactionAppenderNativeFailureRemainsFirstTruth() async throws {
     #expect(try await rowCount(from: table, on: connection) == 0)
 
     let reused = try await connection.query(
-        SwifQL.select(Fn.cast(Int32(47), .integer) => "value")
+        SQL.select(Fn.cast(Int32(47), .integer) => "value")
     )
     #expect(reused.rows.first?["value"] == .int32(47))
 }
@@ -801,7 +801,7 @@ func transactionAppenderAutoFlushRowsRollbackAfterCaughtBodyError() async throws
 
     #expect(try await rowCount(from: table, on: connection) == 0)
     let reused = try await connection.query(
-        SwifQL.select(Fn.cast(Int32(48), .integer) => "value")
+        SQL.select(Fn.cast(Int32(48), .integer) => "value")
     )
     #expect(reused.rows.first?["value"] == .int32(48))
 }
@@ -844,7 +844,7 @@ func transactionAppenderCancellationRemainsRollbackOnly() async throws {
 
     #expect(try await rowCount(from: table, on: connection) == 0)
     let reused = try await connection.query(
-        SwifQL.select(Fn.cast(Int32(49), .integer) => "value")
+        SQL.select(Fn.cast(Int32(49), .integer) => "value")
     )
     #expect(reused.rows.first?["value"] == .int32(49))
 }

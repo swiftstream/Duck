@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 private struct Task07User: Table {
@@ -22,15 +22,15 @@ private enum Task07TestError: Error, Sendable {
     case unexpectedValue
 }
 
-private struct Task07BoundValue<Value: Encodable>: SwifQLable {
+private struct Task07BoundValue<Value: Encodable>: SQLable {
     let value: Value
 
     init(_ value: Value) {
         self.value = value
     }
 
-    var parts: [SwifQLPart] {
-        [SwifQLPartUnsafeValue(value)]
+    var parts: [SQLPart] {
+        [SQLPartUnsafeValue(value)]
     }
 }
 
@@ -43,7 +43,7 @@ func publicCrudScenarioMatrix() async throws {
     let connection = try database.connect()
     let table = Path.Table(Task07User.tableName)
 
-    try await SwifQL
+    try await SQL
         .create
         .table[any: table]
         .tableDefinitions(
@@ -53,14 +53,14 @@ func publicCrudScenarioMatrix() async throws {
         )
         .execute(on: connection)
 
-    let firstInsert = try await SwifQL
+    let firstInsert = try await SQL
         .insertInto(table, fields: "id", "display name", "status")
         .values
         .values(Int32(1), "Alpha", Optional<String>.none)
         .execute(on: connection)
     #expect(firstInsert == 1)
 
-    let secondInsert = try await SwifQL
+    let secondInsert = try await SQL
         .insertInto(table, fields: "id", "display name", "status")
         .values
         .values(Int32(2), "Beta", "active")
@@ -86,7 +86,7 @@ func publicCrudScenarioMatrix() async throws {
     #expect(selected.rows.first?["status"] == Value.string("active"))
 
     let alias = Task07User.as("u alias")
-    let aliased = try await SwifQL
+    let aliased = try await SQL
         .select(alias.$id => "quoted id", alias.$name => "quoted name")
         .from(alias.table)
         .where(alias.$id == Int32(2))
@@ -94,14 +94,14 @@ func publicCrudScenarioMatrix() async throws {
     #expect(aliased.rows.first?["quoted id"] == Value.int32(2))
     #expect(aliased.rows.first?["quoted name"] == Value.string("Beta"))
 
-    let updated = try await SwifQL
+    let updated = try await SQL
         .update(table)
         .set[items: table.column("status") == "updated"]
         .where(table.column("id") == Int32(2))
         .execute(on: connection)
     #expect(updated == 1)
 
-    let deleted = try await SwifQL
+    let deleted = try await SQL
         .delete(from: table)
         .where(table.column("id") == Int32(1))
         .execute(on: connection)
@@ -126,7 +126,7 @@ func publicPrimitiveResultMatrix() async throws {
     let blob = Data([0x00, 0x01, 0x7F, 0x80, 0xFE, 0xFF])
     let emptyBlob = Data()
 
-    let result = try await SwifQL
+    let result = try await SQL
         .select(
             Fn.cast(Task07BoundValue(true), .boolean) => "boolean_value",
             Fn.cast(Task07BoundValue(Int8(-8)), .tinyint) => "int8_value",
@@ -172,7 +172,7 @@ func publicErrorAndReuseScenarios() async throws {
     let connection = try database.connect()
 
     do {
-        let temporalResult = try await SwifQL
+        let temporalResult = try await SQL
             .select(Fn.cast("2026-08-29", .date) => "unsupported_value")
             .query(on: connection)
         let expectedDate = try #require(PureDate(year: 2026, month: 8, day: 29))
@@ -182,7 +182,7 @@ func publicErrorAndReuseScenarios() async throws {
     }
 
     do {
-        _ = try await SwifQL.raw("SELECT FROM").query(on: connection)
+        _ = try await SQL.raw("SELECT FROM").query(on: connection)
         Issue.record("Expected intentionally invalid raw SQL to fail during preparation.")
     } catch let error as DatabaseError {
         if case .preparation = error {
@@ -192,7 +192,7 @@ func publicErrorAndReuseScenarios() async throws {
         }
     }
 
-    let reused = try await SwifQL
+    let reused = try await SQL
         .select(Fn.cast(Int64(42), .bigint) => "answer")
         .query(on: connection)
     #expect(reused.rows.first?["answer"] == Value.int64(42))
@@ -207,7 +207,7 @@ func sameConnectionConcurrencyAndCancellation() async throws {
         for value in 0..<16 {
             group.addTask {
                 let expected = Int64(value)
-                let result = try await SwifQL
+                let result = try await SQL
                     .select(Fn.cast(expected, .bigint) => "value")
                     .query(on: connection)
                 guard
@@ -233,7 +233,7 @@ func sameConnectionConcurrencyAndCancellation() async throws {
         while !Task.isCancelled {
             await Task.yield()
         }
-        return try await SwifQL
+        return try await SQL
             .select(Fn.cast(Int64(777), .bigint) => "value")
             .query(on: connection)
     }
@@ -246,7 +246,7 @@ func sameConnectionConcurrencyAndCancellation() async throws {
         // Expected.
     }
 
-    let reused = try await SwifQL
+    let reused = try await SQL
         .select(Fn.cast(Int64(999), .bigint) => "value")
         .query(on: connection)
     #expect(reused.rows.first?["value"] == Value.int64(999))
@@ -261,7 +261,7 @@ func multipleConnectionsConcurrency() async throws {
         for (index, connection) in connections.enumerated() {
             group.addTask {
                 let expected = Int64(index + 100)
-                let result = try await SwifQL
+                let result = try await SQL
                     .select(Fn.cast(expected, .bigint) => "value")
                     .query(on: connection)
                 guard
@@ -285,7 +285,7 @@ func multipleConnectionsConcurrency() async throws {
 
     for (index, connection) in connections.enumerated() {
         let expected = Int64(index + 200)
-        let reused = try await SwifQL
+        let reused = try await SQL
             .select(Fn.cast(expected, .bigint) => "value")
             .query(on: connection)
         #expect(reused.rows.first?["value"] == Value.int64(expected))

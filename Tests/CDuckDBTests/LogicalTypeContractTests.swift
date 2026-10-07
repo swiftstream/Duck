@@ -1,5 +1,5 @@
 import Cduckdb
-import SwifQL
+import SQL
 import Testing
 
 @Test("Copies and destroys an owned result logical type")
@@ -12,7 +12,7 @@ func copiesAndDestroysOwnedResultLogicalType() throws {
     try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
     defer { duckdb_disconnect(&connection) }
 
-    let sql = SwifQL.raw(
+    let sql = SQL.raw(
         "SELECT CAST(NULL AS DECIMAL(12, 3)) AS amount WHERE FALSE"
     ).prepare(.duck).plain
     var result = duckdb_result()
@@ -57,7 +57,7 @@ func exposesAndDestroysRecursiveLogicalTypeChildren() throws {
     try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
     defer { duckdb_disconnect(&connection) }
 
-    let sql = SwifQL.raw(
+    let sql = SQL.raw(
         """
         SELECT
             CAST(NULL AS INTEGER[]) AS list_value,
@@ -157,7 +157,7 @@ func walksAndDestroysDeeplyNestedLogicalTypeChildren() throws {
     try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
     defer { duckdb_disconnect(&connection) }
 
-    let sql = SwifQL.raw(
+    let sql = SQL.raw(
         """
         SELECT CAST(NULL AS STRUCT(
             payload MAP(VARCHAR, INTEGER[][]),

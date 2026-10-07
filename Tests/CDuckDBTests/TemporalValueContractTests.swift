@@ -1,5 +1,5 @@
 import Cduckdb
-import SwifQL
+import SQL
 import Testing
 
 private func openTemporalMemoryDatabase() throws -> (database: duckdb_database?, connection: duckdb_connection?) {
@@ -76,7 +76,7 @@ func directCTemporalLogicalIdentity() throws {
     defer { duckdb_close(&database) }
     defer { duckdb_disconnect(&connection) }
 
-    let sql = SwifQL.raw(
+    let sql = SQL.raw(
         """
         SELECT
             CAST(NULL AS DATE) AS date_value,
@@ -142,7 +142,7 @@ func directCTimestampTZTypedValuePreservesRawLogicalIdentityAndOwnership() throw
     defer { duckdb_close(&database) }
     defer { duckdb_disconnect(&connection) }
 
-    let sql = SwifQL.raw(
+    let sql = SQL.raw(
         "SELECT CAST(NULL AS TIMESTAMP WITH TIME ZONE) AS value WHERE FALSE"
     ).prepare(.duck).plain
     var result = duckdb_result()

@@ -1,5 +1,5 @@
 import Foundation
-import SwifQL
+import SQL
 
 private enum MigrationHistorySchema: Schemable {
     static let schemaName = "__swiftduckdb"
@@ -97,7 +97,7 @@ enum MigrationHistory {
     /// Loads and fail-closes on malformed retained history ordered by ascending id.
     static func load(on connection: Connection) async throws -> [AppliedMigrationRecord] {
         let table = Path.Schema(schemaName).table(tableName)
-        let query = SwifQL
+        let query = SQL
             .select(
                 Path.Column("id"),
                 Path.Column("name"),
@@ -176,7 +176,7 @@ enum MigrationHistory {
         on transaction: Transaction
     ) async throws {
         let table = Path.Schema(schemaName).table(tableName)
-        let query = SwifQL
+        let query = SQL
             .insertInto(table, fields: "id", "name", "batch", "applied_at")
             .values
             .values(id, name, batch, appliedAt)
@@ -186,7 +186,7 @@ enum MigrationHistory {
     /// Deletes exactly one retained history row by its factual id.
     static func delete(id: Int64, on transaction: Transaction) async throws {
         let table = Path.Schema(schemaName).table(tableName)
-        let query = SwifQL
+        let query = SQL
             .delete
             .from(table)
             .where(Path.Column("id") == id)
@@ -256,7 +256,7 @@ enum MigrationHistory {
 
     private static func columns(on connection: Connection) async throws -> [ColumnMetadata] {
         let table = Path.Schema("information_schema").table("columns")
-        let query = SwifQL
+        let query = SQL
             .select(
                 Path.Column("column_name"),
                 Path.Column("data_type"),
@@ -290,7 +290,7 @@ enum MigrationHistory {
         on connection: Connection
     ) async throws -> [String] {
         let table = Path.Schema("information_schema").table("table_constraints")
-        let query = SwifQL
+        let query = SQL
             .select(Path.Column("constraint_name"))
             .from(table)
             .where(
@@ -314,7 +314,7 @@ enum MigrationHistory {
         on connection: Connection
     ) async throws -> [String] {
         let table = Path.Schema("information_schema").table("key_column_usage")
-        let query = SwifQL
+        let query = SQL
             .select(Path.Column("column_name"))
             .from(table)
             .where(

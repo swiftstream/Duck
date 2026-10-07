@@ -1,6 +1,6 @@
 @testable import SwiftDuckDB
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 private func decimal(_ text: String) throws -> Decimal {
@@ -24,11 +24,11 @@ private func requireDecimalResult(
     #expect(result.resultColumns.first?.logicalType.decimalScale == scale)
 }
 
-@Test("Decimal Value and Row facade preserves exact family identity")
+@Test("Decimal Value and ResultRow facade preserves exact family identity")
 func decimalValueFacadeAndRowConveniences() throws {
     let finite = try decimal("1.23")
     let value = Value.decimal(finite)
-    let row = Row(
+    let row = ResultRow(
         columns: ["value", "null", "other"],
         values: [value, .null, .int32(1)]
     )
@@ -81,7 +81,7 @@ func decimalTargetlessNaturalMatrix() async throws {
 
     for (text, width, scale) in fixtures {
         let value = try decimal(text)
-        let result = try await connection.query(SwifQL.select(value => "value"))
+        let result = try await connection.query(SQL.select(value => "value"))
         try requireDecimalResult(result, value: value, width: width, scale: scale)
     }
 }
@@ -90,7 +90,7 @@ func decimalTargetlessNaturalMatrix() async throws {
 func reusableTargetlessDecimalStatementRecomputesCurrentTarget() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(parameters.parameter() => "value")
+        SQL.select(parameters.parameter() => "value")
     }
     let fixtures: [(String, UInt8, UInt8)] = [
         ("1.2", 2, 1),
@@ -110,7 +110,7 @@ func reusableDecimalStatementExecutesDynamicValue() async throws {
     let connection = try Database().connect()
     let value = try decimal("12.34")
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(
+        SQL.select(
             Fn.cast(parameters.parameter(), .decimal(4, 2)) => "value"
         )
     }
@@ -126,7 +126,7 @@ func reusableDecimalStatementExecutesOptionalValues() async throws {
     let some: Decimal? = value
     let none: Decimal? = nil
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(
+        SQL.select(
             Fn.cast(parameters.parameter(), .decimal(4, 2)) => "value"
         )
     }
@@ -147,7 +147,7 @@ func reusableDecimalStatementExecutesFixedAndDynamicValues() async throws {
     let fixed = try decimal("8.25")
     let dynamic = try decimal("1.75")
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(
+        SQL.select(
             Fn.cast(fixed, .decimal(4, 2)) => "fixed",
             Fn.cast(parameters.parameter(), .decimal(4, 2)) => "dynamic"
         )
@@ -166,7 +166,7 @@ func reusableDecimalStatementExecutesInTransaction() async throws {
     let connection = try Database().connect()
     let value = try decimal("-12.34")
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(
+        SQL.select(
             Fn.cast(parameters.parameter(), .decimal(5, 2)) => "value"
         )
     }
@@ -201,7 +201,7 @@ func explicitDecimalTargetMatrix() async throws {
     for (text, width, scale) in fixtures {
         let value = try decimal(text)
         let statement = try await connection.prepare { parameters in
-            SwifQL.select(
+            SQL.select(
                 Fn.cast(parameters.parameter(), .decimal(width, scale)) => "value"
             )
         }
@@ -229,7 +229,7 @@ func decimalRejectionMatrix() async throws {
 
     for (value, width, scale, expectedMessage) in fixtures {
         let statement = try await connection.prepare { parameters in
-            SwifQL.select(
+            SQL.select(
                 Fn.cast(parameters.parameter(), .decimal(width, scale)) => "value"
             )
         }
@@ -249,7 +249,7 @@ func decimalRejectionMatrix() async throws {
 
     let tooSmall = try decimal("1e-39")
     let targetless = try await connection.prepare { parameters in
-        SwifQL.select(parameters.parameter() => "value")
+        SQL.select(parameters.parameter() => "value")
     }
     do {
         _ = try await targetless.query(tooSmall)
@@ -268,7 +268,7 @@ func decimalRejectionMatrix() async throws {
 func decimalRejectsWrongConcreteTarget() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
 
     do {
@@ -288,7 +288,7 @@ func decimalRejectsWrongConcreteTarget() async throws {
 func decimalStatementFailureThenValidReuse() async throws {
     let connection = try Database().connect()
     let statement = try await connection.prepare { parameters in
-        SwifQL.select(Fn.cast(parameters.parameter(), .decimal(3, 1)) => "value")
+        SQL.select(Fn.cast(parameters.parameter(), .decimal(3, 1)) => "value")
     }
 
     do {
@@ -311,7 +311,7 @@ func decimalAppenderPhysicalCoverage() async throws {
     let connection = try Database().connect()
     let table = Path.Table("decimal_appender_physical")
     try await connection.execute(
-        SwifQL.create.table[any: table].tableDefinitions(
+        SQL.create.table[any: table].tableDefinitions(
             NewColumn("w4", .decimal(4, 0)),
             NewColumn("w5", .decimal(5, 0)),
             NewColumn("w9", .decimal(9, 0)),
@@ -354,7 +354,7 @@ func decimalAppenderPhysicalCoverage() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(table.column("w4"), table.column("w5"), table.column("w9"), table.column("w10"), table.column("w18"), table.column("w19"), table.column("w38"), table.column("fraction"))
+        SQL.select(table.column("w4"), table.column("w5"), table.column("w9"), table.column("w10"), table.column("w18"), table.column("w19"), table.column("w38"), table.column("fraction"))
             .from(table)
             .orderBy(.asc(table.column("w4")))
     )
@@ -377,7 +377,7 @@ func decimalAppenderLaterColumnFailuresAreAtomicAndReusable() async throws {
     let connection = try Database().connect()
     let table = Path.Table("decimal_appender_preflight")
     try await connection.execute(
-        SwifQL.create.table[any: table].tableDefinitions(
+        SQL.create.table[any: table].tableDefinitions(
             NewColumn("id", .integer),
             NewColumn("amount", .decimal(3, 1))
         )
@@ -422,7 +422,7 @@ func decimalAppenderLaterColumnFailuresAreAtomicAndReusable() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(table.column("id"), table.column("amount"))
+        SQL.select(table.column("id"), table.column("amount"))
             .from(table)
             .orderBy(.asc(table.column("id")))
     )
@@ -436,7 +436,7 @@ func decimalAppenderRejectsWrongLogicalFamilyAndRecovers() async throws {
     let connection = try Database().connect()
     let table = Path.Table("decimal_appender_wrong_family")
     try await connection.execute(
-        SwifQL.create.table[any: table].tableDefinitions(
+        SQL.create.table[any: table].tableDefinitions(
             NewColumn("id", .integer),
             NewColumn("value", .integer)
         )
@@ -459,7 +459,7 @@ func decimalAppenderRejectsWrongLogicalFamilyAndRecovers() async throws {
     }
 
     let result = try await connection.query(
-        SwifQL.select(table.column("id"), table.column("value")).from(table)
+        SQL.select(table.column("id"), table.column("value")).from(table)
     )
     #expect(result.rows.count == 1)
     #expect(result.rows.first?.value("id", as: Int32.self) == 2)
@@ -472,7 +472,7 @@ func decimalResultMetadataDoesNotChangeValueIdentity() async throws {
     let first = try decimal("1.20")
     let second = try decimal("1.2")
     let result = try await connection.query(
-        SwifQL.select(
+        SQL.select(
             Fn.cast(first, .decimal(3, 2)) => "first",
             Fn.cast(second, .decimal(2, 1)) => "second"
         )
@@ -489,7 +489,7 @@ func decimalResultMetadataDoesNotChangeValueIdentity() async throws {
 func decimalNullMaterializesByValidity() async throws {
     let connection = try Database().connect()
     let result = try await connection.query(
-        SwifQL.raw("SELECT CAST(NULL AS DECIMAL(5, 2)) AS value")
+        SQL.raw("SELECT CAST(NULL AS DECIMAL(5, 2)) AS value")
     )
 
     #expect(result.rows.first?.values == [.null])

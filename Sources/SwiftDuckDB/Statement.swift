@@ -1,5 +1,5 @@
 import Foundation
-import SwifQL
+import SQL
 
 struct StatementId: Hashable, Sendable {
     let rawValue: UUID
@@ -19,19 +19,19 @@ struct StatementTemplateSnapshot: Sendable {
     let bindingLayout: [StatementBindingSource]
     let dynamicArgumentCount: Int
 
-    init(_ query: any SwifQLable) throws {
+    init(_ query: any SQLable) throws {
         try self.init(query, builderState: nil)
     }
 
     init(
-        _ query: any SwifQLable,
+        _ query: any SQLable,
         parameters: Statement.Parameters
     ) throws {
         try self.init(query, builderState: parameters.builderState)
     }
 
     private init(
-        _ query: any SwifQLable,
+        _ query: any SQLable,
         builderState: StatementParameterBuilderState?
     ) throws {
         let observed = query.prepareObservingUnsafeValues(.duck)
@@ -187,7 +187,7 @@ public final class Statement: Sendable {
         }
     }
 
-    public struct Parameter: SwifQLable {
+    public struct Parameter: SQLable {
         private let builderState: StatementParameterBuilderState
         private let argumentIndex: Int
 
@@ -199,8 +199,8 @@ public final class Statement: Sendable {
             self.argumentIndex = argumentIndex
         }
 
-        public var parts: [SwifQLPart] {
-            [SwifQLPartUnsafeValue(builderState.makeMarker(argumentIndex: argumentIndex))]
+        public var parts: [SQLPart] {
+            [SQLPartUnsafeValue(builderState.makeMarker(argumentIndex: argumentIndex))]
         }
     }
 

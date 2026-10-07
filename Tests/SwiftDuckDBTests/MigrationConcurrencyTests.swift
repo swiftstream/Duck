@@ -1,5 +1,5 @@
 import Foundation
-import SwifQL
+import SQL
 import Testing
 @testable import SwiftDuckDB
 
@@ -328,7 +328,7 @@ func migrateCancellationWithSuccessfulRollbackReleasesCoordination() async throw
     let entered = MigrationSignal()
     let gate = MigrationGate()
     let migration = concurrencyMigration(name: "cancellable migrate") { transaction in
-        try await SwifQL
+        try await SQL
             .create
             .table[any: Path.Table("cancelled_migration_rows")]
             .tableDefinitions(NewColumn("value", .integer))
@@ -362,14 +362,14 @@ func revertCancellationWithSuccessfulRollbackReleasesCoordination() async throws
     let migration = concurrencyMigration(
         name: "cancellable revert",
         up: { transaction in
-            try await SwifQL
+            try await SQL
                 .create
                 .table[any: Path.Table("cancellable_revert_rows")]
                 .tableDefinitions(NewColumn("value", .integer))
                 .execute(on: transaction)
         },
         down: { transaction in
-            try await SwifQL
+            try await SQL
                 .delete
                 .from(Path.Table("cancellable_revert_rows"))
                 .execute(on: transaction)
@@ -518,7 +518,7 @@ private func concurrencyMigration(
 
 private func migrationTableExists(on connection: Connection, name: String) async throws -> Bool {
     let tables = Path.Schema("information_schema").table("tables")
-    let result = try await SwifQL
+    let result = try await SQL
         .select(Path.Column("table_name"))
         .from(tables)
         .where(

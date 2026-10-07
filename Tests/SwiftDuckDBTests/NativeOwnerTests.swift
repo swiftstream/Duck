@@ -1,7 +1,7 @@
 @testable import SwiftDuckDB
 import Cduckdb
 import Foundation
-import SwifQL
+import SQL
 import Testing
 
 @Test("Opens an in-memory native database")
@@ -29,7 +29,7 @@ func opensConnection() throws {
 func queriesThroughConnectionHandle() throws {
     let database = try NativeDatabase()
     let connection = try database.connect()
-    let sql = SwifQL
+    let sql = SQL
         .select(Fn.cast(42, .integer) => "answer")
         .prepare(.duck)
         .plain

@@ -1,5 +1,5 @@
 @testable import SwiftDuckDB
-import SwifQL
+import SQL
 import Testing
 
 @Test("Preserves the existing primitive result surface and adds aligned metadata")
@@ -9,7 +9,7 @@ func preservesPrimitiveResultSurfaceWithMetadata() async throws {
     )
 
     #expect(result.columns == ["answer"])
-    #expect(result.rows == [Row(columns: ["answer"], values: [.int32(42)])])
+    #expect(result.rows == [ResultRow(columns: ["answer"], values: [.int32(42)])])
     #expect(result.rowsChanged == 0)
     #expect(result.resultColumns.count == result.columns.count)
     #expect(result.resultColumns.map(\.name) == result.columns)
@@ -287,11 +287,11 @@ func copiesRecursiveLogicalMetadata() async throws {
     let database = try Database()
     let connection = try database.connect()
 
-    try await connection.execute(SwifQL.raw(
+    try await connection.execute(SQL.raw(
         "CREATE TYPE metadata_mood AS ENUM ('sad', 'ok', 'happy')"
     ))
 
-    let result = try await connection.query(SwifQL.raw(
+    let result = try await connection.query(SQL.raw(
         """
         SELECT
             CAST(NULL AS INTEGER[]) AS list_value,
@@ -360,11 +360,11 @@ func copiesAndInspectsDeepRecursiveMetadata() async throws {
     let database = try Database()
     let connection = try database.connect()
 
-    try await connection.execute(SwifQL.raw(
+    try await connection.execute(SQL.raw(
         "CREATE TYPE deep_metadata_mood AS ENUM ('sad', 'ok', 'happy')"
     ))
 
-    let result = try await connection.query(SwifQL.raw(
+    let result = try await connection.query(SQL.raw(
         """
         SELECT
             CAST(NULL AS STRUCT(
@@ -482,7 +482,7 @@ func keepsDuplicateResultNamesPositionallyAligned() async throws {
     #expect(result.resultColumns.count == result.columns.count)
     #expect(result.resultColumns.map(\.name) == result.columns)
     #expect(result.columns == ["duplicate", "duplicate"])
-    #expect(result.rows == [Row(
+    #expect(result.rows == [ResultRow(
         columns: ["duplicate", "duplicate"],
         values: [.int32(7), .int32(11)]
     )])
@@ -492,11 +492,11 @@ func keepsDuplicateResultNamesPositionallyAligned() async throws {
 func stabilizesRepeatedRecursiveMetadataCapture() async throws {
     let database = try Database()
     let connection = try database.connect()
-    try await connection.execute(SwifQL.raw(
+    try await connection.execute(SQL.raw(
         "CREATE TYPE repeated_metadata_mood AS ENUM ('sad', 'ok', 'happy')"
     ))
 
-    let sql = SwifQL.raw(
+    let sql = SQL.raw(
         """
         SELECT CAST(NULL AS STRUCT(
             payload MAP(VARCHAR, INTEGER[][]),
@@ -523,16 +523,16 @@ func stabilizesRepeatedRecursiveMetadataCapture() async throws {
 private func query(_ sql: String) async throws -> QueryResult {
     let database = try Database()
     let connection = try database.connect()
-    return try await connection.query(SwifQL.raw(sql))
+    return try await connection.query(SQL.raw(sql))
 }
 
 private func captureRecursiveMetadata() async throws -> [ResultColumn] {
     let database = try Database()
     let connection = try database.connect()
-    try await connection.execute(SwifQL.raw(
+    try await connection.execute(SQL.raw(
         "CREATE TYPE retained_metadata_mood AS ENUM ('sad', 'ok', 'happy')"
     ))
-    let result = try await connection.query(SwifQL.raw(
+    let result = try await connection.query(SQL.raw(
         """
         SELECT CAST(NULL AS STRUCT(
             payload MAP(VARCHAR, INTEGER[][]),

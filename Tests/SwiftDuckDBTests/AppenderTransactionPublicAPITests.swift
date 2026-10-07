@@ -1,5 +1,5 @@
 import SwiftDuckDB
-import SwifQL
+import SQL
 import Testing
 
 @Suite("AppenderTransactionPublicAPITests")
@@ -10,7 +10,7 @@ struct AppenderTransactionPublicAPITests {
         let table = Path.Table("public_transaction_appender_rows")
 
         try await connection.execute(
-            SwifQL
+            SQL
                 .create
                 .table[any: table]
                 .tableDefinitions(
@@ -27,7 +27,7 @@ struct AppenderTransactionPublicAPITests {
         }
 
         let result = try await connection.query(
-            SwifQL
+            SQL
                 .select(table.column("id"), table.column("name"))
                 .from(table)
                 .orderBy(.asc(table.column("id")))
@@ -42,9 +42,9 @@ struct AppenderTransactionPublicAPITests {
     @Test("Public Transaction Appender commits through a schema-qualified target")
     func publicTransactionAppenderCommitsSchemaTarget() async throws {
         let connection = try Database().connect()
-        _ = try await connection.execute(SwifQL.raw("CREATE SCHEMA public_transaction_schema"))
+        _ = try await connection.execute(SQL.raw("CREATE SCHEMA public_transaction_schema"))
         _ = try await connection.execute(
-            SwifQL.raw("CREATE TABLE public_transaction_schema.events (id INTEGER)")
+            SQL.raw("CREATE TABLE public_transaction_schema.events (id INTEGER)")
         )
         let table = Path.SchemaWithTable(
             schema: "public_transaction_schema",
@@ -58,7 +58,7 @@ struct AppenderTransactionPublicAPITests {
         }
 
         let result = try await connection.query(
-            SwifQL.raw("SELECT id FROM public_transaction_schema.events")
+            SQL.raw("SELECT id FROM public_transaction_schema.events")
         )
         #expect(result.rows.count == 1)
         #expect(result.rows.first?["id"] == .int32(7))
@@ -68,15 +68,15 @@ struct AppenderTransactionPublicAPITests {
     func publicTransactionAppenderCommitsCatalogTarget() async throws {
         let connection = try Database().connect()
         let catalogResult = try await connection.query(
-            SwifQL.raw("SELECT current_database() AS catalog")
+            SQL.raw("SELECT current_database() AS catalog")
         )
         let catalogRow = try #require(catalogResult.rows.first)
         let catalogValue = try #require(catalogRow["catalog"])
         let catalog = try #require(catalogValue.get(String.self))
 
-        _ = try await connection.execute(SwifQL.raw("CREATE SCHEMA public_catalog_schema"))
+        _ = try await connection.execute(SQL.raw("CREATE SCHEMA public_catalog_schema"))
         _ = try await connection.execute(
-            SwifQL.raw("CREATE TABLE public_catalog_schema.events (id INTEGER)")
+            SQL.raw("CREATE TABLE public_catalog_schema.events (id INTEGER)")
         )
         let table = Path.CatalogWithSchemaAndTable(
             catalog: catalog,
@@ -91,7 +91,7 @@ struct AppenderTransactionPublicAPITests {
         }
 
         let result = try await connection.query(
-            SwifQL.raw("SELECT id FROM public_catalog_schema.events")
+            SQL.raw("SELECT id FROM public_catalog_schema.events")
         )
         #expect(result.rows.count == 1)
         #expect(result.rows.first?["id"] == .int32(8))

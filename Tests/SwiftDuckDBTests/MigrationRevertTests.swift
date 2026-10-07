@@ -1,5 +1,5 @@
 import Foundation
-import SwifQL
+import SQL
 import Testing
 @testable import SwiftDuckDB
 
@@ -297,7 +297,7 @@ struct MigrationRevertTests {
         let observed = RevertObservation()
         let migration = RevertMigration(name: "observed", down: { transaction in
             let table = Path.Schema("__swiftduckdb").table("migrations")
-            let result = try await SwifQL
+            let result = try await SQL
                 .select(Fn.count(table.column("id")) => "count")
                 .from(table)
                 .where(table.column("name") == "observed")
@@ -471,7 +471,7 @@ private func createRevertTable(on transaction: Transaction) async throws {
 
 private func insertRevertValue(_ value: String, on transaction: Transaction) async throws {
     let table = Path.Table(RevertValues.tableName)
-    try await SwifQL.insertInto(table, fields: "value")
+    try await SQL.insertInto(table, fields: "value")
         .values
         .values(value)
         .execute(on: transaction)
@@ -479,7 +479,7 @@ private func insertRevertValue(_ value: String, on transaction: Transaction) asy
 
 private func deleteRevertValue(_ value: String, on transaction: Transaction) async throws {
     let table = Path.Table(RevertValues.tableName)
-    try await SwifQL.delete
+    try await SQL.delete
         .from(table)
         .where(Path.Column("value") == value)
         .execute(on: transaction)
@@ -487,7 +487,7 @@ private func deleteRevertValue(_ value: String, on transaction: Transaction) asy
 
 private func revertValueRows(on connection: Connection) async throws -> [String] {
     let table = Path.Table(RevertValues.tableName)
-    let result = try await SwifQL
+    let result = try await SQL
         .select(table.column("value"))
         .from(table)
         .orderBy(.asc(table.column("value")))

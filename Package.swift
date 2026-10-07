@@ -16,8 +16,8 @@ let package = Package(
     ],
     dependencies: [
         .package(
-            url: "https://github.com/SwifQL/SwifQL.git",
-            exact: "2.0.0-beta.6.1.0"
+            url: "https://github.com/SwiftStream/SQL",
+            from: "2.0.0"
         )
     ],
     targets: [
@@ -25,7 +25,7 @@ let package = Package(
             name: "SwiftDuckDB",
             dependencies: [
                 "Cduckdb",
-                .product(name: "SwifQL", package: "SwifQL")
+                .product(name: "SQL", package: "sql")
             ]
         ),
     .target(
@@ -467,7 +467,7 @@ let package = Package(
             name: "CDuckDBTests",
             dependencies: [
                 "Cduckdb",
-                .product(name: "SwifQL", package: "SwifQL")
+                .product(name: "SQL", package: "sql")
             ]
         ),
         .testTarget(
@@ -476,7 +476,7 @@ let package = Package(
                 "SwiftDuckDB",
                 "Cduckdb",
                 "A1PendingGate",
-                .product(name: "SwifQL", package: "SwifQL")
+                .product(name: "SQL", package: "sql")
             ]
         )
     ],
