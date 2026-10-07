@@ -13,4 +13,11 @@ extension Database {
     public func observe(_ query: any SQLable) throws -> QueryObservation {
         QueryObservation(database: self, snapshot: try PreparedQuerySnapshot(query))
     }
+
+    /// Builds a reusable latest-state observation through the existing observation path.
+    public func observe(
+        @SQLBuilder _ build: () -> SQLBuilder.Root
+    ) throws -> QueryObservation {
+        try observe(build())
+    }
 }

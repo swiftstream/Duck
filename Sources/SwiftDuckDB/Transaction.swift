@@ -634,6 +634,13 @@ public struct Transaction: Sendable {
         return try await connection.executeTransactionQuery(snapshot, token: token)
     }
 
+    /// Builds and executes a query through this transaction's existing query path.
+    public nonisolated(nonsending) func query(
+        @SQLBuilder _ build: () -> SQLBuilder.Root
+    ) async throws -> QueryResult {
+        try await query(build())
+    }
+
     @discardableResult
     public nonisolated(nonsending) func execute(
         _ query: any SQLable
@@ -654,6 +661,14 @@ public struct Transaction: Sendable {
         }
 
         return try await connection.executeTransactionStatement(snapshot, token: token)
+    }
+
+    /// Builds and executes a statement, returning the affected row count within this transaction.
+    @discardableResult
+    public nonisolated(nonsending) func execute(
+        @SQLBuilder _ build: () -> SQLBuilder.Root
+    ) async throws -> UInt64 {
+        try await execute(build())
     }
 
     /// Terminally commits this one-shot transaction, or rolls it back and throws

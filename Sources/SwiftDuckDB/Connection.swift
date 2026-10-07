@@ -412,12 +412,27 @@ public actor Connection {
         return try await executeOrdinaryQuery(snapshot)
     }
 
+    /// Builds and executes a query through the ordinary connection query path.
+    public nonisolated(nonsending) func query(
+        @SQLBuilder _ build: () -> SQLBuilder.Root
+    ) async throws -> QueryResult {
+        try await query(build())
+    }
+
     @discardableResult
     public nonisolated(nonsending) func execute(_ query: any SQLable) async throws -> UInt64 {
         try await rejectLiveTransactionBodyMisuse(asTransaction: false)
         try await rejectLiveAppenderBodyMisuse()
         let snapshot = try PreparedQuerySnapshot(query)
         return try await executeOrdinaryStatement(snapshot)
+    }
+
+    /// Builds and executes a statement, returning the affected row count.
+    @discardableResult
+    public nonisolated(nonsending) func execute(
+        @SQLBuilder _ build: () -> SQLBuilder.Root
+    ) async throws -> UInt64 {
+        try await execute(build())
     }
 
     public nonisolated(nonsending) func prepare(
@@ -431,6 +446,18 @@ public actor Connection {
 
     public nonisolated(nonsending) func prepare(
         _ build: (Statement.Parameters) throws -> any SQLable
+    ) async throws -> Statement {
+        try await rejectLiveTransactionBodyMisuse(asTransaction: false)
+        try await rejectLiveAppenderBodyMisuse()
+        let parameters = Statement.Parameters()
+        let query = try build(parameters)
+        let snapshot = try StatementTemplateSnapshot(query, parameters: parameters)
+        return try await installPreparedStatement(snapshot)
+    }
+
+    /// Builds and installs a reusable parameterized statement with shared marker accounting.
+    public nonisolated(nonsending) func prepare(
+        @SQLBuilder _ build: (Statement.Parameters) throws -> SQLBuilder.Root
     ) async throws -> Statement {
         try await rejectLiveTransactionBodyMisuse(asTransaction: false)
         try await rejectLiveAppenderBodyMisuse()
