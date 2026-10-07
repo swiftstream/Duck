@@ -141,7 +141,7 @@ private func createWaveETable(on connection: Connection) async throws {
 private func fetchWaveEAccount(id: Int64, on connection: Connection) async throws -> WaveEAccount? {
     try await WaveEAccount
         .select
-        .where(Path.Column("id") == id)
+        .where(\WaveEAccount.$id == id)
         .limit(1)
         .query(on: connection)
         .first(decoding: WaveEAccount.self)

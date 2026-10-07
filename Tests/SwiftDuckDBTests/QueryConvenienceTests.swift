@@ -58,7 +58,7 @@ func typedTableSelectAritiesAndExistingSelect() {
 func queryCenteredConveniencesDelegateToConnection() async throws {
     let database = try Database()
     let connection = try database.connect()
-    let table = Path.Table(Task06User.tableName)
+    let table = Task06User.table
 
     try await SQL
         .create

@@ -161,7 +161,7 @@ func normalImportPublicTransactionAPICRUD() async throws {
         let mutable = try #require(
             try await PublicTransactionNote
                 .select
-                .where(Path.Column("id") == Int64(2))
+                .where(\PublicTransactionNote.$id == Int64(2))
                 .limit(1)
                 .query(on: transaction)
                 .first(decoding: PublicTransactionNote.self)
@@ -174,7 +174,7 @@ func normalImportPublicTransactionAPICRUD() async throws {
 
     let afterInsert = try await PublicTransactionNote
         .select
-        .where(Path.Column("id") == Int64(1))
+        .where(\PublicTransactionNote.$id == Int64(1))
         .limit(1)
         .query(on: connection)
         .first(decoding: PublicTransactionNote.self)
@@ -184,7 +184,7 @@ func normalImportPublicTransactionAPICRUD() async throws {
 
     let afterNonReturningInsert = try await PublicTransactionNote
         .select
-        .where(Path.Column("id") == Int64(2))
+        .where(\PublicTransactionNote.$id == Int64(2))
         .limit(1)
         .query(on: connection)
         .first(decoding: PublicTransactionNote.self)

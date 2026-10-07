@@ -793,7 +793,7 @@ func enumAndUnsupportedBoundaries() async throws {
 @Test("SQL Table @Column model decodes from real result via ResultRow.decode")
 func swifQLTableDecodeCompatibility() async throws {
     let connection = try Database().connect()
-    let table = Path.Table(CodableUser.tableName)
+    let table = CodableUser.table
 
     try await SQL
         .create

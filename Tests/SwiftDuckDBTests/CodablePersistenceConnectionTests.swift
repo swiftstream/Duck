@@ -189,7 +189,7 @@ private func dropWaveDTable(on connection: Connection) async throws {
 private func fetchWaveDUser(id: Int64, on connection: Connection) async throws -> WaveDUser? {
     try await WaveDUser
         .select
-        .where(Path.Column("id") == id)
+        .where(\WaveDUser.$id == id)
         .limit(1)
         .query(on: connection)
         .first(decoding: WaveDUser.self)
@@ -470,8 +470,8 @@ func updateReturningZeroRowsAfterDelete() async throws {
     decoded.name = "will-not-apply"
 
     try await SQL
-        .delete(from: Path.Table(WaveDUser.tableName))
-        .where(Path.Column("id") == Int64(42))
+        .delete(from: WaveDUser.table)
+        .where(\WaveDUser.$id == Int64(42))
         .execute(on: connection)
 
     do {
@@ -515,17 +515,15 @@ func schemaQualifiedInsertAndUpdate() async throws {
     #expect(inserted.label == uniqueLiteralProbe)
 
     // Prove the unqualified sentinel was not used.
-    let sentinelRows = try await SQL
-        .select(Path.Column("id"), Path.Column("label"))
-        .from(Path.Table(WaveDSchemaSentinel.tableName))
+    let sentinelRows = try await WaveDSchemaSentinel
+        .select(\.$id, \.$label)
         .query(on: connection)
     let sentinelModels = try sentinelRows.all(decoding: WaveDSchemaSentinel.self)
     #expect(sentinelModels.isEmpty || sentinelModels.allSatisfy { $0.label != uniqueLiteralProbe })
 
     // Schema table has the row.
-    let schemaRow = try await SQL
-        .select(Path.Column("id"), Path.Column("label"))
-        .from(WaveDSchemaUser.table)
+    let schemaRow = try await WaveDSchemaUser
+        .select(\.$id, \.$label)
         .query(on: connection)
         .first(decoding: WaveDSchemaUser.self)
     #expect(schemaRow?.id == 7)
@@ -536,9 +534,8 @@ func schemaQualifiedInsertAndUpdate() async throws {
     #expect(updated.label == "schema-updated")
     #expect(updated.id == 7)
 
-    let schemaUpdated = try await SQL
-        .select(Path.Column("id"), Path.Column("label"))
-        .from(WaveDSchemaUser.table)
+    let schemaUpdated = try await WaveDSchemaUser
+        .select(\.$id, \.$label)
         .query(on: connection)
         .first(decoding: WaveDSchemaUser.self)
     #expect(schemaUpdated?.label == "schema-updated")

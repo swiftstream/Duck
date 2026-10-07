@@ -208,7 +208,7 @@ func nativeExactValueCapture() throws {
 @Test("Decoded fields extract exact Values, NULL, and isChanged false")
 func decodedStateExtraction() async throws {
     let connection = try Database().connect()
-    let table = Path.Table(PersistenceUser.tableName)
+    let table = PersistenceUser.table
 
     try await SQL
         .create
@@ -288,7 +288,7 @@ func decodedStateExtraction() async throws {
 
 @Test("BoundModelValue prepares placeholders and exact PreparedQuerySnapshot bindings")
 func preparedPlaceholderAndExactBindings() throws {
-    let table = Path.Table(PersistenceUser.tableName)
+    let table = PersistenceUser.table
     let uniqueString = uniqueLiteralProbe
     let uniqueUUID = UUID(uuid: (
         0x12, 0x12, 0x12, 0x12,
@@ -339,7 +339,7 @@ func preparedPlaceholderAndExactBindings() throws {
 
 @Test("PreparedModelValue.encode is never used on the ordinary prepare path")
 func preparedModelValueEncodeNotUsed() throws {
-    let table = Path.Table(PersistenceUser.tableName)
+    let table = PersistenceUser.table
     let query = SQL
         .insertInto(table, fields: "required_name")
         .values
@@ -368,7 +368,7 @@ func normalizeBindingCarrierUnwrap() throws {
 
 @Test("StatementTemplateSnapshot treats BoundModelValue as fixed exact Value")
 func statementFixedBindingForBoundModelValue() throws {
-    let table = Path.Table(PersistenceUser.tableName)
+    let table = PersistenceUser.table
     let uniqueString = uniqueLiteralProbe
     let query = SQL
         .insertInto(table, fields: "required_name", "id")
@@ -389,7 +389,7 @@ func statementFixedBindingForBoundModelValue() throws {
 
 @Test("Mixed BoundModelValue and Statement.Parameter preserve provenance")
 func statementMixedFixedAndDynamicProvenance() throws {
-    let table = Path.Table(PersistenceUser.tableName)
+    let table = PersistenceUser.table
     let parameters = Statement.Parameters()
     let dynamicAge = parameters.parameter()
 

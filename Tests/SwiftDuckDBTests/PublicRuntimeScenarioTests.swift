@@ -41,7 +41,7 @@ struct PublicRuntimeScenarioTests {
 func publicCrudScenarioMatrix() async throws {
     let database = try Database()
     let connection = try database.connect()
-    let table = Path.Table(Task07User.tableName)
+    let table = Task07User.table
 
     try await SQL
         .create
@@ -96,14 +96,14 @@ func publicCrudScenarioMatrix() async throws {
 
     let updated = try await SQL
         .update(table)
-        .set[items: table.column("status") == "updated"]
-        .where(table.column("id") == Int32(2))
+        .set[items: \Task07User.$status == "updated"]
+        .where(\Task07User.$id == Int32(2))
         .execute(on: connection)
     #expect(updated == 1)
 
     let deleted = try await SQL
         .delete(from: table)
-        .where(table.column("id") == Int32(1))
+        .where(\Task07User.$id == Int32(1))
         .execute(on: connection)
     #expect(deleted == 1)
 

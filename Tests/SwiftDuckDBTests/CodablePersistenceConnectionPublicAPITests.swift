@@ -154,7 +154,7 @@ func normalImportPublicAPICRUD() async throws {
 
     let fetched = try await PublicNote
         .select
-        .where(Path.Column("title") == "public-updated")
+        .where(\PublicNote.$title == "public-updated")
         .limit(1)
         .query(on: connection)
         .first(decoding: PublicNote.self)
@@ -164,7 +164,7 @@ func normalImportPublicAPICRUD() async throws {
 
     let secondFetched = try await PublicNote
         .select
-        .where(Path.Column("title") == "public-nonreturning")
+        .where(\PublicNote.$title == "public-nonreturning")
         .limit(1)
         .query(on: connection)
         .first(decoding: PublicNote.self)
@@ -178,7 +178,7 @@ func normalImportPublicAPICRUD() async throws {
 
     let after = try await PublicNote
         .select
-        .where(Path.Column("id") == Int64(1))
+        .where(\PublicNote.$id == Int64(1))
         .limit(1)
         .query(on: connection)
         .first(decoding: PublicNote.self)
