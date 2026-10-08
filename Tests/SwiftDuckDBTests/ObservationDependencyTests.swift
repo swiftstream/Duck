@@ -15,7 +15,14 @@ struct ObservationDependencyTests {
         try execute(tableCreationSQL(for: table), on: connection)
         try execute(tableCreationSQL(for: logs), on: connection)
         try execute(
-            SQL.raw("CREATE VIEW obs_parameters_view AS SELECT * FROM obs_parameters").prepare(.duck).plain,
+            SQL
+                .create
+                .view[any: Path.Identifier("obs_parameters_view")]
+                .as
+                .select(SQL.asterisk)
+                .from(table)
+                .prepare(.duck)
+                .plain,
             on: connection
         )
 
@@ -51,40 +58,70 @@ struct ObservationDependencyTests {
         #expect(ObservationDependency.analyze(sql: hostilePlain, on: connection) == .tables(simpleTables))
         _ = try connection.prepare(simpleSQL)
 
-        let joinSQL = SQL.raw(
-            "SELECT obs_parameters.id FROM obs_parameters JOIN obs_logs ON obs_parameters.id = obs_logs.id"
-        ).prepare(.duck).plain
+        let joinSQL = SQL {
+            Select {
+                table.column("id")
+            }
+            From {
+                table
+                Join(.none, logs)
+                On(table.column("id") == logs.column("id"))
+            }
+        }
+        .prepare(.duck)
+        .plain
         let joinNames = try #require(connection.tableNames(in: joinSQL, qualified: true))
         let joinTables = try normalized(joinNames)
         #expect(joinTables == simpleTables.union(logsTables))
         #expect(ObservationDependency.analyze(sql: joinSQL, on: connection) == .tables(joinTables))
 
-        let cteSQL = SQL.raw(
-            "WITH selected AS (SELECT * FROM obs_parameters) SELECT * FROM selected"
-        ).prepare(.duck).plain
+        let selected = Path.Table("selected")
+        let cteSQL = SQL
+            .with(With(selected, SQL.select(SQL.asterisk).from(table)))
+            .select(SQL.asterisk)
+            .from(selected)
+            .prepare(.duck)
+            .plain
         let cteNames = try #require(connection.tableNames(in: cteSQL, qualified: true))
         let cteTables = try normalized(cteNames)
         #expect(cteTables == simpleTables)
         #expect(ObservationDependency.analyze(sql: cteSQL, on: connection) == .tables(simpleTables))
 
-        let viewSQL = SQL.raw("SELECT * FROM obs_parameters_view").prepare(.duck).plain
+        let viewSQL = SQL
+            .select(SQL.asterisk)
+            .from(Path.Table("obs_parameters_view"))
+            .prepare(.duck)
+            .plain
         let viewNames = try #require(connection.tableNames(in: viewSQL, qualified: true))
         let viewTables = try normalized(viewNames)
         #expect(viewTables == simpleTables)
         #expect(ObservationDependency.analyze(sql: viewSQL, on: connection) == .tables(simpleTables))
 
-        let aliasSQL = SQL.raw("SELECT * FROM obs_parameters AS a").prepare(.duck).plain
+        let aliasSQL = SQL
+            .select(SQL.asterisk)
+            .from(table.as(TableAlias("a")))
+            .prepare(.duck)
+            .plain
         #expect(ObservationDependency.analyze(sql: aliasSQL, on: connection) == .database)
 
-        let unresolvedSQL = SQL.raw("SELECT * FROM obs_parameters WHERE id = $1").prepare(.duck).plain
+        let unresolvedSQL = SQL
+            .select(SQL.asterisk)
+            .from(table)
+            .where(table.column("id") == SQL.raw("$1"))
+            .prepare(.duck)
+            .plain
         #expect(ObservationDependency.analyze(sql: unresolvedSQL, on: connection) == .database)
 
-        let noTableSQL = SQL.raw("SELECT 42").prepare(.duck).plain
+        let noTableSQL = SQL.select(Int32(42)).prepare(.duck).plain
         #expect(ObservationDependency.analyze(sql: noTableSQL, on: connection) == .tables([]))
 
-        let sequenceSQL = SQL.raw(
-            "SELECT last_value FROM duckdb_sequences() WHERE sequence_name = 'some_sequence'"
-        ).prepare(.duck).plain
+        let sequences = Fn.build(.custom("duckdb_sequences"), body: [])
+        let sequenceSQL = SQL
+            .select(Path.Column("last_value"))
+            .from(sequences)
+            .where(Path.Column("sequence_name") == "some_sequence")
+            .prepare(.duck)
+            .plain
         #expect(ObservationDependency.analyze(sql: sequenceSQL, on: connection) == .tables([]))
 
         for _ in 0..<100 {

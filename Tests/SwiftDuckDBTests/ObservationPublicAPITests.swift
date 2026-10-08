@@ -2,12 +2,20 @@ import SwiftDuckDB
 import SQL
 import Testing
 
+private func observationPublicNextValueQuery() -> any SQLable {
+    SQL.select(
+        Fn.nextVal(
+            SQLableParts(parts: SQLPartSafeValue("observation_public_sequence"))
+        ) => "value"
+    )
+}
+
 @Suite("ObservationPublicAPITests")
 struct ObservationPublicAPITests {
     @Test("Public observation API is nameable, reusable, and iterable")
     func publicObservationAPI() async throws {
         let database = try Database()
-        let query = SQL.raw("SELECT 42 AS value")
+        let query = SQL.select(Int32(42) => "value")
         let first: QueryObservation = try database.observe(query)
         let second: QueryObservation = try query.observe(on: database)
         let _: any Sendable = first
@@ -26,10 +34,14 @@ struct ObservationPublicAPITests {
     func publicNextvalRejection() async throws {
         let database = try Database()
         let connection = try database.connect()
-        try await connection.execute(SQL.raw("CREATE SEQUENCE observation_public_sequence START 19"))
+        try await connection.execute(
+            SQL
+                .create
+                .sequence[any: Path.Identifier("observation_public_sequence")]
+                .start(19)
+        )
 
-        let observation: QueryObservation = try SQL
-            .raw("SELECT nextval('observation_public_sequence') AS value")
+        let observation: QueryObservation = try observationPublicNextValueQuery()
             .observe(on: database)
         var iterator = observation.makeAsyncIterator()
         do {
@@ -39,9 +51,7 @@ struct ObservationPublicAPITests {
             #expect(error == .observationRequiresReadOnlyQuery)
         }
 
-        let next = try await connection.query(
-            SQL.raw("SELECT nextval('observation_public_sequence') AS value")
-        )
+        let next = try await connection.query(observationPublicNextValueQuery())
         #expect(next.rows.first?["value"] == .int64(19))
     }
 }

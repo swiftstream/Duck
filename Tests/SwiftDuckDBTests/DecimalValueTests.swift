@@ -489,7 +489,7 @@ func decimalResultMetadataDoesNotChangeValueIdentity() async throws {
 func decimalNullMaterializesByValidity() async throws {
     let connection = try Database().connect()
     let result = try await connection.query(
-        SQL.raw("SELECT CAST(NULL AS DECIMAL(5, 2)) AS value")
+        SQL.select(Fn.cast(SQL.null, .decimal(5, 2)) => "value")
     )
 
     #expect(result.rows.first?.values == [.null])

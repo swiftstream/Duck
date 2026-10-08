@@ -12,9 +12,11 @@ func copiesAndDestroysOwnedResultLogicalType() throws {
     try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
     defer { duckdb_disconnect(&connection) }
 
-    let sql = SQL.raw(
-        "SELECT CAST(NULL AS DECIMAL(12, 3)) AS amount WHERE FALSE"
-    ).prepare(.duck).plain
+    let sql = SQL
+        .select(Fn.cast(SQL.null, .decimal(12, 3)) => "amount")
+        .where(SQLBool(false))
+        .prepare(.duck)
+        .plain
     var result = duckdb_result()
     try #require(duckdb_query(connection, sql, &result) == DuckDBSuccess)
     defer { duckdb_destroy_result(&result) }
@@ -57,17 +59,23 @@ func exposesAndDestroysRecursiveLogicalTypeChildren() throws {
     try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
     defer { duckdb_disconnect(&connection) }
 
-    let sql = SQL.raw(
-        """
-        SELECT
-            CAST(NULL AS INTEGER[]) AS list_value,
-            CAST(NULL AS INTEGER[3]) AS array_value,
-            CAST(NULL AS MAP(VARCHAR, INTEGER)) AS map_value,
-            CAST(NULL AS STRUCT(id INTEGER, label VARCHAR)) AS struct_value,
-            CAST(NULL AS UNION(number INTEGER, label VARCHAR)) AS union_value
-        WHERE FALSE
-        """
-    ).prepare(.duck).plain
+    let sql = SQL
+        .select(
+            Fn.cast(SQL.null, .list(.integer)) => "list_value",
+            Fn.cast(SQL.null, .array(.integer, length: 3)) => "array_value",
+            Fn.cast(SQL.null, .map(key: .varchar, value: .integer)) => "map_value",
+            Fn.cast(
+                SQL.null,
+                .struct(("id", .integer), ("label", .varchar))
+            ) => "struct_value",
+            Fn.cast(
+                SQL.null,
+                .union(("number", .integer), ("label", .varchar))
+            ) => "union_value"
+        )
+        .where(SQLBool(false))
+        .prepare(.duck)
+        .plain
     var result = duckdb_result()
     try #require(duckdb_query(connection, sql, &result) == DuckDBSuccess)
     defer { duckdb_destroy_result(&result) }
@@ -157,15 +165,15 @@ func walksAndDestroysDeeplyNestedLogicalTypeChildren() throws {
     try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
     defer { duckdb_disconnect(&connection) }
 
-    let sql = SQL.raw(
-        """
-        SELECT CAST(NULL AS STRUCT(
-            payload MAP(VARCHAR, INTEGER[][]),
-            fixed INTEGER[2]
-        )) AS nested_value
-        WHERE FALSE
-        """
-    ).prepare(.duck).plain
+    let nestedType = Type.struct(
+        ("payload", .map(key: .varchar, value: .list(.list(.integer)))),
+        ("fixed", .array(.integer, length: 2))
+    )
+    let sql = SQL
+        .select(Fn.cast(SQL.null, nestedType) => "nested_value")
+        .where(SQLBool(false))
+        .prepare(.duck)
+        .plain
     var result = duckdb_result()
     try #require(duckdb_query(connection, sql, &result) == DuckDBSuccess)
     defer { duckdb_destroy_result(&result) }

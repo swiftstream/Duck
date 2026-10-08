@@ -267,20 +267,20 @@ private func decodeErrorCase(_ error: Error) -> DecodingError? {
 @Test("ResultRow.decode decodes plain synthesized Decodable from real DuckDB row")
 func rowDecodePlainSynthesized() async throws {
     let connection = try Database().connect()
-    let result = try await SQL.raw(
-        #"""
-        SELECT
-            'alpha' AS name,
-            true AS flag,
-            99::BIGINT AS count,
-            42::BIGINT AS exact_int64,
-            '11111111-2222-3333-4444-555555555555'::UUID AS id,
-            TIMESTAMPTZ '2023-11-14 22:13:20+00' AS created_at,
-            '\xDE\xAD\xBE\xEF'::BLOB AS payload,
-            1234.56::DECIMAL(10,2) AS amount,
-            NULL AS note
-        """#
-    ).query(on: connection)
+    let amount = try #require(Decimal(string: "1234.56"))
+    let result = try await SQL
+        .select(
+            "alpha" => "name",
+            SQLBool(true) => "flag",
+            Fn.cast(Int64(99), .bigint) => "count",
+            Fn.cast(Int64(42), .bigint) => "exact_int64",
+            Fn.cast("11111111-2222-3333-4444-555555555555", .uuid) => "id",
+            Fn.cast("2023-11-14 22:13:20+00", .timestamptz) => "created_at",
+            Fn.cast(BoundValue(Data([0xDE, 0xAD, 0xBE, 0xEF])), .blob) => "payload",
+            Fn.cast(amount, .decimal(10, 2)) => "amount",
+            Fn.cast(SQL.null, .varchar) => "note"
+        )
+        .query(on: connection)
 
     let row = try firstRow(result)
     let model = try row.decode(PlainModel.self)
@@ -299,15 +299,22 @@ func rowDecodePlainSynthesized() async throws {
 func queryResultFirstZeroAndOneRow() async throws {
     let connection = try Database().connect()
 
-    let empty = try await SQL.raw(
-        "SELECT 1::BIGINT AS id, 'a' AS name WHERE false"
-    ).query(on: connection)
+    let empty = try await SQL
+        .select(
+            Fn.cast(Int64(1), .bigint) => "id",
+            "a" => "name"
+        )
+        .where(SQLBool(false))
+        .query(on: connection)
     let emptyModel: OrderedRowModel? = try empty.first(decoding: OrderedRowModel.self)
     #expect(emptyModel == nil)
 
-    let one = try await SQL.raw(
-        "SELECT 7::BIGINT AS id, 'seven' AS name"
-    ).query(on: connection)
+    let one = try await SQL
+        .select(
+            Fn.cast(Int64(7), .bigint) => "id",
+            "seven" => "name"
+        )
+        .query(on: connection)
     let decodedOptional = try one.first(decoding: OrderedRowModel.self)
     let model = try #require(decodedOptional)
     #expect(model == OrderedRowModel(id: 7, name: "seven"))
@@ -316,9 +323,7 @@ func queryResultFirstZeroAndOneRow() async throws {
 @Test("QueryResult.first throws on malformed model and never swallows as nil")
 func queryResultFirstMalformedThrows() async throws {
     let connection = try Database().connect()
-    let result = try await SQL.raw(
-        "SELECT 'alpha' AS name"
-    ).query(on: connection)
+    let result = try await SQL.select("alpha" => "name").query(on: connection)
 
     do {
         _ = try result.first(decoding: WrongTypeModel.self)
@@ -337,22 +342,25 @@ func queryResultFirstMalformedThrows() async throws {
 func queryResultAllOrderAndMalformed() async throws {
     let connection = try Database().connect()
 
-    let ordered = try await SQL.raw(
-        "SELECT * FROM (VALUES (1::BIGINT,'a'), (2::BIGINT,'b'), (3::BIGINT,'c')) AS t(id, name) ORDER BY id"
-    ).query(on: connection)
+    let ordered = try await SQL
+        .select(Fn.cast(Int64(1), .bigint) => "id", "a" => "name")
+        .union(all: SQL.select(Fn.cast(Int64(2), .bigint) => "id", "b" => "name"))
+        .union(all: SQL.select(Fn.cast(Int64(3), .bigint) => "id", "c" => "name"))
+        .orderBy(.asc(Path.Column("id")))
+        .query(on: connection)
     let models = try ordered.all(decoding: OrderedRowModel.self)
     #expect(models.map(\.id) == [1, 2, 3])
     #expect(models.map(\.name) == ["a", "b", "c"])
 
-    let mixed = try await SQL.raw(
-        """
-        SELECT * FROM (
-            SELECT 1::BIGINT AS id, 'ok' AS name
-            UNION ALL
-            SELECT NULL::BIGINT AS id, 'bad' AS name
-        ) t
-        """
-    ).query(on: connection)
+    let mixed = try await SQL
+        .select(Fn.cast(Int64(1), .bigint) => "id", "ok" => "name")
+        .union(
+            all: SQL.select(
+                Fn.cast(SQL.null, .bigint) => "id",
+                "bad" => "name"
+            )
+        )
+        .query(on: connection)
     do {
         _ = try mixed.all(decoding: OrderedRowModel.self)
         Issue.record("Expected all(decoding:) to throw on later malformed row")
@@ -370,8 +378,11 @@ func queryResultAllOrderAndMalformed() async throws {
 func prefixAndCodingKeys() async throws {
     let connection = try Database().connect()
 
-    let prefixed = try await SQL.raw(
-        "SELECT '11111111-2222-3333-4444-555555555555'::UUID AS user_id, 'prefix-user' AS user_name, 9::BIGINT AS other_id, 'other' AS other_name"
+    let prefixed = try await SQL.select(
+        Fn.cast("11111111-2222-3333-4444-555555555555", .uuid) => "user_id",
+        "prefix-user" => "user_name",
+        Fn.cast(Int64(9), .bigint) => "other_id",
+        "other" => "other_name"
     ).query(on: connection)
     let row = try firstRow(prefixed)
     #expect(row.columns == ["user_id", "user_name", "other_id", "other_name"])
@@ -405,14 +416,16 @@ func prefixAndCodingKeys() async throws {
         Issue.record("Expected DecodingError for empty prefix, got \(error)")
     }
 
-    let custom = try await SQL.raw(
-        "SELECT 30::BIGINT AS user_id, 'display' AS display_name"
+    let custom = try await SQL.select(
+        Fn.cast(Int64(30), .bigint) => "user_id",
+        "display" => "display_name"
     ).query(on: connection)
     let customModel = try firstRow(custom).decode(CustomKeysModel.self)
     #expect(customModel == CustomKeysModel(identifier: 30, displayName: "display"))
 
-    let prefixedKeys = try await SQL.raw(
-        "SELECT 30::BIGINT AS user_user_id, 'display' AS user_display_name"
+    let prefixedKeys = try await SQL.select(
+        Fn.cast(Int64(30), .bigint) => "user_user_id",
+        "display" => "user_display_name"
     ).query(on: connection)
     let prefixedKeysModel = try firstRow(prefixedKeys)
         .decode(CustomKeysModel.self, prefix: "user_")
@@ -425,54 +438,60 @@ func prefixAndCodingKeys() async throws {
 func nativeScalarFamilies() async throws {
     let connection = try Database().connect()
 
-    let boolResult = try await SQL.raw("SELECT true AS flag").query(on: connection)
+    let boolResult = try await SQL.select(SQLBool(true) => "flag").query(on: connection)
     #expect(try firstRow(boolResult).decode(BoolModel.self).flag == true)
 
-    let int8Result = try await SQL.raw("SELECT 12::TINYINT AS value").query(on: connection)
+    let int8Result = try await SQL.select(Fn.cast(Int8(12), .tinyint) => "value").query(on: connection)
     #expect(try firstRow(int8Result).decode(Int8Model.self).value == 12)
 
-    let int16Result = try await SQL.raw("SELECT 1234::SMALLINT AS value").query(on: connection)
+    let int16Result = try await SQL.select(Fn.cast(Int16(1234), .smallint) => "value").query(on: connection)
     #expect(try firstRow(int16Result).decode(Int16Model.self).value == 1234)
 
-    let int32Result = try await SQL.raw("SELECT 123456::INTEGER AS value").query(on: connection)
+    let int32Result = try await SQL.select(Fn.cast(Int32(123456), .integer) => "value").query(on: connection)
     #expect(try firstRow(int32Result).decode(Int32Model.self).value == 123456)
 
-    let int64Result = try await SQL.raw("SELECT 1234567890123::BIGINT AS value").query(on: connection)
+    let int64Result = try await SQL.select(Fn.cast(Int64(1_234_567_890_123), .bigint) => "value").query(on: connection)
     #expect(try firstRow(int64Result).decode(Int64Model.self).value == 1_234_567_890_123)
 
-    let uint8Result = try await SQL.raw("SELECT 200::UTINYINT AS value").query(on: connection)
+    let uint8Result = try await SQL.select(Fn.cast(UInt8(200), .utinyint) => "value").query(on: connection)
     #expect(try firstRow(uint8Result).decode(UInt8Model.self).value == 200)
 
-    let uint16Result = try await SQL.raw("SELECT 50000::USMALLINT AS value").query(on: connection)
+    let uint16Result = try await SQL.select(Fn.cast(UInt16(50_000), .usmallint) => "value").query(on: connection)
     #expect(try firstRow(uint16Result).decode(UInt16Model.self).value == 50_000)
 
-    let uint32Result = try await SQL.raw("SELECT 4000000000::UINTEGER AS value").query(on: connection)
+    let uint32Result = try await SQL.select(Fn.cast(UInt32(4_000_000_000), .uinteger) => "value").query(on: connection)
     #expect(try firstRow(uint32Result).decode(UInt32Model.self).value == 4_000_000_000)
 
-    let uint64Result = try await SQL.raw("SELECT 18000000000000000000::UBIGINT AS value").query(on: connection)
+    let uint64Result = try await SQL.select(
+        Fn.cast(UInt64(18_000_000_000_000_000_000), .ubigint) => "value"
+    ).query(on: connection)
     #expect(try firstRow(uint64Result).decode(UInt64Model.self).value == 18_000_000_000_000_000_000)
 
-    let floatResult = try await SQL.raw("SELECT 1.5::FLOAT AS value").query(on: connection)
+    let floatResult = try await SQL.select(Fn.cast(Float(1.5), .real) => "value").query(on: connection)
     #expect(try firstRow(floatResult).decode(FloatModel.self).value == 1.5)
 
-    let doubleResult = try await SQL.raw("SELECT 2.25::DOUBLE AS value").query(on: connection)
+    let doubleResult = try await SQL.select(Fn.cast(Double(2.25), .doublePrecision) => "value").query(on: connection)
     #expect(try firstRow(doubleResult).decode(DoubleModel.self).value == 2.25)
 
-    let stringResult = try await SQL.raw("SELECT 'hello' AS value").query(on: connection)
+    let stringResult = try await SQL.select("hello" => "value").query(on: connection)
     #expect(try firstRow(stringResult).decode(StringModel.self).value == "hello")
 
-    let dataResult = try await SQL.raw(#"SELECT '\x01\x02'::BLOB AS value"#).query(on: connection)
+    let dataResult = try await SQL
+        .select(Fn.cast(BoundValue(Data([0x01, 0x02])), .blob) => "value")
+        .query(on: connection)
     #expect(try firstRow(dataResult).decode(DataModel.self).value == Data([0x01, 0x02]))
 
-    let uuidResult = try await SQL.raw(
-        "SELECT '11111111-2222-3333-4444-555555555555'::UUID AS value"
+    let uuidResult = try await SQL.select(
+        Fn.cast("11111111-2222-3333-4444-555555555555", .uuid) => "value"
     ).query(on: connection)
     #expect(
         try firstRow(uuidResult).decode(UUIDModel.self).value.uuidString
             == "11111111-2222-3333-4444-555555555555"
     )
 
-    let pureDateResult = try await SQL.raw("SELECT DATE '2026-09-16' AS value").query(on: connection)
+    let pureDateResult = try await SQL
+        .select(Fn.cast("2026-09-16", .date) => "value")
+        .query(on: connection)
     let pureDate = try firstRow(pureDateResult).decode(PureDateModel.self).value
     #expect(pureDate.year == 2026)
     #expect(pureDate.month == 9)
@@ -480,35 +499,40 @@ func nativeScalarFamilies() async throws {
     let expectedPureDate = try #require(PureDate(year: 2026, month: 9, day: 16))
     #expect(pureDate == expectedPureDate)
 
-    let pureTimeResult = try await SQL.raw("SELECT TIME_NS '01:02:03.000000004' AS value").query(on: connection)
+    let pureTimeResult = try await SQL
+        .select(Fn.cast("01:02:03.000000004", .timeNs) => "value")
+        .query(on: connection)
     let pureTime = try firstRow(pureTimeResult).decode(PureTimeModel.self).value
     #expect(pureTime.nanosecondsSinceMidnight == 3_723_000_000_004)
 
-    let dateTimeResult = try await SQL.raw(
-        "SELECT TIMESTAMP_NS '2026-09-16 12:34:56.123456789' AS value"
-    ).query(on: connection)
+    let dateTimeResult = try await SQL
+        .select(Fn.cast("2026-09-16 12:34:56.123456789", .timestampNs) => "value")
+        .query(on: connection)
     let dateTime = try firstRow(dateTimeResult).decode(DateTimeModel.self).value
     let dateTimeDate = try #require(dateTime.date)
     #expect(dateTimeDate.year == 2026)
     #expect(dateTimeDate.month == 9)
     #expect(dateTimeDate.day == 16)
 
-    let dateResult = try await SQL.raw(
-        "SELECT TIMESTAMPTZ '2023-11-14 22:13:20+00' AS value"
-    ).query(on: connection)
+    let dateResult = try await SQL
+        .select(Fn.cast("2023-11-14 22:13:20+00", .timestamptz) => "value")
+        .query(on: connection)
     let decodedDate = try firstRow(dateResult).decode(DateModel.self).value
     #expect(decodedDate == Date(timeIntervalSince1970: 1_700_000_000))
 
-    let intervalResult = try await SQL.raw(
-        "SELECT INTERVAL 1 MONTH + INTERVAL 2 DAY + INTERVAL 3 MICROSECOND AS value"
-    ).query(on: connection)
+    let intervalResult = try await SQL
+        .select(Interval(months: 1, days: 2, microseconds: 3) => "value")
+        .query(on: connection)
     let interval = try firstRow(intervalResult).decode(IntervalModel.self).value
     #expect(interval == Interval(months: 1, days: 2, microseconds: 3))
 
-    let decimalResult = try await SQL.raw("SELECT 12.34::DECIMAL(10,2) AS value").query(on: connection)
-    #expect(try firstRow(decimalResult).decode(DecimalModel.self).value == Decimal(string: "12.34"))
+    let decimal = try #require(Decimal(string: "12.34"))
+    let decimalResult = try await SQL
+        .select(Fn.cast(decimal, .decimal(10, 2)) => "value")
+        .query(on: connection)
+    #expect(try firstRow(decimalResult).decode(DecimalModel.self).value == decimal)
 
-    let nullResult = try await SQL.raw("SELECT NULL::VARCHAR AS note").query(on: connection)
+    let nullResult = try await SQL.select(Fn.cast(SQL.null, .varchar) => "note").query(on: connection)
     let nullRow = try firstRow(nullResult)
     #expect(try nullRow.decode(OptionalNullModel.self).note == nil)
 }
@@ -516,15 +540,15 @@ func nativeScalarFamilies() async throws {
 @Test("Native UUID/Date/Data/Decimal model values equal Value.get payloads")
 func nativeRepresentationPrecedence() async throws {
     let connection = try Database().connect()
-    let result = try await SQL.raw(
-        """
-        SELECT
-            '11111111-2222-3333-4444-555555555555'::UUID AS id,
-            TIMESTAMPTZ '2023-11-14 22:13:20+00' AS created_at,
-            '\\xDE\\xAD\\xBE\\xEF'::BLOB AS payload,
-            1234.56::DECIMAL(10,2) AS amount
-        """
-    ).query(on: connection)
+    let amount = try #require(Decimal(string: "1234.56"))
+    let result = try await SQL
+        .select(
+            Fn.cast("11111111-2222-3333-4444-555555555555", .uuid) => "id",
+            Fn.cast("2023-11-14 22:13:20+00", .timestamptz) => "created_at",
+            Fn.cast(BoundValue(Data([0xDE, 0xAD, 0xBE, 0xEF])), .blob) => "payload",
+            Fn.cast(amount, .decimal(10, 2)) => "amount"
+        )
+        .query(on: connection)
     let row = try firstRow(result)
 
     struct Natives: Decodable, Equatable {
@@ -557,22 +581,22 @@ func nativeRepresentationPrecedence() async throws {
 func intUIntPolicy() async throws {
     let connection = try Database().connect()
 
-    #expect(try firstRow(try await SQL.raw("SELECT 42::TINYINT AS value").query(on: connection))
+    #expect(try firstRow(try await SQL.select(Fn.cast(Int8(42), .tinyint) => "value").query(on: connection))
         .decode(IntModel.self).value == 42)
-    #expect(try firstRow(try await SQL.raw("SELECT -7::SMALLINT AS value").query(on: connection))
+    #expect(try firstRow(try await SQL.select(Fn.cast(Int16(-7), .smallint) => "value").query(on: connection))
         .decode(IntModel.self).value == -7)
-    #expect(try firstRow(try await SQL.raw("SELECT 7::INTEGER AS value").query(on: connection))
+    #expect(try firstRow(try await SQL.select(Fn.cast(Int32(7), .integer) => "value").query(on: connection))
         .decode(IntModel.self).value == 7)
-    #expect(try firstRow(try await SQL.raw("SELECT 9::BIGINT AS value").query(on: connection))
+    #expect(try firstRow(try await SQL.select(Fn.cast(Int64(9), .bigint) => "value").query(on: connection))
         .decode(IntModel.self).value == 9)
 
-    #expect(try firstRow(try await SQL.raw("SELECT 11::UTINYINT AS value").query(on: connection))
+    #expect(try firstRow(try await SQL.select(Fn.cast(UInt8(11), .utinyint) => "value").query(on: connection))
         .decode(UIntModel.self).value == 11)
-    #expect(try firstRow(try await SQL.raw("SELECT 12::USMALLINT AS value").query(on: connection))
+    #expect(try firstRow(try await SQL.select(Fn.cast(UInt16(12), .usmallint) => "value").query(on: connection))
         .decode(UIntModel.self).value == 12)
-    #expect(try firstRow(try await SQL.raw("SELECT 13::UINTEGER AS value").query(on: connection))
+    #expect(try firstRow(try await SQL.select(Fn.cast(UInt32(13), .uinteger) => "value").query(on: connection))
         .decode(UIntModel.self).value == 13)
-    #expect(try firstRow(try await SQL.raw("SELECT 14::UBIGINT AS value").query(on: connection))
+    #expect(try firstRow(try await SQL.select(Fn.cast(UInt64(14), .ubigint) => "value").query(on: connection))
         .decode(UIntModel.self).value == 14)
 
     func expectTypeMismatch(_ result: QueryResult, _ type: String) {
@@ -593,12 +617,27 @@ func intUIntPolicy() async throws {
         }
     }
 
-    expectTypeMismatch(try await SQL.raw("SELECT 9::UBIGINT AS value").query(on: connection), "Int")
-    expectTypeMismatch(try await SQL.raw("SELECT 9::BIGINT AS value").query(on: connection), "UInt")
-    expectTypeMismatch(try await SQL.raw("SELECT 3.0::FLOAT AS value").query(on: connection), "Int")
-    expectTypeMismatch(try await SQL.raw("SELECT 3.0::DOUBLE AS value").query(on: connection), "Int")
-    expectTypeMismatch(try await SQL.raw("SELECT 3::DECIMAL(10,2) AS value").query(on: connection), "Int")
-    expectTypeMismatch(try await SQL.raw("SELECT '42' AS value").query(on: connection), "Int")
+    expectTypeMismatch(
+        try await SQL.select(Fn.cast(UInt64(9), .ubigint) => "value").query(on: connection),
+        "Int"
+    )
+    expectTypeMismatch(
+        try await SQL.select(Fn.cast(Int64(9), .bigint) => "value").query(on: connection),
+        "UInt"
+    )
+    expectTypeMismatch(
+        try await SQL.select(Fn.cast(Float(3), .real) => "value").query(on: connection),
+        "Int"
+    )
+    expectTypeMismatch(
+        try await SQL.select(Fn.cast(Double(3), .doublePrecision) => "value").query(on: connection),
+        "Int"
+    )
+    expectTypeMismatch(
+        try await SQL.select(Fn.cast(Double(3), .decimal(10, 2)) => "value").query(on: connection),
+        "Int"
+    )
+    expectTypeMismatch(try await SQL.select("42" => "value").query(on: connection), "Int")
 }
 
 // MARK: - Error taxonomy
@@ -606,8 +645,9 @@ func intUIntPolicy() async throws {
 @Test("Missing / SQL NULL / wrong type / Optional semantics use exact DecodingError cases")
 func errorTaxonomy() async throws {
     let connection = try Database().connect()
-    let result = try await SQL.raw(
-        "SELECT 'alpha' AS name, NULL::VARCHAR AS note"
+    let result = try await SQL.select(
+        "alpha" => "name",
+        Fn.cast(SQL.null, .varchar) => "note"
     ).query(on: connection)
     let row = try firstRow(result)
 
@@ -660,8 +700,9 @@ func errorTaxonomy() async throws {
 @Test("Real DuckDB duplicate column names are rejected as ambiguous")
 func duplicateColumnRejection() async throws {
     let connection = try Database().connect()
-    let result = try await SQL.raw(
-        "SELECT 1::BIGINT AS id, 2::BIGINT AS id"
+    let result = try await SQL.select(
+        Fn.cast(Int64(1), .bigint) => "id",
+        Fn.cast(Int64(2), .bigint) => "id"
     ).query(on: connection)
 
     let row = try firstRow(result)
@@ -745,14 +786,16 @@ func prefixCollisionRejection() throws {
 func enumAndUnsupportedBoundaries() async throws {
     let connection = try Database().connect()
 
-    let enumResult = try await SQL.raw(
-        "SELECT 'active' AS status, 'enum-row' AS name"
+    let enumResult = try await SQL.select(
+        "active" => "status",
+        "enum-row" => "name"
     ).query(on: connection)
     let enumModel = try firstRow(enumResult).decode(ModelWithEnum.self)
     #expect(enumModel == ModelWithEnum(status: .active, name: "enum-row"))
 
-    let invalid = try await SQL.raw(
-        "SELECT 'not-a-status' AS status, 'enum-row' AS name"
+    let invalid = try await SQL.select(
+        "not-a-status" => "status",
+        "enum-row" => "name"
     ).query(on: connection)
     do {
         _ = try firstRow(invalid).decode(ModelWithEnum.self)
@@ -762,7 +805,11 @@ func enumAndUnsupportedBoundaries() async throws {
         #expect(error is DecodingError)
     }
 
-    let scalar = try await SQL.raw("SELECT 'alpha' AS name, 'tag' AS tags, 'city' AS address").query(on: connection)
+    let scalar = try await SQL.select(
+        "alpha" => "name",
+        "tag" => "tags",
+        "city" => "address"
+    ).query(on: connection)
     let scalarRow = try firstRow(scalar)
 
     do {

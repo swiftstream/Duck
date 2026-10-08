@@ -28,7 +28,10 @@ private func makeObservationTransactionContext() async throws -> ObservationTran
             )
     )
     try await connection.execute(
-        SQL.raw("CREATE SEQUENCE \(sequenceName) START 1")
+        SQL
+            .create
+            .sequence[any: Path.Identifier(sequenceName)]
+            .start(1)
     )
     return ObservationTransactionContext(
         database: database,
@@ -53,13 +56,19 @@ private func insert(
 }
 
 private func nextvalQuery(_ sequenceName: String) -> any SQLable {
-    SQL.raw("SELECT nextval('\(sequenceName)') AS value")
+    SQL.select(
+        Fn.nextVal(
+            SQLableParts(parts: SQLPartSafeValue(sequenceName))
+        ) => "value"
+    )
 }
 
 private func sequenceObservationQuery(_ sequenceName: String) -> any SQLable {
-    SQL.raw(
-        "SELECT last_value FROM duckdb_sequences() WHERE sequence_name = '\(sequenceName)'"
-    )
+    let sequences = Fn.build(.custom("duckdb_sequences"), body: [])
+    return SQL
+        .select(Path.Column("last_value"))
+        .from(sequences)
+        .where(Path.Column("sequence_name") == sequenceName)
 }
 
 private func rows(
@@ -225,10 +234,12 @@ func automaticCleanRollbackPublishesOnceAndRemovesRow() async throws {
 func sequenceObserverDependencyIsExactlyEmptyTables() throws {
     let database = try NativeDatabase()
     let connection = try database.connect()
+    let sequences = Fn.build(.custom("duckdb_sequences"), body: [])
     let sql = try PreparedQuerySnapshot(
-        SQL.raw(
-            "SELECT last_value FROM duckdb_sequences() WHERE sequence_name = 'some_sequence'"
-        )
+        SQL
+            .select(Path.Column("last_value"))
+            .from(sequences)
+            .where(Path.Column("sequence_name") == "some_sequence")
     ).analysisSQL
     #expect(ObservationDependency.analyze(sql: sql, on: connection) == .tables([]))
 }

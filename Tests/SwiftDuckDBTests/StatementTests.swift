@@ -381,7 +381,7 @@ func reusableStatementParameterCountMismatchIsRejected() async throws {
     let connection = try Database().connect()
 
     do {
-        _ = try await connection.prepare(SQL.raw("SELECT $1"))
+        _ = try await connection.prepare(SQL.select(SQL.raw("$1")))
         Issue.record("Expected native/template parameter-count mismatch to be rejected.")
     } catch let error as DatabaseError {
         guard case .invalidResult = error else {

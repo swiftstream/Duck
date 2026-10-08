@@ -19,6 +19,20 @@ private func selectedNativeExecute(
     return try pending.execute()
 }
 
+private func selectedAppenderDefault(_ value: Any) -> any SQLable {
+    SQL.default[
+        any: SQLableParts(parts: SQLPartSafeValue(value))
+    ]
+}
+
+private func selectedAppenderSequenceDefault(_ sequenceName: String) -> any SQLable {
+    SQL.default[
+        any: Fn.nextVal(
+            SQLableParts(parts: SQLPartSafeValue(sequenceName))
+        )
+    ]
+}
+
 private func selectedAppenderCount(
     _ table: Path.Table,
     on connection: Connection
@@ -50,9 +64,17 @@ struct SelectedColumnAppenderTests {
     func selectedNativeOrderAndMetadata() throws {
         let database = try NativeDatabase()
         let connection = try database.connect()
+        let table = Path.Table("selected_native_order")
         _ = try selectedNativeExecute(
             connection,
-            SQL.raw("CREATE TABLE selected_native_order (first INTEGER, second VARCHAR, third BOOLEAN)")
+            SQL
+                .create
+                .table[any: table]
+                .tableDefinitions(
+                    NewColumn("first", .integer),
+                    NewColumn("second", .varchar),
+                    NewColumn("third", .boolean)
+                )
         )
 
         let appender = try NativeAppender(
@@ -67,7 +89,13 @@ struct SelectedColumnAppenderTests {
 
         let result = try selectedNativeExecute(
             connection,
-            SQL.raw("SELECT first, second, third FROM selected_native_order")
+            SQL
+                .select(
+                    table.column("first"),
+                    table.column("second"),
+                    table.column("third")
+                )
+                .from(table)
         )
         let rows = try #require(try result.materializeNextChunk())
         let row = try #require(rows.first)
@@ -79,29 +107,54 @@ struct SelectedColumnAppenderTests {
     @Test("Omitted selected columns use DEFAULT or NULL while selected nil is NULL")
     func selectedOmissionAndNullSemantics() async throws {
         let connection = try Database().connect()
-        _ = try await connection.execute(
-            SQL.raw("CREATE TABLE selected_defaults (id INTEGER, constant_value INTEGER DEFAULT 17, absent_value INTEGER)")
-        )
-        _ = try await connection.execute(
-            SQL.raw("CREATE SEQUENCE selected_sequence START 50")
-        )
-        _ = try await connection.execute(
-            SQL.raw("CREATE TABLE selected_sequence_defaults (id INTEGER, sequence_value INTEGER DEFAULT nextval('selected_sequence'))")
-        )
         let table = Path.Table("selected_defaults")
+        _ = try await connection.execute(
+            SQL
+                .create
+                .table[any: table]
+                .tableDefinitions(
+                    NewColumn("id", .integer),
+                    NewColumn("constant_value", .integer)
+                        .default(expression: selectedAppenderDefault(Int32(17))),
+                    NewColumn("absent_value", .integer)
+                )
+        )
+        _ = try await connection.execute(
+            SQL
+                .create
+                .sequence[any: Path.Identifier("selected_sequence")]
+                .start(50)
+        )
+        let sequenceTable = Path.Table("selected_sequence_defaults")
+        _ = try await connection.execute(
+            SQL
+                .create
+                .table[any: sequenceTable]
+                .tableDefinitions(
+                    NewColumn("id", .integer),
+                    NewColumn("sequence_value", .integer)
+                        .default(expression: selectedAppenderSequenceDefault("selected_sequence"))
+                )
+        )
         try await connection.appender(to: table, columns: ["id"]) { appender in
             try await appender.append(Int32(1))
         }
         try await connection.appender(to: table, columns: ["constant_value"]) { appender in
             try await appender.append(Optional<Int32>.none)
         }
-        let sequenceTable = Path.Table("selected_sequence_defaults")
         try await connection.appender(to: sequenceTable, columns: ["id"]) { appender in
             try await appender.append(Int32(2))
         }
 
         let result = try await connection.query(
-            SQL.raw("SELECT id, constant_value, absent_value FROM selected_defaults ORDER BY id")
+            SQL
+                .select(
+                    table.column("id"),
+                    table.column("constant_value"),
+                    table.column("absent_value")
+                )
+                .from(table)
+                .orderBy(.asc(table.column("id")))
         )
         #expect(result.rows.count == 2)
         #expect(result.rows[0]["constant_value"] == .int32(17))
@@ -109,7 +162,9 @@ struct SelectedColumnAppenderTests {
         #expect(result.rows[1]["constant_value"] == .null)
 
         let sequence = try await connection.query(
-            SQL.raw("SELECT sequence_value FROM selected_sequence_defaults")
+            SQL
+                .select(sequenceTable.column("sequence_value"))
+                .from(sequenceTable)
         )
         #expect(sequence.rows.first?["sequence_value"] == .int32(50))
     }
@@ -117,10 +172,24 @@ struct SelectedColumnAppenderTests {
     @Test("Invalid selected names fail creation before body and leave Connection usable")
     func selectedNameFailuresReleaseSetup() async throws {
         let connection = try Database().connect()
-        _ = try await connection.execute(
-            SQL.raw("CREATE TABLE selected_name_failures (id INTEGER, MixedCase INTEGER, \"literal\"\"quote\" INTEGER, generated INTEGER GENERATED ALWAYS AS (id + 1))")
-        )
         let table = Path.Table("selected_name_failures")
+        _ = try await connection.execute(
+            SQL
+                .create
+                .table[any: table]
+                .tableDefinitions(
+                    NewColumn("id", .integer),
+                    NewColumn("MixedCase", .integer),
+                    NewColumn("literal\"quote", .integer),
+                    GeneratedColumn(
+                        "generated",
+                        .integer,
+                        generatedAlwaysAs: Path.Column("id") + SQLableParts(
+                            parts: SQLPartSafeValue(Int32(1))
+                        )
+                    )
+                )
+        )
         let invalidSelections: [[String]] = [
             [], [""], ["\0"], ["id", "id"], ["unknown"], ["generated"], ["\"MixedCase\""]
         ]
@@ -145,7 +214,12 @@ struct SelectedColumnAppenderTests {
             try await appender.append(Int32(8), Int32(9))
         }
         let result = try await connection.query(
-            SQL.raw("SELECT \"literal\"\"quote\", \"MixedCase\" FROM selected_name_failures")
+            SQL
+                .select(
+                    table.column("literal\"quote"),
+                    table.column("MixedCase")
+                )
+                .from(table)
         )
         #expect(result.rows.first?["literal\"quote"] == .int32(8))
         #expect(result.rows.first?["MixedCase"] == .int32(9))
@@ -157,10 +231,17 @@ struct SelectedColumnAppenderTests {
     func selectedRowPreflightIsRecoverable() async throws {
         let database = try Database()
         let connection = try database.connect()
-        _ = try await connection.execute(
-            SQL.raw("CREATE TABLE selected_preflight (id INTEGER, name VARCHAR, late INTEGER)")
-        )
         let table = Path.Table("selected_preflight")
+        _ = try await connection.execute(
+            SQL
+                .create
+                .table[any: table]
+                .tableDefinitions(
+                    NewColumn("id", .integer),
+                    NewColumn("name", .varchar),
+                    NewColumn("late", .integer)
+                )
+        )
         let abortedObservation = await database.observationCoordinator
             .register(initial: .database)
         do {
@@ -228,7 +309,18 @@ struct SelectedColumnAppenderTests {
         let connection = try database.connect()
         let table = Path.Table("selected_constraint")
         _ = try await connection.execute(
-            SQL.raw("CREATE TABLE selected_constraint (id INTEGER CHECK (id > 0), ignored VARCHAR)")
+            SQL
+                .create
+                .table[any: table]
+                .tableDefinitions(
+                    NewColumn("id", .integer)
+                        .check(
+                            Path.Column("id") > SQLableParts(
+                                parts: SQLPartSafeValue(Int32(0))
+                            )
+                        ),
+                    NewColumn("ignored", .varchar)
+                )
         )
         let registration = await database.observationCoordinator.register(initial: .database)
         do {
@@ -253,7 +345,14 @@ struct SelectedColumnAppenderTests {
         let connection = try database.connect()
         let table = Path.Table("selected_autoflush")
         _ = try await connection.execute(
-            SQL.raw("CREATE TABLE selected_autoflush (id INTEGER, omitted VARCHAR DEFAULT 'default')")
+            SQL
+                .create
+                .table[any: table]
+                .tableDefinitions(
+                    NewColumn("id", .integer),
+                    NewColumn("omitted", .varchar)
+                        .default(expression: selectedAppenderDefault("default"))
+                )
         )
         let registration = await database.observationCoordinator.register(initial: .database)
         do {
@@ -278,7 +377,14 @@ struct SelectedColumnAppenderTests {
         let observer = try database.connect()
         let table = Path.Table("selected_transaction")
         _ = try await connection.execute(
-            SQL.raw("CREATE TABLE selected_transaction (id INTEGER, omitted VARCHAR DEFAULT 'x')")
+            SQL
+                .create
+                .table[any: table]
+                .tableDefinitions(
+                    NewColumn("id", .integer),
+                    NewColumn("omitted", .varchar)
+                        .default(expression: selectedAppenderDefault("x"))
+                )
         )
         let committed = await database.observationCoordinator.register(initial: .database)
         try await connection.transaction { transaction in
@@ -328,7 +434,13 @@ struct SelectedColumnAppenderTests {
         let other = try database.connect()
         let table = Path.Table("selected_guards")
         _ = try await connection.execute(
-            SQL.raw("CREATE TABLE selected_guards (id INTEGER, ignored INTEGER)")
+            SQL
+                .create
+                .table[any: table]
+                .tableDefinitions(
+                    NewColumn("id", .integer),
+                    NewColumn("ignored", .integer)
+                )
         )
         try await connection.appender(to: table, columns: ["id"]) { appender in
             do {
@@ -367,7 +479,14 @@ struct SelectedColumnAppenderTests {
         let table = Path.Table("selected_pool")
         let firstId = try await pool.connection { connection in
             _ = try await connection.execute(
-                SQL.raw("CREATE TABLE selected_pool (id INTEGER, omitted INTEGER DEFAULT 12)")
+                SQL
+                    .create
+                    .table[any: table]
+                    .tableDefinitions(
+                        NewColumn("id", .integer),
+                        NewColumn("omitted", .integer)
+                            .default(expression: selectedAppenderDefault(Int32(12)))
+                    )
             )
             try await connection.appender(to: table, columns: ["id"]) { appender in
                 try await appender.append(Int32(1))

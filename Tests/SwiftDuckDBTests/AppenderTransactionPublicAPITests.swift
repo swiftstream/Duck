@@ -42,13 +42,15 @@ struct AppenderTransactionPublicAPITests {
     @Test("Public Transaction Appender commits through a schema-qualified target")
     func publicTransactionAppenderCommitsSchemaTarget() async throws {
         let connection = try Database().connect()
-        _ = try await connection.execute(SQL.raw("CREATE SCHEMA public_transaction_schema"))
+        let schema = Path.Schema("public_transaction_schema")
+        let table = schema.table("events")
+
+        _ = try await connection.execute(SQL.create.schema[any: schema])
         _ = try await connection.execute(
-            SQL.raw("CREATE TABLE public_transaction_schema.events (id INTEGER)")
-        )
-        let table = Path.SchemaWithTable(
-            schema: "public_transaction_schema",
-            table: "events"
+            SQL
+                .create
+                .table[any: table]
+                .tableDefinitions(NewColumn("id", .integer))
         )
 
         try await connection.transaction { transaction in
@@ -58,7 +60,9 @@ struct AppenderTransactionPublicAPITests {
         }
 
         let result = try await connection.query(
-            SQL.raw("SELECT id FROM public_transaction_schema.events")
+            SQL
+                .select(table.column("id"))
+                .from(table)
         )
         #expect(result.rows.count == 1)
         #expect(result.rows.first?["id"] == .int32(7))
@@ -68,20 +72,26 @@ struct AppenderTransactionPublicAPITests {
     func publicTransactionAppenderCommitsCatalogTarget() async throws {
         let connection = try Database().connect()
         let catalogResult = try await connection.query(
-            SQL.raw("SELECT current_database() AS catalog")
+            SQL.select(Fn.build(.custom("current_database"), body: []) => "catalog")
         )
         let catalogRow = try #require(catalogResult.rows.first)
         let catalogValue = try #require(catalogRow["catalog"])
         let catalog = try #require(catalogValue.get(String.self))
 
-        _ = try await connection.execute(SQL.raw("CREATE SCHEMA public_catalog_schema"))
-        _ = try await connection.execute(
-            SQL.raw("CREATE TABLE public_catalog_schema.events (id INTEGER)")
-        )
+        let schemaName = "public_catalog_schema"
+        let schema = Path.Schema(schemaName)
         let table = Path.CatalogWithSchemaAndTable(
             catalog: catalog,
-            schema: "public_catalog_schema",
+            schema: schemaName,
             table: "events"
+        )
+
+        _ = try await connection.execute(SQL.create.schema[any: schema])
+        _ = try await connection.execute(
+            SQL
+                .create
+                .table[any: table]
+                .tableDefinitions(NewColumn("id", .integer))
         )
 
         try await connection.transaction { transaction in
@@ -91,9 +101,11 @@ struct AppenderTransactionPublicAPITests {
         }
 
         let result = try await connection.query(
-            SQL.raw("SELECT id FROM public_catalog_schema.events")
+            SQL
+                .select(table.column("id"))
+                .from(table)
         )
         #expect(result.rows.count == 1)
-        #expect(result.rows.first?["id"] == .int32(8))
+        #expect(result.rows.first?["id"] == Value.int32(8))
     }
 }

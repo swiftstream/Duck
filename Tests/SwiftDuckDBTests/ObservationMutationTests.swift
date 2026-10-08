@@ -17,6 +17,14 @@ private func createObservationTable(
     )
 }
 
+private func observationMutationNextValueQuery(_ sequenceName: String) -> any SQLable {
+    SQL.select(
+        Fn.nextVal(
+            SQLableParts(parts: SQLPartSafeValue(sequenceName))
+        ) => "value"
+    )
+}
+
 private func drainInvalidations(
     _ database: Database,
     operation: () async throws -> Void
@@ -108,8 +116,12 @@ func ddlPublishesDatabaseInvalidation() async throws {
     let database = try Database()
     let connection = try database.connect()
     let count = try await drainInvalidations(database) {
+        let table = Path.Table("observation_mutation_ddl")
         try await connection.execute(
-            SQL.raw("CREATE TABLE observation_mutation_ddl (value INTEGER)")
+            SQL
+                .create
+                .table[any: table]
+                .tableDefinitions(NewColumn("value", .integer))
         )
     }
     #expect(count == 1)
@@ -127,7 +139,11 @@ func connectionQueryInsertReturningRefreshesObservation() async throws {
     #expect(try await iterator.next()?.rows.isEmpty == true)
 
     let returned = try await connection.query(
-        SQL.raw("INSERT INTO observation_mutation_returning VALUES (7, 70) RETURNING id")
+        SQL
+            .insertInto(table, fields: "id", "value")
+            .values
+            .values(Int32(7), Int32(70))
+            .returning(table.column("id"))
     )
     #expect(returned.rows.first?["id"] == .int32(7))
     let changed = try #require(try await iterator.next())
@@ -152,20 +168,23 @@ func directNextvalPublishesOnce() async throws {
     let database = try Database()
     let connection = try database.connect()
     try await connection.execute(
-        SQL.raw("CREATE SEQUENCE observation_mutation_sequence START 41")
+        SQL
+            .create
+            .sequence[any: Path.Identifier("observation_mutation_sequence")]
+            .start(41)
     )
 
     var first: QueryResult?
     let count = try await drainInvalidations(database) {
         first = try await connection.query(
-            SQL.raw("SELECT nextval('observation_mutation_sequence') AS value")
+            observationMutationNextValueQuery("observation_mutation_sequence")
         )
     }
     #expect(count == 1)
     #expect(first?.rows.first?["value"] == .int64(41))
 
     let second = try await connection.query(
-        SQL.raw("SELECT nextval('observation_mutation_sequence') AS value")
+        observationMutationNextValueQuery("observation_mutation_sequence")
     )
     #expect(second.rows.first?["value"] == .int64(42))
 }
@@ -198,7 +217,11 @@ func reusableStatementQueryReturningRefreshesObservation() async throws {
     let table = Path.Table("observation_mutation_statement_query")
     try await createObservationTable(table, on: connection)
     let statement = try await connection.prepare(
-        SQL.raw("INSERT INTO observation_mutation_statement_query VALUES (2, 20) RETURNING id")
+        SQL
+            .insertInto(table, fields: "id", "value")
+            .values
+            .values(Int32(2), Int32(20))
+            .returning(table.column("id"))
     )
 
     let observation = try database.observe(SQL.select(table.column("id")).from(table))
@@ -230,12 +253,13 @@ func reusableSideEffectingSelectStatementPublishesOnce() async throws {
     let database = try Database()
     let connection = try database.connect()
     try await connection.execute(
-        SQL.raw("CREATE SEQUENCE observation_mutation_sequence_reusable START 73")
+        SQL
+            .create
+            .sequence[any: Path.Identifier("observation_mutation_sequence_reusable")]
+            .start(73)
     )
     let statement = try await connection.prepare(
-        SQL.raw(
-            "SELECT nextval('observation_mutation_sequence_reusable') AS value"
-        )
+        observationMutationNextValueQuery("observation_mutation_sequence_reusable")
     )
 
     var returned: QueryResult?
@@ -246,7 +270,7 @@ func reusableSideEffectingSelectStatementPublishesOnce() async throws {
     #expect(returned?.rows.first?["value"] == .int64(73))
 
     let next = try await connection.query(
-        SQL.raw("SELECT nextval('observation_mutation_sequence_reusable') AS value")
+        observationMutationNextValueQuery("observation_mutation_sequence_reusable")
     )
     #expect(next.rows.first?["value"] == .int64(74))
 }
@@ -299,7 +323,10 @@ func lateMaterializationFailurePublishesAfterMutation() async throws {
     let connection = try database.connect()
     let table = Path.Table("observation_mutation_late_failure")
     try await connection.execute(
-        SQL.raw("CREATE TABLE observation_mutation_late_failure (id INTEGER)")
+        SQL
+            .create
+            .table[any: table]
+            .tableDefinitions(NewColumn("id", .integer))
     )
     let observation = try database.observe(SQL.select(table.column("id")).from(table))
     var iterator = observation.makeAsyncIterator()
@@ -307,9 +334,16 @@ func lateMaterializationFailurePublishesAfterMutation() async throws {
 
     do {
         _ = try await connection.query(
-            SQL.raw(
-                "INSERT INTO observation_mutation_late_failure VALUES (1) RETURNING [1, 2] AS unsupported"
-            )
+            SQL
+                .insertInto(table, fields: "id")
+                .values
+                .values(Int32(1))
+                .returning[
+                    any: Fn.listValue(
+                        SQLableParts(parts: SQLPartSafeValue(Int32(1))),
+                        SQLableParts(parts: SQLPartSafeValue(Int32(2)))
+                    ) => "unsupported"
+                ]
         )
         Issue.record("Expected unsupported LIST result materialization to fail.")
     } catch let error as DatabaseError {

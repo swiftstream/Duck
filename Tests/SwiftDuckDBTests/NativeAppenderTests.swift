@@ -8,29 +8,29 @@ func nativeAppenderPersistsCurrentPrimitiveValueFamily() throws {
     let database = try NativeDatabase()
     let connection = try database.connect()
 
+    let table = Path.Table("native_appender_values")
     _ = try execute(
         connection,
-        SQL.raw(
-            """
-            CREATE TABLE native_appender_values (
-                boolean_value BOOLEAN,
-                int8_value TINYINT,
-                int16_value SMALLINT,
-                int32_value INTEGER,
-                int64_value BIGINT,
-                uint8_value UTINYINT,
-                uint16_value USMALLINT,
-                uint32_value UINTEGER,
-                uint64_value UBIGINT,
-                float_value FLOAT,
-                double_value DOUBLE,
-                text_value VARCHAR,
-                blob_value BLOB,
-                empty_blob_value BLOB,
-                null_value INTEGER
+        SQL
+            .create
+            .table[any: table]
+            .tableDefinitions(
+                NewColumn("boolean_value", .boolean),
+                NewColumn("int8_value", .tinyint),
+                NewColumn("int16_value", .smallint),
+                NewColumn("int32_value", .integer),
+                NewColumn("int64_value", .bigint),
+                NewColumn("uint8_value", .utinyint),
+                NewColumn("uint16_value", .usmallint),
+                NewColumn("uint32_value", .uinteger),
+                NewColumn("uint64_value", .ubigint),
+                NewColumn("float_value", .real),
+                NewColumn("double_value", .doublePrecision),
+                NewColumn("text_value", .varchar),
+                NewColumn("blob_value", .blob),
+                NewColumn("empty_blob_value", .blob),
+                NewColumn("null_value", .integer)
             )
-            """
-        )
     )
 
     let blob = Data([0x00, 0x01, 0x7F, 0x80, 0xFF])
@@ -60,27 +60,25 @@ func nativeAppenderPersistsCurrentPrimitiveValueFamily() throws {
 
     let result = try execute(
         connection,
-        SQL.raw(
-            """
-            SELECT
-                boolean_value,
-                int8_value,
-                int16_value,
-                int32_value,
-                int64_value,
-                uint8_value,
-                uint16_value,
-                uint32_value,
-                uint64_value,
-                float_value,
-                double_value,
-                text_value,
-                blob_value,
-                empty_blob_value,
-                null_value
-            FROM native_appender_values
-            """
-        )
+        SQL
+            .select(
+                table.column("boolean_value"),
+                table.column("int8_value"),
+                table.column("int16_value"),
+                table.column("int32_value"),
+                table.column("int64_value"),
+                table.column("uint8_value"),
+                table.column("uint16_value"),
+                table.column("uint32_value"),
+                table.column("uint64_value"),
+                table.column("float_value"),
+                table.column("double_value"),
+                table.column("text_value"),
+                table.column("blob_value"),
+                table.column("empty_blob_value"),
+                table.column("null_value")
+            )
+            .from(table)
     )
     let rows = try #require(try result.materializeNextChunk())
     let row = try #require(rows.first)
@@ -119,7 +117,10 @@ func failedNativeAppenderCreationLeavesConnectionUsable() throws {
 
     _ = try execute(
         connection,
-        SQL.raw("CREATE TABLE native_appender_after_create_failure (value INTEGER)")
+        SQL
+            .create
+            .table[any: Path.Table("native_appender_after_create_failure")]
+            .tableDefinitions(NewColumn("value", .integer))
     )
     let appender = try NativeAppender(
         connection: connection,
@@ -138,7 +139,10 @@ func nativeAppenderDiscardDropsBufferedRows() throws {
 
     _ = try execute(
         connection,
-        SQL.raw("CREATE TABLE native_appender_discard (value INTEGER)")
+        SQL
+            .create
+            .table[any: Path.Table("native_appender_discard")]
+            .tableDefinitions(NewColumn("value", .integer))
     )
     let appender = try NativeAppender(connection: connection, table: "native_appender_discard")
     try appender.appendRow([.int32(7)])
@@ -154,7 +158,10 @@ func nativeAppenderDeinitDiscardsBufferedRows() throws {
 
     _ = try execute(
         connection,
-        SQL.raw("CREATE TABLE native_appender_deinit_discard (value INTEGER)")
+        SQL
+            .create
+            .table[any: Path.Table("native_appender_deinit_discard")]
+            .tableDefinitions(NewColumn("value", .integer))
     )
 
     do {
@@ -175,7 +182,13 @@ func nativeAppenderRowCountMismatchIsRecoverable() throws {
 
     _ = try execute(
         connection,
-        SQL.raw("CREATE TABLE native_appender_row_count (first INTEGER, second INTEGER)")
+        SQL
+            .create
+            .table[any: Path.Table("native_appender_row_count")]
+            .tableDefinitions(
+                NewColumn("first", .integer),
+                NewColumn("second", .integer)
+            )
     )
     let appender = try NativeAppender(connection: connection, table: "native_appender_row_count")
 
@@ -200,7 +213,10 @@ func nativeAppenderReportsFailingPrimitiveColumn() throws {
 
     _ = try execute(
         connection,
-        SQL.raw("CREATE TABLE native_appender_column_error (value INTEGER)")
+        SQL
+            .create
+            .table[any: Path.Table("native_appender_column_error")]
+            .tableDefinitions(NewColumn("value", .integer))
     )
     let appender = try NativeAppender(connection: connection, table: "native_appender_column_error")
 
@@ -223,7 +239,10 @@ func nativeAppenderCloseReportsConstraintFinalizationFailure() throws {
 
     _ = try execute(
         connection,
-        SQL.raw("CREATE TABLE native_appender_unique (id INTEGER PRIMARY KEY)")
+        SQL
+            .create
+            .table[any: Path.Table("native_appender_unique")]
+            .tableDefinitions(NewColumn("id", .integer).primaryKey())
     )
 
     let initial = try NativeAppender(connection: connection, table: "native_appender_unique")
@@ -252,7 +271,10 @@ func nativeAppenderStronglyRetainsNativeConnection() throws {
 
     _ = try execute(
         try #require(connection),
-        SQL.raw("CREATE TABLE native_appender_parent_lifetime (value INTEGER)")
+        SQL
+            .create
+            .table[any: Path.Table("native_appender_parent_lifetime")]
+            .tableDefinitions(NewColumn("value", .integer))
     )
 
     weak let weakConnection = connection
@@ -289,7 +311,9 @@ private func rowCount(
 ) throws -> Int64 {
     let result = try execute(
         connection,
-        SQL.raw("SELECT CAST(COUNT(*) AS BIGINT) AS count FROM \(table)")
+        SQL
+            .select(Fn.cast(Fn.count(SQL.asterisk), .bigint) => "count")
+            .from(Path.Table(table))
     )
     let rows = try #require(try result.materializeNextChunk())
     let row = try #require(rows.first)

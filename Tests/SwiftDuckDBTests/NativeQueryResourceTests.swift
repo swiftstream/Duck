@@ -12,26 +12,23 @@ func bindsAndMaterializesPrimitiveResultSlice() throws {
     let blob = Data([0x00, 0x01, 0x7F, 0x80, 0xFF])
     let emptyBlob = Data()
     let sql = SQL
-        .raw(
-            """
-            SELECT
-                CAST($1 AS BOOLEAN) AS boolean_value,
-                CAST($2 AS TINYINT) AS int8_value,
-                CAST($3 AS SMALLINT) AS int16_value,
-                CAST($4 AS INTEGER) AS int32_value,
-                CAST($5 AS BIGINT) AS int64_value,
-                CAST($6 AS UTINYINT) AS uint8_value,
-                CAST($7 AS USMALLINT) AS uint16_value,
-                CAST($8 AS UINTEGER) AS uint32_value,
-                CAST($9 AS UBIGINT) AS uint64_value,
-                CAST($10 AS FLOAT) AS float_value,
-                CAST($11 AS DOUBLE) AS double_value,
-                CAST($12 AS VARCHAR) AS short_text,
-                CAST($13 AS VARCHAR) AS long_text,
-                CAST($14 AS BLOB) AS blob_value,
-                CAST($15 AS BLOB) AS empty_blob_value,
-                CAST($16 AS INTEGER) AS null_value
-            """
+        .select(
+            Fn.cast(SQL.raw("$1"), .boolean) => "boolean_value",
+            Fn.cast(SQL.raw("$2"), .tinyint) => "int8_value",
+            Fn.cast(SQL.raw("$3"), .smallint) => "int16_value",
+            Fn.cast(SQL.raw("$4"), .integer) => "int32_value",
+            Fn.cast(SQL.raw("$5"), .bigint) => "int64_value",
+            Fn.cast(SQL.raw("$6"), .utinyint) => "uint8_value",
+            Fn.cast(SQL.raw("$7"), .usmallint) => "uint16_value",
+            Fn.cast(SQL.raw("$8"), .uinteger) => "uint32_value",
+            Fn.cast(SQL.raw("$9"), .ubigint) => "uint64_value",
+            Fn.cast(SQL.raw("$10"), .real) => "float_value",
+            Fn.cast(SQL.raw("$11"), .doublePrecision) => "double_value",
+            Fn.cast(SQL.raw("$12"), .varchar) => "short_text",
+            Fn.cast(SQL.raw("$13"), .varchar) => "long_text",
+            Fn.cast(SQL.raw("$14"), .blob) => "blob_value",
+            Fn.cast(SQL.raw("$15"), .blob) => "empty_blob_value",
+            Fn.cast(SQL.raw("$16"), .integer) => "null_value"
         )
         .prepare(.duck)
         .plain
@@ -101,7 +98,7 @@ func failedNativeQueryResourcesLeaveConnectionReusable() throws {
     }
 
     let parameterSQL = SQL
-        .raw("SELECT CAST($1 AS INTEGER) AS value")
+        .select(Fn.cast(SQL.raw("$1"), .integer) => "value")
         .prepare(.duck)
         .plain
     let unboundStatement = try connection.prepare(parameterSQL)
@@ -139,7 +136,7 @@ func unsupportedResultTypesFailExplicitly() throws {
     let database = try NativeDatabase()
     let connection = try database.connect()
     let sql = SQL
-        .raw("SELECT DATE '2026-08-29' AS unsupported_value")
+        .select(Fn.cast("2026-08-29", .date) => "unsupported_value")
         .prepare(.duck)
         .plain
     let statement = try connection.prepare(sql)

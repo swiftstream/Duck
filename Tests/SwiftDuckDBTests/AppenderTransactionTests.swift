@@ -698,9 +698,17 @@ func terminalTransactionAppenderNativeFailureRemainsFirstTruth() async throws {
     let connection = try Database().connect()
     let table = Path.Table("transaction_appender_terminal_failure")
     _ = try await connection.execute(
-        SQL.raw(
-            "CREATE TABLE transaction_appender_terminal_failure (id INTEGER CHECK(id >= 0))"
-        )
+        SQL
+            .create
+            .table[any: table]
+            .tableDefinitions(
+                NewColumn("id", .integer)
+                    .check(
+                        Path.Column("id") >= SQLableParts(
+                            parts: SQLPartSafeValue(Int32(0))
+                        )
+                    )
+            )
     )
 
     let automaticFlushRowCount = 2048 * 100

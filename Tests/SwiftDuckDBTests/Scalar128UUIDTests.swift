@@ -541,8 +541,13 @@ func reusableStatementUInt128UUIDVertical() async throws {
 // MARK: - Appender vertical + C07 matrix
 
 private func nativeRowCount(_ connection: NativeConnection, table: String) throws -> Int64 {
+    let table = Path.Table(table)
     let statement = try connection.prepare(
-        SQL.raw("SELECT CAST(COUNT(*) AS BIGINT) AS count FROM \(table)").prepare(.duck).plain
+        SQL
+            .select(Fn.cast(Fn.count(SQL.asterisk), .bigint) => "count")
+            .from(table)
+            .prepare(.duck)
+            .plain
     )
     let pending = try statement.pending()
     while try pending.executeTask() == .notReady {}
@@ -559,14 +564,25 @@ func appenderC07SameSignMatrix() throws {
     let connection = try database.connect()
 
     func readback(_ table: String) throws -> Value {
-        let result = try execute(connection, SQL.raw("SELECT value FROM \(table)"))
+        let table = Path.Table(table)
+        let result = try execute(
+            connection,
+            SQL.select(table.column("value")).from(table)
+        )
         let rows = try #require(try result.materializeNextChunk())
         let row = try #require(rows.first)
         return try #require(row["value"])
     }
 
-    func roundTrip(table: String, type: String, value: Value, expected: Value) throws {
-        _ = try execute(connection, SQL.raw("CREATE TABLE \(table) (value \(type))"))
+    func roundTrip(table: String, type: Type, value: Value, expected: Value) throws {
+        let tablePath = Path.Table(table)
+        _ = try execute(
+            connection,
+            SQL
+                .create
+                .table[any: tablePath]
+                .tableDefinitions(NewColumn("value", type))
+        )
         let appender = try NativeAppender(connection: connection, table: table)
         try appender.appendRow([value])
         try appender.close()
@@ -574,8 +590,15 @@ func appenderC07SameSignMatrix() throws {
         #expect(try readback(table) == expected)
     }
 
-    func rejects(table: String, type: String, value: Value) throws {
-        _ = try execute(connection, SQL.raw("CREATE TABLE \(table) (value \(type))"))
+    func rejects(table: String, type: Type, value: Value) throws {
+        let tablePath = Path.Table(table)
+        _ = try execute(
+            connection,
+            SQL
+                .create
+                .table[any: tablePath]
+                .tableDefinitions(NewColumn("value", type))
+        )
         let appender = try NativeAppender(connection: connection, table: table)
         do {
             try appender.appendRow([value])
@@ -589,52 +612,52 @@ func appenderC07SameSignMatrix() throws {
     }
 
     // Representative exact widening.
-    try roundTrip(table: "c07_i8_small", type: "SMALLINT", value: .int8(-8), expected: .int16(-8))
-    try roundTrip(table: "c07_i8_int", type: "INTEGER", value: .int8(8), expected: .int32(8))
-    try roundTrip(table: "c07_i8_big", type: "BIGINT", value: .int8(8), expected: .int64(8))
+    try roundTrip(table: "c07_i8_small", type: .smallint, value: .int8(-8), expected: .int16(-8))
+    try roundTrip(table: "c07_i8_int", type: .integer, value: .int8(8), expected: .int32(8))
+    try roundTrip(table: "c07_i8_big", type: .bigint, value: .int8(8), expected: .int64(8))
     try roundTrip(
         table: "c07_i8_huge",
-        type: "HUGEINT",
+        type: .hugeint,
         value: .int8(-8),
         expected: Value(signedUpper: -1, lower: UInt64(bitPattern: Int64(-8)))
     )
     try roundTrip(
         table: "c07_i64_huge",
-        type: "HUGEINT",
+        type: .hugeint,
         value: .int64(Int64.min),
         expected: Value(signedUpper: -1, lower: 0x8000_0000_0000_0000)
     )
-    try roundTrip(table: "c07_u8_usmall", type: "USMALLINT", value: .uint8(8), expected: .uint16(8))
-    try roundTrip(table: "c07_u8_uint", type: "UINTEGER", value: .uint8(8), expected: .uint32(8))
-    try roundTrip(table: "c07_u8_ubig", type: "UBIGINT", value: .uint8(8), expected: .uint64(8))
+    try roundTrip(table: "c07_u8_usmall", type: .usmallint, value: .uint8(8), expected: .uint16(8))
+    try roundTrip(table: "c07_u8_uint", type: .uinteger, value: .uint8(8), expected: .uint32(8))
+    try roundTrip(table: "c07_u8_ubig", type: .ubigint, value: .uint8(8), expected: .uint64(8))
     try roundTrip(
         table: "c07_u64_uhuge",
-        type: "UHUGEINT",
+        type: .uhugeint,
         value: .uint64(UInt64.max),
         expected: Value(unsignedUpper: 0, lower: UInt64.max)
     )
 
     // Representative exact narrowing.
-    try roundTrip(table: "c07_i32_tiny_ok", type: "TINYINT", value: .int32(127), expected: .int8(127))
-    try roundTrip(table: "c07_i64_tiny_ok", type: "TINYINT", value: .int64(-1), expected: .int8(-1))
-    try roundTrip(table: "c07_u64_utiny_ok", type: "UTINYINT", value: .uint64(255), expected: .uint8(255))
+    try roundTrip(table: "c07_i32_tiny_ok", type: .tinyint, value: .int32(127), expected: .int8(127))
+    try roundTrip(table: "c07_i64_tiny_ok", type: .tinyint, value: .int64(-1), expected: .int8(-1))
+    try roundTrip(table: "c07_u64_utiny_ok", type: .utinyint, value: .uint64(255), expected: .uint8(255))
 
     // Exact-failure boundaries.
-    try rejects(table: "c07_i32_tiny_hi", type: "TINYINT", value: .int32(128))
-    try rejects(table: "c07_i32_tiny_lo", type: "TINYINT", value: .int32(-129))
-    try rejects(table: "c07_u64_utiny_hi", type: "UTINYINT", value: .uint64(256))
-    try rejects(table: "c07_i64_int_hi", type: "INTEGER", value: .int64(Int64(Int32.max) + 1))
+    try rejects(table: "c07_i32_tiny_hi", type: .tinyint, value: .int32(128))
+    try rejects(table: "c07_i32_tiny_lo", type: .tinyint, value: .int32(-129))
+    try rejects(table: "c07_u64_utiny_hi", type: .utinyint, value: .uint64(256))
+    try rejects(table: "c07_i64_int_hi", type: .integer, value: .int64(Int64(Int32.max) + 1))
 
     // Explicit crossings and category mismatches.
-    try rejects(table: "c07_i8_utiny", type: "UTINYINT", value: .int8(1))
-    try rejects(table: "c07_u8_tiny", type: "TINYINT", value: .uint8(1))
-    try rejects(table: "c07_i64_ubig", type: "UBIGINT", value: .int64(1))
-    try rejects(table: "c07_u64_big", type: "BIGINT", value: .uint64(1))
-    try rejects(table: "c07_str_int", type: "INTEGER", value: .string("1"))
-    try rejects(table: "c07_int_str", type: "VARCHAR", value: .int32(1))
-    try rejects(table: "c07_float_int", type: "INTEGER", value: .float(1.0))
-    try rejects(table: "c07_int_float", type: "FLOAT", value: .int32(1))
-    try rejects(table: "c07_bool_int", type: "INTEGER", value: .boolean(true))
+    try rejects(table: "c07_i8_utiny", type: .utinyint, value: .int8(1))
+    try rejects(table: "c07_u8_tiny", type: .tinyint, value: .uint8(1))
+    try rejects(table: "c07_i64_ubig", type: .ubigint, value: .int64(1))
+    try rejects(table: "c07_u64_big", type: .bigint, value: .uint64(1))
+    try rejects(table: "c07_str_int", type: .integer, value: .string("1"))
+    try rejects(table: "c07_int_str", type: .varchar, value: .int32(1))
+    try rejects(table: "c07_float_int", type: .integer, value: .float(1.0))
+    try rejects(table: "c07_int_float", type: .real, value: .int32(1))
+    try rejects(table: "c07_bool_int", type: .integer, value: .boolean(true))
 }
 
 @Test("Appender B1 vertical round-trips boundaries with UUID logical identity")
@@ -642,7 +665,15 @@ func appenderB1Vertical() async throws {
     let connection = try Database().connect()
     let table = Path.Table("b1_vertical_rows")
     _ = try await connection.execute(
-        SQL.raw("CREATE TABLE b1_vertical_rows (huge HUGEINT, uhuge UHUGEINT, id UUID, note VARCHAR)")
+        SQL
+            .create
+            .table[any: table]
+            .tableDefinitions(
+                NewColumn("huge", .hugeint),
+                NewColumn("uhuge", .uhugeint),
+                NewColumn("id", .uuid),
+                NewColumn("note", .varchar)
+            )
     )
 
     let uuids = [
@@ -674,7 +705,18 @@ func appenderB1Vertical() async throws {
         }
 
         let result = try await connection.query(
-            SQL.raw("SELECT huge, uhuge, id, note FROM b1_vertical_rows ORDER BY note NULLS LAST, huge")
+            SQL
+                .select(
+                    table.column("huge"),
+                    table.column("uhuge"),
+                    table.column("id"),
+                    table.column("note")
+                )
+                .from(table)
+                .orderBy(
+                    .asc(table.column("note"), nulls: .last),
+                    .asc(table.column("huge"))
+                )
         )
         #expect(result.rows.count == signed.count + 2)
 
@@ -704,7 +746,14 @@ func appenderB1Vertical() async throws {
             )
         }
         let result = try await connection.query(
-            SQL.raw("SELECT huge, uhuge, id, note FROM b1_vertical_rows")
+            SQL
+                .select(
+                    table.column("huge"),
+                    table.column("uhuge"),
+                    table.column("id"),
+                    table.column("note")
+                )
+                .from(table)
         )
         #expect(result.rows.count == 2)
         #expect(result.resultColumns.map(\.logicalType.id) == [.hugeint, .uhugeint, .uuid, .varchar])
@@ -720,7 +769,14 @@ func appenderNoPartialRowOnLaterColumnMismatch() async throws {
     let connection = try Database().connect()
     let table = Path.Table("b1_no_partial_rows")
     _ = try await connection.execute(
-        SQL.raw("CREATE TABLE b1_no_partial_rows (id INTEGER, big HUGEINT, label VARCHAR)")
+        SQL
+            .create
+            .table[any: table]
+            .tableDefinitions(
+                NewColumn("id", .integer),
+                NewColumn("big", .hugeint),
+                NewColumn("label", .varchar)
+            )
     )
 
     try await connection.appender(to: table) { appender in
@@ -741,7 +797,14 @@ func appenderNoPartialRowOnLaterColumnMismatch() async throws {
     }
 
     let result = try await connection.query(
-        SQL.raw("SELECT id, big, label FROM b1_no_partial_rows ORDER BY id")
+        SQL
+            .select(
+                table.column("id"),
+                table.column("big"),
+                table.column("label")
+            )
+            .from(table)
+            .orderBy(.asc(table.column("id")))
     )
     #expect(result.rows.count == 2)
     #expect(result.rows[0].value("id", as: Int32.self) == 1)

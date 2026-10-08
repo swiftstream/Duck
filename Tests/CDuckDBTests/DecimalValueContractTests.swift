@@ -76,7 +76,10 @@ func directCDecimalLogicalOwnership() throws {
     defer { duckdb_disconnect(&connection) }
 
     var statement: duckdb_prepared_statement?
-    let sql = SQL.raw("SELECT CAST(? AS DECIMAL(19, 4)) AS value").prepare(.duck).plain
+    let sql = SQL
+        .select(Fn.cast(SQL.raw("?"), .decimal(19, 4)) => "value")
+        .prepare(.duck)
+        .plain
     try #require(
         sql.withCString { query in
             duckdb_prepare(connection, query, &statement)

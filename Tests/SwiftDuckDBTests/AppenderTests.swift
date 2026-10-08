@@ -69,21 +69,28 @@ func scopedAppenderWritesTableRows() async throws {
 @Test("Scoped Appender accepts a schema-qualified target")
 func scopedAppenderWritesSchemaTarget() async throws {
     let connection = try Database().connect()
-    _ = try await connection.execute(SQL.raw("CREATE SCHEMA appender_public_schema"))
-    _ = try await connection.execute(
-        SQL.raw("CREATE TABLE appender_public_schema.events (id INTEGER)")
-    )
-
+    let schema = Path.Schema("appender_public_schema")
     let table = Path.SchemaWithTable(
-        schema: "appender_public_schema",
+        schema: schema.name,
         table: "events"
     )
+
+    _ = try await connection.execute(SQL.create.schema[any: schema])
+    _ = try await connection.execute(
+        SQL
+            .create
+            .table[any: table]
+            .tableDefinitions(NewColumn("id", .integer))
+    )
+
     try await connection.appender(to: table) { appender in
         try await appender.append(Int32(7))
     }
 
     let result = try await connection.query(
-        SQL.raw("SELECT id FROM appender_public_schema.events")
+        SQL
+            .select(table.column("id"))
+            .from(table)
     )
     #expect(result.rows.count == 1)
     #expect(result.rows.first?["id"] == .int32(7))
@@ -93,7 +100,7 @@ func scopedAppenderWritesSchemaTarget() async throws {
 func scopedAppenderWritesCatalogTarget() async throws {
     let connection = try Database().connect()
     let catalogResult = try await connection.query(
-        SQL.raw("SELECT current_database() AS catalog")
+        SQL.select(Fn.build(.custom("current_database"), body: []) => "catalog")
     )
     let catalogRow = try #require(catalogResult.rows.first)
     let catalogValue = try #require(catalogRow["catalog"])
@@ -102,25 +109,33 @@ func scopedAppenderWritesCatalogTarget() async throws {
         return
     }
 
-    _ = try await connection.execute(SQL.raw("CREATE SCHEMA appender_catalog_schema"))
-    _ = try await connection.execute(
-        SQL.raw("CREATE TABLE appender_catalog_schema.events (id INTEGER)")
-    )
-
+    let schemaName = "appender_catalog_schema"
+    let schema = Path.Schema(schemaName)
     let table = Path.CatalogWithSchemaAndTable(
         catalog: catalog,
-        schema: "appender_catalog_schema",
+        schema: schemaName,
         table: "events"
     )
+
+    _ = try await connection.execute(SQL.create.schema[any: schema])
+    _ = try await connection.execute(
+        SQL
+            .create
+            .table[any: table]
+            .tableDefinitions(NewColumn("id", .integer))
+    )
+
     try await connection.appender(to: table) { appender in
         try await appender.append(Int32(8))
     }
 
     let result = try await connection.query(
-        SQL.raw("SELECT id FROM appender_catalog_schema.events")
+        SQL
+            .select(table.column("id"))
+            .from(table)
     )
     #expect(result.rows.count == 1)
-    #expect(result.rows.first?["id"] == .int32(8))
+    #expect(result.rows.first?["id"] == Value.int32(8))
 }
 
 @Test("Appender create failure releases ordinary admission")

@@ -5,7 +5,7 @@ import Testing
 @Test("Preserves the existing primitive result surface and adds aligned metadata")
 func preservesPrimitiveResultSurfaceWithMetadata() async throws {
     let result = try await query(
-        "SELECT CAST(42 AS INTEGER) AS answer"
+        SQL.select(Fn.cast(Int32(42), .integer) => "answer")
     )
 
     #expect(result.columns == ["answer"])
@@ -226,28 +226,28 @@ func exposesPinnedLogicalTypeIdentities() {
 @Test("Captures representative scalar logical identities without materializing unsupported values")
 func capturesRepresentativeScalarIdentities() async throws {
     let result = try await query(
-        """
-        SELECT
-            CAST(NULL AS BOOLEAN) AS boolean_value,
-            CAST(NULL AS INTEGER) AS integer_value,
-            CAST(NULL AS BIGINT) AS bigint_value,
-            CAST(NULL AS VARCHAR) AS varchar_value,
-            CAST(NULL AS BLOB) AS blob_value,
-            CAST(NULL AS UUID) AS uuid_value,
-            CAST(NULL AS DATE) AS date_value,
-            CAST(NULL AS TIME) AS time_value,
-            CAST(NULL AS TIME_NS) AS time_ns_value,
-            CAST(NULL AS TIMESTAMP) AS timestamp_value,
-            CAST(NULL AS TIMESTAMP_S) AS timestamp_s_value,
-            CAST(NULL AS TIMESTAMP_MS) AS timestamp_ms_value,
-            CAST(NULL AS TIMESTAMP_NS) AS timestamp_ns_value,
-            CAST(NULL AS TIMESTAMP WITH TIME ZONE) AS timestamp_tz_value,
-            CAST(NULL AS INTERVAL) AS interval_value,
-            CAST(NULL AS HUGEINT) AS hugeint_value,
-            CAST(NULL AS UHUGEINT) AS uhugeint_value,
-            CAST(NULL AS DECIMAL(12, 3)) AS decimal_value
-        WHERE FALSE
-        """
+        SQL
+            .select(
+                Fn.cast(SQL.null, .boolean) => "boolean_value",
+                Fn.cast(SQL.null, .integer) => "integer_value",
+                Fn.cast(SQL.null, .bigint) => "bigint_value",
+                Fn.cast(SQL.null, .varchar) => "varchar_value",
+                Fn.cast(SQL.null, .blob) => "blob_value",
+                Fn.cast(SQL.null, .uuid) => "uuid_value",
+                Fn.cast(SQL.null, .date) => "date_value",
+                Fn.cast(SQL.null, .time) => "time_value",
+                Fn.cast(SQL.null, .timeNs) => "time_ns_value",
+                Fn.cast(SQL.null, .timestamp) => "timestamp_value",
+                Fn.cast(SQL.null, .timestampS) => "timestamp_s_value",
+                Fn.cast(SQL.null, .timestampMs) => "timestamp_ms_value",
+                Fn.cast(SQL.null, .timestampNs) => "timestamp_ns_value",
+                Fn.cast(SQL.null, .timestampWithTimeZone) => "timestamp_tz_value",
+                Fn.cast(SQL.null, .interval) => "interval_value",
+                Fn.cast(SQL.null, .hugeint) => "hugeint_value",
+                Fn.cast(SQL.null, .uhugeint) => "uhugeint_value",
+                Fn.cast(SQL.null, .decimal(12, 3)) => "decimal_value"
+            )
+            .where(SQLBool(false))
     )
 
     #expect(result.rows.isEmpty)
@@ -263,12 +263,12 @@ func capturesRepresentativeScalarIdentities() async throws {
 @Test("Preserves distinct decimal width and scale metadata")
 func preservesDecimalWidthAndScale() async throws {
     let result = try await query(
-        """
-        SELECT
-            CAST(NULL AS DECIMAL(10, 2)) AS first_decimal,
-            CAST(NULL AS DECIMAL(18, 4)) AS second_decimal
-        WHERE FALSE
-        """
+        SQL
+            .select(
+                Fn.cast(SQL.null, .decimal(10, 2)) => "first_decimal",
+                Fn.cast(SQL.null, .decimal(18, 4)) => "second_decimal"
+            )
+            .where(SQLBool(false))
     )
 
     let first = try #require(result.resultColumns.first?.logicalType)
@@ -287,22 +287,32 @@ func copiesRecursiveLogicalMetadata() async throws {
     let database = try Database()
     let connection = try database.connect()
 
-    try await connection.execute(SQL.raw(
-        "CREATE TYPE metadata_mood AS ENUM ('sad', 'ok', 'happy')"
-    ))
+    try await connection.execute(
+        SQL
+            .create
+            .type[any: Path.Identifier("metadata_mood")]
+            .as
+            .enum("sad", "ok", "happy")
+    )
 
-    let result = try await connection.query(SQL.raw(
-        """
-        SELECT
-            CAST(NULL AS INTEGER[]) AS list_value,
-            CAST(NULL AS INTEGER[3]) AS array_value,
-            CAST(NULL AS MAP(VARCHAR, INTEGER)) AS map_value,
-            CAST(NULL AS STRUCT(id INTEGER, label VARCHAR)) AS struct_value,
-            CAST(NULL AS UNION(number INTEGER, label VARCHAR)) AS union_value,
-            CAST(NULL AS metadata_mood) AS enum_value
-        WHERE FALSE
-        """
-    ))
+    let result = try await connection.query(
+        SQL
+            .select(
+                Fn.cast(SQL.null, .list(.integer)) => "list_value",
+                Fn.cast(SQL.null, .array(.integer, length: 3)) => "array_value",
+                Fn.cast(SQL.null, .map(key: .varchar, value: .integer)) => "map_value",
+                Fn.cast(
+                    SQL.null,
+                    .struct(("id", .integer), ("label", .varchar))
+                ) => "struct_value",
+                Fn.cast(
+                    SQL.null,
+                    .union(("number", .integer), ("label", .varchar))
+                ) => "union_value",
+                Fn.cast(SQL.null, Type("metadata_mood")) => "enum_value"
+            )
+            .where(SQLBool(false))
+    )
 
     let list = result.resultColumns[0].logicalType.detail
     guard case .list(let listChild) = list else {
@@ -360,25 +370,38 @@ func copiesAndInspectsDeepRecursiveMetadata() async throws {
     let database = try Database()
     let connection = try database.connect()
 
-    try await connection.execute(SQL.raw(
-        "CREATE TYPE deep_metadata_mood AS ENUM ('sad', 'ok', 'happy')"
-    ))
+    try await connection.execute(
+        SQL
+            .create
+            .type[any: Path.Identifier("deep_metadata_mood")]
+            .as
+            .enum("sad", "ok", "happy")
+    )
 
-    let result = try await connection.query(SQL.raw(
-        """
-        SELECT
-            CAST(NULL AS STRUCT(
-                payload MAP(VARCHAR, INTEGER[][]),
-                fixed INTEGER[2],
-                mood deep_metadata_mood
-            )) AS nested_value,
-            CAST(NULL AS UNION(
-                payload STRUCT(items INTEGER[2], label VARCHAR),
-                mood deep_metadata_mood
-            )) AS nested_union
-        WHERE FALSE
-        """
-    ))
+    let moodType = Type("deep_metadata_mood")
+    let nestedType = Type.struct(
+        ("payload", .map(key: .varchar, value: .list(.list(.integer)))),
+        ("fixed", .array(.integer, length: 2)),
+        ("mood", moodType)
+    )
+    let unionType = Type.union(
+        (
+            "payload",
+            .struct(
+                ("items", .array(.integer, length: 2)),
+                ("label", .varchar)
+            )
+        ),
+        ("mood", moodType)
+    )
+    let result = try await connection.query(
+        SQL
+            .select(
+                Fn.cast(SQL.null, nestedType) => "nested_value",
+                Fn.cast(SQL.null, unionType) => "nested_union"
+            )
+            .where(SQLBool(false))
+    )
 
     #expect(result.rows.isEmpty)
 
@@ -476,7 +499,10 @@ func retainsRecursiveMetadataAfterNativeScopeEnds() async throws {
 @Test("Keeps duplicate result names positionally aligned")
 func keepsDuplicateResultNamesPositionallyAligned() async throws {
     let result = try await query(
-        "SELECT 7 AS duplicate, 11 AS duplicate"
+        SQL.select(
+            Int32(7) => "duplicate",
+            Int32(11) => "duplicate"
+        )
     )
 
     #expect(result.resultColumns.count == result.columns.count)
@@ -492,20 +518,22 @@ func keepsDuplicateResultNamesPositionallyAligned() async throws {
 func stabilizesRepeatedRecursiveMetadataCapture() async throws {
     let database = try Database()
     let connection = try database.connect()
-    try await connection.execute(SQL.raw(
-        "CREATE TYPE repeated_metadata_mood AS ENUM ('sad', 'ok', 'happy')"
-    ))
-
-    let sql = SQL.raw(
-        """
-        SELECT CAST(NULL AS STRUCT(
-            payload MAP(VARCHAR, INTEGER[][]),
-            fixed INTEGER[2],
-            mood repeated_metadata_mood
-        )) AS nested_value
-        WHERE FALSE
-        """
+    try await connection.execute(
+        SQL
+            .create
+            .type[any: Path.Identifier("repeated_metadata_mood")]
+            .as
+            .enum("sad", "ok", "happy")
     )
+
+    let nestedType = Type.struct(
+        ("payload", .map(key: .varchar, value: .list(.list(.integer)))),
+        ("fixed", .array(.integer, length: 2)),
+        ("mood", Type("repeated_metadata_mood"))
+    )
+    let sql = SQL
+        .select(Fn.cast(SQL.null, nestedType) => "nested_value")
+        .where(SQLBool(false))
     var retained: [LogicalType] = []
     retained.reserveCapacity(48)
 
@@ -520,28 +548,32 @@ func stabilizesRepeatedRecursiveMetadataCapture() async throws {
     #expect(retained.allSatisfy { $0.id == .structType })
 }
 
-private func query(_ sql: String) async throws -> QueryResult {
+private func query(_ query: any SQLable) async throws -> QueryResult {
     let database = try Database()
     let connection = try database.connect()
-    return try await connection.query(SQL.raw(sql))
+    return try await connection.query(query)
 }
 
 private func captureRecursiveMetadata() async throws -> [ResultColumn] {
     let database = try Database()
     let connection = try database.connect()
-    try await connection.execute(SQL.raw(
-        "CREATE TYPE retained_metadata_mood AS ENUM ('sad', 'ok', 'happy')"
-    ))
-    let result = try await connection.query(SQL.raw(
-        """
-        SELECT CAST(NULL AS STRUCT(
-            payload MAP(VARCHAR, INTEGER[][]),
-            fixed INTEGER[2],
-            mood retained_metadata_mood
-        )) AS nested_value
-        WHERE FALSE
-        """
-    ))
+    try await connection.execute(
+        SQL
+            .create
+            .type[any: Path.Identifier("retained_metadata_mood")]
+            .as
+            .enum("sad", "ok", "happy")
+    )
+    let nestedType = Type.struct(
+        ("payload", .map(key: .varchar, value: .list(.list(.integer)))),
+        ("fixed", .array(.integer, length: 2)),
+        ("mood", Type("retained_metadata_mood"))
+    )
+    let result = try await connection.query(
+        SQL
+            .select(Fn.cast(SQL.null, nestedType) => "nested_value")
+            .where(SQLBool(false))
+    )
     return result.resultColumns
 }
 

@@ -15,6 +15,18 @@ private struct ActivePendingTaskOutcome: Sendable {
     let completionSignalRecorded: Bool
 }
 
+private func activePendingFunction(_ name: String) -> any SQLable {
+    Fn.build(.custom(name), body: [])
+}
+
+private func activePendingQuery(_ functionName: String) -> any SQLable {
+    SQL.select(activePendingFunction(functionName) => "value")
+}
+
+private func currentSetting(_ name: String) -> any SQLable {
+    Fn.build(.custom("current_setting"), body: [SQLPartSafeValue(name)])
+}
+
 /// Exercises public query cancellation through the internal fixture initializer, not `Database.connect()` construction.
 @Test("Active pending public query cancellation leaves the same Connection reusable")
 func activePendingPublicQueryCancellationLeavesConnectionReusable() async throws {
@@ -61,9 +73,9 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
     _ = try await connection.query(SQL.raw("SET threads = 1"))
 
     let settings = try await connection.query(
-        SQL.raw(
-            "SELECT CAST(current_setting('threads') AS INTEGER) AS threads, " +
-                "CAST(current_setting('external_threads') AS INTEGER) AS external_threads"
+        SQL.select(
+            Fn.cast(currentSetting("threads"), .integer) => "threads",
+            Fn.cast(currentSetting("external_threads"), .integer) => "external_threads"
         )
     )
     let settingsRow = settings.rows.first
@@ -73,10 +85,10 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
         return
     }
 
-    let gatedQuery = SQL.raw("SELECT \(functionName)() AS value")
+    let gatedQuery = activePendingQuery(functionName)
     let probeSQL = gatedQuery.prepare(.duck).plain
     let explainResult = try await connection.query(
-        SQL.raw("EXPLAIN SELECT \(functionName)()")
+        SQL.raw("EXPLAIN")[any: SQL.select(activePendingFunction(functionName))]
     )
     let physicalPlan = explainResult.rows
         .compactMap { $0["explain_value"]?.stringValue }
@@ -148,7 +160,7 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
     let queryTask = Task { () -> ActivePendingTaskOutcome in
         let queryOutcome: ActivePendingQueryOutcome
         do {
-            let result = try await connection.query(SQL.raw("SELECT \(functionName)() AS value"))
+            let result = try await connection.query(activePendingQuery(functionName))
             queryOutcome = .value(result.rows.first?["value"])
         } catch is CancellationError {
             queryOutcome = .cancellation

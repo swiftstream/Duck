@@ -819,15 +819,20 @@ func foundationDateAppenderAndResultRoundTrip() async throws {
 @Test("Foundation.Date result materialization rejects infinities and inexact native raws")
 func foundationDateResultRejectsInfinityAndInexactRawValues() async throws {
     let connection = try Database().connect()
-    let queries = [
-        "SELECT TIMESTAMPTZ 'infinity' AS value",
-        "SELECT TIMESTAMPTZ '-infinity' AS value",
-        "SELECT make_timestamptz(CAST(9568241792000001 AS BIGINT)) AS value"
+    let queries: [any SQLable] = [
+        SQL.select(Fn.cast("infinity", .timestamptz) => "value"),
+        SQL.select(Fn.cast("-infinity", .timestamptz) => "value"),
+        SQL.select(
+            Fn.build(
+                .custom("make_timestamptz"),
+                body: Fn.cast(Int64(9_568_241_792_000_001), .bigint).parts
+            ) => "value"
+        )
     ]
-    for sql in queries {
+    for query in queries {
         do {
-            _ = try await connection.query(SQL.raw(sql))
-            Issue.record("Expected invalid TIMESTAMPTZ result for \(sql).")
+            _ = try await connection.query(query)
+            Issue.record("Expected invalid TIMESTAMPTZ result.")
         } catch let error as DatabaseError {
             guard case .invalidResult = error else {
                 Issue.record("Expected invalidResult, got \(error).")

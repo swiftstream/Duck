@@ -2,6 +2,47 @@
 import SQL
 import Testing
 
+private func observationDeliveryValueTable(_ name: String) -> Path.Table {
+    Path.Table(name)
+}
+
+private func createObservationDeliveryValueTable(_ table: Path.Table) -> any SQLable {
+    SQL
+        .create
+        .table[any: table]
+        .tableDefinitions(NewColumn("value", .integer))
+}
+
+private func insertObservationDeliveryValue(
+    _ value: Int32,
+    into table: Path.Table
+) -> any SQLable {
+    SQL.insertInto(table, fields: "value").values.values(value)
+}
+
+private func selectObservationDeliveryValue(from table: Path.Table) -> any SQLable {
+    SQL.select(table.column("value")).from(table)
+}
+
+private func updateObservationDeliveryValue(
+    _ value: Int32,
+    in table: Path.Table
+) -> any SQLable {
+    SQL
+        .update(table)
+        .set[items: table.column("value") == value]
+}
+
+private func observationDeliveryNextValue(_ sequenceName: String) -> any SQLable {
+    Fn.nextVal(
+        SQLableParts(parts: SQLPartSafeValue(sequenceName))
+    )
+}
+
+private func observationDeliveryNextValueQuery(_ sequenceName: String) -> any SQLable {
+    SQL.select(observationDeliveryNextValue(sequenceName) => "value")
+}
+
 @Suite("ObservationDeliveryTests")
 struct ObservationDeliveryTests {
     @Test("D01 snapshots bindings and emits the initial state")
@@ -9,9 +50,20 @@ struct ObservationDeliveryTests {
         let database = try Database()
         let connection = try database.connect()
         let table = Path.Table("observation_delivery_snapshot")
-        try await connection.execute(SQL.raw("CREATE TABLE observation_delivery_snapshot (id INTEGER, value VARCHAR)"))
         try await connection.execute(
-            SQL.raw("INSERT INTO observation_delivery_snapshot VALUES (7, 'bound'), (8, 'other')")
+            SQL
+                .create
+                .table[any: table]
+                .tableDefinitions(
+                    NewColumn("id", .integer),
+                    NewColumn("value", .varchar)
+                )
+        )
+        try await connection.execute(
+            SQL.insertInto(table, fields: "id", "value").values.values(Int32(7), "bound")
+        )
+        try await connection.execute(
+            SQL.insertInto(table, fields: "id", "value").values.values(Int32(8), "other")
         )
 
         let query = SQL
@@ -31,11 +83,14 @@ struct ObservationDeliveryTests {
         let database = try Database()
         let connection = try database.connect()
         try await connection.execute(
-            SQL.raw("CREATE SEQUENCE observation_delivery_sequence START 41")
+            SQL
+                .create
+                .sequence[any: Path.Identifier("observation_delivery_sequence")]
+                .start(41)
         )
 
         let observation = try database.observe(
-            SQL.raw("SELECT nextval('observation_delivery_sequence') AS value")
+            observationDeliveryNextValueQuery("observation_delivery_sequence")
         )
         var iterator = observation.makeAsyncIterator()
         do {
@@ -46,7 +101,7 @@ struct ObservationDeliveryTests {
         }
 
         let next = try await connection.query(
-            SQL.raw("SELECT nextval('observation_delivery_sequence') AS value")
+            observationDeliveryNextValueQuery("observation_delivery_sequence")
         )
         #expect(next.rows.first?["value"] == .int64(41))
     }
@@ -57,22 +112,40 @@ struct ObservationDeliveryTests {
         let reader = try database.connect()
         let writer = try database.connect()
         try await reader.execute(
-            SQL.raw("CREATE SEQUENCE observation_delivery_view_sequence START 73")
+            SQL
+                .create
+                .sequence[any: Path.Identifier("observation_delivery_view_sequence")]
+                .start(73)
         )
         try await reader.execute(
-            SQL.raw("CREATE VIEW observation_delivery_view AS SELECT 1 AS value")
+            SQL
+                .create
+                .view[any: Path.Identifier("observation_delivery_view")]
+                .as
+                .select(
+                    SQLableParts(parts: SQLPartSafeValue(Int32(1))) => "value"
+                )
         )
 
+        let view = Path.Table("observation_delivery_view")
         let observation = try database.observe(
-            SQL.raw("SELECT value FROM observation_delivery_view")
+            selectObservationDeliveryValue(from: view)
         )
         var iterator = observation.makeAsyncIterator()
         _ = try #require(try await iterator.next())
 
         try await writer.execute(
-            SQL.raw(
-                "CREATE OR REPLACE VIEW observation_delivery_view AS SELECT nextval('observation_delivery_view_sequence') AS value"
-            )
+            SQL
+                .create
+                .or
+                .replace
+                .view[any: Path.Identifier("observation_delivery_view")]
+                .as
+                .select(
+                    observationDeliveryNextValue(
+                        "observation_delivery_view_sequence"
+                    ) => "value"
+                )
         )
         await database.observationCoordinator.invalidate(.database)
 
@@ -84,7 +157,7 @@ struct ObservationDeliveryTests {
         }
 
         let next = try await reader.query(
-            SQL.raw("SELECT nextval('observation_delivery_view_sequence') AS value")
+            observationDeliveryNextValueQuery("observation_delivery_view_sequence")
         )
         #expect(next.rows.first?["value"] == .int64(73))
     }
@@ -94,22 +167,23 @@ struct ObservationDeliveryTests {
         let database = try Database()
         let reader = try database.connect()
         let writer = try database.connect()
-        try await reader.execute(SQL.raw("CREATE TABLE observation_delivery_repeat (value INTEGER)"))
-        try await reader.execute(SQL.raw("INSERT INTO observation_delivery_repeat VALUES (1)"))
+        let table = observationDeliveryValueTable("observation_delivery_repeat")
+        try await reader.execute(createObservationDeliveryValueTable(table))
+        try await reader.execute(insertObservationDeliveryValue(1, into: table))
 
         let observation = try database.observe(
-            SQL.raw("SELECT value FROM observation_delivery_repeat")
+            selectObservationDeliveryValue(from: table)
         )
         var iterator = observation.makeAsyncIterator()
         _ = try #require(try await iterator.next())
 
-        try await writer.execute(SQL.raw("UPDATE observation_delivery_repeat SET value = 2"))
+        try await writer.execute(updateObservationDeliveryValue(2, in: table))
         await database.observationCoordinator.invalidate(.database)
         let second = try #require(try await iterator.next())
         #expect(second.rows.first?["value"] == .int32(2))
 
         await database.observationCoordinator.invalidate(.database)
-        try await writer.execute(SQL.raw("UPDATE observation_delivery_repeat SET value = 3"))
+        try await writer.execute(updateObservationDeliveryValue(3, in: table))
         await database.observationCoordinator.invalidate(.database)
         let third = try #require(try await iterator.next())
         #expect(third.rows.first?["value"] == .int32(3))
@@ -119,15 +193,16 @@ struct ObservationDeliveryTests {
     func suppressesEqualStates() async throws {
         let database = try Database()
         let connection = try database.connect()
-        try await connection.execute(SQL.raw("CREATE TABLE observation_delivery_dedup (value INTEGER)"))
-        try await connection.execute(SQL.raw("INSERT INTO observation_delivery_dedup VALUES (10)"))
+        let table = observationDeliveryValueTable("observation_delivery_dedup")
+        try await connection.execute(createObservationDeliveryValueTable(table))
+        try await connection.execute(insertObservationDeliveryValue(10, into: table))
 
-        let observation = try database.observe(SQL.raw("SELECT value FROM observation_delivery_dedup"))
+        let observation = try database.observe(selectObservationDeliveryValue(from: table))
         var iterator = observation.makeAsyncIterator()
         _ = try #require(try await iterator.next())
 
         await database.observationCoordinator.invalidate(.database)
-        try await connection.execute(SQL.raw("UPDATE observation_delivery_dedup SET value = 11"))
+        try await connection.execute(updateObservationDeliveryValue(11, in: table))
         await database.observationCoordinator.invalidate(.database)
         let changed = try #require(try await iterator.next())
         #expect(changed.rows.first?["value"] == .int32(11))
@@ -138,17 +213,16 @@ struct ObservationDeliveryTests {
         let database = try Database()
         let reader = try database.connect()
         let writer = try database.connect()
-        try await reader.execute(SQL.raw("CREATE TABLE observation_delivery_burst (value INTEGER)"))
-        try await reader.execute(SQL.raw("INSERT INTO observation_delivery_burst VALUES (0)"))
+        let table = observationDeliveryValueTable("observation_delivery_burst")
+        try await reader.execute(createObservationDeliveryValueTable(table))
+        try await reader.execute(insertObservationDeliveryValue(0, into: table))
 
-        let observation = try database.observe(SQL.raw("SELECT value FROM observation_delivery_burst"))
+        let observation = try database.observe(selectObservationDeliveryValue(from: table))
         var iterator = observation.makeAsyncIterator()
         _ = try #require(try await iterator.next())
 
         for value in 1...8 {
-            try await writer.execute(
-                SQL.raw("UPDATE observation_delivery_burst SET value = \(value)")
-            )
+            try await writer.execute(updateObservationDeliveryValue(Int32(value), in: table))
             await database.observationCoordinator.invalidate(.database)
         }
 
@@ -164,27 +238,42 @@ struct ObservationDeliveryTests {
         let database = try Database()
         let reader = try database.connect()
         let writer = try database.connect()
-        try await reader.execute(SQL.raw("CREATE TABLE observation_delivery_left (value INTEGER)"))
-        try await reader.execute(SQL.raw("CREATE TABLE observation_delivery_right (value INTEGER)"))
-        try await reader.execute(SQL.raw("INSERT INTO observation_delivery_left VALUES (1)"))
-        try await reader.execute(SQL.raw("INSERT INTO observation_delivery_right VALUES (2)"))
+        let left = observationDeliveryValueTable("observation_delivery_left")
+        let right = observationDeliveryValueTable("observation_delivery_right")
+        let view = observationDeliveryValueTable("observation_delivery_switch")
+        try await reader.execute(createObservationDeliveryValueTable(left))
+        try await reader.execute(createObservationDeliveryValueTable(right))
+        try await reader.execute(insertObservationDeliveryValue(1, into: left))
+        try await reader.execute(insertObservationDeliveryValue(2, into: right))
         try await reader.execute(
-            SQL.raw("CREATE VIEW observation_delivery_switch AS SELECT value FROM observation_delivery_left")
+            SQL
+                .create
+                .view[any: Path.Identifier("observation_delivery_switch")]
+                .as
+                .select(left.column("value"))
+                .from(left)
         )
 
-        let observation = try database.observe(SQL.raw("SELECT value FROM observation_delivery_switch"))
+        let observation = try database.observe(selectObservationDeliveryValue(from: view))
         var iterator = observation.makeAsyncIterator()
         _ = try #require(try await iterator.next())
 
         try await writer.execute(
-            SQL.raw("CREATE OR REPLACE VIEW observation_delivery_switch AS SELECT value FROM observation_delivery_right")
+            SQL
+                .create
+                .or
+                .replace
+                .view[any: Path.Identifier("observation_delivery_switch")]
+                .as
+                .select(right.column("value"))
+                .from(right)
         )
         await database.observationCoordinator.invalidate(.database)
         let result = try #require(try await iterator.next())
         #expect(result.rows.first?["value"] == .int32(2))
 
         await database.observationCoordinator.invalidate(.database)
-        try await writer.execute(SQL.raw("INSERT INTO observation_delivery_right VALUES (3)"))
+        try await writer.execute(insertObservationDeliveryValue(3, into: right))
         await database.observationCoordinator.invalidate(.database)
         let later = try #require(try await iterator.next())
         #expect(later.rows.count == 2)
@@ -194,9 +283,10 @@ struct ObservationDeliveryTests {
     func cancellationStopsPendingIterator() async throws {
         let database = try Database()
         let connection = try database.connect()
-        try await connection.execute(SQL.raw("CREATE TABLE observation_delivery_cancel (value INTEGER)"))
-        try await connection.execute(SQL.raw("INSERT INTO observation_delivery_cancel VALUES (1)"))
-        let observation = try database.observe(SQL.raw("SELECT value FROM observation_delivery_cancel"))
+        let table = observationDeliveryValueTable("observation_delivery_cancel")
+        try await connection.execute(createObservationDeliveryValueTable(table))
+        try await connection.execute(insertObservationDeliveryValue(1, into: table))
+        let observation = try database.observe(selectObservationDeliveryValue(from: table))
 
         let (ready, readyContinuation) = AsyncStream<Void>.makeStream(
             of: Void.self,
@@ -224,13 +314,14 @@ struct ObservationDeliveryTests {
     func refreshErrorTerminatesOnlyThatIterator() async throws {
         let database = try Database()
         let connection = try database.connect()
-        try await connection.execute(SQL.raw("CREATE TABLE observation_delivery_error (value INTEGER)"))
-        try await connection.execute(SQL.raw("INSERT INTO observation_delivery_error VALUES (1)"))
-        let observation = try database.observe(SQL.raw("SELECT value FROM observation_delivery_error"))
+        let table = observationDeliveryValueTable("observation_delivery_error")
+        try await connection.execute(createObservationDeliveryValueTable(table))
+        try await connection.execute(insertObservationDeliveryValue(1, into: table))
+        let observation = try database.observe(selectObservationDeliveryValue(from: table))
         var iterator = observation.makeAsyncIterator()
         _ = try #require(try await iterator.next())
 
-        try await connection.execute(SQL.raw("DROP TABLE observation_delivery_error"))
+        try await connection.execute(SQL.drop.table[any: table])
         await database.observationCoordinator.invalidate(.database)
         do {
             _ = try await iterator.next()
@@ -243,8 +334,8 @@ struct ObservationDeliveryTests {
             }
         }
 
-        try await connection.execute(SQL.raw("CREATE TABLE observation_delivery_error (value INTEGER)"))
-        try await connection.execute(SQL.raw("INSERT INTO observation_delivery_error VALUES (9)"))
+        try await connection.execute(createObservationDeliveryValueTable(table))
+        try await connection.execute(insertObservationDeliveryValue(9, into: table))
         var fresh = observation.makeAsyncIterator()
         let result = try #require(try await fresh.next())
         #expect(result.rows.first?["value"] == .int32(9))
@@ -254,9 +345,10 @@ struct ObservationDeliveryTests {
     func iteratorsAreIndependent() async throws {
         let database = try Database()
         let connection = try database.connect()
-        try await connection.execute(SQL.raw("CREATE TABLE observation_delivery_independent (value INTEGER)"))
-        try await connection.execute(SQL.raw("INSERT INTO observation_delivery_independent VALUES (1)"))
-        let observation = try database.observe(SQL.raw("SELECT value FROM observation_delivery_independent"))
+        let table = observationDeliveryValueTable("observation_delivery_independent")
+        try await connection.execute(createObservationDeliveryValueTable(table))
+        try await connection.execute(insertObservationDeliveryValue(1, into: table))
+        let observation = try database.observe(selectObservationDeliveryValue(from: table))
 
         var first = observation.makeAsyncIterator()
         var second = observation.makeAsyncIterator()
@@ -283,7 +375,7 @@ struct ObservationDeliveryTests {
             // Also valid when cancellation reaches the consuming task first.
         }
 
-        try await connection.execute(SQL.raw("UPDATE observation_delivery_independent SET value = 2"))
+        try await connection.execute(updateObservationDeliveryValue(2, in: table))
         await database.observationCoordinator.invalidate(.database)
         let secondResult = try #require(try await second.next())
         #expect(secondResult.rows.first?["value"] == .int32(2))
@@ -294,17 +386,18 @@ struct ObservationDeliveryTests {
         let firstDatabase = try Database()
         let secondDatabase = try Database()
         let connection = try firstDatabase.connect()
-        try await connection.execute(SQL.raw("CREATE TABLE observation_delivery_local (value INTEGER)"))
-        try await connection.execute(SQL.raw("INSERT INTO observation_delivery_local VALUES (42)"))
+        let table = observationDeliveryValueTable("observation_delivery_local")
+        try await connection.execute(createObservationDeliveryValueTable(table))
+        try await connection.execute(insertObservationDeliveryValue(42, into: table))
         let observation = try firstDatabase.observe(
-            SQL.raw("SELECT value FROM observation_delivery_local")
+            selectObservationDeliveryValue(from: table)
         )
         var iterator = observation.makeAsyncIterator()
         let initial = try #require(try await iterator.next())
         #expect(initial.rows.first?["value"] == .int32(42))
 
         await secondDatabase.observationCoordinator.invalidate(.database)
-        try await connection.execute(SQL.raw("UPDATE observation_delivery_local SET value = 43"))
+        try await connection.execute(updateObservationDeliveryValue(43, in: table))
         await firstDatabase.observationCoordinator.invalidate(.database)
         let refreshed = try #require(try await iterator.next())
         #expect(refreshed.rows.first?["value"] == .int32(43))

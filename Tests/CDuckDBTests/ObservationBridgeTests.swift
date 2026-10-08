@@ -26,12 +26,20 @@ struct ObservationBridgeTests {
         #expect(duckdb_bind_int32(preparedSelect, 1, 1) == DuckDBError)
         #expect(!swiftduckdb_prepared_statement_is_read_only(preparedSelect))
 
-        let createSequenceSQL = SQL.raw("CREATE SEQUENCE observation_bridge_sequence START 7").prepare(.duck).plain
+        let createSequenceSQL = SQL
+            .create
+            .sequence[any: Path.Identifier("observation_bridge_sequence")]
+            .start(7)
+            .prepare(.duck)
+            .plain
         var createSequenceResult = duckdb_result()
         try #require(duckdb_query(connected, createSequenceSQL, &createSequenceResult) == DuckDBSuccess)
         defer { duckdb_destroy_result(&createSequenceResult) }
 
-        let nextValueSQL = SQL.raw("SELECT nextval('observation_bridge_sequence')").prepare(.duck).plain
+        let nextValueSQL = SQL
+            .select(Fn.nextVal("observation_bridge_sequence"))
+            .prepare(.duck)
+            .plain
         var nextValueStatement: duckdb_prepared_statement?
         try #require(duckdb_prepare(connected, nextValueSQL, &nextValueStatement) == DuckDBSuccess)
         let preparedNextValue = try #require(nextValueStatement)
@@ -49,12 +57,23 @@ struct ObservationBridgeTests {
         defer { duckdb_destroy_result(&ordinaryResult) }
         #expect(swiftduckdb_result_is_read_only(&ordinaryResult))
 
-        let createTableSQL = SQL.raw("CREATE TABLE observation_bridge_rows (value INTEGER)").prepare(.duck).plain
+        let table = Path.Table("observation_bridge_rows")
+        let createTableSQL = SQL
+            .create
+            .table[any: table]
+            .tableDefinitions(NewColumn("value", .integer))
+            .prepare(.duck)
+            .plain
         var createTableResult = duckdb_result()
         try #require(duckdb_query(connected, createTableSQL, &createTableResult) == DuckDBSuccess)
         defer { duckdb_destroy_result(&createTableResult) }
 
-        let insertSQL = SQL.raw("INSERT INTO observation_bridge_rows VALUES (1)").prepare(.duck).plain
+        let insertSQL = SQL
+            .insertInto(table, fields: "value")
+            .values
+            .values(Int32(1))
+            .prepare(.duck)
+            .plain
         var insertResult = duckdb_result()
         try #require(duckdb_query(connected, insertSQL, &insertResult) == DuckDBSuccess)
         defer { duckdb_destroy_result(&insertResult) }

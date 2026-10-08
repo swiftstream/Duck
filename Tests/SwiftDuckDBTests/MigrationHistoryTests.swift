@@ -35,13 +35,17 @@ private func bootstrappedFixture() async throws -> HistoryFixture {
     return HistoryFixture(database: database, connection: connection)
 }
 
-private func malformedFixture(_ definition: String) async throws -> HistoryFixture {
+private func malformedFixture(_ definitions: [any SQLable]) async throws -> HistoryFixture {
     let database = try Database()
     let connection = try database.connect()
-    try await SQL.raw("CREATE SCHEMA __swiftduckdb").execute(on: connection)
-    try await SQL.raw(
-        "CREATE TABLE __swiftduckdb.migrations (\(definition))"
-    ).execute(on: connection)
+    let schema = Path.Schema("__swiftduckdb")
+    let table = schema.table("migrations")
+    try await SQL.create.schema[any: schema].execute(on: connection)
+    try await SQL
+        .create
+        .table[any: table]
+        .tableDefinitions(definitions)
+        .execute(on: connection)
     return HistoryFixture(database: database, connection: connection)
 }
 
@@ -131,12 +135,12 @@ func canonicalFourColumnSchemaIsAccepted() async throws {
 
 @Test("exactly one id primary key and one name unique constraint are accepted")
 func canonicalConstraintsAreAccepted() async throws {
-    let fixture = try await malformedFixture(
-        "id BIGINT NOT NULL PRIMARY KEY, "
-            + "name VARCHAR NOT NULL UNIQUE, "
-            + "batch BIGINT NOT NULL, "
-            + "applied_at TIMESTAMPTZ NOT NULL"
-    )
+    let fixture = try await malformedFixture([
+        NewColumn("id", .bigint).notNull().primaryKey(),
+        NewColumn("name", .varchar).notNull().unique(),
+        NewColumn("batch", .bigint).notNull(),
+        NewColumn("applied_at", .timestamptz).notNull()
+    ])
 
     try await MigrationHistory.validate(on: fixture.connection)
 }
@@ -144,9 +148,9 @@ func canonicalConstraintsAreAccepted() async throws {
 @Test("extra history column is rejected")
 func extraHistoryColumnIsRejected() async throws {
     let fixture = try await bootstrappedFixture()
-    try await SQL.raw(
-        "ALTER TABLE __swiftduckdb.migrations ADD COLUMN extra VARCHAR"
-    ).execute(on: fixture.connection)
+    try await AlterTable("migrations", schema: "__swiftduckdb") {
+        AddColumn("extra", .varchar)
+    }.execute(on: fixture.connection)
 
     await expectInvalidHistorySchema {
         try await MigrationHistory.validate(on: fixture.connection)
@@ -155,11 +159,11 @@ func extraHistoryColumnIsRejected() async throws {
 
 @Test("missing history column is rejected")
 func missingHistoryColumnIsRejected() async throws {
-    let fixture = try await malformedFixture(
-        "id BIGINT NOT NULL PRIMARY KEY, "
-            + "name VARCHAR NOT NULL UNIQUE, "
-            + "batch BIGINT NOT NULL"
-    )
+    let fixture = try await malformedFixture([
+        NewColumn("id", .bigint).notNull().primaryKey(),
+        NewColumn("name", .varchar).notNull().unique(),
+        NewColumn("batch", .bigint).notNull()
+    ])
 
     await expectInvalidHistorySchema {
         try await MigrationHistory.validate(on: fixture.connection)
@@ -168,12 +172,12 @@ func missingHistoryColumnIsRejected() async throws {
 
 @Test("wrong history column type is rejected")
 func wrongHistoryColumnTypeIsRejected() async throws {
-    let fixture = try await malformedFixture(
-        "id INTEGER NOT NULL PRIMARY KEY, "
-            + "name VARCHAR NOT NULL UNIQUE, "
-            + "batch BIGINT NOT NULL, "
-            + "applied_at TIMESTAMPTZ NOT NULL"
-    )
+    let fixture = try await malformedFixture([
+        NewColumn("id", .integer).notNull().primaryKey(),
+        NewColumn("name", .varchar).notNull().unique(),
+        NewColumn("batch", .bigint).notNull(),
+        NewColumn("applied_at", .timestamptz).notNull()
+    ])
 
     await expectInvalidHistorySchema {
         try await MigrationHistory.validate(on: fixture.connection)
@@ -182,12 +186,12 @@ func wrongHistoryColumnTypeIsRejected() async throws {
 
 @Test("wrong history nullability is rejected")
 func wrongHistoryNullabilityIsRejected() async throws {
-    let fixture = try await malformedFixture(
-        "id BIGINT NOT NULL PRIMARY KEY, "
-            + "name VARCHAR UNIQUE, "
-            + "batch BIGINT NOT NULL, "
-            + "applied_at TIMESTAMPTZ NOT NULL"
-    )
+    let fixture = try await malformedFixture([
+        NewColumn("id", .bigint).notNull().primaryKey(),
+        NewColumn("name", .varchar).unique(),
+        NewColumn("batch", .bigint).notNull(),
+        NewColumn("applied_at", .timestamptz).notNull()
+    ])
 
     await expectInvalidHistorySchema {
         try await MigrationHistory.validate(on: fixture.connection)
@@ -196,12 +200,19 @@ func wrongHistoryNullabilityIsRejected() async throws {
 
 @Test("history default expression is rejected")
 func historyDefaultExpressionIsRejected() async throws {
-    let fixture = try await malformedFixture(
-        "id BIGINT NOT NULL PRIMARY KEY, "
-            + "name VARCHAR NOT NULL UNIQUE DEFAULT 'seed', "
-            + "batch BIGINT NOT NULL, "
-            + "applied_at TIMESTAMPTZ NOT NULL"
-    )
+    let fixture = try await malformedFixture([
+        NewColumn("id", .bigint).notNull().primaryKey(),
+        NewColumn("name", .varchar)
+            .notNull()
+            .unique()
+            .default(
+                expression: SQL.default[
+                    any: SQLableParts(parts: SQLPartSafeValue("seed"))
+                ]
+            ),
+        NewColumn("batch", .bigint).notNull(),
+        NewColumn("applied_at", .timestamptz).notNull()
+    ])
 
     await expectInvalidHistorySchema {
         try await MigrationHistory.validate(on: fixture.connection)
@@ -210,12 +221,12 @@ func historyDefaultExpressionIsRejected() async throws {
 
 @Test("missing primary key is rejected")
 func missingPrimaryKeyIsRejected() async throws {
-    let fixture = try await malformedFixture(
-        "id BIGINT NOT NULL, "
-            + "name VARCHAR NOT NULL UNIQUE, "
-            + "batch BIGINT NOT NULL, "
-            + "applied_at TIMESTAMPTZ NOT NULL"
-    )
+    let fixture = try await malformedFixture([
+        NewColumn("id", .bigint).notNull(),
+        NewColumn("name", .varchar).notNull().unique(),
+        NewColumn("batch", .bigint).notNull(),
+        NewColumn("applied_at", .timestamptz).notNull()
+    ])
 
     await expectInvalidHistorySchema {
         try await MigrationHistory.validate(on: fixture.connection)
@@ -224,12 +235,12 @@ func missingPrimaryKeyIsRejected() async throws {
 
 @Test("primary key on the wrong column is rejected")
 func wrongPrimaryKeyIsRejected() async throws {
-    let fixture = try await malformedFixture(
-        "id BIGINT NOT NULL, "
-            + "name VARCHAR NOT NULL UNIQUE, "
-            + "batch BIGINT NOT NULL PRIMARY KEY, "
-            + "applied_at TIMESTAMPTZ NOT NULL"
-    )
+    let fixture = try await malformedFixture([
+        NewColumn("id", .bigint).notNull(),
+        NewColumn("name", .varchar).notNull().unique(),
+        NewColumn("batch", .bigint).notNull().primaryKey(),
+        NewColumn("applied_at", .timestamptz).notNull()
+    ])
 
     await expectInvalidHistorySchema {
         try await MigrationHistory.validate(on: fixture.connection)
@@ -238,12 +249,12 @@ func wrongPrimaryKeyIsRejected() async throws {
 
 @Test("missing name unique constraint is rejected")
 func missingNameUniqueConstraintIsRejected() async throws {
-    let fixture = try await malformedFixture(
-        "id BIGINT NOT NULL PRIMARY KEY, "
-            + "name VARCHAR NOT NULL, "
-            + "batch BIGINT NOT NULL, "
-            + "applied_at TIMESTAMPTZ NOT NULL"
-    )
+    let fixture = try await malformedFixture([
+        NewColumn("id", .bigint).notNull().primaryKey(),
+        NewColumn("name", .varchar).notNull(),
+        NewColumn("batch", .bigint).notNull(),
+        NewColumn("applied_at", .timestamptz).notNull()
+    ])
 
     await expectInvalidHistorySchema {
         try await MigrationHistory.validate(on: fixture.connection)
@@ -252,12 +263,12 @@ func missingNameUniqueConstraintIsRejected() async throws {
 
 @Test("unique constraint on the wrong column is rejected")
 func wrongUniqueColumnIsRejected() async throws {
-    let fixture = try await malformedFixture(
-        "id BIGINT NOT NULL PRIMARY KEY, "
-            + "name VARCHAR NOT NULL, "
-            + "batch BIGINT NOT NULL UNIQUE, "
-            + "applied_at TIMESTAMPTZ NOT NULL"
-    )
+    let fixture = try await malformedFixture([
+        NewColumn("id", .bigint).notNull().primaryKey(),
+        NewColumn("name", .varchar).notNull(),
+        NewColumn("batch", .bigint).notNull().unique(),
+        NewColumn("applied_at", .timestamptz).notNull()
+    ])
 
     await expectInvalidHistorySchema {
         try await MigrationHistory.validate(on: fixture.connection)
@@ -266,13 +277,13 @@ func wrongUniqueColumnIsRejected() async throws {
 
 @Test("composite name and batch unique constraint is rejected")
 func compositeUniqueConstraintIsRejected() async throws {
-    let fixture = try await malformedFixture(
-        "id BIGINT NOT NULL PRIMARY KEY, "
-            + "name VARCHAR NOT NULL, "
-            + "batch BIGINT NOT NULL, "
-            + "applied_at TIMESTAMPTZ NOT NULL, "
-            + "UNIQUE(name, batch)"
-    )
+    let fixture = try await malformedFixture([
+        NewColumn("id", .bigint).notNull().primaryKey(),
+        NewColumn("name", .varchar).notNull(),
+        NewColumn("batch", .bigint).notNull(),
+        NewColumn("applied_at", .timestamptz).notNull(),
+        SQL.unique.values(Path.Column("name"), Path.Column("batch"))
+    ])
 
     await expectInvalidHistorySchema {
         try await MigrationHistory.validate(on: fixture.connection)
@@ -281,12 +292,12 @@ func compositeUniqueConstraintIsRejected() async throws {
 
 @Test("name unique constraint plus an additional unique constraint is rejected")
 func additionalUniqueConstraintIsRejected() async throws {
-    let fixture = try await malformedFixture(
-        "id BIGINT NOT NULL PRIMARY KEY, "
-            + "name VARCHAR NOT NULL UNIQUE, "
-            + "batch BIGINT NOT NULL UNIQUE, "
-            + "applied_at TIMESTAMPTZ NOT NULL"
-    )
+    let fixture = try await malformedFixture([
+        NewColumn("id", .bigint).notNull().primaryKey(),
+        NewColumn("name", .varchar).notNull().unique(),
+        NewColumn("batch", .bigint).notNull().unique(),
+        NewColumn("applied_at", .timestamptz).notNull()
+    ])
 
     await expectInvalidHistorySchema {
         try await MigrationHistory.validate(on: fixture.connection)

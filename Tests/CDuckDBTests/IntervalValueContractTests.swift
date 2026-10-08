@@ -224,8 +224,8 @@ func intervalPhysicalFieldPreservation() throws {
     defer { duckdb_disconnect(&connection) }
     let connected = try #require(connection)
 
-    let query = SQL.raw(
-        "SELECT (INTERVAL '1 month' + INTERVAL '40 days' + INTERVAL '2 microseconds') + INTERVAL '0 microseconds' AS value"
+    let query = SQL.select(
+        (Interval(months: 1, days: 40, microseconds: 2) + Interval.zero) => "value"
     )
     let values = try queryIntervalVector(connected, query)
     guard let value = values.first else {

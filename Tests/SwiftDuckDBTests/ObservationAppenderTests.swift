@@ -116,7 +116,7 @@ private func currentCatalog(
     sourceLocation: SourceLocation = #_sourceLocation
 ) async throws -> String {
     let result = try await connection.query(
-        SQL.raw("SELECT current_database() AS catalog")
+        SQL.select(Fn.build(.custom("current_database"), body: []) => "catalog")
     )
     let row = try #require(result.rows.first, sourceLocation: sourceLocation)
     let value = try #require(row["catalog"], sourceLocation: sourceLocation)
@@ -454,14 +454,15 @@ struct ObservationAppenderTests {
     func oa09QueryObservationQualificationClosure() async throws {
         let database = try Database()
         let connection = try database.connect()
-        let tableName = "Oa09_MiXeD_" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        let catalog = "memory"
+        let tableName = "Oa09_MiXeD_Table"
+        #expect(try await currentCatalog(on: connection) == catalog)
         try await connection.execute(
             SQL
                 .create
                 .table[any: Path.Table(tableName)]
                 .tableDefinitions(NewColumn("id", .integer))
         )
-        let catalog = try await currentCatalog(on: connection)
         let target = fullyQualifiedTarget(catalog: catalog, table: tableName)
 
         #expect(
@@ -495,13 +496,23 @@ struct ObservationAppenderTests {
         #expect(catalogSpelling != catalog)
 
         let bareObservation = try database.observe(
-            SQL.raw("SELECT id FROM \(bareTableSpelling)")
+            SQL
+                .select(Path.Column("id"))
+                .from(SQL.raw(bareTableSpelling))
         )
         let schemaObservation = try database.observe(
-            SQL.raw("SELECT id FROM \(schemaSpelling).\(schemaTableSpelling)")
+            SQL
+                .select(Path.Column("id"))
+                .from(SQL.raw("\(schemaSpelling).\(schemaTableSpelling)"))
         )
         let catalogObservation = try database.observe(
-            SQL.raw("SELECT id FROM \(catalogSpelling).\(schemaSpelling).\(schemaTableSpelling)")
+            SQL
+                .select(Path.Column("id"))
+                .from(
+                    SQL.raw(
+                        "\(catalogSpelling).\(schemaSpelling).\(schemaTableSpelling)"
+                    )
+                )
         )
         var bareIterator = bareObservation.makeAsyncIterator()
         var schemaIterator = schemaObservation.makeAsyncIterator()
@@ -535,8 +546,12 @@ struct ObservationAppenderTests {
         let connection = try database.connect()
         let catalog = try await currentCatalog(on: connection)
         let unsafeName = "oa10 unsafe target table"
+        let storageTable = Path.Table(unsafeName)
         _ = try await connection.execute(
-            SQL.raw(#"CREATE TABLE "oa10 unsafe target table" (id INTEGER)"#)
+            SQL
+                .create
+                .table[any: storageTable]
+                .tableDefinitions(NewColumn("id", .integer))
         )
         #expect(ObservationTableName(components: [catalog, "main", unsafeName]) == nil)
 
@@ -558,7 +573,9 @@ struct ObservationAppenderTests {
         #expect(count == 1)
 
         let result = try await connection.query(
-            SQL.raw(#"SELECT count(*) AS count FROM "oa10 unsafe target table""#)
+            SQL
+                .select(Fn.cast(Fn.count(SQL.asterisk), .bigint) => "count")
+                .from(storageTable)
         )
         let row = try #require(result.rows.first)
         let value = try #require(row["count"])
@@ -621,9 +638,17 @@ struct ObservationAppenderTests {
         let connection = try database.connect()
         let table = Path.Table(uniqueTableName("oa12"))
         _ = try await connection.execute(
-            SQL.raw(
-                "CREATE TABLE \(table.name) (id INTEGER CHECK(id >= 0))"
-            )
+            SQL
+                .create
+                .table[any: table]
+                .tableDefinitions(
+                    NewColumn("id", .integer)
+                        .check(
+                        Path.Column("id") >= SQLableParts(
+                            parts: SQLPartSafeValue(Int32(0))
+                        )
+                    )
+                )
         )
 
         let registration = await database.observationCoordinator.register(
@@ -738,22 +763,27 @@ struct ObservationAppenderTests {
         let analysisDatabase = try NativeDatabase()
         let analysisConnection = try analysisDatabase.connect()
         try executeNative(
-            SQL.raw(
-                "CREATE TABLE \(context.table.name) (id INTEGER, value INTEGER)"
-            ).prepare(.duck).plain,
+            SQL
+                .create
+                .table[any: context.table]
+                .tableDefinitions(
+                    NewColumn("id", .integer),
+                    NewColumn("value", .integer)
+                )
+                .prepare(.duck)
+                .plain,
             on: analysisConnection
         )
-        let aliasSQL = SQL.raw(
-            "SELECT * FROM \(context.table.name) AS a"
-        ).prepare(.duck).plain
+        let aliasQuery = SQL
+            .select(SQL.asterisk)
+            .from(context.table.as(TableAlias("a")))
+        let aliasSQL = aliasQuery.prepare(.duck).plain
         #expect(
             ObservationDependency.analyze(sql: aliasSQL, on: analysisConnection)
                 == .database
         )
 
-        let observation = try context.database.observe(
-            SQL.raw("SELECT * FROM \(context.table.name) AS a")
-        )
+        let observation = try context.database.observe(aliasQuery)
         var iterator = observation.makeAsyncIterator()
         let initial = try #require(try await iterator.next())
         #expect(initial.rows.isEmpty)
@@ -1094,8 +1124,12 @@ struct ObservationAppenderTests {
         let connection = try database.connect()
         let catalog = try await currentCatalog(on: connection)
         let unsafeName = "oa22 unsafe target table"
+        let storageTable = Path.Table(unsafeName)
         _ = try await connection.execute(
-            SQL.raw(#"CREATE TABLE "oa22 unsafe target table" (id INTEGER)"#)
+            SQL
+                .create
+                .table[any: storageTable]
+                .tableDefinitions(NewColumn("id", .integer))
         )
         #expect(ObservationTableName(components: [catalog, "main", unsafeName]) == nil)
 
@@ -1129,7 +1163,9 @@ struct ObservationAppenderTests {
         #expect(count == 1)
 
         let result = try await connection.query(
-            SQL.raw(#"SELECT count(*) AS count FROM "oa22 unsafe target table""#)
+            SQL
+                .select(Fn.cast(Fn.count(SQL.asterisk), .bigint) => "count")
+                .from(storageTable)
         )
         let row = try #require(result.rows.first)
         let value = try #require(row["count"])

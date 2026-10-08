@@ -76,19 +76,19 @@ func directCTemporalLogicalIdentity() throws {
     defer { duckdb_close(&database) }
     defer { duckdb_disconnect(&connection) }
 
-    let sql = SQL.raw(
-        """
-        SELECT
-            CAST(NULL AS DATE) AS date_value,
-            CAST(NULL AS TIME) AS time_value,
-            CAST(NULL AS TIME_NS) AS time_ns_value,
-            CAST(NULL AS TIMESTAMP_S) AS timestamp_s_value,
-            CAST(NULL AS TIMESTAMP_MS) AS timestamp_ms_value,
-            CAST(NULL AS TIMESTAMP) AS timestamp_value,
-            CAST(NULL AS TIMESTAMP_NS) AS timestamp_ns_value
-        WHERE FALSE
-        """
-    ).prepare(.duck).plain
+    let sql = SQL
+        .select(
+            Fn.cast(SQL.null, .date) => "date_value",
+            Fn.cast(SQL.null, .time) => "time_value",
+            Fn.cast(SQL.null, .timeNs) => "time_ns_value",
+            Fn.cast(SQL.null, .timestampS) => "timestamp_s_value",
+            Fn.cast(SQL.null, .timestampMs) => "timestamp_ms_value",
+            Fn.cast(SQL.null, .timestamp) => "timestamp_value",
+            Fn.cast(SQL.null, .timestampNs) => "timestamp_ns_value"
+        )
+        .where(SQLBool(false))
+        .prepare(.duck)
+        .plain
     var result = duckdb_result()
     try #require(duckdb_query(connection, sql, &result) == DuckDBSuccess)
     defer { duckdb_destroy_result(&result) }
@@ -142,9 +142,11 @@ func directCTimestampTZTypedValuePreservesRawLogicalIdentityAndOwnership() throw
     defer { duckdb_close(&database) }
     defer { duckdb_disconnect(&connection) }
 
-    let sql = SQL.raw(
-        "SELECT CAST(NULL AS TIMESTAMP WITH TIME ZONE) AS value WHERE FALSE"
-    ).prepare(.duck).plain
+    let sql = SQL
+        .select(Fn.cast(SQL.null, .timestampWithTimeZone) => "value")
+        .where(SQLBool(false))
+        .prepare(.duck)
+        .plain
     var result = duckdb_result()
     try #require(duckdb_query(connection, sql, &result) == DuckDBSuccess)
     defer { duckdb_destroy_result(&result) }

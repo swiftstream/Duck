@@ -33,15 +33,30 @@ private func connectionPoolObservationQuery(
 private func connectionPoolObservationSequenceQuery(
     _ sequenceName: String
 ) -> any SQLable {
-    SQL.raw(
-        "SELECT last_value FROM duckdb_sequences() WHERE sequence_name = '\(sequenceName)'"
-    )
+    let sequences = Fn.build(.custom("duckdb_sequences"), body: [])
+    return SQL
+        .select(Path.Column("last_value"))
+        .from(sequences)
+        .where(Path.Column("sequence_name") == sequenceName)
+}
+
+private func createConnectionPoolObservationSequence(
+    _ sequenceName: String
+) -> any SQLable {
+    SQL
+        .create
+        .sequence[any: Path.Identifier(sequenceName)]
+        .start(1)
 }
 
 private func connectionPoolObservationNextValueQuery(
     _ sequenceName: String
 ) -> any SQLable {
-    SQL.raw("SELECT nextval('\(sequenceName)') AS value")
+    SQL.select(
+        Fn.nextVal(
+            SQLableParts(parts: SQLPartSafeValue(sequenceName))
+        ) => "value"
+    )
 }
 
 private func insertConnectionPoolObservationRow(
@@ -176,7 +191,7 @@ struct ConnectionPoolObservationTests {
         try await pool.connection { connection in
             try await createConnectionPoolObservationTable(table, on: connection)
             try await connection.execute(
-                SQL.raw("CREATE SEQUENCE \(sequenceName) START 1")
+                createConnectionPoolObservationSequence(sequenceName)
             )
         }
 

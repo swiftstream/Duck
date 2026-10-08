@@ -42,27 +42,26 @@ func publicAppenderPreservesCompleteValueFamily() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_value_family")
     _ = try await connection.execute(
-        SQL.raw(
-            """
-            CREATE TABLE appender_value_family (
-                boolean_value BOOLEAN,
-                int8_value TINYINT,
-                int16_value SMALLINT,
-                int32_value INTEGER,
-                int64_value BIGINT,
-                uint8_value UTINYINT,
-                uint16_value USMALLINT,
-                uint32_value UINTEGER,
-                uint64_value UBIGINT,
-                float_value FLOAT,
-                double_value DOUBLE,
-                text_value VARCHAR,
-                blob_value BLOB,
-                empty_blob_value BLOB,
-                null_value INTEGER
+        SQL
+            .create
+            .table[any: table]
+            .tableDefinitions(
+                NewColumn("boolean_value", .boolean),
+                NewColumn("int8_value", .tinyint),
+                NewColumn("int16_value", .smallint),
+                NewColumn("int32_value", .integer),
+                NewColumn("int64_value", .bigint),
+                NewColumn("uint8_value", .utinyint),
+                NewColumn("uint16_value", .usmallint),
+                NewColumn("uint32_value", .uinteger),
+                NewColumn("uint64_value", .ubigint),
+                NewColumn("float_value", .real),
+                NewColumn("double_value", .doublePrecision),
+                NewColumn("text_value", .varchar),
+                NewColumn("blob_value", .blob),
+                NewColumn("empty_blob_value", .blob),
+                NewColumn("null_value", .integer)
             )
-            """
-        )
     )
 
     let blob = Data([0x00, 0x01, 0x7F, 0x80, 0xFF])
@@ -169,9 +168,17 @@ func appenderRowCompletionFailureIsTerminal() async throws {
     let connection = try Database().connect()
     let table = Path.Table("appender_row_completion")
     _ = try await connection.execute(
-        SQL.raw(
-            "CREATE TABLE appender_row_completion (id INTEGER CHECK(id >= 0))"
-        )
+        SQL
+            .create
+            .table[any: table]
+            .tableDefinitions(
+                NewColumn("id", .integer)
+                    .check(
+                        Path.Column("id") >= SQLableParts(
+                            parts: SQLPartSafeValue(Int32(0))
+                        )
+                    )
+            )
     )
 
     // Pinned DuckDB v1.5.5: DEFAULT_FLUSH_COUNT = STANDARD_VECTOR_SIZE * 100,
