@@ -23,6 +23,7 @@ For Swift production work:
 Additionally load:
 
 - `SAFETY_RULES.md` for SQL construction, bindings, raw SQL, native handle transfer, unsafe ownership/lifetime, and C-boundary safety;
+- only when a SQL investigation turns on exact rendering/overload/binding/runtime behavior, load `WORKFLOW.md` → `SQL Investigation Evidence`;
 - `TESTING_RULES.md` for every test/validation change or regression strategy;
 - `PUBLIC_WRITING_STYLE.md` for README/public docs;
 - `FUTURE_PUBLICATIONS.md` when planning README expansions, articles, launch/release posts, or other future public writing so explicitly preserved publication topics are not forgotten.

@@ -92,6 +92,16 @@ Verification rejects:
 - dynamic/user values interpolated into raw structural SQL;
 - adapter value coercion that guesses arbitrary Encodable semantics.
 
+## SQL Investigation Evidence
+
+When a conclusion depends on SQL rendering, overload resolution, structural composition, binding, or engine acceptance:
+
+- source/tests may identify candidates, but they do not prove exclusivity or runtime behavior;
+- before source mutation, obtain exact executable evidence for the disputed form: render `.prepare(.duck).plain` / `.splitted`, and prepare/execute it in DuckDB when engine behavior matters;
+- a positive example does not prove alternate forms invalid; never infer “must”, “only”, or “unsupported” from absence of a test;
+- localize the exact failing operation before attributing a test-level error to a later SQL statement;
+- if the coordinator cannot execute the proof, delegate one narrow no-mutation local probe, inspect its result, then decide whether source changes are justified.
+
 ## Testing / Validation
 
 Testing policy is owned by `TESTING_RULES.md`.
