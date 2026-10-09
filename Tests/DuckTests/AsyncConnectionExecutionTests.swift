@@ -21,7 +21,7 @@ func publicQueryExecutesSQL() async throws {
 func publicExecuteBindsMutationAndReportsRowsChanged() async throws {
     let database = try Database()
     let connection = try database.connect()
-    let table = Path.Table("task05_events")
+    let table = Path.Table("async_connection_events")
 
     let create = SQL
         .create

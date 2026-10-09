@@ -460,7 +460,7 @@ func failClosedConnectionDominatesReusableStatement() async throws {
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
-    let message = "task05 fail-closed statement proof"
+    let message = "fail-closed statement proof"
 
     await connection.enterFailClosed(message)
 

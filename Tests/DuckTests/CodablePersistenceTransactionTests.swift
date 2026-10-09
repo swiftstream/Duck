@@ -5,14 +5,14 @@ import Testing
 
 // MARK: - Models
 
-private enum WaveEStatus: String, Codable, Equatable, Sendable {
+private enum TransactionPersistenceStatus: String, Codable, Equatable, Sendable {
     case active
     case paused
     case archived
 }
 
-private struct WaveEAccount: Table {
-    static let tableName = "codable_wave_e_accounts"
+private struct TransactionPersistenceAccount: Table {
+    static let tableName = "codable_transaction_persistence_accounts"
 
     @Column("id", default: .default(100))
     var id: Int64?
@@ -20,7 +20,7 @@ private struct WaveEAccount: Table {
     @Column("name")
     var name: String
 
-    @Column("nickname", default: .default("wave-e-default"))
+    @Column("nickname", default: .default("transaction-persistence-default"))
     var nickname: String?
 
     @Column("score")
@@ -33,7 +33,7 @@ private struct WaveEAccount: Table {
     var amount: Decimal
 
     @Column("status")
-    var status: WaveEStatus
+    var status: TransactionPersistenceStatus
 
     init() {}
 
@@ -44,11 +44,11 @@ private struct WaveEAccount: Table {
         score: Int,
         externalId: UUID,
         amount: Decimal,
-        status: WaveEStatus
+        status: TransactionPersistenceStatus
     ) {
         self._id = Column("id", default: .default(100))
         self._name = Column("name")
-        self._nickname = Column("nickname", default: .default("wave-e-default"))
+        self._nickname = Column("nickname", default: .default("transaction-persistence-default"))
         self._score = Column("score")
         self._externalId = Column("external_id")
         self._amount = Column("amount")
@@ -69,8 +69,8 @@ private struct WaveEAccount: Table {
 }
 
 /// Dedicated model whose table is intentionally never created for rollback-only proof.
-private struct WaveEMissingTarget: Table {
-    static let tableName = "codable_wave_e_missing_target"
+private struct TransactionPersistenceMissingTarget: Table {
+    static let tableName = "codable_transaction_persistence_missing_target"
 
     @Column("id")
     var id: Int64?
@@ -90,47 +90,47 @@ private struct WaveEMissingTarget: Table {
     }
 }
 
-private struct WaveEBodyFailure: Error {}
+private struct TransactionPersistenceBodyFailure: Error {}
 
 // MARK: - Fixtures
 
-private let waveEUUID = UUID(uuid: (
+private let transactionPersistenceUUID = UUID(uuid: (
     0x12, 0x34, 0x56, 0x78,
     0x9a, 0xbc,
     0xde, 0xf0,
     0x11, 0x22,
     0x33, 0x44, 0x55, 0x66, 0x77, 0x88
 ))
-private let waveEDecimal = Decimal(
+private let transactionPersistenceDecimal = Decimal(
     sign: .plus,
     exponent: -2,
     significand: Decimal(99_887)
 )
 
-private func makeWaveEAccount(
+private func makeTransactionPersistenceAccount(
     id: Int64? = nil,
     name: String,
     nickname: String? = nil,
     score: Int = 10,
-    status: WaveEStatus = .active
-) -> WaveEAccount {
-    WaveEAccount(
+    status: TransactionPersistenceStatus = .active
+) -> TransactionPersistenceAccount {
+    TransactionPersistenceAccount(
         id: id,
         name: name,
         nickname: nickname,
         score: score,
-        externalId: waveEUUID,
-        amount: waveEDecimal,
+        externalId: transactionPersistenceUUID,
+        amount: transactionPersistenceDecimal,
         status: status
     )
 }
 
-private func createWaveETable(on connection: Connection) async throws {
-    try await CreateTableBuilder<WaveEAccount>()
+private func createTransactionPersistenceTable(on connection: Connection) async throws {
+    try await CreateTableBuilder<TransactionPersistenceAccount>()
         .checkIfNotExists()
         .column("id", .bigint, ColumnDefault.default(100 as Any))
         .column("name", .text, .notNull)
-        .column("nickname", .text, ColumnDefault.default("wave-e-default" as Any))
+        .column("nickname", .text, ColumnDefault.default("transaction-persistence-default" as Any))
         .column("score", .bigint, .notNull)
         .column("external_id", .uuid, .notNull)
         .column("amount", .decimal(18, 2), .notNull)
@@ -138,13 +138,13 @@ private func createWaveETable(on connection: Connection) async throws {
         .execute(on: connection)
 }
 
-private func fetchWaveEAccount(id: Int64, on connection: Connection) async throws -> WaveEAccount? {
-    try await WaveEAccount
+private func fetchTransactionPersistenceAccount(id: Int64, on connection: Connection) async throws -> TransactionPersistenceAccount? {
+    try await TransactionPersistenceAccount
         .select
-        .where(\WaveEAccount.$id == id)
+        .where(\TransactionPersistenceAccount.$id == id)
         .limit(1)
         .query(on: connection)
-        .first(decoding: WaveEAccount.self)
+        .first(decoding: TransactionPersistenceAccount.self)
 }
 
 // MARK: - E-T01
@@ -152,10 +152,10 @@ private func fetchWaveEAccount(id: Int64, on connection: Connection) async throw
 @Test("Transaction INSERT returning commits DB defaults and exact round-trip")
 func transactionInsertReturningCommits() async throws {
     let connection = try Database().connect()
-    try await createWaveETable(on: connection)
+    try await createTransactionPersistenceTable(on: connection)
 
-    let model = makeWaveEAccount(
-        name: "wave-e-insert-returning",
+    let model = makeTransactionPersistenceAccount(
+        name: "transaction-persistence-insert-returning",
         score: 7,
         status: .paused
     )
@@ -165,20 +165,20 @@ func transactionInsertReturningCommits() async throws {
     }
 
     #expect(inserted.id == 100)
-    #expect(inserted.nickname == "wave-e-default")
-    #expect(inserted.name == "wave-e-insert-returning")
+    #expect(inserted.nickname == "transaction-persistence-default")
+    #expect(inserted.name == "transaction-persistence-insert-returning")
     #expect(inserted.score == 7)
-    #expect(inserted.externalId == waveEUUID)
-    #expect(inserted.amount == waveEDecimal)
+    #expect(inserted.externalId == transactionPersistenceUUID)
+    #expect(inserted.amount == transactionPersistenceDecimal)
     #expect(inserted.status == .paused)
 
-    let fetched = try #require(try await fetchWaveEAccount(id: 100, on: connection))
+    let fetched = try #require(try await fetchTransactionPersistenceAccount(id: 100, on: connection))
     #expect(fetched.id == 100)
-    #expect(fetched.nickname == "wave-e-default")
-    #expect(fetched.name == "wave-e-insert-returning")
+    #expect(fetched.nickname == "transaction-persistence-default")
+    #expect(fetched.name == "transaction-persistence-insert-returning")
     #expect(fetched.score == 7)
-    #expect(fetched.externalId == waveEUUID)
-    #expect(fetched.amount == waveEDecimal)
+    #expect(fetched.externalId == transactionPersistenceUUID)
+    #expect(fetched.amount == transactionPersistenceDecimal)
     #expect(fetched.status == .paused)
 }
 
@@ -187,10 +187,10 @@ func transactionInsertReturningCommits() async throws {
 @Test("Transaction INSERT non-returning rolls back on body error")
 func transactionInsertNonReturningRollsBack() async throws {
     let connection = try Database().connect()
-    try await createWaveETable(on: connection)
+    try await createTransactionPersistenceTable(on: connection)
 
-    let model = makeWaveEAccount(
-        name: "wave-e-insert-rollback",
+    let model = makeTransactionPersistenceAccount(
+        name: "transaction-persistence-insert-rollback",
         score: 3,
         status: .archived
     )
@@ -198,14 +198,14 @@ func transactionInsertNonReturningRollsBack() async throws {
     do {
         try await connection.transaction { transaction in
             try await model.insertNonReturning(on: transaction)
-            throw WaveEBodyFailure()
+            throw TransactionPersistenceBodyFailure()
         }
-        Issue.record("Expected WaveEBodyFailure from transaction body")
-    } catch is WaveEBodyFailure {
+        Issue.record("Expected TransactionPersistenceBodyFailure from transaction body")
+    } catch is TransactionPersistenceBodyFailure {
         // Expected body-error rollback path.
     }
 
-    let fetched = try await fetchWaveEAccount(id: 100, on: connection)
+    let fetched = try await fetchTransactionPersistenceAccount(id: 100, on: connection)
     #expect(fetched == nil)
 }
 
@@ -214,16 +214,16 @@ func transactionInsertNonReturningRollsBack() async throws {
 @Test("Transaction UPDATE returning commits durable non-key change")
 func transactionUpdateReturningCommits() async throws {
     let connection = try Database().connect()
-    try await createWaveETable(on: connection)
+    try await createTransactionPersistenceTable(on: connection)
 
-    let baseline = try await makeWaveEAccount(
-        name: "wave-e-update-before",
+    let baseline = try await makeTransactionPersistenceAccount(
+        name: "transaction-persistence-update-before",
         score: 11,
         status: .active
     ).insert(on: connection)
     #expect(baseline.id == 100)
 
-    baseline.name = "wave-e-update-after"
+    baseline.name = "transaction-persistence-update-after"
     baseline.score = 22
     baseline.status = .archived
 
@@ -232,18 +232,18 @@ func transactionUpdateReturningCommits() async throws {
     }
 
     #expect(updated.id == 100)
-    #expect(updated.name == "wave-e-update-after")
+    #expect(updated.name == "transaction-persistence-update-after")
     #expect(updated.score == 22)
     #expect(updated.status == .archived)
-    #expect(updated.nickname == "wave-e-default")
-    #expect(updated.externalId == waveEUUID)
-    #expect(updated.amount == waveEDecimal)
+    #expect(updated.nickname == "transaction-persistence-default")
+    #expect(updated.externalId == transactionPersistenceUUID)
+    #expect(updated.amount == transactionPersistenceDecimal)
 
-    let fetched = try #require(try await fetchWaveEAccount(id: 100, on: connection))
-    #expect(fetched.name == "wave-e-update-after")
+    let fetched = try #require(try await fetchTransactionPersistenceAccount(id: 100, on: connection))
+    #expect(fetched.name == "transaction-persistence-update-after")
     #expect(fetched.score == 22)
     #expect(fetched.status == .archived)
-    #expect(fetched.nickname == "wave-e-default")
+    #expect(fetched.nickname == "transaction-persistence-default")
 }
 
 // MARK: - E-T04
@@ -251,30 +251,30 @@ func transactionUpdateReturningCommits() async throws {
 @Test("Transaction UPDATE non-returning rolls back on body error")
 func transactionUpdateNonReturningRollsBack() async throws {
     let connection = try Database().connect()
-    try await createWaveETable(on: connection)
+    try await createTransactionPersistenceTable(on: connection)
 
-    let baseline = try await makeWaveEAccount(
-        name: "wave-e-update-keep",
+    let baseline = try await makeTransactionPersistenceAccount(
+        name: "transaction-persistence-update-keep",
         score: 15,
         status: .active
     ).insert(on: connection)
 
-    baseline.name = "wave-e-update-should-rollback"
+    baseline.name = "transaction-persistence-update-should-rollback"
     baseline.score = 99
     baseline.status = .paused
 
     do {
         try await connection.transaction { transaction in
             try await baseline.updateNonReturning(on: \.$id, on: transaction)
-            throw WaveEBodyFailure()
+            throw TransactionPersistenceBodyFailure()
         }
-        Issue.record("Expected WaveEBodyFailure from transaction body")
-    } catch is WaveEBodyFailure {
+        Issue.record("Expected TransactionPersistenceBodyFailure from transaction body")
+    } catch is TransactionPersistenceBodyFailure {
         // Expected body-error rollback path.
     }
 
-    let fetched = try #require(try await fetchWaveEAccount(id: 100, on: connection))
-    #expect(fetched.name == "wave-e-update-keep")
+    let fetched = try #require(try await fetchTransactionPersistenceAccount(id: 100, on: connection))
+    #expect(fetched.name == "transaction-persistence-update-keep")
     #expect(fetched.score == 15)
     #expect(fetched.status == .active)
 }
@@ -284,8 +284,8 @@ func transactionUpdateNonReturningRollsBack() async throws {
 @Test("Transaction model execution failure participates in rollback-only first-error propagation")
 func transactionModelFailureParticipatesInRollbackOnly() async throws {
     let connection = try Database().connect()
-    // WaveEMissingTarget.table is intentionally not created.
-    let model = WaveEMissingTarget(label: "wave-e-missing")
+    // TransactionPersistenceMissingTarget.table is intentionally not created.
+    let model = TransactionPersistenceMissingTarget(label: "transaction-persistence-missing")
 
     var storedFirstFailure: DatabaseError?
 
@@ -325,7 +325,7 @@ func transactionModelFailureParticipatesInRollbackOnly() async throws {
 @Test("Escaped Transaction rejects actual SQL persistence with transactionEnded")
 func escapedTransactionRejectsPersistence() async throws {
     let connection = try Database().connect()
-    try await createWaveETable(on: connection)
+    try await createTransactionPersistenceTable(on: connection)
 
     var escaped: Transaction?
     try await connection.transaction { transaction in
@@ -337,8 +337,8 @@ func escapedTransactionRejectsPersistence() async throws {
         return
     }
 
-    let model = makeWaveEAccount(
-        name: "wave-e-escaped-insert",
+    let model = makeTransactionPersistenceAccount(
+        name: "transaction-persistence-escaped-insert",
         score: 5,
         status: .paused
     )
@@ -350,7 +350,7 @@ func escapedTransactionRejectsPersistence() async throws {
         #expect(error == .transactionEnded)
     }
 
-    let fetched = try await fetchWaveEAccount(id: 100, on: connection)
+    let fetched = try await fetchTransactionPersistenceAccount(id: 100, on: connection)
     #expect(fetched == nil)
 }
 
@@ -359,16 +359,16 @@ func escapedTransactionRejectsPersistence() async throws {
 @Test("Zero-changed Transaction UPDATE performs no SQL-visible access after drop")
 func zeroChangedTransactionUpdateNoSQLAfterDrop() async throws {
     let connection = try Database().connect()
-    try await createWaveETable(on: connection)
+    try await createTransactionPersistenceTable(on: connection)
 
-    let decoded = try await makeWaveEAccount(
-        name: "wave-e-noop",
+    let decoded = try await makeTransactionPersistenceAccount(
+        name: "transaction-persistence-noop",
         score: 8,
         status: .active
     ).insert(on: connection)
 
     try await connection.transaction { transaction in
-        try await DropTableBuilder<WaveEAccount>()
+        try await DropTableBuilder<TransactionPersistenceAccount>()
             .checkIfExists()
             .execute(on: transaction)
 

@@ -3,8 +3,8 @@ import Foundation
 import SQL
 import Testing
 
-private struct Task07User: Table {
-    static let tableName = "task07 users"
+private struct RuntimeScenarioUser: Table {
+    static let tableName = "runtime scenario users"
 
     @Column("id")
     var id: Int32
@@ -18,11 +18,11 @@ private struct Task07User: Table {
     init() {}
 }
 
-private enum Task07TestError: Error, Sendable {
+private enum RuntimeScenarioTestError: Error, Sendable {
     case unexpectedValue
 }
 
-private struct Task07BoundValue<Value: Encodable>: SQLable {
+private struct RuntimeScenarioBoundValue<Value: Encodable>: SQLable {
     let value: Value
 
     init(_ value: Value) {
@@ -41,7 +41,7 @@ struct PublicRuntimeScenarioTests {
 func publicCrudScenarioMatrix() async throws {
     let database = try Database()
     let connection = try database.connect()
-    let table = Task07User.table
+    let table = RuntimeScenarioUser.table
 
     try await SQL
         .create
@@ -67,17 +67,17 @@ func publicCrudScenarioMatrix() async throws {
         .execute(on: connection)
     #expect(secondInsert == 1)
 
-    let nullResult = try await Task07User
+    let nullResult = try await RuntimeScenarioUser
         .select(\.$id, \.$status)
-        .where(\Task07User.$id == Int32(1))
+        .where(\RuntimeScenarioUser.$id == Int32(1))
         .query(on: connection)
     #expect(nullResult.rows.first?["id"] == Value.int32(1))
     #expect(nullResult.rows.first?["status"] == Value.null)
 
-    let selected = try await Task07User
+    let selected = try await RuntimeScenarioUser
         .select(\.$id, \.$name, \.$status)
-        .where(\Task07User.$status == "active")
-        .orderBy(.desc(\Task07User.$id))
+        .where(\RuntimeScenarioUser.$status == "active")
+        .orderBy(.desc(\RuntimeScenarioUser.$id))
         .limit(1)
         .query(on: connection)
     #expect(selected.rows.count == 1)
@@ -85,7 +85,7 @@ func publicCrudScenarioMatrix() async throws {
     #expect(selected.rows.first?["display name"] == Value.string("Beta"))
     #expect(selected.rows.first?["status"] == Value.string("active"))
 
-    let alias = Task07User.as("u alias")
+    let alias = RuntimeScenarioUser.as("u alias")
     let aliased = try await SQL
         .select(alias.$id => "quoted id", alias.$name => "quoted name")
         .from(alias.table)
@@ -96,20 +96,20 @@ func publicCrudScenarioMatrix() async throws {
 
     let updated = try await SQL
         .update(table)
-        .set[items: \Task07User.$status == "updated"]
-        .where(\Task07User.$id == Int32(2))
+        .set[items: \RuntimeScenarioUser.$status == "updated"]
+        .where(\RuntimeScenarioUser.$id == Int32(2))
         .execute(on: connection)
     #expect(updated == 1)
 
     let deleted = try await SQL
         .delete(from: table)
-        .where(\Task07User.$id == Int32(1))
+        .where(\RuntimeScenarioUser.$id == Int32(1))
         .execute(on: connection)
     #expect(deleted == 1)
 
-    let finalResult = try await Task07User
+    let finalResult = try await RuntimeScenarioUser
         .select(\.$id, \.$name, \.$status)
-        .where(\Task07User.$id == Int32(2))
+        .where(\RuntimeScenarioUser.$id == Int32(2))
         .query(on: connection)
     #expect(finalResult.rows.count == 1)
     #expect(finalResult.rows.first?["id"] == Value.int32(2))
@@ -128,22 +128,22 @@ func publicPrimitiveResultMatrix() async throws {
 
     let result = try await SQL
         .select(
-            Fn.cast(Task07BoundValue(true), .boolean) => "boolean_value",
-            Fn.cast(Task07BoundValue(Int8(-8)), .tinyint) => "int8_value",
-            Fn.cast(Task07BoundValue(Int16(-16)), .smallint) => "int16_value",
-            Fn.cast(Task07BoundValue(Int32(-32)), .integer) => "int32_value",
-            Fn.cast(Task07BoundValue(Int64(-64)), .bigint) => "int64_value",
-            Fn.cast(Task07BoundValue(UInt8(8)), .utinyint) => "uint8_value",
-            Fn.cast(Task07BoundValue(UInt16(16)), .usmallint) => "uint16_value",
-            Fn.cast(Task07BoundValue(UInt32(32)), .uinteger) => "uint32_value",
-            Fn.cast(Task07BoundValue(UInt64(64)), .ubigint) => "uint64_value",
-            Fn.cast(Task07BoundValue(Float(1.5)), .real) => "float_value",
-            Fn.cast(Task07BoundValue(Double(2.5)), .doublePrecision) => "double_value",
-            Fn.cast(Task07BoundValue(shortText), .varchar) => "short_text",
-            Fn.cast(Task07BoundValue(longText), .varchar) => "long_text",
-            Fn.cast(Task07BoundValue(blob), .blob) => "blob_value",
-            Fn.cast(Task07BoundValue(emptyBlob), .blob) => "empty_blob_value",
-            Fn.cast(Task07BoundValue(Optional<Int32>.none), .integer) => "null_value"
+            Fn.cast(RuntimeScenarioBoundValue(true), .boolean) => "boolean_value",
+            Fn.cast(RuntimeScenarioBoundValue(Int8(-8)), .tinyint) => "int8_value",
+            Fn.cast(RuntimeScenarioBoundValue(Int16(-16)), .smallint) => "int16_value",
+            Fn.cast(RuntimeScenarioBoundValue(Int32(-32)), .integer) => "int32_value",
+            Fn.cast(RuntimeScenarioBoundValue(Int64(-64)), .bigint) => "int64_value",
+            Fn.cast(RuntimeScenarioBoundValue(UInt8(8)), .utinyint) => "uint8_value",
+            Fn.cast(RuntimeScenarioBoundValue(UInt16(16)), .usmallint) => "uint16_value",
+            Fn.cast(RuntimeScenarioBoundValue(UInt32(32)), .uinteger) => "uint32_value",
+            Fn.cast(RuntimeScenarioBoundValue(UInt64(64)), .ubigint) => "uint64_value",
+            Fn.cast(RuntimeScenarioBoundValue(Float(1.5)), .real) => "float_value",
+            Fn.cast(RuntimeScenarioBoundValue(Double(2.5)), .doublePrecision) => "double_value",
+            Fn.cast(RuntimeScenarioBoundValue(shortText), .varchar) => "short_text",
+            Fn.cast(RuntimeScenarioBoundValue(longText), .varchar) => "long_text",
+            Fn.cast(RuntimeScenarioBoundValue(blob), .blob) => "blob_value",
+            Fn.cast(RuntimeScenarioBoundValue(emptyBlob), .blob) => "empty_blob_value",
+            Fn.cast(RuntimeScenarioBoundValue(Optional<Int32>.none), .integer) => "null_value"
         )
         .query(on: connection)
 
@@ -214,7 +214,7 @@ func sameConnectionConcurrencyAndCancellation() async throws {
                     let value = result.rows.first?["value"],
                     let actual = value.get(Int64.self)
                 else {
-                    throw Task07TestError.unexpectedValue
+                    throw RuntimeScenarioTestError.unexpectedValue
                 }
                 return actual
             }
@@ -268,7 +268,7 @@ func multipleConnectionsConcurrency() async throws {
                     let value = result.rows.first?["value"],
                     let actual = value.get(Int64.self)
                 else {
-                    throw Task07TestError.unexpectedValue
+                    throw RuntimeScenarioTestError.unexpectedValue
                 }
                 return actual
             }

@@ -5,14 +5,14 @@ import Testing
 
 // MARK: - Models
 
-private enum WaveDStatus: String, Codable, Equatable, Sendable {
+private enum ConnectionPersistenceStatus: String, Codable, Equatable, Sendable {
     case active
     case paused
     case archived
 }
 
-private struct WaveDUser: Table {
-    static let tableName = "codable_wave_d_users"
+private struct ConnectionPersistenceUser: Table {
+    static let tableName = "codable_connection_persistence_users"
 
     @Column("id", default: .default(42))
     var id: Int64?
@@ -39,7 +39,7 @@ private struct WaveDUser: Table {
     var amount: Decimal
 
     @Column("status")
-    var status: WaveDStatus
+    var status: ConnectionPersistenceStatus
 
     init() {}
 
@@ -52,7 +52,7 @@ private struct WaveDUser: Table {
         externalId: UUID,
         payload: Data? = nil,
         amount: Decimal,
-        status: WaveDStatus
+        status: ConnectionPersistenceStatus
     ) {
         self._id = Column("id", default: .default(42))
         self._name = Column("name")
@@ -82,9 +82,9 @@ private struct WaveDUser: Table {
     }
 }
 
-private struct WaveDSchemaUser: Table, Schemable {
-    static let tableName = "codable_wave_d_schema_users"
-    static let schemaName = "wave_d_schema"
+private struct ConnectionPersistenceSchemaUser: Table, Schemable {
+    static let tableName = "codable_connection_persistence_schema_users"
+    static let schemaName = "connection_persistence_schema"
 
     @Column("id")
     var id: Int64?
@@ -105,8 +105,8 @@ private struct WaveDSchemaUser: Table, Schemable {
 }
 
 /// Unqualified same-name sentinel used only to prove schema routing.
-private struct WaveDSchemaSentinel: Table {
-    static let tableName = "codable_wave_d_schema_users"
+private struct ConnectionPersistenceSchemaSentinel: Table {
+    static let tableName = "codable_connection_persistence_schema_users"
 
     @Column("id")
     var id: Int64?
@@ -142,17 +142,17 @@ private let sampleDecimal = Decimal(
     significand: Decimal(123_456)
 )
 private let samplePayload = Data([0xCA, 0xFE, 0xBA, 0xBE])
-private let uniqueLiteralProbe = "WAVE_D_UNIQUE_LITERAL_PROBE_c4f1"
+private let uniqueLiteralProbe = "CONNECTION_PERSISTENCE_UNIQUE_LITERAL_PROBE_c4f1"
 
 private func makeUser(
     name: String = "alice",
     nickname: String? = nil,
     age: Int = 30,
     payload: Data? = nil,
-    status: WaveDStatus = .active,
+    status: ConnectionPersistenceStatus = .active,
     id: Int64? = nil
-) -> WaveDUser {
-    WaveDUser(
+) -> ConnectionPersistenceUser {
+    ConnectionPersistenceUser(
         id: id,
         name: name,
         nickname: nickname,
@@ -165,8 +165,8 @@ private func makeUser(
     )
 }
 
-private func createWaveDTable(on connection: Connection) async throws {
-    try await CreateTableBuilder<WaveDUser>()
+private func createConnectionPersistenceTable(on connection: Connection) async throws {
+    try await CreateTableBuilder<ConnectionPersistenceUser>()
         .checkIfNotExists()
         .column("id", .bigint, ColumnDefault.default(42 as Any))
         .column("name", .text, .notNull)
@@ -180,19 +180,19 @@ private func createWaveDTable(on connection: Connection) async throws {
         .execute(on: connection)
 }
 
-private func dropWaveDTable(on connection: Connection) async throws {
-    try await DropTableBuilder<WaveDUser>()
+private func dropConnectionPersistenceTable(on connection: Connection) async throws {
+    try await DropTableBuilder<ConnectionPersistenceUser>()
         .checkIfExists()
         .execute(on: connection)
 }
 
-private func fetchWaveDUser(id: Int64, on connection: Connection) async throws -> WaveDUser? {
-    try await WaveDUser
+private func fetchConnectionPersistenceUser(id: Int64, on connection: Connection) async throws -> ConnectionPersistenceUser? {
+    try await ConnectionPersistenceUser
         .select
-        .where(\WaveDUser.$id == id)
+        .where(\ConnectionPersistenceUser.$id == id)
         .limit(1)
         .query(on: connection)
-        .first(decoding: WaveDUser.self)
+        .first(decoding: ConnectionPersistenceUser.self)
 }
 
 // MARK: - INSERT returning / omission / defaults
@@ -200,7 +200,7 @@ private func fetchWaveDUser(id: Int64, on connection: Connection) async throws -
 @Test("INSERT returning applies omitted DB defaults and exact native round-trip")
 func insertReturningOmittedDefaults() async throws {
     let connection = try Database().connect()
-    try await createWaveDTable(on: connection)
+    try await createConnectionPersistenceTable(on: connection)
 
     let model = makeUser(
         name: uniqueLiteralProbe,
@@ -228,7 +228,7 @@ func insertReturningOmittedDefaults() async throws {
 @Test("INSERT returning preserves explicit optional nil as SQL NULL over DB default")
 func insertReturningExplicitNullOverridesDefault() async throws {
     let connection = try Database().connect()
-    try await createWaveDTable(on: connection)
+    try await createConnectionPersistenceTable(on: connection)
 
     let model = makeUser(name: "null-nickname")
     model.nickname = nil
@@ -243,7 +243,7 @@ func insertReturningExplicitNullOverridesDefault() async throws {
 @Test("INSERT non-returning writes the row without RETURNING decode")
 func insertNonReturningWritesRow() async throws {
     let connection = try Database().connect()
-    try await createWaveDTable(on: connection)
+    try await createConnectionPersistenceTable(on: connection)
 
     let model = makeUser(
         name: "non-returning",
@@ -255,7 +255,7 @@ func insertNonReturningWritesRow() async throws {
 
     try await model.insertNonReturning(on: connection)
 
-    let fetched = try await fetchWaveDUser(id: 42, on: connection)
+    let fetched = try await fetchConnectionPersistenceUser(id: 42, on: connection)
     #expect(fetched != nil)
     #expect(fetched?.name == "non-returning")
     #expect(fetched?.nickname == "kept")
@@ -271,7 +271,7 @@ func insertNonReturningWritesRow() async throws {
 func insertNoInitializedFieldsStructural() async throws {
     let connection = try Database().connect()
     // Intentionally do not create the table: structural failure must win.
-    let model = WaveDUser()
+    let model = ConnectionPersistenceUser()
 
     do {
         _ = try await model.insert(on: connection)
@@ -282,7 +282,7 @@ func insertNoInitializedFieldsStructural() async throws {
             return
         }
         #expect(message.contains("no initialized fields"))
-        #expect(message.contains(WaveDUser.tableName))
+        #expect(message.contains(ConnectionPersistenceUser.tableName))
     }
 }
 
@@ -291,7 +291,7 @@ func insertNoInitializedFieldsStructural() async throws {
 @Test("UPDATE returning changes one field and preserves other values")
 func updateReturningOneField() async throws {
     let connection = try Database().connect()
-    try await createWaveDTable(on: connection)
+    try await createConnectionPersistenceTable(on: connection)
 
     let inserted = try await makeUser(name: "before", age: 10).insert(on: connection)
     #expect(inserted.id == 42)
@@ -314,7 +314,7 @@ func updateReturningOneField() async throws {
 @Test("UPDATE returning changes multiple fields including explicit NULL")
 func updateReturningMultipleFields() async throws {
     let connection = try Database().connect()
-    try await createWaveDTable(on: connection)
+    try await createConnectionPersistenceTable(on: connection)
 
     let inserted = try await makeUser(name: "multi", nickname: "keep-me", age: 1).insert(on: connection)
 
@@ -336,7 +336,7 @@ func updateReturningMultipleFields() async throws {
 @Test("UPDATE non-returning persists changed fields")
 func updateNonReturningPersists() async throws {
     let connection = try Database().connect()
-    try await createWaveDTable(on: connection)
+    try await createConnectionPersistenceTable(on: connection)
 
     let inserted = try await makeUser(name: "nr-origin").insert(on: connection)
     inserted.name = "nr-updated"
@@ -344,7 +344,7 @@ func updateNonReturningPersists() async throws {
 
     try await inserted.updateNonReturning(on: \.$id, on: connection)
 
-    let fetched = try await fetchWaveDUser(id: 42, on: connection)
+    let fetched = try await fetchConnectionPersistenceUser(id: 42, on: connection)
     #expect(fetched?.name == "nr-updated")
     #expect(fetched?.age == 77)
 }
@@ -354,7 +354,7 @@ func updateNonReturningPersists() async throws {
 @Test("Prepared UPDATE snapshot excludes unchanged fields, key, and payload literals")
 func preparedUpdateSnapshotExcludesUnchangedAndKey() async throws {
     let connection = try Database().connect()
-    try await createWaveDTable(on: connection)
+    try await createConnectionPersistenceTable(on: connection)
 
     let decoded = try await makeUser(
         name: "decoded-base",
@@ -398,11 +398,11 @@ func preparedUpdateSnapshotExcludesUnchangedAndKey() async throws {
 @Test("Zero-changed UPDATE performs no SQL-visible access after table drop")
 func zeroChangedUpdateNoSQLAfterDrop() async throws {
     let connection = try Database().connect()
-    try await createWaveDTable(on: connection)
+    try await createConnectionPersistenceTable(on: connection)
 
     let decoded = try await makeUser(name: "noop").insert(on: connection)
 
-    try await dropWaveDTable(on: connection)
+    try await dropConnectionPersistenceTable(on: connection)
 
     let same = try await decoded.update(on: \.$id, on: connection)
     #expect(same.name == decoded.name)
@@ -464,14 +464,14 @@ func updateNullKeyStructural() async throws {
 @Test("UPDATE returning throws invalidResult when key row was deleted")
 func updateReturningZeroRowsAfterDelete() async throws {
     let connection = try Database().connect()
-    try await createWaveDTable(on: connection)
+    try await createConnectionPersistenceTable(on: connection)
 
     let decoded = try await makeUser(name: "to-delete").insert(on: connection)
     decoded.name = "will-not-apply"
 
     try await SQL
-        .delete(from: WaveDUser.table)
-        .where(\WaveDUser.$id == Int64(42))
+        .delete(from: ConnectionPersistenceUser.table)
+        .where(\ConnectionPersistenceUser.$id == Int64(42))
         .execute(on: connection)
 
     do {
@@ -492,40 +492,40 @@ func updateReturningZeroRowsAfterDelete() async throws {
 func schemaQualifiedInsertAndUpdate() async throws {
     let connection = try Database().connect()
 
-    try await CreateSchemaBuilder<WaveDSchemaUser>()
+    try await CreateSchemaBuilder<ConnectionPersistenceSchemaUser>()
         .checkIfNotExists()
         .execute(on: connection)
 
-    try await CreateTableBuilder<WaveDSchemaUser>()
+    try await CreateTableBuilder<ConnectionPersistenceSchemaUser>()
         .checkIfNotExists()
         .column("id", .bigint, ColumnDefault.default(7 as Any))
         .column("label", .text, .notNull)
         .execute(on: connection)
 
     // Unqualified same-name sentinel with different defaults.
-    try await CreateTableBuilder<WaveDSchemaSentinel>()
+    try await CreateTableBuilder<ConnectionPersistenceSchemaSentinel>()
         .checkIfNotExists()
         .column("id", .bigint, ColumnDefault.default(999 as Any))
         .column("label", .text, .notNull)
         .execute(on: connection)
 
-    let model = WaveDSchemaUser(label: uniqueLiteralProbe)
+    let model = ConnectionPersistenceSchemaUser(label: uniqueLiteralProbe)
     let inserted = try await model.insert(on: connection)
     #expect(inserted.id == 7)
     #expect(inserted.label == uniqueLiteralProbe)
 
     // Prove the unqualified sentinel was not used.
-    let sentinelRows = try await WaveDSchemaSentinel
+    let sentinelRows = try await ConnectionPersistenceSchemaSentinel
         .select(\.$id, \.$label)
         .query(on: connection)
-    let sentinelModels = try sentinelRows.all(decoding: WaveDSchemaSentinel.self)
+    let sentinelModels = try sentinelRows.all(decoding: ConnectionPersistenceSchemaSentinel.self)
     #expect(sentinelModels.isEmpty || sentinelModels.allSatisfy { $0.label != uniqueLiteralProbe })
 
     // Schema table has the row.
-    let schemaRow = try await WaveDSchemaUser
+    let schemaRow = try await ConnectionPersistenceSchemaUser
         .select(\.$id, \.$label)
         .query(on: connection)
-        .first(decoding: WaveDSchemaUser.self)
+        .first(decoding: ConnectionPersistenceSchemaUser.self)
     #expect(schemaRow?.id == 7)
     #expect(schemaRow?.label == uniqueLiteralProbe)
 
@@ -534,9 +534,9 @@ func schemaQualifiedInsertAndUpdate() async throws {
     #expect(updated.label == "schema-updated")
     #expect(updated.id == 7)
 
-    let schemaUpdated = try await WaveDSchemaUser
+    let schemaUpdated = try await ConnectionPersistenceSchemaUser
         .select(\.$id, \.$label)
         .query(on: connection)
-        .first(decoding: WaveDSchemaUser.self)
+        .first(decoding: ConnectionPersistenceSchemaUser.self)
     #expect(schemaUpdated?.label == "schema-updated")
 }

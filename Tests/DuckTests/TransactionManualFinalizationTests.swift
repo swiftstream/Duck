@@ -74,7 +74,7 @@ private actor ManualTransactionTaskRunner {
 private func makeManualTransactionContext() async throws -> ManualTransactionContext {
     let database = try Database()
     let connection = try database.connect()
-    let name = "task04_" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
+    let name = "manual_transaction_" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
     let table = Path.Table(name)
     try await connection.execute(
         SQL
@@ -424,7 +424,7 @@ func commitOnRollbackOnlyStateThrowsFirstReason() async throws {
     var firstReason: DatabaseError?
     do {
         _ = try await transaction.execute(
-            SQL.insertInto(Path.Table("task04_missing"), fields: "id", "value")
+            SQL.insertInto(Path.Table("manual_transaction_missing"), fields: "id", "value")
                 .values.values(Int32(1), Int32(1))
         )
         Issue.record("Expected the missing-table operation to fail.")
@@ -449,7 +449,7 @@ func caughtManualFinalizerFailureDominatesNormalReturn() async throws {
         try await context.connection.transaction { transaction in
             do {
                 _ = try await transaction.execute(
-                    SQL.insertInto(Path.Table("task04_missing"), fields: "id", "value")
+                    SQL.insertInto(Path.Table("manual_transaction_missing"), fields: "id", "value")
                         .values.values(Int32(1), Int32(1))
                 )
             } catch let error as DatabaseError {
@@ -475,7 +475,7 @@ func caughtManualFinalizerFailureDominatesLaterBodyError() async throws {
         try await context.connection.transaction { transaction in
             do {
                 _ = try await transaction.execute(
-                    SQL.insertInto(Path.Table("task04_missing"), fields: "id", "value")
+                    SQL.insertInto(Path.Table("manual_transaction_missing"), fields: "id", "value")
                         .values.values(Int32(1), Int32(1))
                 )
             } catch let error as DatabaseError {
@@ -569,7 +569,7 @@ func noTransactionBeginSymbolIsIntroduced() {
 }
 
 #if compiler(>=6.4)
-@Test("S64-01 rollbackIfNeeded is compiler-visible and callable")
+@Test("rollbackIfNeeded is compiler-visible and callable")
 func rollbackIfNeededIsCallable() async throws {
     let context = try await makeManualTransactionContext()
     let transaction = try await context.connection.transaction()
@@ -586,14 +586,14 @@ private func rollbackInAsyncDefer(
     try await insert(1, value: 10, into: context.table, on: transaction)
 }
 
-@Test("S64-02 async defer rolls back an active flat transaction")
+@Test("async defer rolls back an active flat transaction")
 func asyncDeferRollsBackActiveFlatTransaction() async throws {
     let context = try await makeManualTransactionContext()
     try await rollbackInAsyncDefer(context)
     #expect((try await rows(from: context.table, on: context.connection)).rows.isEmpty)
 }
 
-@Test("S64-03 rollbackIfNeeded is a no-op after commit")
+@Test("rollbackIfNeeded is a no-op after commit")
 func rollbackIfNeededIsNoOpAfterCommit() async throws {
     let context = try await makeManualTransactionContext()
     let transaction = try await context.connection.transaction()
@@ -603,7 +603,7 @@ func rollbackIfNeededIsNoOpAfterCommit() async throws {
     #expect((try await rows(from: context.table, on: context.connection)).rows.count == 1)
 }
 
-@Test("S64-04 rollbackIfNeeded is a no-op after explicit rollback")
+@Test("rollbackIfNeeded is a no-op after explicit rollback")
 func rollbackIfNeededIsNoOpAfterRollback() async throws {
     let context = try await makeManualTransactionContext()
     let transaction = try await context.connection.transaction()
@@ -611,7 +611,7 @@ func rollbackIfNeededIsNoOpAfterRollback() async throws {
     await transaction.rollbackIfNeeded()
 }
 
-@Test("S64-05 cancellation does not prevent rollbackIfNeeded cleanup")
+@Test("cancellation does not prevent rollbackIfNeeded cleanup")
 func cancellationDoesNotPreventRollbackIfNeededCleanup() async throws {
     let context = try await makeManualTransactionContext()
     let started = ManualTransactionSignal()
@@ -628,7 +628,7 @@ func cancellationDoesNotPreventRollbackIfNeededCleanup() async throws {
     _ = try await context.connection.query(SQL.select(Fn.cast(Int32(1), .integer)))
 }
 
-@Test("S64-06 rollback cleanup failure fail-closes without escaping rollbackIfNeeded")
+@Test("rollback cleanup failure fail-closes without escaping rollbackIfNeeded")
 func rollbackCleanupFailureFailClosesWithoutEscapingHelper() async throws {
     let context = try await makeManualTransactionContext()
     let transaction = try await context.connection.transaction()
@@ -658,7 +658,7 @@ func rollbackCleanupFailureFailClosesWithoutEscapingHelper() async throws {
     }
 }
 
-@Test("S64-07 async defer preserves normal LIFO ordering")
+@Test("async defer preserves normal LIFO ordering")
 func asyncDeferPreservesLIFOOrdering() async {
     let events = ManualTransactionEvents()
     do {

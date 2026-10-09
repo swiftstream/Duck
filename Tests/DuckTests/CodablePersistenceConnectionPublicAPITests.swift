@@ -11,7 +11,7 @@ private enum PublicStatus: String, Codable, Equatable, Sendable {
 }
 
 private struct PublicNote: Table {
-    static let tableName = "codable_wave_d_public_notes"
+    static let tableName = "codable_connection_persistence_public_notes"
 
     @Column("id", default: .default(1))
     var id: Int64?

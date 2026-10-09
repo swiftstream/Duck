@@ -364,7 +364,7 @@ func failClosedConnectionDominatesLiveAppender() async throws {
             .table[any: table]
             .tableDefinitions(NewColumn("id", .integer))
     )
-    let message = "task03 fail-closed Appender proof"
+    let message = "fail-closed Appender proof"
     var escaped: Appender?
     var caughtInsideBody: DatabaseError?
 

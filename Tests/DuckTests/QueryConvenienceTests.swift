@@ -2,8 +2,8 @@
 import SQL
 import Testing
 
-private struct Task06User: Table {
-    static let tableName = "task06_users"
+private struct QueryConvenienceUser: Table {
+    static let tableName = "query_convenience_users"
 
     @Column("email")
     var email: String
@@ -22,35 +22,35 @@ private struct Task06User: Table {
 
 @Test("Typed table select supports heterogeneous key-path packs and ordinary composition")
 func typedTableSelectComposition() throws {
-    let query = Task06User
+    let query = QueryConvenienceUser
         .select(\.$email, \.$name, \.$age)
-        .where(\Task06User.$role == "admin")
-        .orderBy(.asc(\Task06User.$name))
+        .where(\QueryConvenienceUser.$role == "admin")
+        .orderBy(.asc(\QueryConvenienceUser.$name))
         .limit(10)
 
     let prepared = query.prepare(.duck).splitted
 
     #expect(
         prepared.query
-            == #"SELECT "task06_users"."email", "task06_users"."name", "task06_users"."age" FROM "task06_users" WHERE "task06_users"."role" = $1 ORDER BY "task06_users"."name" ASC LIMIT $2"#
+            == #"SELECT "query_convenience_users"."email", "query_convenience_users"."name", "query_convenience_users"."age" FROM "query_convenience_users" WHERE "query_convenience_users"."role" = $1 ORDER BY "query_convenience_users"."name" ASC LIMIT $2"#
     )
     #expect(prepared.values.count == 2)
 }
 
 @Test("Typed table select supports one and multiple columns while preserving parameterless select")
 func typedTableSelectAritiesAndExistingSelect() {
-    let one = Task06User.select(\.$email).prepare(.duck).plain
-    #expect(one == #"SELECT "task06_users"."email" FROM "task06_users""#)
+    let one = QueryConvenienceUser.select(\.$email).prepare(.duck).plain
+    #expect(one == #"SELECT "query_convenience_users"."email" FROM "query_convenience_users""#)
 
-    let two = Task06User.select(\.$email, \.$age).prepare(.duck).plain
-    #expect(two == #"SELECT "task06_users"."email", "task06_users"."age" FROM "task06_users""#)
+    let two = QueryConvenienceUser.select(\.$email, \.$age).prepare(.duck).plain
+    #expect(two == #"SELECT "query_convenience_users"."email", "query_convenience_users"."age" FROM "query_convenience_users""#)
 
-    let existing = Task06User
+    let existing = QueryConvenienceUser
         .select
-        .where(\Task06User.$role == "member")
+        .where(\QueryConvenienceUser.$role == "member")
         .prepare(.duck)
         .splitted
-    #expect(existing.query == #"SELECT "task06_users".* FROM "task06_users" WHERE "task06_users"."role" = $1"#)
+    #expect(existing.query == #"SELECT "query_convenience_users".* FROM "query_convenience_users" WHERE "query_convenience_users"."role" = $1"#)
     #expect(existing.values.count == 1)
 }
 
@@ -58,7 +58,7 @@ func typedTableSelectAritiesAndExistingSelect() {
 func queryCenteredConveniencesDelegateToConnection() async throws {
     let database = try Database()
     let connection = try database.connect()
-    let table = Task06User.table
+    let table = QueryConvenienceUser.table
 
     try await SQL
         .create
@@ -78,10 +78,10 @@ func queryCenteredConveniencesDelegateToConnection() async throws {
         .execute(on: connection)
     #expect(rowsChanged == 1)
 
-    let result = try await Task06User
+    let result = try await QueryConvenienceUser
         .select(\.$email, \.$name, \.$role)
-        .where(\Task06User.$role == "admin")
-        .orderBy(.asc(\Task06User.$name))
+        .where(\QueryConvenienceUser.$role == "admin")
+        .orderBy(.asc(\QueryConvenienceUser.$name))
         .limit(10)
         .query(on: connection)
 

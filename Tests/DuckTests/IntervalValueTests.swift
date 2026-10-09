@@ -245,7 +245,7 @@ func intervalAppenderRoundTripAndExtrema() async throws {
     }
 }
 
-@Test("Interval Appender Phase-1 failures make zero row mutation and remain reusable")
+@Test("Interval Appender preflight failures make zero row mutation and remain reusable")
 func intervalAppenderPhaseOneFailureIsZeroMutationAndReusable() async throws {
     let connection = try Database().connect()
     let table = try await makeIntervalTable(

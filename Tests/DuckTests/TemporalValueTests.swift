@@ -745,7 +745,7 @@ func foundationDateStatementRejectsInexactNonFiniteAndMismatchedTargets() async 
     #expect(try firstValue(await reusable.query(exact), column: "value") == .timestampTZ(exact))
 }
 
-@Test("Foundation.Date Appender failures are Phase-1 zero-mutation and reusable")
+@Test("Foundation.Date Appender preflight failures are zero-mutation and reusable")
 func foundationDateAppenderPhaseOneFailureIsZeroMutationAndReusable() async throws {
     let connection = try Database().connect()
     let table = Path.Table("foundation_date_phase_one_appender")

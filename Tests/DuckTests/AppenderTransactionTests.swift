@@ -85,7 +85,7 @@ func ordinaryConnectionAppenderRemainsExcludedInsideTransaction() async throws {
     }
 }
 
-@Test("Transaction Appender recovers from all deterministic Phase-1 row failures")
+@Test("Transaction Appender recovers from all deterministic preflight row failures")
 func transactionAppenderRecoversPhaseOneRowFailures() async throws {
     let connection = try Database().connect()
     let table = try await makeAppenderTransactionTable(

@@ -489,7 +489,7 @@ func transactionPublicationRemainsDatabaseLocal() async throws {
 }
 
 #if compiler(>=6.4)
-@Test("S64O01 rollbackIfNeeded publishes accumulated transaction impact")
+@Test("rollbackIfNeeded publishes accumulated transaction impact")
 func rollbackIfNeededPublishesAccumulatedImpact() async throws {
     let context = try await makeObservationTransactionContext()
     let count = try await countSignals(context.database) {
@@ -500,7 +500,7 @@ func rollbackIfNeededPublishesAccumulatedImpact() async throws {
     #expect(count == 1)
 }
 
-@Test("S64O02 rollbackIfNeeded with read-only work publishes nothing")
+@Test("rollbackIfNeeded with read-only work publishes nothing")
 func rollbackIfNeededReadOnlyPublishesNothing() async throws {
     let context = try await makeObservationTransactionContext()
     let count = try await countSignals(context.database) {
@@ -511,7 +511,7 @@ func rollbackIfNeededReadOnlyPublishesNothing() async throws {
     #expect(count == 0)
 }
 
-@Test("S64O03 rollbackIfNeeded cleanup failure publishes once and fail-closes")
+@Test("rollbackIfNeeded cleanup failure publishes once and fail-closes")
 func rollbackIfNeededCleanupFailurePublishesOnce() async throws {
     let context = try await makeObservationTransactionContext()
     let transaction = try await context.connection.transaction()

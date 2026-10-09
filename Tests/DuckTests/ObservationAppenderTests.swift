@@ -1275,7 +1275,7 @@ struct ObservationAppenderTests {
     }
 
     #if compiler(>=6.4)
-    @Test("S64A01 rollbackIfNeeded publishes completed Transaction Appender target")
+    @Test("rollbackIfNeeded publishes completed Transaction Appender target")
     func s64a01RollbackIfNeededPublishesTransactionAppenderTarget() async throws {
         let context = try await makeAppenderContext(prefix: "s64a01")
         let independent = try context.database.connect()

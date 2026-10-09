@@ -11,7 +11,7 @@ private enum PublicTransactionStatus: String, Codable, Equatable, Sendable {
 }
 
 private struct PublicTransactionNote: Table {
-    static let tableName = "codable_wave_e_public_notes"
+    static let tableName = "codable_transaction_persistence_public_notes"
 
     @Column("id", default: .default(10))
     var id: Int64?
