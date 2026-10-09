@@ -458,9 +458,9 @@ let package = Package(
       ]
     ),
     .target(
-        name: "A1PendingGate",
+        name: "PendingExecutionGate",
         dependencies: ["Cduckdb"],
-        path: "Tests/A1PendingGate",
+        path: "Tests/PendingExecutionGate",
         publicHeadersPath: "include"
     ),
         .testTarget(
@@ -475,7 +475,7 @@ let package = Package(
             dependencies: [
                 "Duck",
                 "Cduckdb",
-                "A1PendingGate",
+                "PendingExecutionGate",
                 .product(name: "SQL", package: "sql")
             ]
         )

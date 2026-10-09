@@ -1,5 +1,5 @@
 @testable import Duck
-import A1PendingGate
+import PendingExecutionGate
 import Cduckdb
 import SQL
 import Testing
@@ -31,7 +31,7 @@ private func currentSetting(_ name: String) -> any SQLable {
 @Test("Active pending public query cancellation leaves the same Connection reusable")
 func activePendingPublicQueryCancellationLeavesConnectionReusable() async throws {
     var gateId: UInt64 = 0
-    guard a1_pending_gate_create(&gateId) == 1, gateId != 0 else {
+    guard pending_execution_gate_create(&gateId) == 1, gateId != 0 else {
         Issue.record("Could not create the active-pending cancellation gate.")
         return
     }
@@ -39,8 +39,8 @@ func activePendingPublicQueryCancellationLeavesConnectionReusable() async throws
     var gateWasDestroyed = false
     defer {
         if !gateWasDestroyed {
-            let abortStatus = a1_pending_gate_abort(gateId)
-            let destroyStatus = a1_pending_gate_destroy(gateId)
+            let abortStatus = pending_execution_gate_abort(gateId)
+            let destroyStatus = pending_execution_gate_destroy(gateId)
             if abortStatus != 1 || destroyStatus != 1 {
                 Issue.record("Could not abort and destroy the active-pending cancellation gate during cleanup.")
             }
@@ -49,7 +49,7 @@ func activePendingPublicQueryCancellationLeavesConnectionReusable() async throws
 
     try await runActivePendingCancellationScenario(gateId: gateId)
 
-    let destroyStatus = a1_pending_gate_destroy(gateId)
+    let destroyStatus = pending_execution_gate_destroy(gateId)
     #expect(destroyStatus == 1)
     gateWasDestroyed = destroyStatus == 1
 }
@@ -58,10 +58,11 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
     let database = try Database()
     let nativeDatabase = try NativeDatabase()
     let registrationConnection = try nativeDatabase.connect()
-    let functionName = "swiftduckdb_a1_gate_\(gateId)"
+    let functionNamePrefix = "duck_pending_execution_gate"
+    let functionName = "\(functionNamePrefix)_\(gateId)"
     let registrationStatus = functionName.withCString { name in
         registrationConnection.withUnsafeHandle { handle in
-            a1_pending_gate_register(handle, name, gateId)
+            pending_execution_gate_register(handle, name, gateId)
         }
     }
     guard registrationStatus == 1 else {
@@ -93,14 +94,20 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
     let physicalPlan = explainResult.rows
         .compactMap { $0["explain_value"]?.stringValue }
         .joined(separator: "\n")
-    #expect(physicalPlan.contains(functionName))
+    // DuckDB may wrap long function identifiers across EXPLAIN box rows.
+    let explainContainsFunction = physicalPlan.contains(functionName)
+        || (
+            physicalPlan.contains(functionNamePrefix)
+                && physicalPlan.contains("_\(gateId)()")
+        )
+    #expect(explainContainsFunction)
     #expect(physicalPlan.contains("PROJECTION"))
 
     var explainCallbackCount: UInt64 = 0
-    let explainCallbackCountStatus = a1_pending_gate_callback_count(gateId, &explainCallbackCount)
+    let explainCallbackCountStatus = pending_execution_gate_callback_count(gateId, &explainCallbackCount)
     #expect(explainCallbackCountStatus == 1)
     #expect(explainCallbackCount == 0)
-    guard physicalPlan.contains(functionName), physicalPlan.contains("PROJECTION"),
+    guard explainContainsFunction, physicalPlan.contains("PROJECTION"),
           explainCallbackCountStatus == 1, explainCallbackCount == 0 else {
         return
     }
@@ -132,7 +139,7 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
         defer { duckdb_destroy_pending(&pending) }
 
         var probeCallbackCount: UInt64 = 0
-        let callbackCountStatus = a1_pending_gate_callback_count(gateId, &probeCallbackCount)
+        let callbackCountStatus = pending_execution_gate_callback_count(gateId, &probeCallbackCount)
         #expect(callbackCountStatus == 1)
         #expect(probeCallbackCount == 0)
         guard callbackCountStatus == 1, probeCallbackCount == 0 else {
@@ -141,7 +148,7 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
         }
     }
 
-    let armStatus = a1_pending_gate_arm(gateId)
+    let armStatus = pending_execution_gate_arm(gateId)
     guard armStatus == 1 else {
         Issue.record("Could not arm the active-pending callback gate after the preparation probe.")
         return
@@ -150,7 +157,7 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
     var gateWasUnblocked = false
     defer {
         if !gateWasUnblocked {
-            let abortStatus = a1_pending_gate_abort(gateId)
+            let abortStatus = pending_execution_gate_abort(gateId)
             if abortStatus != 1 {
                 Issue.record("Could not abort the active-pending callback gate during query cleanup.")
             }
@@ -168,9 +175,9 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
             queryOutcome = .failure(String(reflecting: type(of: error)))
         }
 
-        let completionSignalRecorded = a1_pending_gate_mark_query_completed(gateId) == 1
+        let completionSignalRecorded = pending_execution_gate_mark_query_completed(gateId) == 1
         if !completionSignalRecorded {
-            _ = a1_pending_gate_abort(gateId)
+            _ = pending_execution_gate_abort(gateId)
         }
         return ActivePendingTaskOutcome(
             query: queryOutcome,
@@ -178,22 +185,22 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
         )
     }
 
-    let waitResult = a1_pending_gate_wait(gateId)
+    let waitResult = pending_execution_gate_wait(gateId)
     let callbackEntered = waitResult == 1
     #expect(callbackEntered, "Expected the scalar callback to enter before query completion or cancellation.")
 
     if callbackEntered {
         queryTask.cancel()
-        let releaseStatus = a1_pending_gate_release(gateId)
+        let releaseStatus = pending_execution_gate_release(gateId)
         if releaseStatus == 1 {
             gateWasUnblocked = true
         } else {
             Issue.record("Could not release the callback after cancelling the entered query.")
-            let abortStatus = a1_pending_gate_abort(gateId)
+            let abortStatus = pending_execution_gate_abort(gateId)
             gateWasUnblocked = abortStatus == 1
         }
     } else {
-        let abortStatus = a1_pending_gate_abort(gateId)
+        let abortStatus = pending_execution_gate_abort(gateId)
         #expect(abortStatus == 1)
         gateWasUnblocked = abortStatus == 1
     }
@@ -207,7 +214,7 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
     }
 
     var executionCallbackCount: UInt64 = 0
-    let executionCallbackCountStatus = a1_pending_gate_callback_count(gateId, &executionCallbackCount)
+    let executionCallbackCountStatus = pending_execution_gate_callback_count(gateId, &executionCallbackCount)
     #expect(executionCallbackCountStatus == 1)
     #expect(executionCallbackCount == 1)
 

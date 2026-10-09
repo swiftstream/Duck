@@ -1,4 +1,4 @@
-#include "A1PendingGate.h"
+#include "PendingExecutionGate.h"
 
 #include <condition_variable>
 #include <cstdint>
@@ -62,7 +62,7 @@ bool write_result(duckdb_data_chunk input, duckdb_vector output, duckdb_function
 	const auto count = duckdb_data_chunk_get_size(input);
 	auto *values = static_cast<int32_t *>(duckdb_vector_get_data(output));
 	if (count > 0 && !values) {
-		duckdb_function_set_error(info, "A1 pending gate could not access its scalar output vector.");
+		duckdb_function_set_error(info, "pending execution gate could not access its scalar output vector.");
 		return false;
 	}
 	for (idx_t index = 0; index < count; index++) {
@@ -74,7 +74,7 @@ bool write_result(duckdb_data_chunk input, duckdb_vector output, duckdb_function
 void execute_gate_scalar(duckdb_function_info info, duckdb_data_chunk input, duckdb_vector output) {
 	auto *context = static_cast<CallbackContext *>(duckdb_scalar_function_get_extra_info(info));
 	if (!context || !context->gate) {
-		duckdb_function_set_error(info, "A1 pending gate callback context is unavailable.");
+		duckdb_function_set_error(info, "pending execution gate callback context is unavailable.");
 		return;
 	}
 
@@ -95,12 +95,12 @@ void execute_gate_scalar(duckdb_function_info info, duckdb_data_chunk input, duc
 		lock.unlock();
 
 		if (was_aborted) {
-			duckdb_function_set_error(info, "A1 pending gate was aborted before callback release.");
+			duckdb_function_set_error(info, "pending execution gate was aborted before callback release.");
 			return;
 		}
 		write_result(input, output, info);
 	} catch (...) {
-		duckdb_function_set_error(info, "A1 pending gate callback failed while waiting for release.");
+		duckdb_function_set_error(info, "pending execution gate callback failed while waiting for release.");
 	}
 }
 
@@ -129,7 +129,7 @@ int32_t set_gate_flag(uint64_t gate_id, bool release, bool abort) {
 
 } // namespace
 
-int32_t a1_pending_gate_create(uint64_t *gate_id) {
+int32_t pending_execution_gate_create(uint64_t *gate_id) {
 	if (!gate_id) {
 		return 0;
 	}
@@ -151,7 +151,7 @@ int32_t a1_pending_gate_create(uint64_t *gate_id) {
 	}
 }
 
-int32_t a1_pending_gate_register(duckdb_connection connection, const char *function_name, uint64_t gate_id) {
+int32_t pending_execution_gate_register(duckdb_connection connection, const char *function_name, uint64_t gate_id) {
 	if (!connection || !function_name || !*function_name) {
 		return 0;
 	}
@@ -190,7 +190,7 @@ int32_t a1_pending_gate_register(duckdb_connection connection, const char *funct
 	}
 }
 
-int32_t a1_pending_gate_callback_count(uint64_t gate_id, uint64_t *callback_count) {
+int32_t pending_execution_gate_callback_count(uint64_t gate_id, uint64_t *callback_count) {
 	if (!callback_count) {
 		return 0;
 	}
@@ -207,7 +207,7 @@ int32_t a1_pending_gate_callback_count(uint64_t gate_id, uint64_t *callback_coun
 	}
 }
 
-int32_t a1_pending_gate_arm(uint64_t gate_id) {
+int32_t pending_execution_gate_arm(uint64_t gate_id) {
 	try {
 		auto gate = find_gate(gate_id);
 		if (!gate) {
@@ -224,27 +224,27 @@ int32_t a1_pending_gate_arm(uint64_t gate_id) {
 	}
 }
 
-int32_t a1_pending_gate_wait(uint64_t gate_id) {
+int32_t pending_execution_gate_wait(uint64_t gate_id) {
 	try {
 		auto gate = find_gate(gate_id);
 		if (!gate) {
-			return A1_PENDING_GATE_WAIT_INVALID;
+			return PENDING_EXECUTION_GATE_WAIT_INVALID;
 		}
 		std::unique_lock<std::mutex> lock(gate->mutex);
 		gate->condition.wait(lock, [&] { return gate->entered || gate->query_completed || gate->aborted; });
 		if (gate->entered) {
-			return A1_PENDING_GATE_WAIT_CALLBACK_ENTERED;
+			return PENDING_EXECUTION_GATE_WAIT_CALLBACK_ENTERED;
 		}
 		if (gate->query_completed) {
-			return A1_PENDING_GATE_WAIT_QUERY_COMPLETED;
+			return PENDING_EXECUTION_GATE_WAIT_QUERY_COMPLETED;
 		}
-		return A1_PENDING_GATE_WAIT_ABORTED;
+		return PENDING_EXECUTION_GATE_WAIT_ABORTED;
 	} catch (...) {
-		return A1_PENDING_GATE_WAIT_INVALID;
+		return PENDING_EXECUTION_GATE_WAIT_INVALID;
 	}
 }
 
-int32_t a1_pending_gate_mark_query_completed(uint64_t gate_id) {
+int32_t pending_execution_gate_mark_query_completed(uint64_t gate_id) {
 	try {
 		auto gate = find_gate(gate_id);
 		if (!gate) {
@@ -261,15 +261,15 @@ int32_t a1_pending_gate_mark_query_completed(uint64_t gate_id) {
 	}
 }
 
-int32_t a1_pending_gate_release(uint64_t gate_id) {
+int32_t pending_execution_gate_release(uint64_t gate_id) {
 	return set_gate_flag(gate_id, true, false);
 }
 
-int32_t a1_pending_gate_abort(uint64_t gate_id) {
+int32_t pending_execution_gate_abort(uint64_t gate_id) {
 	return set_gate_flag(gate_id, false, true);
 }
 
-int32_t a1_pending_gate_destroy(uint64_t gate_id) {
+int32_t pending_execution_gate_destroy(uint64_t gate_id) {
 	try {
 		std::shared_ptr<GateState> gate;
 		{
