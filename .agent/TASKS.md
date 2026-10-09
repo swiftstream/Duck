@@ -6,9 +6,9 @@ Only active approved executable implementation/closure work belongs here. Detail
 
 Foundation C5 is CLOSED at local commit `0dc702c5bcf53647c35e8177d35360c299a0e63b`, subject **🪚 Rename package surface to `Duck`**, after full Swift 6.3.3/6.4 validation, external one-import/dual-import consumers, a CLEAN independent whole-candidate audit, exact staging, and post-commit verification.
 
-Foundation C6 is CLOSED at local commit `31973379133ed290a749d2e5f9dbc9b266b2ab00`, subject **📖 Synchronize governance and skills**, after the corrected 35-file candidate passed Validation 03 and a fresh independent finding-closure whole-candidate re-audit returned CLEAN.
+Foundation C6 is CLOSED at local commit `31973379133ed290a749d2e5f9dbc9b266b2ab00`, subject **📖 Synchronize governance and skills**, after full validation and an independent CLEAN whole-candidate audit.
 
-Foundation C7 is CLOSED at local commit `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf`. C8 semantic development-history leakage cleanup is the current authorized checkpoint; C9 remains future. Production source/API behavior, the durable `__swiftduckdb.migrations` compatibility namespace, and protected unrelated `.agent/STYLE_GUIDELINES.md` WIP must remain unchanged.
+Foundation C7 is CLOSED at local commit `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf`. C8 semantic development-history leakage cleanup is current with implementation/validation/audit closure in progress; C9 remains future. Production source/API behavior, the durable `__swiftduckdb.migrations` compatibility namespace, and protected unrelated `.agent/STYLE_GUIDELINES.md` WIP must remain unchanged.
 
 The required pre-v1 sequence is C8 closure, C9 final Foundation closure, separate v1 technical validation + independent release audit, real local macOS SwiftUI and UIKitPlus consumers, final public-doc polish/audit, and then local `v1.0.0`.
 
@@ -18,28 +18,41 @@ Push/tag/remote release remains separately unauthorized.
 
 ## Current capability state
 
-P0 `Codable / Model Layer` is COMPLETE.
+### Codable / Model Layer — COMPLETE
 
-Final accepted closure anchors:
+The accepted current surface owns arbitrary flat `Row` / `QueryResult` decoding, exact flat `ModelEncoder` semantics, `Table` / `@Column` persistence extraction, prepared model bindings, explicit-`Connection` insert/update returning and non-returning conveniences, and matching explicit-`Transaction` overloads that reuse the transaction engine.
 
-```text
-.artifacts/reviews/codable-model-layer-wave-g-final-root-reaudit-01-2026-09-17/PRIMARY_COORDINATOR_ACCEPTANCE.md
-.artifacts/closure/codable-model-layer-p0-public-closure-2026-09-17/PRIMARY_PUBLIC_CLOSURE_ACCEPTANCE.md
-```
+Current closure evidence remains build PASS with 358/358 tests, 0 failures, 0 skips, and no new Duck-owned warnings. README, publication source material, the source-owned `duck-codable-models` skill, and stable governance are closed current state.
 
-The accepted P0 closure validation was 358/358 tests with 0 failures and 0 skips, build PASS, and 0 new Duck-owned warnings. README, detailed publication source 006, `PUBLIC_WRITING_STYLE`, `SKILL_INDEX`, the dedicated source-owned `duck-codable-models` skill, and stable governance are accepted public closure. Both first-final-audit blockers are formally `CLOSED_BY_CORRECTION_01`.
+### Migrations — COMPLETE
 
-P1 `Migrations` is COMPLETE. The name/batch replacement is implemented and committed through final implementation HEAD `478a040d79c3fbed6a50d88e672d78cd90aacb44`; Task 05 independently reran Swift 6.3.3 build and the full 455-test suite with zero failures/skips; the NEW fresh GPT-5.6 Sol Wave F source/evidence root audit is CLEAN at F01-F48 = 48/48 PASS and E01-E10 = 10/10 PASS; primary coordinator final closure is accepted. No migration correction, push, tag, or release is implied by this state.
+The accepted migration model is declarative-first `Migration` with default type-name identity plus explicit override, shared `MigrationPlan` / `MigrationBuilder` up/down plans, a `Run` escape hatch, immutable `Migrator`, durable `id / name / batch / applied_at` history, one atomic pending batch per `migrate()`, reverse batch revert, and exact `UInt` resulting-current-batch APIs.
 
-Observation / Reactive Queries is COMPLETE. Research/planning, implementation Tasks 01-07, Task 07 Rerun 02, the CLEAN + PRIMARY-accepted Technical Root Audit 02, README/publication/Agent Skill closure, direct-local Public Closure Validation 01, and PRIMARY public-closure acceptance are complete. Final accepted executable evidence remains Swift 6.3.3 build + 557/557 tests in 11 suites with 0 failures/0 skips, focused Swift 6.4 public Observation/manual-finalization coverage, and Swift 6.4 build PASS. F-T07-001 remains permanently CLOSED_AS_FALSE_POSITIVE with the accepted `observationRequiresReadOnlyQuery` versus unexpected-success `invalidResult` distinction; F-T07-002 through F-T07-007 remain closed by the DocC correction.
+Final accepted executable evidence includes Swift 6.3.3 build PASS and 455/455 tests with zero failures/skips. No broader schema-diff, generation, discovery, cross-process locking, push, tag, or release behavior is implied.
 
-Connection Pooling is COMPLETE. Research 01, probes P01-P05, Implementation Plan 01 + Correction 01, and Root Gate R1 accepted Task 01 lease substrate at `9b42f650e9d688b6d33de51604451f0c73192034` + `0f684f9a08ef004a3602d118ced8f4dcc4454a40`. Task 02 Pool actor / scoped checkout and Task 03 B1-B5 (thin `pool.transaction`, TX06-TX10 leak/drain, ST01-ST05, AP01-AP04 + Correction 01, H01-H03 + `forceNextConnectionOpenFailure` seam) are PRIMARY-accepted after per-wave Sol audits. Task 04 Observation × Pool integration (`ConnectionPoolObservationTests` OP01-OP06: lease-surviving Database observation, pooled READ ONLY refresh authority and stale `.poolLeaseExpired`, thin `pool.transaction` COMMIT/ROLLBACK publication, pooled Appender visibility, fail-closed retirement/replacement without false publication, and other-Database coordinator locality) is PRIMARY-accepted after a CLEAN Sol audit at `a4b3cfb8d110323740d5c1f5c70613b5028a93dd3ea717afc2e46dee91ac0cd3`. Task 05 public closure (README Pooling section, FUTURE_PUBLICATIONS entry 008, source-owned `duck-connection-pooling` skill, SKILL_INDEX routing, and stable-doc sync) is PRIMARY-accepted after a CLEAN Sol public-closure audit at `1101bc67aef55fea2b8030b28083f88dc7de112c96b473b2fd533d3089d484e0`. Full Swift 6.3.3 package validation is 636 tests / 18 suites with 0 failures / 0 skips / 0 warnings. No pooling push/tag/release is implied by this state. The fixed selected-column Appender slice is complete after technical and public-closure CLEAN audits, with Swift 6.3.3 build and 647 tests in 20 suites passing. Other advanced Appender surfaces, complex Value families, Vortegy, Android follow-up, and push/tag/release remain unauthorized.
+### Observation / Reactive Queries — COMPLETE
+
+The accepted v1 surface is a UI-neutral reusable latest-state `QueryObservation` over `QueryResult`, native READ ONLY refreshes, actual successful `NativeResult.isReadOnly` truth, bounded/coalescing delivery, same-`Database` invalidation, managed + flat manual Transaction finalization/publication, and ordinary/Transaction Appender visibility integration.
+
+The current boundary explicitly does not promise event-log delivery, reusable prepared-handle VIEW rebind, cross-Database invalidation, cross-process/file watching, or framework-specific publishers. Accepted executable evidence remains Swift 6.3.3 build + 557/557 tests in 11 suites with zero failures/skips, focused Swift 6.4 public Observation/manual-finalization coverage, and Swift 6.4 build PASS.
+
+### Connection Pooling — COMPLETE
+
+The public surface is `Database.pool(maximumConnections:)`, actor `ConnectionPool` with `maximumConnections`, scoped `pool.connection`, thin `pool.transaction`, and `shutdown()`.
+
+The accepted implementation preserves FIFO cancellation-safe checkout, full-token lease liveness, retirement/replacement of unusable Connections, lease-safe Observation refresh/publication, pooled Appender visibility, and same-`Database` observation locality. Full Swift 6.3.3 validation is 636 tests / 18 suites with 0 failures / 0 skips / 0 warnings. README, publication source material, and the source-owned `duck-connection-pooling` skill complete public closure.
+
+The fixed selected-column Appender slice is also accepted current state with Swift 6.3.3 build and 647 tests in 20 suites passing.
+
+Unrelated future integrations remain separately gated. Android follow-up, additional platform assurance, push/tag/release, advanced Appender surfaces, and nested/complex Value families remain unauthorized until separately promoted.
+
+### Public capability closure contract
 
 Public Capability Closure is complete for Query Execution, Transactions, reusable Statements, Appender, exact Foundation.Decimal, Codable / Model Layer, Observation / Reactive Queries, and Connection Pooling. Central skill federation onboarding/publication remains separate from repository-local source ownership.
 
-## Universal Wave B path contract
+## Universal value-family path contract
 
-Every implemented type family must use the existing architecture and cover:
+Every implemented type family uses the existing architecture and covers:
 
 ```text
 ordinary query binding/execution
@@ -51,31 +64,22 @@ logical result metadata
 boundary values and exact rejection
 ```
 
-Resolved native target metadata must be honored exactly. Targetless values use only the deterministic natural target frozen by the accepted plan/corrections.
+Resolved native target metadata is authoritative. Targetless values use only their accepted deterministic natural target.
 
-Rounding, lossy narrowing, sentinel collision, unsupported special states, and unchecked overflow are forbidden. Reject before unsafe native mutation whenever the existing architecture permits preflight.
+Rounding, lossy narrowing, sentinel collision, unsupported special states, and unchecked overflow are forbidden. Deterministic conversion/planning failure must reject before unsafe native mutation whenever the existing architecture permits whole-row preflight.
 
-## Frozen conversion anchors
+## Temporal and exact-conversion anchors
 
-P01 is authoritative for DATE/TIME/TIME_NS/TIMESTAMP S/MS/us/NS finite ranges, infinity sentinels, divisibility, exact 24:00 handling, checked overflow, and floor-consistent negative/pre-epoch conversion.
+DATE / TIME / TIME_NS / TIMESTAMP_S / TIMESTAMP_MS / TIMESTAMP_US / TIMESTAMP_NS preserve their accepted finite ranges, infinity-sentinel rules, exact divisibility, standalone `24:00`, checked overflow, and floor-consistent negative/pre-epoch conversion.
 
-Important natural-target rules:
+Natural-target rules:
 
 ```text
 targetless PureTime -> TIME_NS
 targetless DateTime -> TIMESTAMP_NS only when exactly representable
 ```
 
-P02 is authoritative for TIMESTAMPTZ/Foundation.Date:
-
-```text
-native identity: signed Int64 microseconds since Unix epoch
-DuckDB ±Int64.max sentinels: reject for Foundation.Date
-non-finite Foundation.Date: reject
-conversion: Foundation-reference split algorithm
-acceptance: exact bidirectional per-value equality only
-silent rounding/tolerance: forbidden
-```
+TIMESTAMPTZ / Foundation.Date uses signed `Int64` microseconds since the Unix epoch. DuckDB ±`Int64.max` sentinels and non-finite Foundation.Date reject. Conversion accepts only exact bidirectional per-value equality with no tolerance or silent rounding.
 
 Largest contiguous guaranteed exact subset:
 
@@ -83,11 +87,11 @@ Largest contiguous guaranteed exact subset:
 [-7_611_627_392_000_000, 9_568_241_792_000_000] microseconds
 ```
 
-That subset is not a hard bound; sparse exact values outside it remain valid when the accepted per-value predicate succeeds.
+That subset is not a hard bound; sparse exact values outside it remain valid when the exact per-value predicate succeeds.
 
 ## Current public compatibility boundary
 
-After accepted Wave C, public `Value` supports:
+Public `Value` supports:
 
 ```text
 null
@@ -107,22 +111,28 @@ Foundation.Date as exact TIMESTAMPTZ
 Interval
 ```
 
-`Value` is a public struct facade with internal exhaustive storage. Exact 128-bit values are stored as hidden word pairs so the package remains buildable at the macOS 12 / iOS 15 floors; UUID remains availability-free. B2 maps `PureDate` exactly to `DATE`, `PureTime` exactly to `TIME` / `TIME_NS` (with targetless natural `TIME_NS`), and `DateTime` exactly to `TIMESTAMP_S` / `TIMESTAMP_MS` / `TIMESTAMP_US` / `TIMESTAMP_NS` (with targetless natural `TIMESTAMP_NS` only when exactly representable). B3 maps Foundation.Date exactly to TIMESTAMPTZ using signed Int64 microseconds since the Unix epoch; targetless and resolved Foundation.Date binding accept only TIMESTAMPTZ, preserve no timezone metadata, and require exact per-value equality with no tolerance/silent rounding. B4 adds shared `Interval`, `Value.Kind.interval == 21` with `Value.Kind` IDs `0...20` unchanged, exact finite native narrowing/transport, structural mixed-sign/non-normalized preservation, and the public `Value.interval`/Row conveniences. Wave C adds `Value.Kind.decimal == 22` with all prior IDs stable, public `Value.decimal`/Row Decimal conveniences, ordinary/Optional query transport, reusable Statement binding/rebinding and transaction routing, exact Appender DECIMAL rows, and validity-first W/S-aware result reconstruction. Explicit `DECIMAL(W,S)` is authoritative; targetless Decimal uses canonical exact natural W/S including zero `1/0`; no implicit rounding or Double/Float transport is allowed; nonfinite values reject deterministically at native conversion/preflight. C2 hardens this Decimal vertical across owner lifetime, same-Statement and cross-Connection concurrency, Appender correlation, transaction routing, failure recovery, protected regressions, full-package/build validation, and a normal-import consumer. Fresh R4 accepted the complete committed Decimal vertical with zero blockers. Nested/complex families remain separately gated.
+`Value` is a public struct facade with internal exhaustive storage. Exact 128-bit values use hidden word pairs so the package remains buildable at the macOS 12 / iOS 15 floors; UUID remains availability-free.
 
-Accepted B2 conversion and ownership anchors are: the B01 finite `PureDate` civil-domain guard precedes `duckdb_to_date`; standalone `PureTime` supports exact `24:00`; target precision is resolved and honored without rounding; negative timestamp decomposition is floor-consistent; prepared binding rejects `TIMESTAMPTZ` in B2; Appender temporal conversion and typed-value construction happen for the whole row in Phase 1 before native mutation, with deterministic failure recoverable and native Phase 2 failure terminal; and result materialization preserves source precision identity through `ResultColumn`.
+`PureDate` maps exactly to `DATE`. `PureTime` maps exactly to `TIME` / `TIME_NS`, with targetless natural `TIME_NS`. `DateTime` maps exactly to `TIMESTAMP_S` / `TIMESTAMP_MS` / `TIMESTAMP_US` / `TIMESTAMP_NS`, with targetless natural `TIMESTAMP_NS` only when exactly representable. Temporal Appender conversion and typed-value construction happen during whole-row preflight before native mutation; deterministic failure is recoverable and native mutation/finalization failure is terminal.
 
-Accepted B3 anchors are: `Value.Kind.timestampTZ == 20` with `Value.Kind` `0...19` unchanged; `Value.timestampTZ`, `get(Date.self)`, `timestampTZValue`, and Row Date conveniences are exact; `NativeFoundationDateCodec` owns P02 conversion and rejects DuckDB ±`Int64.max` sentinels and non-finite Foundation.Date; Prepared Date binding accepts only targetless/resolved TIMESTAMPTZ; Appender Date conversion and typed-value creation occur in whole-row Phase 1; and NativeResult reads `duckdb_timestamp.micros` and rejects non-exact/infinity values through `invalidResult`.
+Foundation.Date maps exactly to TIMESTAMPTZ using signed `Int64` microseconds since the Unix epoch; targetless and resolved binding accept only TIMESTAMPTZ, preserve no timezone metadata, and require exact per-value equality. `Value.Kind.timestampTZ == 20` with `Value.Kind` `0...19` unchanged. `NativeFoundationDateCodec` owns the exact conversion. Appender Date conversion and typed-value creation occur during whole-row preflight; `NativeResult` reads `duckdb_timestamp.micros` and rejects non-exact/infinity values through `invalidResult`.
 
-Accepted B4 anchors are: shared `Interval`; `Value.Kind.interval == 21` with IDs `0...20` unchanged; `Value.interval`, `get(Interval.self)`, `intervalValue`, and Row Interval conveniences; exact finite `Int64` → `Int32` months/days narrowing and exact `Int64` microseconds; mixed-sign/non-normalized preservation; generic normalization preservation of semantic infinity/out-of-range values with native Prepared/Appender rejection; direct `duckdb_bind_interval`; Appender whole-row Phase-1 planning plus direct `duckdb_append_interval` Phase 2; validity-first direct `duckdb_interval` result-vector materialization without `duckdb_get_interval` sentinel inference; legitimate all-minimum physical triple preservation; ordinary plain `Interval`/Optional transport versus dynamic `Value.interval` transport; and protected transaction `.binding` first-reason identity.
+Shared `Interval` is the public interval type. `Value.Kind.interval == 21` with IDs `0...20` unchanged. Finite months/days narrow with exact `Int64 -> Int32`, microseconds remain exact `Int64`, and mixed-sign/non-normalized components are preserved. Semantic infinity/out-of-range values may survive generic normalization but reject at native Prepared/Appender boundaries. Prepared binding uses direct `duckdb_bind_interval`; Appender performs whole-row preflight followed by direct `duckdb_append_interval`; native failure is terminal. Result materialization uses validity-first direct `duckdb_interval` access and preserves the legitimate all-minimum physical triple.
 
-## Explicit Wave B non-goals
+Foundation.Decimal maps exactly to DuckDB `DECIMAL(W,S)`. `Value.Kind.decimal == 22` with all prior IDs stable. Public `Value.decimal` / Row Decimal conveniences, ordinary/Optional query transport, reusable Statement binding/rebinding and transaction routing, exact Appender rows, and validity-first W/S-aware result reconstruction are accepted current state. Explicit `DECIMAL(W,S)` is authoritative; targetless Decimal uses canonical exact natural W/S including zero `1/0`; implicit rounding and Double/Float transport are forbidden; nonfinite values reject deterministically. Appender conversion and `duckdb_create_decimal` typed-value construction happen during whole-row preflight before native mutation; native mutation uses `duckdb_append_value`, and Swift destroys the caller-owned temporary after the append copies/stores it. Native failure remains terminal.
 
-Wave B does not authorize:
+Android assurance for exact Decimal remains exact-source arm64/API28 compile/link only; Android runtime was not performed or claimed.
+
+Nested/complex families remain separately gated.
+
+## Explicit value-family non-goals
+
+The current scalar/value closure does not authorize:
 
 ```text
 nested LIST/ARRAY/MAP/STRUCT/UNION/ENUM Value materialization
-Table/full-model or arbitrary Decodable projection
-migrations
+new Table/full-model behavior beyond the accepted Codable / Model Layer
+new migration behavior beyond the accepted migration surface
 DuckDB vendor mutation
 SQL dependency changes
 Bridges/PostgresBridge modernization
@@ -131,22 +141,6 @@ release/tag/publication
 unrelated public API redesign
 ```
 
-## Current gate evidence
-
-```text
-.artifacts/implementation/value-result-type-expansion-2026-09-04/PRE_B_GATE_COORDINATOR_ACCEPTANCE.md
-.artifacts/validation/value-result-type-expansion-p01-temporal-raw-2026-09-06/P01_COORDINATOR_ACCEPTANCE.md
-.artifacts/validation/value-result-type-expansion-p02-foundation-date-2026-09-06/P02_COORDINATOR_ACCEPTANCE.md
-.artifacts/implementation/value-result-type-expansion-2026-09-04/A2_FINAL_COORDINATOR_ACCEPTANCE.md
-.artifacts/implementation/value-result-type-expansion-b1-api-shape-correction-01-2026-09-07/B1_CORRECTION_01_COORDINATOR_ACCEPTANCE.md
-.artifacts/implementation/value-result-type-expansion-b2-temporal-vertical-2026-09-07/B2_CORRECTION_03_COORDINATOR_ACCEPTANCE.md
-.artifacts/reviews/value-result-type-expansion-b3-foundation-date-timestamptz-root-audit-01-2026-09-08/B3_IMPLEMENTATION_ROOT_AUDIT_01_COORDINATOR_ACCEPTANCE.md
-.artifacts/reviews/value-result-type-expansion-b3-correction-01-coordinator-acceptance-2026-09-08/B3_CORRECTION_01_COORDINATOR_ACCEPTANCE.md
-.artifacts/reviews/value-result-type-expansion-b4-interval-root-reaudit-01-2026-09-08/B4_INTERVAL_IMPLEMENTATION_ROOT_REAUDIT_01_COORDINATOR_ACCEPTANCE.md
-.artifacts/reviews/value-result-type-expansion-b5-hardening-implementation-coordinator-acceptance-2026-09-09/B5_HARDENING_IMPLEMENTATION_COORDINATOR_ACCEPTANCE.md
-.artifacts/reviews/value-result-type-expansion-r3-non-decimal-root-audit-01-coordinator-completion-acceptance-2026-09-09/R3_NON_DECIMAL_ROOT_AUDIT_01_COORDINATOR_COMPLETION_ACCEPTANCE.md
-.artifacts/reviews/value-result-type-expansion-p03-final-root-audit-01-coordinator-acceptance-2026-09-10/P03_FOUNDATION_DECIMAL_FINAL_ROOT_AUDIT_01_COORDINATOR_ACCEPTANCE.md
-.artifacts/reviews/value-result-type-expansion-wave-c-decimal-final-coordinator-acceptance-2026-09-12/WAVE_C_DECIMAL_FINAL_COORDINATOR_ACCEPTANCE.md
-```
+Detailed historical implementation/audit lineage remains under `.artifacts/**`; it is not current execution state.
 
 Any future work beyond the completed Value & Result Type Expansion closure remains in `.agent/TODO.md` or other durable future-work state and requires separate promotion/research/planning authorization before becoming active executable work.

@@ -378,7 +378,7 @@ try await connection.transaction { transaction in
 
 The transaction Appender scope does not commit independently and is not a nested transaction, savepoint, or implicit ambient transaction. A body error, cancellation, terminal native append/row-completion failure, or finalization failure that escapes the scope makes the outer transaction rollback-only. Catching that failure in the surrounding transaction body cannot turn the later outcome into a successful COMMIT. If the surrounding transaction body catches an arbitrary Appender-body error and returns, outer transaction finalization later surfaces `.appenderTransactionAborted(...)` rather than permitting COMMIT; callers should use the typed error, never parse diagnostic text.
 
-Preflight row validation remains scoped: wrong row width, unsupported Swift binding during caller normalization, and deterministic whole-row Phase-1 preflight mismatch mutate zero native columns and can be caught so a valid row follows. Native Phase-2 append, end-row, or auto-flush failure remains terminal even when its immediate error is caught inside the Appender body. Cancellation is cooperative at Swift boundaries and does not promise to preempt a synchronous native C call already running.
+Preflight row validation remains scoped: wrong row width, unsupported Swift binding during caller normalization, and deterministic whole-row preflight mismatch mutate zero native columns and can be caught so a valid row follows. Native append, end-row, or auto-flush failure remains terminal even when its immediate error is caught inside the Appender body. Cancellation is cooperative at Swift boundaries and does not promise to preempt a synchronous native C call already running.
 
 While a transaction Appender body is live, inherited same-Transaction work that would self-depend is rejected, including `transaction.query`, `transaction.execute`, transaction-bound `Statement.query` / `Statement.execute`, and nested `transaction.appender`. Ordinary same-Connection APIs are not an escape hatch. Use another `Connection` for independent concurrent work. A deliberately pre-created or otherwise non-inheriting same-Transaction child may queue behind the live Appender operation; awaiting that queued work from inside the still-live body can create a caller dependency cycle.
 
@@ -496,7 +496,7 @@ try await connection.appender(to: events) { appender in
 }
 ```
 
-Decimal row values map only to DuckDB `DECIMAL(W,S)`. Exact width/scale fit is required, there is no rounding, and nonfinite values reject. Whole-row Phase 1 performs deterministic Decimal conversion and constructs an owned typed value through `duckdb_create_decimal` before native row mutation; a later-column deterministic Decimal rejection mutates zero native columns and is recoverable. Phase 2 appends via `duckdb_append_value`, Swift destroys the temporary `duckdb_value` after the native append copies/stores it, and native Phase-2 failure remains terminal.
+Decimal row values map only to DuckDB `DECIMAL(W,S)`. Exact width/scale fit is required, there is no rounding, and nonfinite values reject. Whole-row preflight performs deterministic Decimal conversion and constructs an owned typed value through `duckdb_create_decimal` before native row mutation; a later-column deterministic Decimal rejection mutates zero native columns and is recoverable. Native mutation appends via `duckdb_append_value`, Swift destroys the temporary `duckdb_value` after the native append copies/stores it, and native append/end-row/finalization failure remains terminal.
 
 The current slice still does not imply list/struct/map or other complex family support.
 
@@ -578,7 +578,7 @@ Preserve these user-facing angles:
 
 Status: **implemented accepted source material / future article-publication candidate**
 
-Trigger for publication: after final Wave C/R4/release acceptance of the exact Decimal vertical. The source below describes current accepted implementation truth, not a future redesign.
+Trigger for publication: when the maintainer chooses to publish the already accepted exact Decimal vertical. The source below describes current implementation truth, not a future redesign.
 
 ### Why Decimal cannot route through Double
 
@@ -632,9 +632,9 @@ reusable Statement dynamic or fixed binding
   -> exact bind
 
 Appender complete-row Decimal
-  -> whole-row Phase-1 deterministic conversion
+  -> whole-row deterministic preflight conversion
   -> owned typed native value
-  -> Phase-2 append
+  -> native append
 
 result DECIMAL physical reconstruction
   -> width-aware physical carrier
@@ -642,7 +642,7 @@ result DECIMAL physical reconstruction
   -> Value.decimal
 ```
 
-Prepared statements remain reusable after deterministic caller-side Decimal binding rejection. Transaction-local reusable `Statement` query/execute participates through the same exact Decimal contract. Appender scopes remain recoverable after deterministic Phase-1 Decimal rejection.
+Prepared statements remain reusable after deterministic caller-side Decimal binding rejection. Transaction-local reusable `Statement` query/execute participates through the same exact Decimal contract. Appender scopes remain recoverable after deterministic preflight Decimal rejection.
 
 ### Natural targetless W/S versus explicit target W/S
 
@@ -663,7 +663,7 @@ no Double-mediated “close enough”
 nonfinite Foundation.Decimal, including Decimal.nan, rejects at the native-conversion / preflight boundary
 ```
 
-For reusable Statements those deterministic failures surface as `.binding` and leave the statement reusable. For Appender rows they surface as preflight `.appenderAppend` and mutate zero native columns when they occur in whole-row Phase 1.
+For reusable Statements those deterministic failures surface as `.binding` and leave the statement reusable. For Appender rows they surface as preflight `.appenderAppend` and mutate zero native columns when they occur during whole-row preflight.
 
 ### DCT128-v1 high-level exact transport
 
@@ -695,21 +695,21 @@ while ResultColumn metadata can still differ
 
 Duck does not claim that `Foundation.Decimal` preserves user-entered textual trailing zeros as `Value` identity. Publication copy should separate numeric identity from column metadata instead of promising textual formatting storage that the type does not provide.
 
-### Prepared direct Decimal route, Appender Phase 1, and result reconstruction
+### Prepared direct Decimal route, Appender preflight, and result reconstruction
 
 Prepared binding uses the direct exact `duckdb_bind_decimal` route after computing either the natural target or the explicit resolved target. There is no temporary string or `Double` hop.
 
-Appender Decimal uses whole-row Phase 1:
+Appender Decimal uses whole-row preflight:
 
 ```text
 resolve DECIMAL(W,S) target
 -> exact coefficient conversion / fit validation
 -> owned typed value via duckdb_create_decimal
--> Phase 2 duckdb_append_value
+-> native duckdb_append_value
 -> Swift destroys the temporary duckdb_value after native append copies/stores it
 ```
 
-A later-column deterministic Decimal failure mutates zero native row columns and remains recoverable on the same live Appender. A native Phase-2 failure remains terminal under existing Appender rules.
+A later-column deterministic Decimal failure mutates zero native row columns and remains recoverable on the same live Appender. A native append/end-row/finalization failure remains terminal under existing Appender rules.
 
 Result reconstruction is width-aware and validity-first: the native physical carrier is read for the resolved `DECIMAL(W,S)`, the signed coefficient is revalidated, and only then is a public `Value.decimal` produced. Reconstruction failure is an invalid-result error rather than a silent approximate value.
 
@@ -731,7 +731,7 @@ No performance claim should be published unless separately backed by measured ev
 
 ### Platform evidence boundary
 
-If platform assurance is discussed, preserve the accepted P03 boundary exactly:
+If platform assurance is discussed, preserve the accepted exact Decimal platform boundary exactly:
 
 ```text
 macOS: runtime/Codable exact-source evidence
@@ -752,7 +752,7 @@ Preserve these user-facing angles:
 2. the same Decimal contract is available through ordinary queries, reusable Statements, and bulk Appender rows;
 3. targetless natural `W/S` is deterministic, while explicit `DECIMAL(W,S)` is authoritative and unforgiving;
 4. width/scale metadata lives on `ResultColumn`, not in `Value` numeric identity;
-5. deterministic rejection is part of correctness: Appender Phase 1 can refuse a later-column Decimal without poisoning the live scope, while native Phase 2 remains terminal.
+5. deterministic rejection is part of correctness: Appender preflight can refuse a later-column Decimal without poisoning the live scope, while native append/end-row/finalization failure remains terminal.
 
 ## 004 — Database, Connection, and SQL query execution
 

@@ -2,14 +2,14 @@
 
 Ideas and maintainer-prioritized capabilities that are not yet active approved implementation tasks.
 
-P0 `Codable / Model Layer`, P1 `Migrations`, Observation / Reactive Queries, and Connection Pooling are COMPLETE and no longer future work. Each completed capability has technical root + public README/publication/Agent Skill closure. Every later capability remains future work until separately researched/planned/authorized.
+`Codable / Model Layer`, `Migrations`, Observation / Reactive Queries, and Connection Pooling are COMPLETE and no longer future work. Each completed capability has technical validation/audit + public README/publication/Agent Skill closure. Every later capability remains future work until separately researched/planned/authorized.
 
 ## Maintainer-Prioritized Release Order
 
 The current priority is release readiness, not another feature layer:
 
 ```text
-Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf` -> C8 current / authorized -> C9 future
+Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf` -> C8 current / closure in progress -> C9 future
 -> v1.0.0 technical release validation
 -> independent release audit
 -> real local macOS SwiftUI consumer
