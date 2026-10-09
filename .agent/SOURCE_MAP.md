@@ -41,9 +41,9 @@ There is intentionally no model/provider/tool-specific stable session-orchestrat
 
 The current package/module source identity is `Duck`; C5 closed at local commit `0dc702c5bcf53647c35e8177d35360c299a0e63b` after full Swift 6.3.3/6.4 validation and a CLEAN independent whole-candidate audit.
 
-C6 is the active checkpoint and changes stable governance, source-owned `duck-*` skills, public-writing guidance, and publication backlog only. Production Swift/API behavior is not part of the C6 mutation surface. Protected `.agent/STYLE_GUIDELINES.md` remains unrelated WIP and is excluded.
+C6 stable governance, source-owned `duck-*` skills, public-writing guidance, and publication-backlog synchronization closed at local commit `31973379133ed290a749d2e5f9dbc9b266b2ab00`. C7 is now the active checkpoint: the repository has been physically moved to `SwiftStream/Duck`, and only path-sensitive current-state synchronization plus move validation/audit/closure is in scope. Production Swift/API behavior is not part of the C7 mutation surface. Protected `.agent/STYLE_GUIDELINES.md` remains unrelated WIP and is excluded.
 
-The required next sequence is C7 physical repository move to `SwiftStream/Duck`, C8 semantic development-history leakage cleanup, C9 final Foundation closure, then the separate v1.0.0 technical validation/release-audit/real-consumer/public-doc gates. Major feature expansion is deferred until after local v1.0.0 unless a proven release blocker requires the smallest bounded correction.
+The C7 physical repository move to `SwiftStream/Duck` has been performed locally and is awaiting validation/audit closure. The required remaining sequence is C8 semantic development-history leakage cleanup, C9 final Foundation closure, then the separate v1.0.0 technical validation/release-audit/real-consumer/public-doc gates. Major feature expansion is deferred until after local v1.0.0 unless a proven release blocker requires the smallest bounded correction.
 
 Current pooling navigation is `Sources/Duck/ConnectionPool.swift`, `Database.pool(maximumConnections:)`, pool cases in `DatabaseError.swift`, tests `ConnectionPool*Tests.swift` / `ConnectionPoolObservationTests.swift`, and skill `duck-connection-pooling`.
 
