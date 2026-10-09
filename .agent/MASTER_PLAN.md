@@ -30,8 +30,8 @@ The active Foundation/release sequence is:
 
 ```text
 C6 stable governance / skills / publication synchronization — complete at local commit `31973379133ed290a749d2e5f9dbc9b266b2ab00`
--> C7 physical repository move to SwiftStream/Duck — moved locally; validation/audit closure is current
--> C8 semantic development-history leakage cleanup
+-> C7 physical repository move to SwiftStream/Duck — complete at local commit `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf`
+-> C8 semantic development-history leakage cleanup — current authorized checkpoint
 -> C9 final Foundation closure
 -> separate v1.0.0 technical release validation
 -> fresh independent release audit
@@ -42,7 +42,7 @@ C6 stable governance / skills / publication synchronization — complete at loca
 -> local v1.0.0
 ```
 
-C5, the technical/public package rename to `Duck`, is complete at local commit `0dc702c5bcf53647c35e8177d35360c299a0e63b`. C6 stable governance/skills/publication synchronization is complete at local commit `31973379133ed290a749d2e5f9dbc9b266b2ab00`. The C7 physical move to `SwiftStream/Duck` has been performed locally and is the current validation/audit closure checkpoint.
+C5, the technical/public package rename to `Duck`, is complete at local commit `0dc702c5bcf53647c35e8177d35360c299a0e63b`. C6 stable governance/skills/publication synchronization is complete at local commit `31973379133ed290a749d2e5f9dbc9b266b2ab00`. C7 physical relocation to `SwiftStream/Duck` is CLOSED at local commit `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf`. C8 semantic development-history leakage cleanup is the current authorized checkpoint; C9 remains future.
 
 Until local v1.0.0, do not start Advanced Appender expansion, per-cell `DEFAULT`, QueryAppender, public DataChunk/vector writing, manual Appender lifecycle expansion, or nested/complex `LIST` / `ARRAY` / `MAP` / `STRUCT` / `UNION` / `ENUM` Value/result families unless a newly proven release blocker requires the smallest bounded correction. Those feature families remain preserved for separate post-v1.0 prioritization, initially through a new v1.1.0 roadmap rather than by inheriting old TODO order automatically.
 

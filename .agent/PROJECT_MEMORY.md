@@ -4,7 +4,7 @@ Durable current-state facts useful beyond immediate source inspection.
 
 ## Current State
 
-- Swift Package Manager library package/product/primary target name is `Duck`. Foundation C5 completed the technical/public rename at local commit `0dc702c5bcf53647c35e8177d35360c299a0e63b`; C6 stable-governance/skills/publication synchronization closed at local commit `31973379133ed290a749d2e5f9dbc9b266b2ab00`. The repository now lives at `SwiftStream/Duck`; the C7 physical move has been performed locally and is the current validation/audit closure checkpoint.
+- Swift Package Manager library package/product/primary target name is `Duck`. Foundation C5 completed the technical/public rename at local commit `0dc702c5bcf53647c35e8177d35360c299a0e63b`; C6 stable-governance/skills/publication synchronization closed at local commit `31973379133ed290a749d2e5f9dbc9b266b2ab00`; C7 physical relocation to `SwiftStream/Duck` closed at local commit `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf`. C8 semantic development-history leakage cleanup is the current authorized checkpoint; C9 remains future.
 - The package uses Swift tools 6.3, Swift language mode 6, iOS 15+ and macOS 12+ manifest deployment targets.
 - The tracked repository toolchain pin is `.swift-version` with exact Swift `6.3.3`. `swiftly.pkg` is intentionally absent and must not be recreated unless the maintainer explicitly changes that policy.
 - `Package.swift` declares SQL from `2.0.0` at `https://github.com/SwiftStream/SQL`; the current generated `Package.resolved` evidence resolves SQL `2.1.0` at revision `1099bb8f62d2b6bacddfc6617318ddf4cfc7511e`. `Package.swift` is the committed dependency declaration; `Package.resolved` remains intentionally ignored local resolution evidence.
@@ -68,7 +68,7 @@ Durable current-state facts useful beyond immediate source inspection.
 ## v1.0 Product Boundary
 
 - The primary product goal is local publicly-ready `v1.0.0`, not another major feature layer.
-- Required remaining order is C7 closure -> C8 -> C9, v1 technical validation, independent release audit, real macOS SwiftUI and UIKitPlus consumers, final public-doc polish/audit, then the local release snapshot.
+- Required remaining order is C8 closure -> C9, v1 technical validation, independent release audit, real macOS SwiftUI and UIKitPlus consumers, final public-doc polish/audit, then the local release snapshot.
 - Advanced Appender and nested/complex Value families remain preserved future work but are deferred until after local v1.0.0 unless a minimal release-blocker correction is proven.
 - Post-v1 feature ordering belongs to a separate v1.1.0 roadmap.
 - Push/remote release/publication remains a separate explicit maintainer gate.

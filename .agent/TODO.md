@@ -9,7 +9,7 @@ P0 `Codable / Model Layer`, P1 `Migrations`, Observation / Reactive Queries, and
 The current priority is release readiness, not another feature layer:
 
 ```text
-Foundation C6 complete -> C7 current (physical move complete; validation/audit closure pending) -> C8 -> C9
+Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf` -> C8 current / authorized -> C9 future
 -> v1.0.0 technical release validation
 -> independent release audit
 -> real local macOS SwiftUI consumer
