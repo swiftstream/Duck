@@ -1,6 +1,6 @@
 # System Rules
 
-Global invariants for SwiftDuckDB development.
+Global invariants for Duck development.
 
 ## Planning and Evidence
 
@@ -28,10 +28,10 @@ Global invariants for SwiftDuckDB development.
 - Public asynchronous database APIs use Swift structured concurrency and `async`/`await`.
 - Actors are the primary isolation mechanism for genuine shared mutable database execution/resource owners; exact ownership/isolation follows verified DuckDB semantics and reviewed API behavior.
 - Independent database work must not be serialized accidentally by oversized global ownership. Detailed strict-concurrency policy is owned by `LIBRARY_CODE_GUIDELINES.md`.
-- SwifQL is the mandatory SQL-construction layer for all SwiftDuckDB-owned SQL from the first query-capable implementation slice, including production code, tests, examples, and README usage.
+- SQL is the mandatory SQL-construction layer for all Duck-owned SQL from the first query-capable implementation slice, including production code, tests, examples, and README usage.
 - Duck SQL preparation uses the first-class `SQLDialect.duck` / `.duck` dialect. Do not route Duck queries through PostgreSQL compatibility rendering.
-- Direct handwritten SQL strings are not an ordinary repository construction path. Explicit raw SQL is represented through SwifQL raw constructs such as `SwifQL.raw(...)`, then prepared/bound through `.duck` like any other SwifQL query.
-- SwiftDuckDB must not create a competing SQL DSL. Detailed SwifQL execution policy is owned by `LIBRARY_CODE_GUIDELINES.md`.
+- Direct handwritten SQL strings are not an ordinary repository construction path. Explicit raw SQL is represented through SQL raw constructs such as `SQL.raw(...)`, then prepared/bound through `.duck` like any other SQL query.
+- Duck must not create a competing SQL DSL. Detailed SQL execution policy is owned by `LIBRARY_CODE_GUIDELINES.md`.
 
 ## Concrete Before Speculative
 
@@ -51,5 +51,4 @@ Global invariants for SwiftDuckDB development.
 - Update stable documentation when durable implementation state, reviewed direction, source/navigation ownership, decisions, or active task state changes.
 - Do not touch unrelated docs ceremonially.
 - Keep each detailed rule in one natural owner and use concise routing summaries elsewhere rather than competing copies of the full policy.
-- Do not create additional governance layers merely to imitate another repository; add them only for a real SwiftDuckDB need.
-
+- Do not create additional governance layers merely to imitate another repository; add them only for a real Duck need.

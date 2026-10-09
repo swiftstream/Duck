@@ -1,12 +1,12 @@
 ---
-name: swiftduckdb-codable-models
-description: Use for SwiftDuckDB flat Row/QueryResult Decodable projection, ModelEncoder, Table model insert/update on Connection or Transaction, omission-vs-NULL semantics, changed-field persistence, and model-layer boundaries.
+name: duck-codable-models
+description: Use for Duck flat Row/QueryResult Decodable projection, ModelEncoder, Table model insert/update on Connection or Transaction, omission-vs-NULL semantics, changed-field persistence, and model-layer boundaries.
 license: LICENSE.txt
 ---
 
-# SwiftDuckDB Codable / Model Layer
+# Duck Codable / Model Layer
 
-Use this skill when SwiftDuckDB work centers on flat Codable models or the explicit `Table` insert/update conveniences. Keep query construction, transaction ownership, and model persistence boundaries visible rather than treating SwiftDuckDB as a broad ORM.
+Use this skill when Duck work centers on flat Codable models or the explicit `Table` insert/update conveniences. Keep query construction, transaction ownership, and model persistence boundaries visible rather than treating Duck as a broad ORM.
 
 ## 1. Decode a materialized Row into a flat model
 
@@ -79,7 +79,7 @@ for field in encoded.fields {
 
 `EncodedModel.fields` is ordered. Field names follow `CodingKeys`; field order follows the model's encoding invocation order.
 
-The encoder preserves exact current SwiftDuckDB scalar families, including supported UUID, Data, Foundation.Decimal, temporal, Interval, and availability-gated 128-bit integer values.
+The encoder preserves exact current Duck scalar families, including supported UUID, Data, Foundation.Decimal, temporal, Interval, and availability-gated 128-bit integer values.
 
 Do not add reflection/stringification fallback for unsupported model shapes.
 
@@ -150,7 +150,7 @@ let updated = try await inserted.update(
 
 The chosen key column is used for `WHERE` and excluded from `SET`. Only changed non-key fields are written.
 
-If there are no changed non-key fields, SwiftDuckDB executes no UPDATE SQL. The returning form returns `self`; the non-returning form returns `Void`.
+If there are no changed non-key fields, Duck executes no UPDATE SQL. The returning form returns `self`; the non-returning form returns `Void`.
 
 ```swift
 try await inserted.updateNonReturning(
@@ -177,7 +177,7 @@ updateNonReturning(on:key,on: Transaction)
 
 Do not invent model `save`, `persist`, delete, upsert, batch, repository, identity-map, or arbitrary-WHERE APIs.
 
-Use normal SwifQL directly when the required query does not match this small convenience surface.
+Use normal SQL directly when the required query does not match this small convenience surface.
 
 ## 10. Use the same model operations inside an explicit Transaction
 
@@ -210,7 +210,7 @@ Preserve exact value-family transport for UUID, Data, Decimal, temporal values, 
 
 Do not introduce raw handwritten CRUD SQL merely to implement model persistence.
 
-## 12. Choose direct SwifQL when the model convenience is the wrong abstraction
+## 12. Choose direct SQL when the model convenience is the wrong abstraction
 
 Use the basic query-execution workflow for:
 
@@ -224,7 +224,7 @@ batch operations
 queries that do not map naturally to one flat model
 ```
 
-The model layer complements SwifQL; it does not replace it.
+The model layer complements SQL; it does not replace it.
 
 ## 13. Current non-goals
 
@@ -238,7 +238,7 @@ model delete/upsert/batch/arbitrary-WHERE persistence
 arbitrary nested Codable object/array graphs
 migrations/schema evolution
 observation/reactive queries
-pool ownership/configuration (leased work can use `swiftduckdb-connection-pooling`)
+pool ownership/configuration (leased work can use `duck-connection-pooling`)
 savepoints/manual transaction lifecycle/custom isolation
 implicit ambient transaction participation
 new platform/runtime guarantees

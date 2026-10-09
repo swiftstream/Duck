@@ -1,6 +1,6 @@
 # Testing Rules
 
-Stable testing authority for SwiftDuckDB.
+Stable testing authority for Duck.
 
 ## Core Principle
 
@@ -39,7 +39,7 @@ Choose the lowest layer that can truthfully reproduce the risk:
 
 1. **Direct C contract tests** for DuckDB open/connect/query/result/chunk/prepared/native lifecycle behavior.
 2. **Internal native-owner/resource tests** for RAII, failed-init cleanup, parent/child lifetime, result/vector copying.
-3. **Public real-engine integration tests** for SwifQL-built queries, bindings, results, errors, persistence, connection semantics.
+3. **Public real-engine integration tests** for SQL-built queries, bindings, results, errors, persistence, connection semantics.
 4. **Concurrency/compiler fixtures** for Swift isolation/sendability/consumer-boundary behavior that runtime tests cannot prove.
 5. **Platform/toolchain validation** for support claims that cannot be established by host tests alone.
 
@@ -54,7 +54,7 @@ Examples:
 - failed prepare/pending/result cleanup -> native wrapper integration test;
 - same-Connection reentrancy corruption -> structured concurrency test;
 - a Swift actor/sendability boundary rejected by compiler -> focused compiler fixture/gate;
-- wrong SwifQL bind order -> real prepared execution or adapter snapshot test;
+- wrong SQL bind order -> real prepared execution or adapter snapshot test;
 - unsupported native type -> explicit error-path integration test.
 
 Protect meaningful positive/negative sibling cases when they define the real boundary, not only the first reproduction.
@@ -69,15 +69,15 @@ For concurrency tests, prefer structured task groups, explicit state/result asse
 
 Performance timing may be benchmark evidence later, but it is not correctness proof.
 
-## SwifQL SQL Construction
+## SQL Construction
 
-Every SQL statement in SwiftDuckDB tests is constructed through SwifQL and prepared with `.duck`.
+Every SQL statement in Duck tests is constructed through the `SQL` package and prepared with `.duck`.
 
-- normal DDL/DML/SELECT uses declarative SwifQL;
-- intentional malformed/escape SQL uses `SwifQL.raw(...)`;
-- do not bypass SwifQL with handwritten `duckdb_query(..., "SELECT ...")` fixtures.
+- normal DDL/DML/SELECT uses declarative `SQL` builders;
+- intentional malformed/escape SQL uses `SQL.raw(...)`;
+- do not bypass SQL with handwritten `duckdb_query(..., "SELECT ...")` fixtures.
 
-Tests should verify SwiftDuckDB adapter/runtime behavior, not duplicate SwifQL's entire dialect-rendering suite.
+Tests should verify Duck adapter/runtime behavior, not duplicate SQL's entire dialect-rendering suite.
 
 ## Test Scope
 
@@ -92,7 +92,7 @@ Prioritize:
 - same-connection serialization and multi-connection correctness;
 - cancellation/transaction semantics when implemented;
 - prepared statement/Appender finalization when implemented;
-- SwifQL execution/runtime parity;
+- SQL execution/runtime parity;
 - platform boundaries when claimed.
 
 ## Validation Executor Boundary

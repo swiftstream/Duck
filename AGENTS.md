@@ -1,24 +1,24 @@
-# SwiftDuckDB Agent Governance
+# Duck Agent Governance
 
 ## Repository Identity
 
-SwiftDuckDB is a Swift-native embedded database library built around the DuckDB C API.
+Duck is a Swift-native embedded database library built around the DuckDB C API.
 
-The package includes the internal `Cduckdb` target generated from DuckDB `v1.5.5`, internal native resource owners, and an implemented public runtime API built around `Database`, actor-isolated `Connection`, scoped `Transaction`, reusable `Statement`, scoped `Appender`, `QueryResult`, `Row`, `Value`, `DatabaseError`, and SwifQL execution conveniences.
+The package includes the internal `Cduckdb` target generated from DuckDB `v1.5.5`, internal native resource owners, and an implemented public runtime API built around `Database`, actor-isolated `Connection`, scoped `Transaction`, reusable `Statement`, scoped `Appender`, `QueryResult`, `Row`, `Value`, `DatabaseError`, and SQL execution conveniences.
 
 Reviewed target direction: Swift 6.3+, iOS 15+, macOS 12+, Linux, Android, and Windows. A target is not considered validated merely because it is listed here; platform support claims require actual build/runtime evidence for the relevant toolchain.
 
-SwifQL is the mandatory SQL-construction layer for all SwiftDuckDB-owned SQL, including production code, tests, examples, and future README usage. Duck queries prepare through `SQLDialect.duck`. Direct handwritten SQL strings are not a normal construction path inside this repository; the explicit raw escape hatch is expressed through SwifQL raw constructs such as `SwifQL.raw(...)`, so execution still flows through SwifQL preparation/binding.
+SQL is the mandatory SQL-construction layer for all Duck-owned SQL, including production code, tests, examples, and future README usage. Duck queries prepare through `SQLDialect.duck`. Direct handwritten SQL strings are not a normal construction path inside this repository; the explicit raw escape hatch is expressed through SQL raw constructs such as `SQL.raw(...)`, so execution still flows through SQL preparation/binding.
 
 ## Physical Layout
 
 The repository root owns `AGENTS.md`, `.agent/`, `.artifacts/`, `Package.swift`, and `Sources/`.
 
-- `Sources/SwiftDuckDB/` is the production Swift target surface.
+- `Sources/Duck/` is the production Swift target surface.
 - `.agent/**` contains stable governance, reviewed direction, decisions, and durable navigation/state.
 - `.artifacts/**` contains transient research, plans, task instructions, execution reports, audits, and evidence. It is never stable authority.
 
-Git is on `master` with audited governance, package/native-foundation, SwifQL, and first-public-query checkpoints. `.artifacts/**` is protected from tracking. Frequent audited local checkpoint commits are authorized thereafter. Push and destructive/history-rewriting Git operations still require separate explicit authorization; follow `.agent/COMMIT_RULES.md`.
+Git is on `master` with audited governance, package/native-foundation, SQL 2.x, public-runtime capability, and Duck-rename checkpoints. `.artifacts/**` is protected from tracking. Frequent audited local checkpoint commits are authorized thereafter. Push and destructive/history-rewriting Git operations still require separate explicit authorization; follow `.agent/COMMIT_RULES.md`.
 
 ## Authority Hierarchy
 
@@ -53,7 +53,7 @@ Full process: `.agent/WORKFLOW.md`. Model-independent role/audit gates are owned
 For every Swift production edit, load:
 
 - `.agent/STYLE_GUIDELINES.md` - common Swift source conventions;
-- `.agent/LIBRARY_CODE_GUIDELINES.md` - SwiftDuckDB-specific implementation/native/concurrency/API policy;
+- `.agent/LIBRARY_CODE_GUIDELINES.md` - Duck-specific implementation/native/concurrency/API policy;
 - `.agent/SAFETY_RULES.md` when SQL construction, binding, raw SQL, native handles, or unsafe ownership boundaries are involved.
 
 For every Swift test edit, also load `.agent/TESTING_RULES.md`.
@@ -82,7 +82,7 @@ Full rules: `.agent/CONTEXT_LOADING_RULES.md`.
 - Update only the stable owners whose durable facts, routing, decisions, or source locations actually changed.
 - Link/reroute instead of creating competing copies of the same rule.
 - Keep debugging history, sampled evidence, local checkout paths, implementation reports, and task-specific provenance in `.artifacts/**`.
-- Do not create architecture chunks, skills, templates, or other governance layers merely to mirror another repository; add them only for a real SwiftDuckDB need.
+- Do not create architecture chunks, skills, templates, or other governance layers merely to mirror another repository; add them only for a real Duck need.
 
 ## Git and User-Work Safety
 
@@ -102,6 +102,6 @@ The maintainer has standing authorization for the initial Git setup and frequent
 
 Route dependency-source inspection and future style-learning tasks through `.agent/REFERENCE_PROJECTS.md`.
 
-- Stable docs may name real SwiftDuckDB dependencies and external technologies such as DuckDB or SwifQL.
+- Stable docs may name real Duck dependencies and external technologies such as DuckDB or SQL.
 - Stable docs must not persist machine-local checkout paths, sibling-repository assumptions, or names of repositories used only as temporary style/UX evidence.
 - Concrete reference repositories, sampled files, paths, competing examples, and provenance belong only in `.artifacts/**`; promote only self-contained reviewed engineering rules.

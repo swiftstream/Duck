@@ -1,6 +1,6 @@
 # Commit Rules
 
-Git, staging, commit-message, and checkpoint rules for SwiftDuckDB.
+Git, staging, commit-message, and checkpoint rules for Duck.
 
 ## Repository State
 
@@ -73,7 +73,7 @@ Rules:
 - Use imperative mood, not past tense.
 - Keep the subject short, concrete, and behavior-oriented.
 - Do not end the subject with a period.
-- Do not include the repository/product name `SwiftDuckDB` or the engine name `DuckDB` in commit subjects when the repository context already makes them obvious. This wording is redundant and makes history noisier.
+- Do not include the repository/product name `Duck` or the engine name `DuckDB` in commit subjects when the repository context already makes them obvious. This wording is redundant and makes history noisier.
 - Name an external project/product in a commit subject only when that name is required to distinguish one concrete external dependency/artifact from another. Do not use `DuckDB` merely as a generic prefix for native, lifecycle, query, or ownership work inside this repository.
 - Wrap Swift type/API/symbol names in Markdown backticks when named in the subject, for example `Database`, `Connection`, or `duckdb_fetch_chunk`.
 - One logical change per commit.

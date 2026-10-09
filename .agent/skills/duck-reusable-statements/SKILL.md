@@ -1,12 +1,12 @@
 ---
-name: swiftduckdb-reusable-statements
-description: Use for SwiftDuckDB reusable prepared Statements, Statement.Parameters builder bindings, repeated query/execute calls, Statement ownership and concurrency, failure/reuse behavior, and explicit execution inside an owning Transaction.
+name: duck-reusable-statements
+description: Use for Duck reusable prepared Statements, Statement.Parameters builder bindings, repeated query/execute calls, Statement ownership and concurrency, failure/reuse behavior, and explicit execution inside an owning Transaction.
 license: LICENSE.txt
 ---
 
-# SwiftDuckDB Reusable Statements
+# Duck Reusable Statements
 
-Use this skill when one SQL shape should be prepared once and executed repeatedly with changing values. Use one-shot SwifQL execution for occasional operations, and use Appender for bulk complete-row ingestion when SQL-expression flexibility is not needed per row.
+Use this skill when one SQL shape should be prepared once and executed repeatedly with changing values. Use one-shot SQL execution for occasional operations, and use Appender for bulk complete-row ingestion when SQL-expression flexibility is not needed per row.
 
 ## 1. Prepare dynamic values with `Statement.Parameters`
 
@@ -17,7 +17,7 @@ let insertUser = try await connection.prepare { parameters in
     let email = parameters.parameter()
     let name = parameters.parameter()
 
-    return SwifQL
+    return SQL
         .insertInto(users, fields: "email", "name", "role")
         .values
         .values(email, name, "member")
@@ -42,7 +42,7 @@ Do not build manual `$1` / `$2` placeholders. Dynamic parameters come from the `
 let findUser = try await connection.prepare { parameters in
     let email = parameters.parameter()
 
-    return SwifQL
+    return SQL
         .select(users.column("id"), users.column("name"))
         .from(users)
         .where(users.column("email") == email)
@@ -59,7 +59,7 @@ Use `query(...)` for materialized rows and `execute(...)` for mutation-oriented 
 
 ```swift
 let admins = try await connection.prepare(
-    SwifQL
+    SQL
         .select(users.column("id"), users.column("name"))
         .from(users)
         .where(users.column("role") == "admin")
@@ -75,7 +75,7 @@ When there are no dynamic parameters, direct prepare is the clearest form.
 
 Each admitted execution clears prior native bindings and fully rebinds the immutable fixed + dynamic layout before execution. Wrong dynamic argument count and unsupported caller binding type are deterministic caller-side failures; correct the arguments and reuse the same healthy Statement.
 
-Native execution failures are reusable where the pinned engine permits. A clear-bindings failure is different: SwiftDuckDB marks that Statement unusable instead of silently preparing a replacement handle.
+Native execution failures are reusable where the pinned engine permits. A clear-bindings failure is different: Duck marks that Statement unusable instead of silently preparing a replacement handle.
 
 ## 5. Ownership and concurrency
 
@@ -110,17 +110,17 @@ Transaction-local Statement failures participate in rollback-only first-reason b
 
 ## 7. Supported dynamic values
 
-Dynamic arguments use the same current binding normalization as ordinary execution, including `Value`, supported Optionals, scalar integer/float families, `Foundation.Decimal`, `String`, `Foundation.Data`, `Foundation.UUID`, `Foundation.Date`, `SwifQL.PureDate`, `SwifQL.PureTime`, `SwifQL.DateTime`, and `SwifQL.Interval`.
+Dynamic arguments use the same current binding normalization as ordinary execution, including `Value`, supported Optionals, scalar integer/float families, `Foundation.Decimal`, `String`, `Foundation.Data`, `Foundation.UUID`, `Foundation.Date`, `PureDate`, `PureTime`, `DateTime`, and `Interval`.
 
 Optional `nil` becomes SQL `NULL`; `Data()` is a valid empty BLOB. Do not invent silent coercion.
 
 ## 8. Prepared does not mean an immutable DuckDB physical plan forever
 
-SwiftDuckDB reuses the native prepared-statement owner. It does not promise that DuckDB itself will never rebind or replan under type/catalog/native-engine conditions.
+Duck reuses the native prepared-statement owner. It does not promise that DuckDB itself will never rebind or replan under type/catalog/native-engine conditions.
 
 ## 9. Choose the API deliberately
 
-Use one-shot SwifQL query/execute when the operation is occasional. Use reusable Statement when one SQL shape repeats with changing values. Use Appender for bulk complete-row ingestion into one existing table.
+Use one-shot SQL query/execute when the operation is occasional. Use reusable Statement when one SQL shape repeats with changing values. Use Appender for bulk complete-row ingestion into one existing table.
 
 ## 10. Current non-goals
 

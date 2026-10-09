@@ -1,13 +1,13 @@
 # Library Code Guidelines
 
-Implementation conventions for SwiftDuckDB-owned production code.
+Implementation conventions for Duck-owned production code.
 
 Inherit `STYLE_GUIDELINES.md`. Higher-authority system/product decisions govern semantics. SQL/native safety is owned by `SAFETY_RULES.md`; tests/validation are owned by `TESTING_RULES.md`; public README/docs are owned by `PUBLIC_WRITING_STYLE.md`.
 
 ## Scope and Naming
 
-- The package, product, and primary Swift module remain `SwiftDuckDB` unless a reviewed restructuring changes them.
-- Avoid repeating `SwiftDuckDB` as a type prefix when a direct semantic concept is unambiguous inside the module.
+- The package, product, and primary Swift module remain `Duck` unless a reviewed restructuring changes them.
+- Avoid repeating `Duck` as a type prefix when a direct semantic concept is unambiguous inside the module.
 - Prefer direct database concepts such as `Database`, `Connection`, `Transaction`, `Statement`, `Result`, `Row`, `Value`, or `Appender` only when the type actually owns that role.
 - Qualifiers such as `Configuration`, `Options`, `Handle`, `Error`, `Result`, `Reference`, or `State` are valid when they distinguish a real semantic role.
 - `Manager`, `Repository`, `Factory`, `Service`, `Helper`, `Utils`, `Data`, and `Model` are review prompts when a direct semantic owner is clearer. They are not mechanically banned.
@@ -59,16 +59,16 @@ Inherit `STYLE_GUIDELINES.md`. Higher-authority system/product decisions govern 
 - Never use unsafe casts/unmanaged lifetime tricks to bypass unclear ownership. Resolve semantics first.
 - Concurrency-related raw-handle transfer/escape rules are owned by `SAFETY_RULES.md`.
 
-## SwifQL and Query API
+## SQL and Query API
 
-- SwifQL is the mandatory SQL-construction layer for all SwiftDuckDB-owned SQL; detailed binding/raw safety is owned by `SAFETY_RULES.md`.
+- SQL is the mandatory SQL-construction layer for all Duck-owned SQL; detailed binding/raw safety is owned by `SAFETY_RULES.md`.
 - Duck preparation uses first-class `.duck`.
 - Do not expose a normal `Connection.query(String)` / `execute(String)` construction path.
-- Do not create a competing SQL DSL inside SwiftDuckDB.
-- Provide concise table-centered conveniences that remain pure SwifQL construction sugar. Typed call sites such as `User.select(\.$email, \.$name, \.$role).orderBy(...).limit(...)` are a required UX direction when `User` is a SwifQL `Table`.
-- Table-centered conveniences preserve typed key paths and ordinary SwifQL composition (`where`, `orderBy`, `limit`, joins/aliases where supported) and converge on the same `.duck` execution path.
-- DuckDB-specific SQL syntax/rendering belongs in SwifQL, not a duplicate SwiftDuckDB dialect layer.
-- SwifQL's query/bind graph intentionally is not blanket `Sendable`. Prepare/normalize on caller isolation and move only truthful SwiftDuckDB-owned Sendable execution snapshots across actor boundaries.
+- Do not create a competing SQL DSL inside Duck.
+- Provide concise table-centered conveniences that remain pure SQL construction sugar. Typed call sites such as `User.select(\.$email, \.$name, \.$role).orderBy(...).limit(...)` are a required UX direction when `User` is a SQL `Table`.
+- Table-centered conveniences preserve typed key paths and ordinary SQL composition (`where`, `orderBy`, `limit`, joins/aliases where supported) and converge on the same `.duck` execution path.
+- DuckDB-specific SQL syntax/rendering belongs in SQL, not a duplicate Duck dialect layer.
+- SQL's query/bind graph intentionally is not blanket `Sendable`. Prepare/normalize on caller isolation and move only truthful Duck-owned Sendable execution snapshots across actor boundaries.
 
 ## Platform Neutrality
 
@@ -121,7 +121,7 @@ Treat these as focused review prompts, not automatic proof of a bug:
 - `@MainActor` on shared DB code without UI responsibility;
 - unchecked/unsafe concurrency escape hatch without reviewed need;
 - callback/future/publisher becomes the primary async API;
-- SwiftDuckDB grows a competing SQL DSL;
+- Duck grows a competing SQL DSL;
 - generic Manager/Repository/Factory/Service/Helper/Utils/DTO layers appear without a real semantic boundary;
 - a protocol exists only for mocking/hypothetical engine replacement;
 - public API exposes actor/lock/pointer/cleanup mechanics rather than database behavior;

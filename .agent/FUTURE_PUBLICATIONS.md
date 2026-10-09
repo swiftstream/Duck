@@ -14,47 +14,47 @@ Current coverage/backfill state:
 Database / Connection / public query execution
 - README: PRESENT
 - detailed social/article source: PRESENT below as 004
-- public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-query-execution`; central federation onboarding/publication remains separate
+- public Agent Skill coverage: PRESENT as source-owned `duck-query-execution`; central federation onboarding/publication remains separate
 
 Transactions
 - README: PRESENT
 - detailed social/article source: PRESENT below as 005
-- public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-transactions`; central federation onboarding/publication remains separate
+- public Agent Skill coverage: PRESENT as source-owned `duck-transactions`; central federation onboarding/publication remains separate
 
 Reusable prepared Statements
 - README: PRESENT
 - detailed social/article source: PRESENT below as 001; may be expanded into channel variants later
-- public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-reusable-statements`; central federation onboarding/publication remains separate
+- public Agent Skill coverage: PRESENT as source-owned `duck-reusable-statements`; central federation onboarding/publication remains separate
 
 Scoped Appender
 - implementation: implemented scoped public API with complete-table or fixed selected columns
 - README: PRESENT
 - detailed social/article source: PRESENT below
-- public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-appender`; central federation onboarding/publication remains separate
+- public Agent Skill coverage: PRESENT as source-owned `duck-appender`; central federation onboarding/publication remains separate
 
 Exact Foundation.Decimal integration
 - implementation: accepted exact public vertical across ordinary query bindings, reusable Statements, Appender rows, Value/Row/Result reading, and ResultColumn DECIMAL W/S metadata
 - README: PRESENT
 - detailed social/article source: PRESENT below
-- public Agent Skill coverage: Appender-specific Decimal contract PRESENT in `swiftduckdb-appender`; broader cross-surface publication remains sourced below
+- public Agent Skill coverage: Appender-specific Decimal contract PRESENT in `duck-appender`; broader cross-surface publication remains sourced below
 
 Codable / Model Layer
 - implementation: accepted flat keyed Row/QueryResult Decodable projection, exact flat ModelEncoder, and explicit Connection/Transaction Table insert/update conveniences
 - README: PRESENT
 - detailed social/article source: PRESENT below as 006
-- public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-codable-models`; central federation onboarding/publication remains separate
+- public Agent Skill coverage: PRESENT as source-owned `duck-codable-models`; central federation onboarding/publication remains separate
 
 Observation / Reactive Queries
 - implementation: accepted reusable latest-state `QueryObservation` with same-Database invalidation across ordinary execution, definitive Transaction finalization, and Appender visibility
-- README: PRESENT after the current public-closure candidate
+- README: PRESENT
 - detailed social/article source: PRESENT below as 007
-- public Agent Skill coverage: PRESENT as source-owned `swiftduckdb-observation`; central federation onboarding/publication remains separate
+- public Agent Skill coverage: PRESENT as source-owned `duck-observation`; central federation onboarding/publication remains separate
 
 Connection Pooling
 - implementation: accepted bounded scoped pool and Observation interaction
-- README: PRESENT after closure
+- README: PRESENT
 - detailed source: PRESENT below as 008
-- Agent Skill: source-owned `swiftduckdb-connection-pooling`, with central federation separately gated
+- Agent Skill: source-owned `duck-connection-pooling`, with central federation separately gated
 ```
 
 All future public capabilities automatically enter this register/closure model. Completing implementation without README + detailed publication source + skill coverage is not considered full public-capability closure.
@@ -63,16 +63,16 @@ All future public capabilities automatically enter this register/closure model. 
 
 Status: **implemented source material / future article-publication candidate**
 
-Trigger for publication: after the reusable prepared-statements capability completes final project acceptance and any intended public release/publication gate.
+Trigger for publication: when the maintainer opens the intended public release/publication gate; the reusable prepared-statements capability itself is already implemented, validated, audited, and documented.
 
 ### Core explanation
 
-A reusable prepared statement lets SwiftDuckDB prepare one query shape once and execute the same native prepared-statement owner repeatedly with different dynamic values.
+A reusable prepared statement lets Duck prepare one query shape once and execute the same native prepared-statement owner repeatedly with different dynamic values.
 
 The normal one-shot path conceptually does:
 
 ```text
-SwifQL
+SQL
 -> render/prepare
 -> bind
 -> execute
@@ -87,7 +87,7 @@ clear prior bindings
 -> execute through the existing pending engine
 ```
 
-SwiftDuckDB does not expose manual `$1` / `$2` placeholder construction. Dynamic values are created only through `Statement.Parameters` in the `Connection.prepare` builder.
+Duck does not expose manual `$1` / `$2` placeholder construction. Dynamic values are created only through `Statement.Parameters` in the `Connection.prepare` builder.
 
 ### Prepare once, execute many INSERTs
 
@@ -98,7 +98,7 @@ let insertUser = try await connection.prepare { parameters in
     let email = parameters.parameter()
     let name = parameters.parameter()
 
-    return SwifQL
+    return SQL
         .insertInto(users, fields: "email", "name", "role")
         .values
         .values(email, name, "member")
@@ -119,7 +119,7 @@ This is the clearest batch-workload example: mass INSERT/UPDATE without rebuildi
 let findUser = try await connection.prepare { parameters in
     let email = parameters.parameter()
 
-    return SwifQL
+    return SQL
         .select(users.column("id"), users.column("name"))
         .from(users)
         .where(users.column("email") == email)
@@ -138,7 +138,7 @@ A query with no dynamic parameters can be prepared directly:
 
 ```swift
 let admins = try await connection.prepare(
-    SwifQL
+    SQL
         .select(users.column("id"), users.column("name"))
         .from(users)
         .where(users.column("role") == "admin")
@@ -210,7 +210,7 @@ Each admitted execution clears bindings and fully rebinds the immutable layout, 
 
 Caller-local wrong-count/unsupported-type failures do not poison an ordinary Statement. Native execution failures are reusable where the pinned engine permits; later execution begins from clear + complete rebind.
 
-A clear-bindings failure terminally tombstones only that Statement. SwiftDuckDB does not automatically reprepare a replacement handle.
+A clear-bindings failure terminally tombstones only that Statement. Duck does not automatically reprepare a replacement handle.
 
 If the originating Connection is fail-closed, Statement execution receives `.connectionUnusable` rather than bypassing Connection state.
 
@@ -232,24 +232,24 @@ String
 Foundation.Data
 Foundation.UUID
 Foundation.Date
-SwifQL.PureDate
-SwifQL.PureTime
-SwifQL.DateTime
-SwifQL.Interval
+PureDate
+PureTime
+DateTime
+Interval
 ```
 
 Optional `nil` becomes SQL NULL. Empty `Data()` is a valid empty BLOB. Exact Decimal, temporal, UUID, Date, and Interval families are supported current values rather than implied future work. Unsupported types remain caller-side failures; the statement stays reusable after deterministic binding rejection.
 
 ### Important native nuance
 
-Reusable preparation means SwiftDuckDB reuses the native prepared-statement owner. It does **not** promise that DuckDB internally keeps one immutable physical plan forever. Pinned DuckDB may rebind/replan when type/catalog/native engine conditions require it.
+Reusable preparation means Duck reuses the native prepared-statement owner. It does **not** promise that DuckDB internally keeps one immutable physical plan forever. Pinned DuckDB may rebind/replan when type/catalog/native engine conditions require it.
 
 ### Why this is not an ORM
 
 Reusable prepared statements remain a low-level query-execution capability:
 
 ```text
-SwifQL query template
+SQL query template
 -> Statement
 -> bind/rebind
 -> query/execute
@@ -269,13 +269,13 @@ Preserve these three user-facing motivations:
 
 Status: **implemented source material / future article-publication candidate**
 
-Trigger for publication: after the scoped Appender capability completes final project acceptance and any intended public release/publication gate.
+Trigger for publication: when the maintainer opens the intended public release/publication gate; the scoped Appender capability itself is already implemented, validated, audited, and documented.
 
 ### The practical problem
 
 When an application already has many rows in memory or arriving from an import pipeline, expressing every row as another INSERT statement is not always the clearest ingestion model.
 
-SwiftDuckDB now exposes DuckDB's Appender mechanism through a deliberately small Swift surface:
+Duck now exposes DuckDB's Appender mechanism through a deliberately small Swift surface:
 
 ```swift
 let events = Path.Table("events")
@@ -286,7 +286,7 @@ try await connection.appender(to: events) { appender in
 }
 ```
 
-The public contract is intentionally row-shaped: one `append(...)` call is one complete table row. SwiftDuckDB owns the native Appender and its finalization behind the scope rather than asking application code to manage a native handle.
+The public contract is intentionally row-shaped: one `append(...)` call is one complete table row. Duck owns the native Appender and its finalization behind the scope rather than asking application code to manage a native handle.
 
 ### Fixed selected columns for sparse imports
 
@@ -314,7 +314,7 @@ The choice remains workload based: a selected-column Appender works when every r
 
 DuckDB's Appender is a native bulk-ingestion path for feeding rows directly into an existing table. It buffers data and can flush batches internally instead of treating every row as a separately prepared Swift-side statement execution.
 
-SwiftDuckDB preserves that character without exposing DuckDB's lower-level per-column mutation lifecycle. Callers provide complete rows; the Connection owns native sequencing and cleanup.
+Duck preserves that character without exposing DuckDB's lower-level per-column mutation lifecycle. Callers provide complete rows; the Connection owns native sequencing and cleanup.
 
 ### Appender versus one-shot INSERT versus reusable Statement
 
@@ -323,7 +323,7 @@ There are four useful choices in the current API: one-shot execution, a reusable
 **One-shot query/execute** is the simplest choice for occasional mutations:
 
 ```swift
-try await SwifQL
+try await SQL
     .insertInto(events, fields: "id", "kind", "payload")
     .values
     .values(Int32(1), "opened", Data([0x01]))
@@ -338,7 +338,7 @@ let insertEvent = try await connection.prepare { parameters in
     let kind = parameters.parameter()
     let payload = parameters.parameter()
 
-    return SwifQL
+    return SQL
         .insertInto(events, fields: "id", "kind", "payload")
         .values
         .values(id, kind, payload)
@@ -386,7 +386,7 @@ Use a reusable `Statement` instead when repeated SQL shape, query/update/select 
 
 ### Scoped lifetime instead of a free-standing handle
 
-The public SwiftDuckDB Appenders are scoped:
+The public Duck Appenders are scoped:
 
 ```text
 Connection.appender(to:) {
@@ -396,7 +396,7 @@ Connection.appender(to:) {
 
 There is no public Appender initializer and no public `close`, `flush`, `clear`, or native handle.
 
-That design gives SwiftDuckDB one place to own the correctness-sensitive lifetime:
+That design gives Duck one place to own the correctness-sensitive lifetime:
 
 ```text
 public Appender
@@ -429,7 +429,7 @@ try await connection.appender(to: events) { appender in
 }
 ```
 
-SwiftDuckDB normalizes the whole row before actor/native mutation and runs the complete native row append synchronously on the owning Connection actor. Columns from two public row calls therefore cannot interleave.
+Duck normalizes the whole row before actor/native mutation and runs the complete native row append synchronously on the owning Connection actor. Columns from two public row calls therefore cannot interleave.
 
 The article should not turn this into a promise that parallel submission makes one DuckDB connection execute native row writes in parallel. The important property is safe complete-row serialization and structured caller concurrency.
 
@@ -448,7 +448,7 @@ let lookupConnection = try database.connect()
 
 try await ingestConnection.appender(to: events) { appender in
     async let lookup = lookupConnection.query(
-        SwifQL.select(Int32(1) => "value")
+        SQL.select(Int32(1) => "value")
     )
 
     try await appender.append(Int32(1), "opened", Data())
@@ -456,7 +456,7 @@ try await ingestConnection.appender(to: events) { appender in
 }
 ```
 
-There is one subtle boundary worth stating accurately. If application code deliberately moves same-Connection work into a context that no longer inherits the Appender scope context, SwiftDuckDB treats it as external. That work can queue behind the Appender's held admission. If the still-live Appender body waits for that queued work before returning, the caller has created a dependency cycle. The API prevents the normal inherited misuse path; it does not claim every unstructured task topology is impossible to deadlock.
+There is one subtle boundary worth stating accurately. If application code deliberately moves same-Connection work into a context that no longer inherits the Appender scope context, Duck treats it as external. That work can queue behind the Appender's held admission. If the still-live Appender body waits for that queued work before returning, the caller has created a dependency cycle. The API prevents the normal inherited misuse path; it does not claim every unstructured task topology is impossible to deadlock.
 
 ### Supported row values
 
@@ -474,10 +474,10 @@ String
 Foundation.Data
 Foundation.UUID
 Foundation.Date
-SwifQL.PureDate
-SwifQL.PureTime
-SwifQL.DateTime
-SwifQL.Interval
+PureDate
+PureTime
+DateTime
+Interval
 ```
 
 Optional `nil` becomes SQL NULL. Empty `Data()` is a valid empty BLOB. Current temporal, UUID, Date, Interval, and exact Decimal families are supported row values. Nested/complex families remain gated.
@@ -506,17 +506,17 @@ Once native row mutation begins, failure semantics become terminal for that Appe
 
 A primitive append failure surfaces as `.appenderAppend(column:message:)` with a 1-based column. A failure while completing the row — including a real automatic-flush failure — surfaces as `.appenderRowCompletion` without inventing a column number.
 
-Catching the immediate terminal error inside the closure cannot make the scope succeed. SwiftDuckDB stores the first terminal failure and surfaces that truth again when the scope finalizes.
+Catching the immediate terminal error inside the closure cannot make the scope succeed. Duck stores the first terminal failure and surfaces that truth again when the scope finalizes.
 
 This is an important difference from a wrong row width or unsupported Swift value, which fails before native mutation and remains recoverable.
 
 ### Cancellation is cooperative, not magic preemption
 
-SwiftDuckDB checks cancellation before caller-side row work and again on the Connection actor immediately before synchronous native row mutation.
+Duck checks cancellation before caller-side row work and again on the Connection actor immediately before synchronous native row mutation.
 
 There is intentionally no post-native cancellation check that would report cancellation after a row had already been successfully mutated, and Swift cannot promise to interrupt a C call that is already running synchronously.
 
-If cancellation is observed before successful final close, SwiftDuckDB discards data still buffered in that Appender rather than intentionally flushing it. That leads directly to the most important caveat of the API.
+If cancellation is observed before successful final close, Duck discards data still buffered in that Appender rather than intentionally flushing it. That leads directly to the most important caveat of the API.
 
 ### The closure is not an atomic transaction
 
@@ -584,7 +584,7 @@ Trigger for publication: after final Wave C/R4/release acceptance of the exact D
 
 `Foundation.Decimal` is an exact decimal type. DuckDB `DECIMAL(W,S)` is also an exact scaled-integer type. Routing either side through binary floating point would reintroduce values such as `0.1` as repeating binary fractions, so money-like and high-precision domain values would stop being exact.
 
-SwiftDuckDB therefore treats Decimal transport as a dedicated exact vertical:
+Duck therefore treats Decimal transport as a dedicated exact vertical:
 
 ```text
 no Double / Float intermediary
@@ -623,7 +623,7 @@ Optional `Decimal.some` and `Optional<Decimal>.none` follow the same Optional/NU
 The same exact contract is used on every route:
 
 ```text
-ordinary SwifQL query binding
+ordinary SQL query binding
   -> exact conversion / bind
 
 reusable Statement dynamic or fixed binding
@@ -693,7 +693,7 @@ numeric 1.20 and 1.2 may compare as the same Foundation.Decimal
 while ResultColumn metadata can still differ
 ```
 
-SwiftDuckDB does not claim that `Foundation.Decimal` preserves user-entered textual trailing zeros as `Value` identity. Publication copy should separate numeric identity from column metadata instead of promising textual formatting storage that the type does not provide.
+Duck does not claim that `Foundation.Decimal` preserves user-entered textual trailing zeros as `Value` identity. Publication copy should separate numeric identity from column metadata instead of promising textual formatting storage that the type does not provide.
 
 ### Prepared direct Decimal route, Appender Phase 1, and result reconstruction
 
@@ -754,7 +754,7 @@ Preserve these user-facing angles:
 4. width/scale metadata lives on `ResultColumn`, not in `Value` numeric identity;
 5. deterministic rejection is part of correctness: Appender Phase 1 can refuse a later-column Decimal without poisoning the live scope, while native Phase 2 remains terminal.
 
-## 004 — Database, Connection, and SwifQL query execution
+## 004 — Database, Connection, and SQL query execution
 
 Status: **implemented source material / future article-publication candidate**
 
@@ -762,7 +762,7 @@ Trigger for publication: when the maintainer chooses to turn this durable source
 
 ### Start with explicit ownership
 
-SwiftDuckDB keeps database storage and executable connection ownership explicit:
+Duck keeps database storage and executable connection ownership explicit:
 
 ```swift
 let database = try Database()
@@ -781,23 +781,23 @@ Database
 
 A Connection is not just a convenience wrapper around a global native handle. It is the Swift concurrency owner for one native connection and its admitted work.
 
-### Build normal queries with SwifQL
+### Build normal queries with SQL
 
-The normal public path is declarative SwifQL:
+The normal public path is declarative SQL:
 
 ```swift
 let users = Path.Table("users")
 
-let result = try await SwifQL
+let result = try await SQL
     .select(users.column("id"), users.column("name"))
     .from(users)
     .query(on: connection)
 ```
 
-SwiftDuckDB intentionally does not teach handwritten SQL strings as the ordinary query API. Query-centered SwifQL convenience calls delegate to the same execution engine as the Connection-centered form:
+Duck intentionally does not teach handwritten SQL strings as the ordinary query API. Query-centered SQL convenience calls delegate to the same execution engine as the Connection-centered form:
 
 ```swift
-let query = SwifQL
+let query = SQL
     .select(users.column("id"), users.column("name"))
     .from(users)
 
@@ -811,7 +811,7 @@ Choose the form that reads better at the call site. Do not describe them as diff
 Use `query` when returned rows and result metadata matter:
 
 ```swift
-let result = try await SwifQL
+let result = try await SQL
     .select(Int32(42) => "answer")
     .query(on: connection)
 ```
@@ -819,7 +819,7 @@ let result = try await SwifQL
 Use `execute` for mutation-oriented work when the relevant public result is the number of changed rows:
 
 ```swift
-let changed = try await SwifQL
+let changed = try await SQL
     .update(users)
     .set[items: users.column("name") == "Mike"]
     .where(users.column("id") == Int32(1))
@@ -835,7 +835,7 @@ _ = changed
 Rows expose public `Value` storage plus exact typed conveniences:
 
 ```swift
-let result = try await SwifQL
+let result = try await SQL
     .select(
         Int32(7) => "id",
         "ready" => "state"
@@ -863,8 +863,8 @@ For genuinely independent work, create another Connection:
 let first = try database.connect()
 let second = try database.connect()
 
-async let a = SwifQL.select(Int32(1) => "value").query(on: first)
-async let b = SwifQL.select(Int32(2) => "value").query(on: second)
+async let a = SQL.select(Int32(1) => "value").query(on: first)
+async let b = SQL.select(Int32(2) => "value").query(on: second)
 
 let results = try await (a, b)
 _ = results
@@ -874,7 +874,7 @@ The useful public distinction is ownership and independence, not a claim that on
 
 ### Cancellation is cooperative
 
-SwiftDuckDB observes cancellation around async/native scheduling boundaries and while copying result chunks. Cancellation surfaces as Swift `CancellationError`.
+Duck observes cancellation around async/native scheduling boundaries and while copying result chunks. Cancellation surfaces as Swift `CancellationError`.
 
 Do not promise instantaneous interruption of a synchronous DuckDB C call that is already running or deterministic latency inside that call.
 
@@ -886,15 +886,15 @@ Native diagnostic strings are useful to humans but their exact wording is not a 
 
 ### Raw SQL remains an explicit escape hatch
 
-When a query cannot yet be expressed through the declarative surface, raw SQL remains available through SwifQL itself:
+When a query cannot yet be expressed through the declarative surface, raw SQL remains available through SQL itself:
 
 ```swift
-try await SwifQL
+try await SQL
     .raw("PRAGMA version")
     .execute(on: connection)
 ```
 
-Treat `SwifQL.raw(...)` as an escape hatch. Normal examples should prefer declarative SwifQL construction.
+Treat `SQL.raw(...)` as an escape hatch. Normal examples should prefer declarative SQL construction.
 
 ### Choose the more specific capability when the workload changes
 
@@ -917,8 +917,6 @@ Do not turn the baseline query API into implied support for:
 ```text
 broad ORM/repository identity semantics beyond the dedicated flat Codable/model capability
 arbitrary nested/unkeyed Codable model graphs beyond the dedicated model layer
-migrations
-connection pooling (see the dedicated Connection Pooling surface, entry 008)
 savepoints/custom isolation
 Observation expansion beyond the dedicated latest-state same-Database capability
 advanced Appender lifecycle surfaces
@@ -933,7 +931,7 @@ Flat model decoding/encoding and explicit Table insert/update now belong to the 
 Preserve these user-facing angles:
 
 1. `Database` owns storage while `Connection` owns one executable native connection;
-2. declarative SwifQL is the normal query language, with raw SQL kept explicit;
+2. declarative SQL is the normal query language, with raw SQL kept explicit;
 3. `query` returns materialized result data while `execute` returns rows changed;
 4. exact typed Row/Value reading avoids silent numeric coercion;
 5. multiple Connections are the explicit boundary for independent concurrent work.
@@ -946,26 +944,26 @@ Trigger for publication: when the maintainer chooses to turn this durable source
 
 ### The smallest useful managed transaction
 
-SwiftDuckDB exposes a managed transaction through the closure overload of `Connection.transaction`:
+Duck exposes a managed transaction through the closure overload of `Connection.transaction`:
 
 ```swift
 let users = Path.Table("users")
 
 let result = try await connection.transaction { transaction in
-    try await SwifQL
+    try await SQL
         .insertInto(users, fields: "email", "name", "role")
         .values
         .values("mira@example.com", "Mira", "admin")
         .execute(on: transaction)
 
-    return try await SwifQL
+    return try await SQL
         .select(users.column("email"), users.column("name"))
         .from(users)
         .query(on: transaction)
 }
 ```
 
-The supplied `Transaction` is how same-Connection work explicitly participates. SwiftDuckDB does not turn the underlying Connection into an ambient transaction mode that ordinary APIs silently join.
+The supplied `Transaction` is how same-Connection work explicitly participates. Duck does not turn the underlying Connection into an ambient transaction mode that ordinary APIs silently join.
 
 ### Flat transactions cover explicit lifetime
 
@@ -974,7 +972,7 @@ When transaction lifetime cannot fit one closure, acquire a flat handle and fina
 ```swift
 let transaction = try await connection.transaction()
 
-try await SwifQL
+try await SQL
     .insertInto(users, fields: "email", "name", "role")
     .values
     .values("manual@example.com", "Manual", "member")
@@ -1040,9 +1038,9 @@ This distinction matters because ordinary Swift error-catching controls local co
 
 An arbitrary error thrown from the transaction body triggers mandatory rollback cleanup. When rollback succeeds, the original body error remains the caller-visible error.
 
-Cancellation follows the same transaction-cleanup model when observed. Cancellation is cooperative at Swift/native boundaries; SwiftDuckDB does not promise instantaneous preemption of a synchronous DuckDB C call already running.
+Cancellation follows the same transaction-cleanup model when observed. Cancellation is cooperative at Swift/native boundaries; Duck does not promise instantaneous preemption of a synchronous DuckDB C call already running.
 
-If mandatory rollback cleanup itself fails while another error is already being handled, SwiftDuckDB throws `TransactionRollbackError` with both:
+If mandatory rollback cleanup itself fails while another error is already being handled, Duck throws `TransactionRollbackError` with both:
 
 ```text
 originalError
@@ -1088,7 +1086,7 @@ try await connection.transaction { transaction in
 }
 ```
 
-A Statement cannot execute on a Transaction from another Connection; SwiftDuckDB rejects that mismatch before the unrelated transaction is poisoned.
+A Statement cannot execute on a Transaction from another Connection; Duck rejects that mismatch before the unrelated transaction is poisoned.
 
 Ordinary `statement.query(...)` / `statement.execute(...)` from a live same-Connection transaction body is also rejected. Transaction participation remains explicit through the `on: transaction` forms.
 
@@ -1115,15 +1113,15 @@ A failed transaction-Appender scope leaves the outer transaction rollback-only. 
 
 There are two caller-relevant failure boundaries.
 
-If COMMIT setup fails before native execution scheduling begins, SwiftDuckDB runs mandatory rollback cleanup. The Connection may remain reusable when that cleanup succeeds.
+If COMMIT setup fails before native execution scheduling begins, Duck runs mandatory rollback cleanup. The Connection may remain reusable when that cleanup succeeds.
 
-If COMMIT failure occurs after native execution scheduling has begun, the native postcondition is ambiguous. SwiftDuckDB does not retry COMMIT or issue a compensating rollback that could misrepresent what DuckDB actually committed. The Connection is conservatively fail-closed.
+If COMMIT failure occurs after native execution scheduling has begun, the native postcondition is ambiguous. Duck does not retry COMMIT or issue a compensating rollback that could misrepresent what DuckDB actually committed. The Connection is conservatively fail-closed.
 
 Callers should rely on typed Swift errors and Connection state, not parse native diagnostic text to infer an internal failure stage.
 
 ### Do not build a second transaction lifecycle with raw SQL
 
-Normal SwiftDuckDB execution routes reject user-issued transaction-control statements such as raw `BEGIN`, `COMMIT`, or `ROLLBACK`.
+Normal Duck execution routes reject user-issued transaction-control statements such as raw `BEGIN`, `COMMIT`, or `ROLLBACK`.
 
 Use the managed closure or flat Swift transaction API instead of layering a second raw-SQL lifecycle over the same Connection.
 
@@ -1170,9 +1168,9 @@ Trigger for publication: when the maintainer chooses to turn this durable source
 
 ### The problem this capability solves
 
-SwiftDuckDB already materializes query results into Swift-owned `QueryResult`, `Row`, and `Value` values. The Codable / Model Layer adds a typed projection on top of that ownership model so applications can move between flat database rows and Swift models without hand-reading every column.
+Duck already materializes query results into Swift-owned `QueryResult`, `Row`, and `Value` values. The Codable / Model Layer adds a typed projection on top of that ownership model so applications can move between flat database rows and Swift models without hand-reading every column.
 
-The design deliberately stops short of pretending SwiftDuckDB is a full ORM. The useful boundary is:
+The design deliberately stops short of pretending Duck is a full ORM. The useful boundary is:
 
 ```text
 materialized row -> flat Decodable model
@@ -1180,7 +1178,7 @@ flat Encodable model -> ordered exact Value fields
 Table model -> explicit insert/update on a supplied Connection or Transaction
 ```
 
-Ownership remains visible at the call site and query construction remains SwifQL-backed.
+Ownership remains visible at the call site and query construction remains SQL-backed.
 
 ### Decode a result directly into a flat model
 
@@ -1193,7 +1191,7 @@ struct UserRecord: Codable {
 
 let usersTable = Path.Table("users")
 
-let result = try await SwifQL
+let result = try await SQL
     .select(
         usersTable.column("email"),
         usersTable.column("name"),
@@ -1243,7 +1241,7 @@ non-NULL value of the wrong native kind
 
 Optional properties can represent SQL NULL. A required property receiving NULL throws `DecodingError.valueNotFound`. A missing required key or incompatible native family also throws the corresponding `DecodingError` rather than silently coercing or defaulting.
 
-Numeric decoding uses checked conversions where Swift's platform-sized `Int`/`UInt` is involved. Native SwiftDuckDB scalar families take precedence over raw-value fallback, while scalar raw-value enums remain usable where their raw value is supported.
+Numeric decoding uses checked conversions where Swift's platform-sized `Int`/`UInt` is involved. Native Duck scalar families take precedence over raw-value fallback, while scalar raw-value enums remain usable where their raw value is supported.
 
 ### The model boundary is flat on purpose
 
@@ -1251,7 +1249,7 @@ The current decoder is a flat keyed projection. It does not advertise arbitrary 
 
 That boundary keeps SQL result-column identity explicit and prevents a simple row projection API from quietly turning into an object graph mapper.
 
-### Encode a flat model into exact SwiftDuckDB values
+### Encode a flat model into exact Duck values
 
 `ModelEncoder` projects a flat keyed `Encodable` value into ordered fields:
 
@@ -1274,7 +1272,7 @@ The encoder preserves:
 ```text
 CodingKeys as field names
 model encoding order
-exact SwiftDuckDB Value families
+exact Duck Value families
 checked platform Int/UInt conversion
 UUID / Data / Decimal / temporal / Interval values
 availability-gated Int128 / UInt128 support
@@ -1352,7 +1350,7 @@ let updated = try await inserted.update(
 
 The selected key column is used in `WHERE` and excluded from `SET`. Only changed non-key fields are emitted.
 
-If the model has no changed non-key fields, SwiftDuckDB performs no UPDATE SQL at all. The returning overload returns `self`; the non-returning overload returns `Void`.
+If the model has no changed non-key fields, Duck performs no UPDATE SQL at all. The returning overload returns `self`; the non-returning overload returns `Void`.
 
 The non-returning form is:
 
@@ -1411,15 +1409,15 @@ The model layer does not create a second transaction state machine.
 
 ### Model payloads remain prepared values, not SQL literals
 
-Dynamic model payloads render as placeholders and travel through SwiftDuckDB's prepared binding normalization. The concrete values are not interpolated into rendered SQL text.
+Dynamic model payloads render as placeholders and travel through Duck's prepared binding normalization. The concrete values are not interpolated into rendered SQL text.
 
 This matters both for correctness and for preserving exact native families such as UUID, Data, Decimal, temporal values, and Interval.
 
-### When direct SwifQL is still the better tool
+### When direct SQL is still the better tool
 
 The model conveniences are for the common whole-model INSERT and key-based changed-field UPDATE shapes.
 
-Use normal SwifQL directly when you need:
+Use normal SQL directly when you need:
 
 ```text
 arbitrary WHERE predicates
@@ -1431,7 +1429,7 @@ partial projections that are not a model decode
 query forms outside the small persistence convenience surface
 ```
 
-SwiftDuckDB keeps direct query construction available rather than forcing every database operation through models.
+Duck keeps direct query construction available rather than forcing every database operation through models.
 
 ### Current non-goals
 
@@ -1455,12 +1453,12 @@ application-specific readiness claims
 
 Preserve these user-facing angles:
 
-1. SwiftDuckDB can decode materialized rows into flat typed models without extending native result lifetime;
+1. Duck can decode materialized rows into flat typed models without extending native result lifetime;
 2. ModelEncoder preserves exact database-relevant scalar families instead of stringifying values;
 3. untouched optional Table columns and explicit NULL are intentionally different persistence states;
 4. insert/update conveniences remain explicit about their Connection or Transaction owner;
-5. changed-field key updates cover a useful model workflow without pretending SwiftDuckDB is a broad ORM;
-6. direct SwifQL remains the escape path whenever the small model convenience surface is not the right abstraction.
+5. changed-field key updates cover a useful model workflow without pretending Duck is a broad ORM;
+6. direct SQL remains the escape path whenever the small model convenience surface is not the right abstraction.
 
 ## 007 — Observation / Reactive Queries: latest database state without pretending it is an event log
 
@@ -1474,14 +1472,14 @@ Many applications need to rerun a read-only query after relevant local database 
 
 The tempting abstraction is an event stream, but database query state is usually different from an event log. If three writes happen faster than a UI can render, the useful state may simply be the newest successful query result.
 
-SwiftDuckDB therefore exposes Observation as a latest-state query capability rather than a promise to deliver every intermediate mutation.
+Duck therefore exposes Observation as a latest-state query capability rather than a promise to deliver every intermediate mutation.
 
 ### The smallest useful observation
 
 ```swift
 let users = Path.Table("users")
 
-let observation = try SwifQL
+let observation = try SQL
     .select(users.column("id"), users.column("name"))
     .from(users)
     .observe(on: database)
@@ -1494,7 +1492,7 @@ for try await result in observation {
 The Database-centered spelling is equivalent:
 
 ```swift
-let query = SwifQL
+let query = SQL
     .select(users.column("id"), users.column("name"))
     .from(users)
 
@@ -1532,9 +1530,9 @@ Applications that must preserve every event should model and store those events 
 
 Observation does not execute an analysis string.
 
-The query is captured through SwiftDuckDB's normal prepared snapshot/binding model. Plain SQL is retained only for dependency analysis and is never executed as the observation query.
+The query is captured through Duck's normal prepared snapshot/binding model. Plain SQL is retained only for dependency analysis and is never executed as the observation query.
 
-This keeps payload binding and execution semantics aligned with ordinary SwiftDuckDB + SwifQL queries.
+This keeps payload binding and execution semantics aligned with ordinary Duck + SQL queries.
 
 ### Native READ ONLY is the safety boundary
 
@@ -1546,17 +1544,17 @@ If DuckDB does not prove the prepared query read-only, iteration fails with:
 DatabaseError.observationRequiresReadOnlyQuery
 ```
 
-SwiftDuckDB does not classify safety by checking whether SQL text starts with SELECT. Side-effecting SELECT-family expressions are not accepted merely because they look like reads.
+Duck does not classify safety by checking whether SQL text starts with SELECT. Side-effecting SELECT-family expressions are not accepted merely because they look like reads.
 
 A direct sequence-advancing `nextval` query, for example, is rejected as an observation without advancing the sequence.
 
 ### Dependency tracking is useful but conservative
 
-SwiftDuckDB analyzes the query to narrow invalidation when table identity is safe.
+Duck analyzes the query to narrow invalidation when table identity is safe.
 
 A successful query with no table dependency is a valid empty dependency rather than an automatic failure.
 
-When dependency extraction or identity is unsafe, SwiftDuckDB falls back to Database-wide invalidation. Missing a required refresh is worse than refreshing conservatively.
+When dependency extraction or identity is unsafe, Duck falls back to Database-wide invalidation. Missing a required refresh is worse than refreshing conservatively.
 
 These dependency details are implementation behavior, not a public API for callers to manipulate.
 
@@ -1570,7 +1568,7 @@ Mutations routed through that same Database participate, including:
 - transaction finalization after transaction-local work;
 - Appender visibility/finalization.
 
-SwiftDuckDB does not claim that a separate `Database` object opening the same file shares an Observation registry.
+Duck does not claim that a separate `Database` object opening the same file shares an Observation registry.
 
 It also does not watch:
 - another process;
@@ -1581,7 +1579,7 @@ There is no polling loop or filesystem watcher hidden behind `QueryObservation`.
 
 ### Ordinary mutations publish from actual native result truth
 
-For ordinary Connection and reusable Statement execution, SwiftDuckDB decides mutation publication from the successful native result that actually occurred.
+For ordinary Connection and reusable Statement execution, Duck decides mutation publication from the successful native result that actually occurred.
 
 The practical model is:
 
@@ -1609,9 +1607,9 @@ At definitive finalization:
 
 Publishing after rollback can still matter for non-transactional engine state, such as sequence advancement, even when ordinary row changes were reverted.
 
-If rollback fails, SwiftDuckDB conservatively publishes Database-wide invalidation and fail-closes the Connection.
+If rollback fails, Duck conservatively publishes Database-wide invalidation and fail-closes the Connection.
 
-If COMMIT fails after native scheduling began and the durable result is ambiguous, SwiftDuckDB likewise publishes conservatively and fail-closes rather than pretending the outcome is known.
+If COMMIT fails after native scheduling began and the durable result is ambiguous, Duck likewise publishes conservatively and fail-closes rather than pretending the outcome is known.
 
 This finalization model applies to managed transaction bodies and the flat explicit `commit()` / `rollback()` lifecycle. Swift 6.4 `rollbackIfNeeded()` flows through the same cleanup/publication boundary.
 
@@ -1619,7 +1617,7 @@ This finalization model applies to managed transaction bodies and the flat expli
 
 A normal `Connection.appender(to:)` scope is not one atomic transaction.
 
-DuckDB may auto-flush an earlier prefix before the Swift body returns. Once that prefix is durably visible, SwiftDuckDB may invalidate matching observations even though the Appender scope is still running.
+DuckDB may auto-flush an earlier prefix before the Swift body returns. Once that prefix is durably visible, Duck may invalidate matching observations even though the Appender scope is still running.
 
 A later body error can discard still-buffered rows, but it cannot make already auto-flushed ordinary rows disappear.
 
@@ -1708,7 +1706,7 @@ let pool = try database.pool(maximumConnections: 4)
 let users = Path.Table("users")
 
 let rows = try await pool.connection { connection in
-    try await SwifQL
+    try await SQL
         .select(users.column("id"), users.column("name"))
         .from(users)
         .query(on: connection)
@@ -1727,7 +1725,7 @@ The bound concerns live or reserved Connections, not an automatic limit on task 
 
 ```swift
 let count = try await pool.connection { connection in
-    let result = try await SwifQL
+    let result = try await SQL
         .select(Int32(1) => "value")
         .query(on: connection)
     return result.rows.count
@@ -1742,7 +1740,7 @@ Reentering `pool.connection` from within an active lease of the same pool fails 
 
 ```swift
 try await pool.transaction { transaction in
-    try await SwifQL
+    try await SQL
         .insertInto(users, fields: "id", "name")
         .values
         .values(Int32(42), "Mira")
@@ -1758,13 +1756,13 @@ Flat transactions are available through a leased Connection when a lexical manag
 
 ```swift
 let observation = try database.observe(
-    SwifQL
+    SQL
         .select(users.column("id"), users.column("name"))
         .from(users)
 )
 
 try await pool.connection { connection in
-    try await SwifQL
+    try await SQL
         .insertInto(users, fields: "id", "name")
         .values
         .values(Int32(43), "Ari")

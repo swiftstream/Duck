@@ -1,6 +1,6 @@
 # External Dependencies and Style Evidence
 
-Permanent SwiftDuckDB documentation must remain portable. Do not persist machine-local checkout paths or require sibling repositories to exist.
+Permanent Duck documentation must remain portable. Do not persist machine-local checkout paths or require sibling repositories to exist.
 
 ## DuckDB
 
@@ -12,32 +12,32 @@ When implementation work requires exact API, build, platform, or lifetime behavi
 
 Long-term version-upgrade policy, optional-extension strategy, alternative future distribution mechanisms, and unvalidated platform packaging remain separate decisions.
 
-## SwifQL
+## SQL
 
-SwifQL is the mandatory SQL-construction dependency for the query-capable Swift API.
+SQL is the mandatory SQL-construction dependency for the query-capable Swift API.
 
-Current required behavior is verified from the completed Swift 6 / Duck-capable SwifQL mainline:
+Current required behavior is verified from the completed Swift 6 / Duck-capable SQL mainline:
 
 - Duck is a first-class dialect exposed as `.duck`;
 - Duck belongs to `SQLDialect.all`;
 - Duck preparation emits `$1`, `$2`, ... bindings;
 - Swift 6.3.3 strict-concurrency validation is clean while query/part/prepared/bind graphs remain intentionally non-Sendable where truthful.
 
-The approved query-capable SwiftDuckDB dependency line is the published prerelease `2.0.0-beta.6.0.1` from `https://github.com/SwifQL/SwifQL.git`, resolved and validated at revision `b759be0f7c64c6ca3b5272d17f404f5084e08033`. It includes the same-render unsafe-value provenance required by reusable Statement template validation plus the published shared semantic values, while preserving established preparation behavior and custom-dialect compatibility. Prefer an exact prerelease requirement during active pre-2.0 work so the dependency cannot drift.
+Duck depends on the published `SQL` package from `https://github.com/SwiftStream/SQL`. `Package.swift` declares `from: "2.0.0"`, so Duck 1.x accepts the reviewed SQL 2.x compatibility line (`>=2.0.0,<3.0.0`). The current generated `Package.resolved` evidence resolves SQL `2.1.0` at revision `1099bb8f62d2b6bacddfc6617318ddf4cfc7511e`. Duck and SQL have independent major-version lines; a future Duck major does not by itself require an SQL major change.
 
 Do not commit a machine-local path dependency or a stale remote revision that predates required Duck/Swift-6 behavior.
 
-When consuming SwifQL across actor boundaries, inspect its actual current types rather than assuming strict-concurrency clean means every query graph is Sendable.
+When consuming SQL across actor boundaries, inspect its actual current types rather than assuming strict-concurrency clean means every query graph is Sendable.
 
 ## Swift Stream Skills
 
 Swift Stream Skills is the central federation/distribution collection for public Agent Skills owned semantically by source repositories.
 
-SwiftDuckDB prepares its own source-owned skills under `.agent/skills` and follows the central source-package contract: direct-child package directories, real `SKILL.md` frontmatter, lower-hyphen names, standalone public-package content, and package-local licensing for SwiftDuckDB public skills. Public SwiftDuckDB packages use the intended `swiftduckdb-` namespace.
+Duck prepares its own source-owned skills under `.agent/skills` and follows the central source-package contract: direct-child package directories, real `SKILL.md` frontmatter, lower-hyphen names, standalone public-package content, and package-local licensing for Duck public skills. Public Duck packages use the intended `duck-` namespace.
 
-Skill semantics remain owned and edited in SwiftDuckDB. Central generated package/catalog/lock output is not hand-edited from SwiftDuckDB work.
+Skill semantics remain owned and edited in Duck. Central generated package/catalog/lock output is not hand-edited from Duck work.
 
-Source package preparation does not itself establish central trust. Federation onboarding/namespace registration is a separate explicit maintainer decision and must not be inferred from the presence of `swiftduckdb-*` source packages.
+Source package preparation does not itself establish central trust. Federation onboarding/namespace registration is a separate explicit maintainer decision and must not be inferred from the presence of `duck-*` source packages.
 
 ## External Evidence Rule
 
@@ -58,7 +58,7 @@ Keep repository names, paths, sampled files, examples, and extraction notes in `
 Evaluate style evidence in this order:
 
 1. explicit maintainer instructions;
-2. accepted stable SwiftDuckDB guidelines;
+2. accepted stable Duck guidelines;
 3. repeated patterns across multiple maintainer-authored repositories supplied for the task;
 4. strong repeated patterns within one substantial maintainer-authored repository;
 5. isolated examples as hypotheses only.

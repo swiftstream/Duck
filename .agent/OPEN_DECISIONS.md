@@ -4,21 +4,23 @@ Unresolved choices that must not be treated as implemented architecture.
 
 ## Maintainer Priority Boundary
 
-The current pre-Vortegy capability order is:
+The current durable product priority is to finish a locally release-ready Duck `v1.0.0` before another major feature layer:
 
 ```text
-Codable / Model Layer (P0 COMPLETE; technical root + public closure accepted; both original blockers CLOSED_BY_CORRECTION_01)
--> Migrations (P1 COMPLETE)
--> Observation / Reactive Queries (COMPLETE; technical root + public closure accepted)
--> Connection Pooling (COMPLETE; Tasks 01-05 accepted)
--> active-pending cancellation closure COMPLETE; post-COMMIT recovery research COMPLETE, limitation remains OPEN under retained fail-close
--> Advanced Appender API (fixed selected-column slice COMPLETE; remaining surfaces separately gated)
--> Nested / Complex Value & Result Families
+Foundation C6 -> C7 -> C8 -> C9
+-> technical release validation
+-> independent release audit
+-> real SwiftUI and UIKitPlus macOS consumers
+-> final public-doc polish/audit
+-> local v1.0.0
+-> separate v1.1.0 roadmap
 ```
 
-Platform validation continues in parallel when its required environment is available.
+Advanced Appender expansion and nested/complex Value/result families remain unresolved future capabilities, but they are not pre-v1 implementation authorization and no inherited ordering between them is binding after v1.0.0. A future v1.1.0 roadmap must prioritize them from current evidence.
 
-This priority order is durable product direction, not implementation authorization. Executable work is owned by `.agent/TASKS.md`; the current task state authorizes no next feature. Every future capability still requires separate research, reviewed planning, implementation, and audit.
+Platform validation continues as release/assurance evidence when the required environment is available.
+
+This priority boundary is durable product direction, not permission to skip normal research/planning/validation/audit gates. Executable work is owned by `.agent/TASKS.md`.
 
 ## DuckDB Integration
 
@@ -32,18 +34,18 @@ The current `Database` / `Connection` / `Transaction` / `Statement` / `Appender`
 Still unresolved for future separately reviewed capabilities:
 
 - **Advanced Connection Pooling extensions — only if later justified.** Accepted current state owns bounded lazy `ConnectionPool` ownership, scoped `pool.connection` / thin `pool.transaction` ergonomics, FIFO cancellation-safe checkout, exact full-token liveness, fail-closed retirement/replacement, graceful shutdown/drain, Observation × Pool integration, and public README/publication/Agent Skill closure. Future extensions that would require a new reviewed decision: manual lease/release, checkout timeout, idle lifetime policy, session reset, statement cache, pool metrics, global registry. Do not revive NIO/EventLoop ownership.
-- **Advanced Appender APIs — after the completed debt research/closure work and before nested values under the current durable priority order.** Fixed selected-column Appender scopes are accepted current state. Remaining separately reviewed choices are per-cell `DEFAULT`, QueryAppender, public DataChunk/vector append, manual lifecycle controls, and other justified batching/high-throughput surfaces. This entry does not authorize any one of them or establish an implementation order among them.
+- **Advanced Appender APIs — deferred major post-v1 capability family.** Fixed selected-column Appender scopes are accepted current state. Remaining separately reviewed choices are per-cell `DEFAULT`, QueryAppender, public DataChunk/vector append, manual lifecycle controls, and other justified batching/high-throughput surfaces. No implementation order relative to nested/complex Value work is established here; a separate post-v1 roadmap must prioritize these choices from then-current evidence.
 
 ## Higher-Level Features
 
 Resolved query-construction rules are not open decisions:
 
-- all SwiftDuckDB-owned SQL is constructed through SwifQL;
+- all Duck-owned SQL is constructed through SQL;
 - Duck execution uses `prepare(.duck)`;
-- explicit raw SQL is represented through `SwifQL.raw(...)`, not a parallel ordinary String construction path;
+- explicit raw SQL is represented through `SQL.raw(...)`, not a parallel ordinary String construction path;
 - the first public execution/result slice uses explicit `Database` and actor-isolated `Connection` ownership;
 - query-centered conveniences delegate to the same Connection engine;
-- typed-table selected-column convenience remains ordinary SwifQL construction sugar.
+- typed-table selected-column convenience remains ordinary SQL construction sugar.
 
 P0 Codable / Model Layer architecture and public closure are accepted current state. The accepted surface owns arbitrary flat Row/QueryResult decoding, exact flat ModelEncoder semantics, Table/@Column persistence extraction, prepared model bindings, explicit-Connection insert/update, and matching explicit-Transaction persistence overloads that reuse the existing transaction engine. Any later expansion beyond that accepted boundary requires a new reviewed decision. P1 Migrations is also accepted current state: the final name-only declarative `Migration`/`Migrator` model, batch history, atomic pending-batch migrate, reverse batch revert, `UInt` current-batch APIs, final build/test validation, and Wave F root audit are complete. No broader schema-diff/generation/reflection/discovery/cross-process-locking design is implied by that closure.
 
@@ -52,7 +54,7 @@ Observation / Reactive Queries core architecture is no longer an open decision. 
 ### Nested / Complex Value & Result Families — DEFERRED NICE-TO-HAVE
 
 - `LIST`, `ARRAY`, `MAP`, `STRUCT`, `UNION`, `ENUM` materialization/binding policy remains unresolved and separately gated.
-- This capability is explicitly ordered after Advanced Appender work unless a critical consumer requirement changes priority.
+- This capability is deferred until after local v1.0.0 unless a proven release blocker requires the smallest bounded correction. Its post-v1 implementation order relative to Advanced Appender work is intentionally unresolved and belongs to the separate v1.1.0 roadmap.
 - Foundation.Decimal is no longer an open design/integration question: P03 freezes DCT128-v1 and Wave C exact production/query/Statement/Appender/result integration is accepted.
 
 ## Platform Packaging / Validation

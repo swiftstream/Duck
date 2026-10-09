@@ -1,6 +1,6 @@
 # Development Orchestration
 
-Model-independent authority for coordinating SwiftDuckDB repository work with LLMs or other implementation/validation executors.
+Model-independent authority for coordinating Duck repository work with LLMs or other implementation/validation executors.
 
 This file owns roles, delegation, review, root-audit cadence, and gates. Detailed `.artifacts/**` mechanics are owned by `ARTIFACTS_WORKFLOW.md`.
 
@@ -103,7 +103,7 @@ For First Public Query API Rev 02, the root-gate sequence is:
 
 - **R1:** actor ownership/lifetime after Task 02 finally compiles/tests cleanly, before Task 03 proceeds. This gate is mandatory because actor ownership has already produced multiple compiler-driven architecture blockers.
 - **R2:** native prepared/pending/result resources plus async Connection execution core after Tasks 04-05, before public ergonomic expansion proceeds.
-- **R3:** SwifQL/table conveniences plus full public runtime/concurrency/cancellation coverage after Tasks 06-07, before README/final closure.
+- **R3:** SQL/table conveniences plus full public runtime/concurrency/cancellation coverage after Tasks 06-07, before README/final closure.
 - **R4:** fresh full final root audit after README, final validation, and stable-doc candidate are complete, before closing the phase.
 
 If any root gate returns BLOCKED, coordinator creates a bounded correction wave. A correction addressing that root blocker does **not** reopen the gate by coordinator self-acceptance alone; another fresh root audit is required.
@@ -132,7 +132,7 @@ After each material implementation/correction batch, inspect through the coordin
 - complete Git status and changed paths;
 - full changed/created source and direct callers;
 - relevant ownership/concurrency/native boundaries;
-- SwifQL-only SQL construction and `.duck` preparation rules;
+- SQL-only SQL construction and `.duck` preparation rules;
 - package/dependency changes;
 - forbidden/deferred scope;
 - actual validation evidence;

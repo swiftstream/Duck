@@ -4,23 +4,33 @@ Ideas and maintainer-prioritized capabilities that are not yet active approved i
 
 P0 `Codable / Model Layer`, P1 `Migrations`, Observation / Reactive Queries, and Connection Pooling are COMPLETE and no longer future work. Each completed capability has technical root + public README/publication/Agent Skill closure. Every later capability remains future work until separately researched/planned/authorized.
 
-## Maintainer-Prioritized Pre-Vortegy Capability Order
+## Maintainer-Prioritized Release Order
 
-Promote each remaining future item separately through fresh research, reviewed planning, implementation, and audit.
+The current priority is release readiness, not another feature layer:
 
-1. Address the two verified technical-debt capabilities in `.agent/TECH_DEBT.md` before Advanced Appender expansion:
-   - deterministic active-pending cancellation integration coverage — **DONE** (test-only pending-gate coverage; debt entry closed);
-   - post-COMMIT scheduling Connection recovery research — **DONE** (2026-09-28 research wave `RECOVERY_CONTRACT_FOUND: NO`; fail-close retained; reopen only on a proven public recovery contract).
-2. **Advanced Appender APIs** before nested/complex value families: fixed selected-column Appender is DONE; separately evaluate per-cell `DEFAULT`, QueryAppender, public DataChunk/vector append, manual lifecycle controls, and other justified high-throughput surfaces.
-3. **Nested/complex Value/result families** (`LIST`, `ARRAY`, `MAP`, `STRUCT`, `UNION`, `ENUM`) remain explicitly deferred nice-to-have capability debt and must not be lost.
+```text
+Foundation C6 -> C7 -> C8 -> C9
+-> v1.0.0 technical release validation
+-> independent release audit
+-> real local macOS SwiftUI consumer
+-> real local macOS UIKitPlus consumer
+-> final public-doc polish/audit
+-> local v1.0.0
+```
 
-Platform validation proceeds in parallel whenever the correct platform/toolchain environment is available. It is an assurance track, not a substitute for the feature roadmap.
+The two previously verified transaction-adjacent research items are already resolved to their current boundary: deterministic active-pending cancellation integration coverage is DONE, and post-COMMIT recovery research found no safe public recovery contract so fail-close remains the reviewed limitation.
+
+Before local v1.0.0, **Advanced Appender APIs** and **nested/complex Value/result families** are explicitly deferred unless a proven release blocker requires the smallest bounded correction. Preserve the ideas, but do not promote them merely because they appeared next in an older roadmap.
+
+After local v1.0.0, create a separate v1.1.0 roadmap and prioritize major feature families afresh. Initial candidates include Advanced Appender surfaces (per-cell `DEFAULT`, QueryAppender, public DataChunk/vector append, manual lifecycle controls) and nested/complex `LIST`, `ARRAY`, `MAP`, `STRUCT`, `UNION`, `ENUM` support.
+
+Platform validation remains an assurance track and participates where required by release evidence; it does not substitute for the release-readiness sequence.
 
 ## Other Future Work
 
 - Define the long-term DuckDB upgrade/version policy beyond the approved current v1.5.5 source snapshot.
 - Evaluate optional DuckDB extensions and bundle-size tradeoffs beyond the current generated extension set.
-- Decide when to request central `swiftstream/skills` onboarding for SwiftDuckDB after source-owned public packages are ready. Source preparation under the established `.agent/skills` root and `.agent/SKILL_INDEX.md` does not itself authorize central federation registration.
+- Decide when to request central `swiftstream/skills` onboarding for Duck after source-owned public packages are ready. Source preparation under the established `.agent/skills` root and `.agent/SKILL_INDEX.md` does not itself authorize central federation registration.
 - Continue real platform build/runtime validation for the intended iOS 15+, macOS 12+, Linux, Android, and Windows environments under supported Swift 6.3+ toolchains when the correct environment exists.
 
 ## Current Platform-Validation Boundary

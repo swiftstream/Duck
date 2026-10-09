@@ -1,10 +1,10 @@
 # Safety Rules
 
-Stable safety authority for SwiftDuckDB SQL construction, binding, native ownership, and unsafe boundary review.
+Stable safety authority for Duck SQL construction, binding, native ownership, and unsafe boundary review.
 
-## SwifQL Owns SQL Construction
+## SQL Package Owns SQL Construction
 
-All SwiftDuckDB-owned SQL is constructed through SwifQL and Duck preparation uses `.duck`.
+All Duck-owned SQL is constructed through the `SQL` package and Duck preparation uses `.duck`.
 
 This applies to:
 
@@ -18,19 +18,19 @@ Generated SQL `String` is internal adapter data after `query.prepare(.duck)` / `
 
 ## Bound Values vs Structural SQL
 
-Ordinary dynamic/user values belong in SwifQL's bound-value path.
+Ordinary dynamic/user values belong in SQL's bound-value path.
 
 Do not interpolate dynamic/untrusted data into structural SQL text for convenience.
 
-`SwifQL.raw(...)` is a deliberate structural escape hatch for SQL that genuinely must be expressed raw or intentionally malformed for a negative test. It is not a replacement binding path.
+`SQL.raw(...)` is a deliberate structural escape hatch for SQL that genuinely must be expressed raw or intentionally malformed for a negative test. It is not a replacement binding path.
 
 If raw structural SQL includes dynamic identifiers/keywords/clauses later, their safety contract must be explicit and reviewed rather than inferred from value-binding safety.
 
 ## Adapter Binding
 
-The SwiftDuckDB adapter must preserve:
+The Duck adapter must preserve:
 
-- SwifQL placeholder order;
+- SQL placeholder order;
 - exact supported value conversion;
 - null semantics;
 - native bind ownership/copy lifetime.
@@ -71,11 +71,11 @@ Use a focused compiler/native probe before promoting such a pattern into product
 
 Native resources must be cleaned up on success, failure, cancellation, and failed Swift initialization according to DuckDB contracts.
 
-SwiftDuckDB-owned production code must not use trap-prone force operations as state handling: no optional force unwrap (`value!`), `try!`, or `as!`. Represent required invariants with non-optional owned state where possible; otherwise use `guard`/optional binding and return, throw, or fail-close through a reviewed typed path. A library-controlled invalid/native-lifetime state must not crash the consumer process.
+Duck-owned production code must not use trap-prone force operations as state handling: no optional force unwrap (`value!`), `try!`, or `as!`. Represent required invariants with non-optional owned state where possible; otherwise use `guard`/optional binding and return, throw, or fail-close through a reviewed typed path. A library-controlled invalid/native-lifetime state must not crash the consumer process.
 
 Do not use `fatalError`, `preconditionFailure`, or equivalent process traps for user-triggerable/recoverable production states. Assertions may support debug-only developer diagnostics only when the same production path remains safe without relying on the assertion.
 
-These rules also apply to SwiftDuckDB-owned tests/examples when an equally clear non-trapping form exists, so examples and regression code reinforce the same safety model. Historical frozen `.artifacts/**`, generated build output, vendored DuckDB, and dependency source are evidence/external code and are not retroactively rewritten merely to satisfy this project-owned source rule.
+These rules also apply to Duck-owned tests/examples when an equally clear non-trapping form exists, so examples and regression code reinforce the same safety model. Historical frozen `.artifacts/**`, generated build output, vendored DuckDB, and dependency source are evidence/external code and are not retroactively rewritten merely to satisfy this project-owned source rule.
 
 Copy borrowed diagnostic strings before destroying the owner that backs them.
 

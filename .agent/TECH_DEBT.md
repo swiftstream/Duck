@@ -17,7 +17,7 @@ A debt entry is not implementation authorization. Promote it into executable wor
 
 **Status:** CLOSED (2026-09-28). Maintainer authorized durable closure after CLEAN Sol audit.
 
-**Closed by:** test-only `A1PendingGate` C ABI (volatile DuckDB scalar callback + condition-variable gate) and `Tests/SwiftDuckDBTests/ActivePendingCancellationTests.swift`. The harness synchronizes on actual native pending entry without sleeps, timing guesses, or production test hooks: `threads = 1` / `external_threads = 1` are asserted; callback count stays zero through `EXPLAIN`, `duckdb_prepare`, and `duckdb_pending_prepared`; the callback enters once only during public `Connection.query`; cancellation is requested only after entry and surfaces `CancellationError`; the same `Connection` remains reusable. Provenance is attributed to `duckdb_pending_execute_task` on the caller with zero worker threads. Local commit `07e9b17`. Independent Sol audit CLEAN at `87ee4c2678fd3cfbca36c678b608c00e195597065387d8b17021ffdb8a2c33cf` (one non-blocking LOW A1R-01 style note on a raw `current_setting` SELECT, deferred until that test is next edited).
+**Closed by:** test-only `A1PendingGate` C ABI (volatile DuckDB scalar callback + condition-variable gate) and `Tests/DuckTests/ActivePendingCancellationTests.swift`. The harness synchronizes on actual native pending entry without sleeps, timing guesses, or production test hooks: `threads = 1` / `external_threads = 1` are asserted; callback count stays zero through `EXPLAIN`, `duckdb_prepare`, and `duckdb_pending_prepared`; the callback enters once only during public `Connection.query`; cancellation is requested only after entry and surfaces `CancellationError`; the same `Connection` remains reusable. Provenance is attributed to `duckdb_pending_execute_task` on the caller with zero worker threads. Local commit `07e9b17`. Independent Sol audit CLEAN at `87ee4c2678fd3cfbca36c678b608c00e195597065387d8b17021ffdb8a2c33cf` (one non-blocking LOW A1R-01 style note on a raw `current_setting` SELECT, deferred until that test is next edited).
 
 **Foundation C4 follow-up:** A1R-01 is CLOSED. The settings-inspection `SELECT` in `ActivePendingCancellationTests.swift` now uses structural SQL 2.x composition with `Fn.build` for `current_setting` and typed casts; no raw SELECT remains for that inspection.
 
@@ -25,7 +25,7 @@ A debt entry is not implementation authorization. Promote it into executable wor
 
 **Status:** OPEN limitation. Research wave 2026-09-28 completed with `RECOVERY_CONTRACT_FOUND: NO`. The reviewed fail-close policy is retained. This entry is not closed as implemented recovery.
 
-**Priority:** after active-pending cancellation coverage and before Advanced Appender API.
+**Priority:** no active pre-v1 implementation priority. Keep the reviewed fail-close limitation through the v1.0.0 release path unless new public DuckDB evidence makes it a proven release blocker; otherwise any reopened implementation work must be prioritized by a later roadmap.
 
 **Current limitation:** after COMMIT crosses the reviewed native scheduling boundary at `NativePreparedStatement.pending()` / `duckdb_pending_prepared`, any surfaced COMMIT error forces the public `Connection` into terminal fail-closed state even when DuckDB may internally have completed the commit or rolled the failed commit back and the native connection might technically be reusable.
 
@@ -43,7 +43,7 @@ Do not weaken the reviewed fail-close policy merely to preserve Connection reuse
 
 **Status:** OPEN typed-construction gap identified by Foundation Modernization C4.
 
-**Callsite family:** `Tests/SwiftDuckDBTests/ActivePendingCancellationTests.swift` uses the fixed test-only statement `SET threads = 1` to force deterministic single-thread scheduling for the active-pending cancellation harness.
+**Callsite family:** `Tests/DuckTests/ActivePendingCancellationTests.swift` uses the fixed test-only statement `SET threads = 1` to force deterministic single-thread scheduling for the active-pending cancellation harness.
 
 **Missing SQL typed construct:** the pinned SQL 2.1 surface has generic `SET` composition used by DML/DDL continuations, but no dedicated session-setting statement API that owns a setting identifier plus a grammar-valid literal value for DuckDB `SET <name> = <value>`. Ordinary Swift scalar SQLable values are prepared bindings, so generic composition does not prove the exact session-setting grammar required here.
 
@@ -59,7 +59,7 @@ Do not weaken the reviewed fail-close policy merely to preserve Connection reuse
 
 **Status:** OPEN typed-construction gap identified by Foundation Modernization C4.
 
-**Callsite family:** `Tests/SwiftDuckDBTests/ActivePendingCancellationTests.swift` wraps the already-structural gated query with the fixed `EXPLAIN` statement prefix to prove that explain/preparation does not execute the volatile pending gate.
+**Callsite family:** `Tests/DuckTests/ActivePendingCancellationTests.swift` wraps the already-structural gated query with the fixed `EXPLAIN` statement prefix to prove that explain/preparation does not execute the volatile pending gate.
 
 **Missing SQL typed construct:** the pinned SQL 2.1 source exposes no `EXPLAIN` statement wrapper that accepts an arbitrary structural child query while preserving its preparation semantics.
 
@@ -75,7 +75,7 @@ Do not weaken the reviewed fail-close policy merely to preserve Connection reuse
 
 **Status:** OPEN typed-construction gap identified by Foundation Modernization C4.
 
-**Callsite family:** the current raw escape-hatch example `PRAGMA version` appears in the executable README example, `.agent/skills/swiftduckdb-query-execution/SKILL.md`, and the current-intent example in `.agent/FUTURE_PUBLICATIONS.md`.
+**Callsite family:** the current raw escape-hatch example `PRAGMA version` appears in the executable README example, `.agent/skills/duck-query-execution/SKILL.md`, and the current-intent example in `.agent/FUTURE_PUBLICATIONS.md`.
 
 **Missing SQL typed construct:** the pinned SQL 2.1 source/tests expose no typed `PRAGMA` statement surface.
 
@@ -91,7 +91,7 @@ Do not weaken the reviewed fail-close policy merely to preserve Connection reuse
 
 **Status:** OPEN typed-construction gap identified by Foundation Modernization C4.
 
-**Callsite family:** `Sources/SwiftDuckDB/Connection.swift` creates the observation lifecycle begin snapshot with the fixed statement `BEGIN TRANSACTION READ ONLY`.
+**Callsite family:** `Sources/Duck/Connection.swift` creates the observation lifecycle begin snapshot with the fixed statement `BEGIN TRANSACTION READ ONLY`.
 
 **Missing SQL typed construct:** SQL 2.1 exposes ordinary transaction atoms such as `SQL.begin`, `SQL.commit`, and `SQL.rollback`, but no exact typed transaction-mode API for `BEGIN TRANSACTION READ ONLY`.
 
@@ -111,7 +111,7 @@ They remain subject to fresh research, planning, implementation, and audit befor
 
 ### Nested / Complex Value and Result Families
 
-**Priority:** after Advanced Appender API unless a critical consumer requirement explicitly promotes it earlier.
+**Priority:** deferred until after local v1.0.0 unless a proven release blocker requires the smallest bounded correction. No relative post-v1 ordering against Advanced Appender is established here; the separate v1.1.0 roadmap must prioritize both families from then-current evidence.
 
 **Deferred capability:** first-class binding, result materialization, Row/Value convenience, logical metadata, Statement, Appender, NULL/Optional, and exact round-trip semantics for:
 
@@ -124,8 +124,8 @@ UNION
 ENUM
 ```
 
-**Why it matters:** these are significant DuckDB-native type families and will eventually improve model expressiveness and analytical workloads. They are not required before the maintainer's current pre-Vortegy critical capabilities (`Codable`, migrations, observation, pooling) and are therefore intentionally lower priority.
+**Why it matters:** these are significant DuckDB-native type families and will eventually improve model expressiveness and analytical workloads. They are not required for the current v1.0.0 release-readiness path and are intentionally deferred so release closure is not expanded by a new major feature family.
 
-**Current boundary:** scalar/exact Value/result work is complete for Bool, signed/unsigned integer widths, Float/Double, String/Data, UUID, Int128/UInt128 availability bridges, PureDate/PureTime/DateTime, Foundation.Date/TIMESTAMPTZ, SwifQL.Interval, and Foundation.Decimal. Nested/complex families remain separately gated.
+**Current boundary:** scalar/exact Value/result work is complete for Bool, signed/unsigned integer widths, Float/Double, String/Data, UUID, Int128/UInt128 availability bridges, PureDate/PureTime/DateTime, Foundation.Date/TIMESTAMPTZ, Interval, and Foundation.Decimal. Nested/complex families remain separately gated.
 
 **Closure condition:** promote a dedicated nested/complex Value/result capability and implement the existing universal value-vertical contract across query binding, reusable Statement, Appender, result materialization, NULL/Optional, logical metadata, boundaries, and exact rejection behavior.

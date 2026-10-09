@@ -1,6 +1,6 @@
 # Context Loading Rules
 
-Mandatory progressive-loading discipline for SwiftDuckDB coordinators, executors, validators, and auditors.
+Mandatory progressive-loading discipline for Duck coordinators, executors, validators, and auditors.
 
 ## Default Sequence
 
@@ -18,7 +18,7 @@ Stop loading once scope, ownership, implementation constraints, and required evi
 For Swift production work:
 
 - `STYLE_GUIDELINES.md` - common Swift conventions;
-- `LIBRARY_CODE_GUIDELINES.md` - SwiftDuckDB implementation/native/concurrency/API policy.
+- `LIBRARY_CODE_GUIDELINES.md` - Duck implementation/native/concurrency/API policy.
 
 Additionally load:
 
@@ -67,7 +67,7 @@ When the maintainer supplies repositories for dependency inspection, comparison,
 - keep local paths, sampled files, competing evidence, and provenance in `.artifacts/**`;
 - promote only reviewed self-contained rules into stable `.agent/**`.
 
-Real dependencies such as DuckDB or SwifQL may be named in stable docs, but machine-local checkout locations are never stable authority.
+Real dependencies such as DuckDB or SQL may be named in stable docs, but machine-local checkout locations are never stable authority.
 
 ## Escalation
 

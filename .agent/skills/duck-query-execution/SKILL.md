@@ -1,10 +1,10 @@
 ---
-name: swiftduckdb-query-execution
-description: Use for SwiftDuckDB database opening, Connection creation, SwifQL query/execute calls, QueryResult/Row/Value reading, basic Connection concurrency, cancellation, errors, and the raw-SQL escape hatch.
+name: duck-query-execution
+description: Use for Duck database opening, Connection creation, SQL query/execute calls, QueryResult/Row/Value reading, basic Connection concurrency, cancellation, errors, and the raw-SQL escape hatch.
 license: LICENSE.txt
 ---
 
-# SwiftDuckDB Query Execution
+# Duck Query Execution
 
 Use this skill for the normal database/connection/query workflow. For repeated prepared query shapes, explicit transaction semantics, bulk complete-row ingestion, or reactive latest-state delivery, prefer the dedicated reusable-Statement, transaction, Appender, or Observation guidance instead of stretching this workflow.
 
@@ -24,14 +24,14 @@ let connection = try database.connect()
 
 `Database` can create multiple independent `Connection` actors with `connect()`.
 
-## 2. Build normal queries with SwifQL
+## 2. Build normal queries with SQL
 
-Prefer declarative SwifQL construction. SwiftDuckDB does not expose a normal handwritten-String query API.
+Prefer declarative SQL construction. Duck does not expose a normal handwritten-String query API.
 
 ```swift
 let users = Path.Table("users")
 
-let result = try await SwifQL
+let result = try await SQL
     .select(users.column("id"), users.column("name"))
     .from(users)
     .query(on: connection)
@@ -40,7 +40,7 @@ let result = try await SwifQL
 The query-centered form above delegates to the same public engine as the Connection-centered form:
 
 ```swift
-let query = SwifQL
+let query = SQL
     .select(users.column("id"), users.column("name"))
     .from(users)
 
@@ -54,7 +54,7 @@ Choose whichever form reads more clearly at the call site. Do not treat them as 
 `query(...)` returns a `QueryResult` with columns, logical result metadata, rows, and `rowsChanged`.
 
 ```swift
-let result = try await SwifQL
+let result = try await SQL
     .select(Int32(42) => "answer")
     .query(on: connection)
 ```
@@ -62,7 +62,7 @@ let result = try await SwifQL
 Mutation-oriented work can use `execute(...)`, which returns `UInt64` rows changed.
 
 ```swift
-let changed = try await SwifQL
+let changed = try await SQL
     .update(users)
     .set[items: users.column("name") == "Mike"]
     .where(users.column("id") == Int32(1))
@@ -71,14 +71,14 @@ let changed = try await SwifQL
 _ = changed
 ```
 
-Do not invent a separate mutation API when the existing SwifQL `execute` path already matches the task.
+Do not invent a separate mutation API when the existing SQL `execute` path already matches the task.
 
 ## 4. Read results with exact typed extraction
 
 `QueryResult.rows` contains public `Row` values. Named and positional typed extraction is exact-family extraction; numeric coercion is not implied.
 
 ```swift
-let result = try await SwifQL
+let result = try await SQL
     .select(
         Int32(7) => "id",
         "ready" => "state"
@@ -106,8 +106,8 @@ If independent work should proceed concurrently, create another Connection from 
 let first = try database.connect()
 let second = try database.connect()
 
-async let a = SwifQL.select(Int32(1) => "value").query(on: first)
-async let b = SwifQL.select(Int32(2) => "value").query(on: second)
+async let a = SQL.select(Int32(1) => "value").query(on: first)
+async let b = SQL.select(Int32(2) => "value").query(on: second)
 
 let results = try await (a, b)
 _ = results
@@ -117,7 +117,7 @@ Do not promise parallel native execution inside one Connection merely because Sw
 
 ## 6. Cancellation is cooperative
 
-SwiftDuckDB observes cancellation around its async/native scheduling boundaries and while copying results. Cancellation surfaces as Swift `CancellationError`.
+Duck observes cancellation around its async/native scheduling boundaries and while copying results. Cancellation surfaces as Swift `CancellationError`.
 
 Do not promise instantaneous interruption of a synchronous DuckDB C call already running or deterministic cancellation latency inside that call.
 
@@ -127,17 +127,17 @@ Database opening, Connection opening, preparation, binding, execution, unsupport
 
 Native diagnostic strings are useful diagnostics, but their exact wording is not a stable symbolic error contract. Never branch application logic by parsing native diagnostic text.
 
-## 8. Use raw SQL only as an explicit SwifQL escape hatch
+## 8. Use raw SQL only as an explicit SQL escape hatch
 
-When declarative SwifQL cannot yet express a query, use `SwifQL.raw(...)` explicitly:
+When declarative SQL cannot yet express a query, use `SQL.raw(...)` explicitly:
 
 ```swift
-try await SwifQL
+try await SQL
     .raw("PRAGMA version")
     .execute(on: connection)
 ```
 
-Keep raw SQL exceptional. Normal examples and generated application code should prefer declarative SwifQL.
+Keep raw SQL exceptional. Normal examples and generated application code should prefer declarative SQL.
 
 ## 9. Choose the more specific capability when the workload changes
 
@@ -147,9 +147,9 @@ Use `Connection.transaction` and the supplied `Transaction` when multiple same-C
 
 Use `Connection.appender` for bulk complete-row ingestion, or `Transaction.appender` when that ingestion must participate in an already-active explicit transaction.
 
-Use the dedicated `swiftduckdb-codable-models` skill when work centers on `Row.decode`, `QueryResult.first/all(decoding:)`, `ModelEncoder`, or explicit `Table` insert/update through a `Connection` or `Transaction`.
+Use the dedicated `duck-codable-models` skill when work centers on `Row.decode`, `QueryResult.first/all(decoding:)`, `ModelEncoder`, or explicit `Table` insert/update through a `Connection` or `Transaction`.
 
-Use the dedicated `swiftduckdb-observation` skill when a read-only query should become a reusable latest-state `QueryObservation` driven by same-`Database` mutation invalidation.
+Use the dedicated `duck-observation` skill when a read-only query should become a reusable latest-state `QueryObservation` driven by same-`Database` mutation invalidation.
 
 Do not duplicate the detailed Statement, Transaction, Appender, Codable/model, or Observation lifecycle rules in this basic query workflow; switch to the dedicated skill when those semantics become central.
 
@@ -161,7 +161,7 @@ Do not infer these capabilities from basic query execution:
 broad ORM/repository identity semantics beyond the dedicated flat Codable/model layer
 arbitrary nested/unkeyed Codable model graphs beyond the current flat model boundary
 migrations
-connection pooling (use the dedicated `swiftduckdb-connection-pooling` skill)
+connection pooling (use the dedicated `duck-connection-pooling` skill)
 manual transaction lifecycle details beyond the dedicated Transaction capability
 savepoints/custom isolation
 advanced Appender lifecycle surfaces
@@ -171,4 +171,4 @@ platform-support guarantees not documented by the current public package
 
 Flat model decoding/encoding and explicit Table insert/update are supported, but they belong to the dedicated model skill rather than this baseline query workflow.
 
-Keep generated code on the current public SwiftDuckDB + SwifQL surface and preserve explicit ownership boundaries.
+Keep generated code on the current public Duck + SQL surface and preserve explicit ownership boundaries.

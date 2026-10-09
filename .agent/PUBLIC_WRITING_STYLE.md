@@ -1,6 +1,6 @@
 # Public Writing Style
 
-Stable writing policy for SwiftDuckDB README and other public developer documentation.
+Stable writing policy for Duck README and other public developer documentation.
 
 ## Example First
 
@@ -12,13 +12,13 @@ For query documentation, a section may begin with the concise SQL goal:
 SELECT id, name FROM users WHERE id = 42;
 ```
 
-Immediately follow with the **only executable Swift usage**, declarative SwifQL.
+Immediately follow with the **only executable Swift usage**, declarative `SQL` builders through `import Duck` unless an example specifically needs to demonstrate explicit dual import.
 
-Plain SQL is explanatory comparison, not an alternative SwiftDuckDB API.
+Plain SQL is explanatory comparison, not an alternative Duck API.
 
-## SwifQL-Only Executable Query Examples
+## SQL-Only Executable Query Examples
 
-All executable Swift query examples use SwifQL and the actual implemented public SwiftDuckDB API.
+All executable Swift query examples use SQL and the actual implemented public Duck API.
 
 Never teach ordinary handwritten String execution such as:
 
@@ -26,7 +26,7 @@ Never teach ordinary handwritten String execution such as:
 connection.query("SELECT ...")
 ```
 
-If the raw escape hatch needs documentation, show it explicitly through `SwifQL.raw(...)` and label it as an escape hatch rather than normal construction.
+If the raw escape hatch needs documentation, show it explicitly through `SQL.raw(...)` and label it as an escape hatch rather than normal construction.
 
 Typed table conveniences such as:
 
@@ -53,7 +53,7 @@ Do not advertise:
 - broad ORM/repository semantics beyond the validated flat Codable/model layer and explicit insert/update conveniences;
 - arbitrary nested/unkeyed Codable model graphs that are not part of the current flat keyed model boundary;
 - Observation behavior beyond the implemented same-Database latest-state `QueryObservation` contract, including event-log delivery, typed/decoded observation, polling, cross-process/file watching, framework publishers, or public observation configuration;
-- migrations, connection pooling, or other capabilities that have not completed their own public documentation closure;
+- advanced Appender, nested/complex Value, or other capabilities that have not completed their own public documentation closure;
 - platform support not actually validated;
 - unpublished package versions.
 
@@ -64,7 +64,7 @@ Every completed public capability must also have detailed public/social source m
 A capability post should normally cover:
 
 - the concrete user problem and why the capability exists;
-- the smallest real SwiftDuckDB + SwifQL example;
+- the smallest real Duck + SQL example;
 - the main practical usage patterns;
 - ownership/lifetime/concurrency semantics that affect correct use;
 - important error/cancellation/transaction boundaries;

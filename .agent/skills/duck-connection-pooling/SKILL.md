@@ -1,12 +1,12 @@
 ---
-name: swiftduckdb-connection-pooling
-description: Use for SwiftDuckDB bounded ConnectionPool creation, scoped Connection checkout, managed pool transactions, lease-bound Statement/Appender work, Database Observation interaction, checkout cancellation, and graceful shutdown.
+name: duck-connection-pooling
+description: Use for Duck bounded ConnectionPool creation, scoped Connection checkout, managed pool transactions, lease-bound Statement/Appender work, Database Observation interaction, checkout cancellation, and graceful shutdown.
 license: LICENSE.txt
 ---
 
-# SwiftDuckDB Connection Pooling
+# Duck Connection Pooling
 
-Use this skill when application work needs multiple independent SwiftDuckDB Connections with a bounded, reusable owner. For ordinary one-off work on a caller-owned Connection, use the query-execution skill. For detailed transaction or Observation semantics, load the matching dedicated skill when that workflow becomes central.
+Use this skill when application work needs multiple independent Duck Connections with a bounded, reusable owner. For ordinary one-off work on a caller-owned Connection, use the query-execution skill. For detailed transaction or Observation semantics, load the matching dedicated skill when that workflow becomes central.
 
 ## 1. Create a bounded pool from one Database
 
@@ -23,7 +23,7 @@ let pool = try database.pool(maximumConnections: 4)
 let users = Path.Table("users")
 
 let result = try await pool.connection { connection in
-    try await SwifQL
+    try await SQL
         .select(users.column("id"), users.column("name"))
         .from(users)
         .query(on: connection)
@@ -44,7 +44,7 @@ Calling `pool.connection` again from a currently live lease of the same pool thr
 
 ```swift
 try await pool.transaction { transaction in
-    try await SwifQL
+    try await SQL
         .insertInto(users, fields: "id", "name")
         .values
         .values(Int32(42), "Mira")
@@ -64,13 +64,13 @@ Prepare and use a reusable Statement only while its originating Connection's exa
 
 ```swift
 let observation = try database.observe(
-    SwifQL
+    SQL
         .select(users.column("id"), users.column("name"))
         .from(users)
 )
 ```
 
-`database.observe(...)` and SwifQL `.observe(on: database)` remain the public Observation entrypoints. There is no `pool.observe` or `Connection.observe`. Each observation iterator owns a private refresh Connection. Pooled mutations on the exact same Database publish through the existing Connection Observation path. COMMIT/ROLLBACK and Appender visibility retain their normal rules. Pool lease return, retirement, and replacement alone do not fabricate invalidations. A stale pooled Connection's internal refresh work fails with `.poolLeaseExpired`. Observation is latest-state and read-only; it does not watch another Database instance or external file mutations.
+`database.observe(...)` and SQL `.observe(on: database)` remain the public Observation entrypoints. There is no `pool.observe` or `Connection.observe`. Each observation iterator owns a private refresh Connection. Pooled mutations on the exact same Database publish through the existing Connection Observation path. COMMIT/ROLLBACK and Appender visibility retain their normal rules. Pool lease return, retirement, and replacement alone do not fabricate invalidations. A stale pooled Connection's internal refresh work fails with `.poolLeaseExpired`. Observation is latest-state and read-only; it does not watch another Database instance or external file mutations.
 
 ## 7. Shut down outside every live lease
 
@@ -84,4 +84,4 @@ Shutdown stops new checkout, fails queued requests with `.poolClosed`, and drain
 
 Pool-specific typed errors include `.invalidPoolConfiguration`, `.poolClosed`, `.poolReentrantCheckout`, `.poolShutdownFromLease`, `.poolLeaseExpired`, and `.poolTransactionNotFinalized`. A native Connection open failure can still surface as `.connectionOpen`; transaction cleanup may surface `TransactionRollbackError`. Do not inspect native error text to infer a guaranteed internal stage.
 
-The current pool has no manual checkout/release, checkout timeout, idle lifetime policy, session reset, statement cache, metrics, or global registry. Do not add a `pool.observe` or independent transaction lifecycle in generated examples. All executable SQL construction uses SwifQL; use `SwifQL.raw(...)` only as an explicit escape hatch, never an ordinary handwritten String query API. Do not infer a new platform support or benchmark claim from pooling.
+The current pool has no manual checkout/release, checkout timeout, idle lifetime policy, session reset, statement cache, metrics, or global registry. Do not add a `pool.observe` or independent transaction lifecycle in generated examples. All executable SQL construction uses SQL; use `SQL.raw(...)` only as an explicit escape hatch, never an ordinary handwritten String query API. Do not infer a new platform support or benchmark claim from pooling.

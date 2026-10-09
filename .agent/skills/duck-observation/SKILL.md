@@ -1,23 +1,23 @@
 ---
-name: swiftduckdb-observation
-description: Use for SwiftDuckDB QueryObservation latest-state reactive queries, same-Database invalidation, native READ ONLY refresh safety, transaction/Appender publication boundaries, iterator cancellation, and Observation v1 non-goals.
+name: duck-observation
+description: Use for Duck QueryObservation latest-state reactive queries, same-Database invalidation, native READ ONLY refresh safety, transaction/Appender publication boundaries, iterator cancellation, and Observation v1 non-goals.
 license: LICENSE.txt
 ---
 
-# SwiftDuckDB Observation / Reactive Queries
+# Duck Observation / Reactive Queries
 
-Use this skill when application code needs the latest successful result of a read-only SwifQL query to refresh as mutations flow through the same SwiftDuckDB `Database`.
+Use this skill when application code needs the latest successful result of a read-only SQL query to refresh as mutations flow through the same Duck `Database`.
 
 `QueryObservation` is deliberately a latest-state `AsyncSequence<QueryResult>`, not an event stream and not a filesystem watcher.
 
-## 1. Create an observation from a SwifQL query
+## 1. Create an observation from a SQL query
 
 Prefer the query-centered form when it reads naturally:
 
 ```swift
 let users = Path.Table("users")
 
-let observation = try SwifQL
+let observation = try SQL
     .select(users.column("id"), users.column("name"))
     .from(users)
     .observe(on: database)
@@ -26,14 +26,14 @@ let observation = try SwifQL
 The Database-centered form is equivalent:
 
 ```swift
-let query = SwifQL
+let query = SQL
     .select(users.column("id"), users.column("name"))
     .from(users)
 
 let observation = try database.observe(query)
 ```
 
-Both return the same public `QueryObservation` abstraction. Use the dedicated `swiftduckdb-query-execution` skill when basic SwifQL construction, one-shot query/execute, or result reading is the main task.
+Both return the same public `QueryObservation` abstraction. Use the dedicated `duck-query-execution` skill when basic SQL construction, one-shot query/execute, or result reading is the main task.
 
 ## 2. Consume the latest QueryResult with for-await
 
@@ -83,7 +83,7 @@ Do not share assumptions about one iterator's refresh timing with another iterat
 
 ## 5. Observation queries must remain read-only
 
-SwiftDuckDB executes each refresh inside a native READ ONLY transaction.
+Duck executes each refresh inside a native READ ONLY transaction.
 
 The prepared query's read-only property is a preflight guard. If DuckDB does not prove the prepared query read-only, iteration fails with:
 
@@ -91,19 +91,19 @@ The prepared query's read-only property is a preflight guard. If DuckDB does not
 DatabaseError.observationRequiresReadOnlyQuery
 ```
 
-SwiftDuckDB also checks the successful native result's actual read-only truth. That result truth remains authoritative for the execution that actually occurred.
+Duck also checks the successful native result's actual read-only truth. That result truth remains authoritative for the execution that actually occurred.
 
 Do not turn side-effecting SELECT-family expressions such as sequence advancement into observations.
 
-The READ ONLY native transaction is the safety boundary; SwiftDuckDB does not rely on SQL text prefixes such as SELECT to decide whether execution is safe.
+The READ ONLY native transaction is the safety boundary; Duck does not rely on SQL text prefixes such as SELECT to decide whether execution is safe.
 
 ## 6. Prepared/bound execution remains authoritative
 
-Observation captures the normal SwiftDuckDB prepared query snapshot.
+Observation captures the normal Duck prepared query snapshot.
 
 Refresh execution uses the prepared/bound path. Plain SQL derived from the query is used only for dependency analysis and is never executed as the observation query.
 
-Preserve normal SwifQL binding safety. Do not reconstruct observation queries as handwritten SQL strings.
+Preserve normal SQL binding safety. Do not reconstruct observation queries as handwritten SQL strings.
 
 ## 7. Invalidation belongs to one exact Database instance
 
@@ -152,7 +152,7 @@ At terminal finalization:
 
 This rule applies to both the managed closure form and the flat/manual Transaction lifecycle.
 
-For detailed transaction ownership, rollback-only behavior, explicit `commit()` / `rollback()`, and Swift 6.4 `rollbackIfNeeded()`, switch to the `swiftduckdb-transactions` skill.
+For detailed transaction ownership, rollback-only behavior, explicit `commit()` / `rollback()`, and Swift 6.4 `rollbackIfNeeded()`, switch to the `duck-transactions` skill.
 
 ## 10. Understand Appender visibility
 
@@ -162,15 +162,15 @@ Observation follows that real native visibility: a durable auto-flushed prefix m
 
 A `Transaction.appender(to:)` behaves differently. Its target impact is accumulated into the surrounding transaction and publication waits for definitive outer transaction finalization.
 
-Use the `swiftduckdb-appender` skill when row validation, ordinary non-atomic ingestion, Transaction Appender rollback behavior, or Appender failure semantics are central.
+Use the `duck-appender` skill when row validation, ordinary non-atomic ingestion, Transaction Appender rollback behavior, or Appender failure semantics are central.
 
 ## 11. Dependency tracking is conservative where needed
 
-SwiftDuckDB attempts table-scoped dependency tracking for safe query identities.
+Duck attempts table-scoped dependency tracking for safe query identities.
 
 Successful analysis with no table dependency is a real empty dependency, not automatically a Database-wide fallback. Such queries can still match conservative Database-wide invalidation when necessary.
 
-If dependency extraction or identity normalization is unsafe or cannot be trusted, SwiftDuckDB falls back to Database-wide invalidation rather than risking a missed refresh.
+If dependency extraction or identity normalization is unsafe or cannot be trusted, Duck falls back to Database-wide invalidation rather than risking a missed refresh.
 
 Do not build application logic around internal dependency-representation details.
 
@@ -188,7 +188,7 @@ Cancellation remains cooperative around Swift/native boundaries; do not promise 
 
 Use one-shot `query(on:)` / `connection.query(...)` when the caller needs one snapshot and already controls when to refresh.
 
-Use `QueryObservation` when the application wants SwiftDuckDB to refresh the same read-only query in response to same-Database mutation invalidation.
+Use `QueryObservation` when the application wants Duck to refresh the same read-only query in response to same-Database mutation invalidation.
 
 Do not introduce an Observation layer merely to avoid explicitly issuing a one-time query.
 
@@ -211,7 +211,7 @@ SwiftUI/UIKit/UIKitUltra coupling
 public observation configuration/options
 manual refresh controls
 a guarantee that DuckDB rebinds an already-prepared handle after catalog changes
-pool-owned Observation iterators or `pool.observe` / `Connection.observe` (use `swiftduckdb-connection-pooling` for pool work; Observation stays Database-bound)
+pool-owned Observation iterators or `pool.observe` / `Connection.observe` (use `duck-connection-pooling` for pool work; Observation stays Database-bound)
 ```
 
 Keep Observation v1 UI-neutral, latest-state, same-Database, read-only, and QueryResult-based.

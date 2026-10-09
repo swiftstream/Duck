@@ -1,6 +1,6 @@
 # Artifacts Workflow
 
-Stable operational authority for SwiftDuckDB transient `.artifacts/**` working memory during research, planning, implementation, correction, audit, validation, and chat handoff.
+Stable operational authority for Duck transient `.artifacts/**` working memory during research, planning, implementation, correction, audit, validation, and chat handoff.
 
 `.artifacts/**` is disposable working memory. It never outranks `AGENTS.md`, `.agent/**`, current Git/source, or explicit maintainer direction.
 
@@ -217,7 +217,7 @@ Replace stale continuation instructions instead of appending history forever.
 
 A fresh coordinator/reviewer session should:
 
-1. open SwiftDuckDB through that session's configured approved repository interface;
+1. open Duck through that session's configured approved repository interface;
 2. read `.artifacts/NEW_CHAT.md` if present;
 3. read `AGENTS.md` + `CONTEXT_LOADING_RULES.md` and only relevant stable owners;
 4. re-verify actual Git/source/task state through the configured repository interface;

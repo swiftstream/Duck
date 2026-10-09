@@ -1,6 +1,6 @@
 # Master Plan
 
-High-level reviewed direction for SwiftDuckDB.
+High-level reviewed direction for Duck.
 
 ## Product Direction
 
@@ -8,9 +8,9 @@ Build a Swift-native embedded DuckDB library around DuckDB's public C API.
 
 The library baseline is Swift 6.3+ and the public runtime API is designed for structured concurrency, `async`/`await`, truthful Sendability, and actor isolation only where mutable execution ownership requires it.
 
-SwifQL is the mandatory SQL-construction dependency. SwiftDuckDB-owned SQL, including production queries, tests, examples, and README Swift usage, is constructed through SwifQL and prepared with `SQLDialect.duck` / `.duck`.
+The `SQL` package is the mandatory SQL-construction dependency. Duck-owned SQL, including production queries, tests, examples, and README Swift usage, is constructed through its declarative builders and prepared with `SQLDialect.duck` / `.duck`.
 
-Explicit raw SQL remains available only through SwifQL raw constructs such as `SwifQL.raw(...)`; SwiftDuckDB does not provide or teach a parallel ordinary handwritten-String query API.
+Explicit raw SQL remains available only through `SQL.raw(...)`; Duck does not provide or teach a parallel ordinary handwritten-String query API.
 
 The desired long-term consumer environments include:
 
@@ -22,12 +22,38 @@ The desired long-term consumer environments include:
 
 Shared API and semantics remain platform-independent unless a concrete platform boundary requires specialization. A platform is not considered supported merely because it is listed as direction or appears in package metadata; support claims require actual build/runtime evidence.
 
+## v1.0 Release Priority
+
+The primary product goal is a locally complete, publicly coherent `v1.0.0` before another major feature layer begins.
+
+The active Foundation/release sequence is:
+
+```text
+C6 stable governance / skills / publication synchronization
+-> C7 physical repository move to SwiftStream/Duck
+-> C8 semantic development-history leakage cleanup
+-> C9 final Foundation closure
+-> separate v1.0.0 technical release validation
+-> fresh independent release audit
+-> real local macOS SwiftUI consumer
+-> real local macOS UIKitPlus consumer
+-> final README/public human-readable documentation polish and audit
+-> final release snapshot gate
+-> local v1.0.0
+```
+
+C5, the technical/public package rename to `Duck`, is already complete at local commit `0dc702c5bcf53647c35e8177d35360c299a0e63b`.
+
+Until local v1.0.0, do not start Advanced Appender expansion, per-cell `DEFAULT`, QueryAppender, public DataChunk/vector writing, manual Appender lifecycle expansion, or nested/complex `LIST` / `ARRAY` / `MAP` / `STRUCT` / `UNION` / `ENUM` Value/result families unless a newly proven release blocker requires the smallest bounded correction. Those feature families remain preserved for separate post-v1.0 prioritization, initially through a new v1.1.0 roadmap rather than by inheriting old TODO order automatically.
+
+Push, remote release, and external publication remain separate explicit maintainer gates.
+
 ## Current Progression
 
 1. Establish repository governance and portable coding guidance. **Done.**
 2. Establish the Swift 6.3, iOS 15, macOS 12 package baseline. **Done.**
 3. Implement the DuckDB v1.5.5 generated-source native foundation, C lifecycle coverage, and internal native ownership primitives. **Done.**
-4. Integrate the completed SwifQL Duck/Swift-6 line and make SwifQL the repository-wide SQL-construction layer. **Done.**
+4. Integrate the completed SQL Duck/Swift-6 line and make SQL the repository-wide SQL-construction layer. **Done.**
 5. Implement and validate the first public database/query slice. **Done.**
 6. Document the first public API in the root README using only implemented and validated behavior. **Done.**
 7. Implement, validate, and independently audit the first public scoped transaction capability. **Done.**
@@ -40,7 +66,7 @@ Shared API and semantics remain platform-independent unless a concrete platform 
 14. Implement the P0 Codable / Model Layer through arbitrary `Row`/`QueryResult` decoding, exact flat `ModelEncoder`, safe `Table` persistence preparation, explicit-`Connection` INSERT/UPDATE conveniences, and explicit-`Transaction` equivalents. **Done: Waves A-F are primary-coordinator accepted; mandatory fresh Wave D/E roots are CLEAN; Correction 01 closed the two bounded findings from the first Wave G final root audit; the NEW fresh Final Root Re-audit 01 is CLEAN + primary accepted; public README/publication/Agent Skill closure validation is PASS at 358/358 tests with build PASS and 0 new warnings; and primary public-closure acceptance is complete. P0 Codable / Model Layer is COMPLETE.**
 15. Implement P1 Migrations. **Done: the name/batch replacement is implemented, committed, final-validated, independently audited CLEAN, and primary-coordinator closed. The accepted public model is one declarative-first `Migration` with default type-name identity and explicit override, `up` + `down` `MigrationPlan`s, `Run` escape hatch, immutable `Migrator`, durable `id / name / batch / applied_at` history, one atomic pending batch per `migrate()`, batch-oriented reverse revert, and exact `UInt` resulting-current-batch APIs. Final implementation HEAD is `478a040d79c3fbed6a50d88e672d78cd90aacb44`; Task 05 independently passed build + 455/455 tests; Wave F source/evidence root audit is CLEAN at 48/48 source gates and 10/10 evidence gates.**
 16. Implement Observation / Reactive Queries. **Done.** Research/probes, Planning Corrections 01-05, implementation Tasks 01-07, Task 07 Rerun 02, the independent CLEAN Technical Root Audit 02, README/publication/Agent Skill closure, direct-local public-closure validation, and PRIMARY public-closure acceptance are complete. Final accepted validation remains Swift 6.3.3 build + 557/557 tests in 11 suites with 0 failures/0 skips, focused Swift 6.4 Observation/manual-transaction coverage, and Swift 6.4 build PASS. The accepted v1 design is a UI-neutral reusable latest-state `QueryObservation` over `QueryResult`, native READ ONLY refreshes, actual successful `NativeResult.isReadOnly` truth, bounded/coalescing delivery, same-`Database` invalidation, definitive COMMIT/ROLLBACK transaction publication, Appender native-visibility integration, managed + flat manual Transaction finalization, no event-log/cross-process/file-watcher promise, and no reusable VIEW-rebind guarantee. Observation / Reactive Queries is COMPLETE.**
-17. Implement Connection Pooling. **COMPLETE: technical slice Tasks 01-04 and public closure Task 05 are implemented, audited CLEAN, and primary-accepted. Public surface is `Database.pool(maximumConnections:)`, actor `ConnectionPool` with `maximumConnections`, scoped `pool.connection`, thin `pool.transaction`, and `shutdown()`. Observation × Pool integration is covered by `ConnectionPoolObservationTests` OP01-OP06. Full Swift 6.3.3 package validation is 636 tests / 18 suites with 0 failures / 0 skips / 0 warnings. README Pooling section, FUTURE_PUBLICATIONS entry 008, and source-owned `swiftduckdb-connection-pooling` skill complete public capability closure. No push/tag/release is implied.**
+17. Implement Connection Pooling. **COMPLETE: technical slice Tasks 01-04 and public closure Task 05 are implemented, audited CLEAN, and primary-accepted. Public surface is `Database.pool(maximumConnections:)`, actor `ConnectionPool` with `maximumConnections`, scoped `pool.connection`, thin `pool.transaction`, and `shutdown()`. Observation × Pool integration is covered by `ConnectionPoolObservationTests` OP01-OP06. Full Swift 6.3.3 package validation is 636 tests / 18 suites with 0 failures / 0 skips / 0 warnings. README Pooling section, FUTURE_PUBLICATIONS entry 008, and source-owned `duck-connection-pooling` skill complete public capability closure. No push/tag/release is implied.**
 
 ## Implemented First Public Query Slice
 
@@ -49,19 +75,19 @@ The current public slice includes:
 - `Database` as an actor-free `Sendable` database owner with in-memory and file-backed opening;
 - explicit `Database.connect()` creation of independent public `Connection` actors;
 - one native DuckDB connection owned by each `Connection` actor;
-- caller-local SwifQL `.duck` preparation and binding normalization before actor execution;
+- caller-local SQL `.duck` preparation and binding normalization before actor execution;
 - async query/execute through pending DuckDB execution;
 - per-Connection execution serialization without a global Database gate;
 - cooperative Swift cancellation with same-owner native interruption at implemented boundaries;
-- Swift-owned `QueryResult`, `Row`, and exact scalar `Value` results, including accepted B1 UUID/hidden-word Int128/UInt128, accepted B2 PureDate/PureTime/DateTime, accepted B3 Foundation.Date/TIMESTAMPTZ, accepted B4 SwifQL.Interval/DuckDB INTERVAL support, and accepted Wave C Foundation.Decimal/DuckDB DECIMAL support;
+- Swift-owned `QueryResult`, `Row`, and exact scalar `Value` results, including accepted B1 UUID/hidden-word Int128/UInt128, accepted B2 PureDate/PureTime/DateTime, accepted B3 Foundation.Date/TIMESTAMPTZ, accepted B4 Interval/DuckDB INTERVAL support, and accepted Wave C Foundation.Decimal/DuckDB DECIMAL support;
 - typed `DatabaseError` failure categories;
 - query-centered `.query(on:)` / `.execute(on:)` conveniences that delegate to the same Connection engine;
-- typed-table selected-column syntax such as `User.select(\.$email, \.$name, \.$role)` while preserving ordinary SwifQL composition;
+- typed-table selected-column syntax such as `User.select(\.$email, \.$name, \.$role)` while preserving ordinary SQL composition;
 - a root README describing only this reviewed surface and its evidence-bounded behavior.
 
-This is query-construction/execution sugar over SwifQL and DuckDB, not an ORM or repository layer.
+This is query-construction/execution sugar over SQL and DuckDB, not an ORM or repository layer.
 
-The current exact temporal result/value boundary is `PureDate` ↔ `DATE`, `PureTime` ↔ `TIME` / `TIME_NS`, `DateTime` ↔ `TIMESTAMP_S` / `TIMESTAMP_MS` / `TIMESTAMP_US` / `TIMESTAMP_NS`, `Foundation.Date` ↔ `TIMESTAMPTZ`, and shared `SwifQL.Interval` ↔ `INTERVAL`. B2 precision and B3 target resolution are honored exactly; targetless Foundation.Date and resolved Foundation.Date targets accept only `TIMESTAMPTZ`, with no timezone identifier/offset metadata preserved. B4 preserves mixed-sign/non-normalized Interval components, narrows finite months/days with exact `Int64` → `Int32` checks at the native boundary, passes microseconds as exact `Int64`, preserves semantic infinity/out-of-native-range values through generic normalization, and rejects them at native Prepared/Appender boundaries. Wave C adds exact `Foundation.Decimal` ↔ DuckDB `DECIMAL(W,S)` across ordinary query binding, reusable Statements, Appender rows, Value/Row extraction, and result metadata using the byte-identical accepted P03 DCT128-v1 codec. Explicit DECIMAL targets are authoritative, targetless Decimal computes canonical exact natural W/S with zero as `DECIMAL(1,0)`, no implicit rounding or Double/Float transport is allowed, and nonfinite values reject at the native-conversion/preflight boundary. Result W/S remains `ResultColumn` metadata rather than `Value` numeric identity. P03 platform evidence remains scoped: Android is exact-source arm64/API28 compile/link only, with runtime not performed or claimed. Nested/complex families remain separately gated.
+The current exact temporal result/value boundary is `PureDate` ↔ `DATE`, `PureTime` ↔ `TIME` / `TIME_NS`, `DateTime` ↔ `TIMESTAMP_S` / `TIMESTAMP_MS` / `TIMESTAMP_US` / `TIMESTAMP_NS`, `Foundation.Date` ↔ `TIMESTAMPTZ`, and shared `Interval` ↔ `INTERVAL`. B2 precision and B3 target resolution are honored exactly; targetless Foundation.Date and resolved Foundation.Date targets accept only `TIMESTAMPTZ`, with no timezone identifier/offset metadata preserved. B4 preserves mixed-sign/non-normalized Interval components, narrows finite months/days with exact `Int64` → `Int32` checks at the native boundary, passes microseconds as exact `Int64`, preserves semantic infinity/out-of-native-range values through generic normalization, and rejects them at native Prepared/Appender boundaries. Wave C adds exact `Foundation.Decimal` ↔ DuckDB `DECIMAL(W,S)` across ordinary query binding, reusable Statements, Appender rows, Value/Row extraction, and result metadata using the byte-identical accepted P03 DCT128-v1 codec. Explicit DECIMAL targets are authoritative, targetless Decimal computes canonical exact natural W/S with zero as `DECIMAL(1,0)`, no implicit rounding or Double/Float transport is allowed, and nonfinite values reject at the native-conversion/preflight boundary. Result W/S remains `ResultColumn` metadata rather than `Value` numeric identity. P03 platform evidence remains scoped: Android is exact-source arm64/API28 compile/link only, with runtime not performed or claimed. Nested/complex families remain separately gated.
 
 ## Implemented Transaction Slice
 
@@ -71,7 +97,7 @@ The current public transaction capability includes:
 - one pending or active transaction reservation per `Connection`, while separate Connections remain independent;
 - explicit flat `commit()` / `rollback()` terminal finalizers plus compiler-gated Swift 6.4 `rollbackIfNeeded()` for nonthrowing asynchronous cleanup;
 - no hidden flat-handle deinitializer cleanup; the caller owns terminal lifetime;
-- caller-local SwifQL preparation with actor registration before transaction query preparation can fail;
+- caller-local SQL preparation with actor registration before transaction query preparation can fail;
 - reservation-local FIFO serialization with at most one native-active transaction operation at a time;
 - rollback-only semantics that retain the first database/cancellation failure, wake non-active siblings, and prevent a later successful body/commit path from false-committing;
 - transaction finalization that invalidates non-active/escaped work and waits only for already-native-active work to drain;
@@ -89,7 +115,7 @@ The current reusable prepared-statement capability includes:
 
 - public `Statement` values created by `Connection.prepare`, with dynamic `Statement.Parameter` values created only by the builder overload;
 - one native prepared-statement owner retained in the originating `Connection` actor registry and reused through clear + complete rebind + pending execution;
-- immutable fixed/dynamic binding layout derived from one SwifQL Duck preparation with same-render unsafe-value provenance;
+- immutable fixed/dynamic binding layout derived from one SQL Duck preparation with same-render unsafe-value provenance;
 - ordinary `Statement.query` / `execute` serialized through the existing Connection ordinary scheduler;
 - explicit `Statement.query(on:)` / `execute(on:)` for the owning `Transaction`, using the existing transaction FIFO rather than the ordinary outer lease;
 - owner-mismatch rejection before transaction registration and matching-owner registration before caller-local count/type normalization;
@@ -103,7 +129,7 @@ The public slice does not add manual native parameter indices, named-parameter d
 
 The current public Appender capability includes:
 
-- scoped `Connection.appender(to:)` and explicit `Transaction.appender(to:)` entrypoints for the same table, schema+table, and catalog+schema+table SwifQL `Path` target forms, each with optional fixed `columns: [String]` selection, reusing the same public `Appender` type;
+- scoped `Connection.appender(to:)` and explicit `Transaction.appender(to:)` entrypoints for the same table, schema+table, and catalog+schema+table SQL `Path` target forms, each with optional fixed `columns: [String]` selection, reusing the same public `Appender` type;
 - one complete-row `Appender.append(...)` operation relative to either the physical table columns or the fixed selected list, with current `Value`/Optional/primitive/String/Data normalization, including SQL NULL and empty BLOB; omitted physical columns use DuckDB DEFAULT or NULL, while selected `nil` is explicit NULL;
 - exact Foundation.Date/TIMESTAMPTZ row support is accepted; whole-row Phase-1 conversion and typed-value creation preserve zero native-column mutation for deterministic Date failures, while native Phase-2 failure remains terminal;
 - exact Foundation.Decimal/DECIMAL row support is accepted; whole-row Phase-1 exact conversion and `duckdb_create_decimal` typed-value construction occur before native mutation, deterministic rounding/width/nonfinite failures are zero-mutation and recoverable, and Phase 2 uses `duckdb_append_value` with caller-owned temporary destruction while native Phase-2 failures remain terminal;
@@ -131,7 +157,7 @@ Every public user-facing capability must finish with three durable deliverables:
 
 This is a completion requirement for the existing Database/Connection/query surface, Transactions, reusable prepared Statements, the approved Appender capability, Observation / Reactive Queries, and all future public features. Older capabilities that were completed before this rule must be backfilled rather than treated as exempt.
 
-Public SwiftDuckDB skills use the intended `swiftduckdb-` namespace, canonical lower-hyphen package directories, real `SKILL.md` entrypoints, and package-local `LICENSE.txt` files following the established SwifQL public-skill precedent. Packages must remain useful when copied independently into the central skills collection; essential instructions cannot depend only on unbundled repository siblings.
+Public Duck skills use the intended `duck-` namespace, canonical lower-hyphen package directories, real `SKILL.md` entrypoints, and package-local `LICENSE.txt` files following the established SQL public-skill precedent. Packages must remain useful when copied independently into the central skills collection; essential instructions cannot depend only on unbundled repository siblings.
 
 Source package preparation does not itself authorize central federation registration. Trust/onboarding in `swiftstream/skills` remains a separate explicit maintainer decision.
 

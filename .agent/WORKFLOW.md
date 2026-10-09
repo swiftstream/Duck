@@ -1,6 +1,6 @@
 # Workflow
 
-Mandatory development workflow for SwiftDuckDB.
+Mandatory development workflow for Duck.
 
 ## RESEARCH -> PLAN -> IMPLEMENT -> AUDIT
 
@@ -41,7 +41,7 @@ Inspect the smallest sufficient set of:
 - `MASTER_PLAN.md` before transient artifacts when resuming substantial roadmap/feature/correction work;
 - current `TASKS.md`, `OPEN_DECISIONS.md`, `PROJECT_MEMORY.md`, `SOURCE_MAP.md` when relevant;
 - exact package/source/test files and direct callers;
-- current DuckDB/SwifQL/Swift/platform evidence when required;
+- current DuckDB/SQL/Swift/platform evidence when required;
 - current Git state.
 
 External/local sibling repositories are zero by default and follow `REFERENCE_PROJECTS.md`.
@@ -76,17 +76,17 @@ Detailed task conventions are owned by `ARTIFACTS_WORKFLOW.md`.
 
 Build capability by capability.
 
-Prefer the smallest real end-to-end slice that proves one behavior over a speculative database framework. A slice may cross C/native ownership, public API, concurrency, SwifQL execution, result copying, and focused tests when all are needed to prove that capability.
+Prefer the smallest real end-to-end slice that proves one behavior over a speculative database framework. A slice may cross C/native ownership, public API, concurrency, SQL execution, result copying, and focused tests when all are needed to prove that capability.
 
 Do not prebuild ORM, migrations, observation, repositories, pooling, or replacement-engine abstractions merely because they might become useful later.
 
 ## SQL / Safety Verification
 
-All SwiftDuckDB-owned SQL/value/raw safety policy is owned by `SAFETY_RULES.md`.
+All Duck-owned SQL/value/raw safety policy is owned by `SAFETY_RULES.md`.
 
 Verification rejects:
 
-- handwritten ordinary SQL construction bypassing SwifQL;
+- handwritten ordinary SQL construction bypassing SQL;
 - `.psql` used as Duck rendering;
 - a normal public String query API;
 - dynamic/user values interpolated into raw structural SQL;
@@ -129,7 +129,7 @@ After every material task/checkpoint, independently inspect through the coordina
 - complete changed source and direct callers;
 - public API/native lifetime/concurrency boundaries;
 - package/dependency/platform changes;
-- SwifQL `.duck` construction/binding safety;
+- SQL `.duck` construction/binding safety;
 - required validation evidence;
 - forbidden/deferred scope;
 - stable-doc synchronization;
@@ -165,20 +165,20 @@ A capability does not need exactly one skill per method. It must have enough sta
 
 ### Swift Stream Skills standard
 
-SwiftDuckDB skill packages must follow the canonical source-repository rules from the central `swiftstream/skills` repository, especially `AGENTS.md` and `docs/HOW-TO-PREPARE-SOURCE.md`:
+Duck skill packages must follow the canonical source-repository rules from the central `swiftstream/skills` repository, especially `AGENTS.md` and `docs/HOW-TO-PREPARE-SOURCE.md`:
 
 - canonical source root: `.agent/skills` unless a separately reviewed repository decision changes it;
 - every skill is a direct-child directory package with a real `SKILL.md`;
 - lower-hyphen package names and matching `name` frontmatter;
 - nonempty `description` frontmatter explaining when to use the skill;
-- public/downstream SwiftDuckDB skills use the intended `swiftduckdb-` prefix;
+- public/downstream Duck skills use the intended `duck-` prefix;
 - public packages are standalone enough to survive package-only federation copying and keep essential supporting material inside the package;
 - no symlink/gitlink/path-traversal/non-canonical package content;
-- package-local `LICENSE.txt` is required for SwiftDuckDB public skills, following the established SwifQL public-skill practice, and `SKILL.md` must reference it with `license: LICENSE.txt`;
+- package-local `LICENSE.txt` is required for Duck public skills, following the established SQL public-skill practice, and `SKILL.md` must reference it with `license: LICENSE.txt`;
 - repository skill routing (`AGENTS.md` / `SKILL_INDEX.md` once present) must be synchronized with package paths;
-- semantic skill edits happen in SwiftDuckDB, never in generated central `swiftstream/skills/skills/**` output.
+- semantic skill edits happen in Duck, never in generated central `swiftstream/skills/skills/**` output.
 
-Central federation onboarding/registration is a separate manual trust decision. Source capability work may prepare valid `swiftduckdb-*` packages but must not silently mutate central `federation.json`, invent source IDs/prefix registration, or claim publication before that separate process occurs.
+Central federation onboarding/registration is a separate manual trust decision. Source capability work may prepare valid `duck-*` packages but must not silently mutate central `federation.json`, invent source IDs/prefix registration, or claim publication before that separate process occurs.
 
 ### Planning and audit requirement
 

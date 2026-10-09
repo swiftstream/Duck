@@ -1,12 +1,12 @@
 ---
-name: swiftduckdb-appender
-description: Use SwiftDuckDB's scoped Appender API for bulk ingestion into an existing DuckDB table, with complete table rows or a fixed selected-column list. Use when downstream Swift code needs ordinary or Transaction Appender usage, omission/default behavior, lifetime/error guidance, or a choice between Appender and repeated prepared INSERT execution.
+name: duck-appender
+description: Use Duck's scoped Appender API for bulk ingestion into an existing DuckDB table, with complete table rows or a fixed selected-column list. Use when downstream Swift code needs ordinary or Transaction Appender usage, omission/default behavior, lifetime/error guidance, or a choice between Appender and repeated prepared INSERT execution.
 license: LICENSE.txt
 ---
 
-# Bulk-Ingest Rows with SwiftDuckDB Appender
+# Bulk-Ingest Rows with Duck Appender
 
-Use this skill for downstream code that imports SwiftDuckDB and needs to append many rows to one existing DuckDB table.
+Use this skill for downstream code that imports Duck and needs to append many rows to one existing DuckDB table.
 
 ## Choose Appender for the right workload
 
@@ -29,8 +29,7 @@ Prefer a reusable `Statement` when you need a repeated SQL shape such as INSERT/
 
 ```swift
 import Foundation
-import SwiftDuckDB
-import SwifQL
+import Duck
 
 let users = Path.Table("users")
 
@@ -119,15 +118,15 @@ String
 Foundation.Data
 UUID
 Int128 / UInt128 on macOS 15+ / iOS 18+
-SwifQL.PureDate
-SwifQL.PureTime
-SwifQL.DateTime
+PureDate
+PureTime
+DateTime
 Foundation.Date
-SwifQL.Interval
+Interval
 Foundation.Decimal
 ```
 
-Optional `nil` becomes SQL `NULL`. `Data()` is a valid empty BLOB. UUID is availability-free. Exact Int128/UInt128 values use the accepted B1 vertical and are available only where the Swift stdlib types are available; the package itself still supports macOS 12 / iOS 15 through hidden word storage. The accepted B2 temporal values map exactly as follows: `SwifQL.PureDate` to `DATE` through the B01-safe finite civil-domain guard before `duckdb_to_date`; `SwifQL.PureTime` to `TIME` when exact microseconds are required or to targetless natural `TIME_NS` when exact nanoseconds are retained, including standalone `24:00`; and `SwifQL.DateTime` to `TIMESTAMP_S` / `TIMESTAMP_MS` / `TIMESTAMP_US` / `TIMESTAMP_NS` with no rounding. Foundation.Date is a supported row value and maps only to `TIMESTAMPTZ`; targetless or resolved targets must be TIMESTAMPTZ, P02 per-value representability must be exact, and no timezone identifier/offset metadata is preserved. DuckDB TIMESTAMPTZ infinities and non-finite Foundation.Date reject. `SwifQL.Interval` maps only to DuckDB `INTERVAL`; finite months/days use exact `Int64` → `Int32` conversion, microseconds remain exact `Int64`, and mixed signs/non-normalized components are preserved. Positive/negative Interval infinity and out-of-Int32 month/day values reject before native row mutation. Nested/complex families remain gated.
+Optional `nil` becomes SQL `NULL`. `Data()` is a valid empty BLOB. UUID is availability-free. Exact Int128/UInt128 values use the accepted B1 vertical and are available only where the Swift stdlib types are available; the package itself still supports macOS 12 / iOS 15 through hidden word storage. The accepted B2 temporal values map exactly as follows: `PureDate` to `DATE` through the B01-safe finite civil-domain guard before `duckdb_to_date`; `PureTime` to `TIME` when exact microseconds are required or to targetless natural `TIME_NS` when exact nanoseconds are retained, including standalone `24:00`; and `DateTime` to `TIMESTAMP_S` / `TIMESTAMP_MS` / `TIMESTAMP_US` / `TIMESTAMP_NS` with no rounding. Foundation.Date is a supported row value and maps only to `TIMESTAMPTZ`; targetless or resolved targets must be TIMESTAMPTZ, P02 per-value representability must be exact, and no timezone identifier/offset metadata is preserved. DuckDB TIMESTAMPTZ infinities and non-finite Foundation.Date reject. `Interval` maps only to DuckDB `INTERVAL`; finite months/days use exact `Int64` → `Int32` conversion, microseconds remain exact `Int64`, and mixed signs/non-normalized components are preserved. Positive/negative Interval infinity and out-of-Int32 month/day values reject before native row mutation. Nested/complex families remain gated.
 
 Wrong row width and unsupported Swift types fail before native row mutation, so the same live Appender may continue with a later valid row.
 
@@ -135,7 +134,7 @@ Temporal conversion and typed-value construction, including Foundation.Date, are
 
 For Interval rows, conversion and typed-value construction occur in whole-row Phase 1. A deterministic Interval failure mutates zero native columns and the live Appender remains recoverable; Phase 2 uses direct `duckdb_append_interval`, and native Phase-2 failure remains terminal.
 
-For Decimal rows, `Foundation.Decimal` maps only to DuckDB `DECIMAL(W,S)`. Exact target width/scale fit is required; SwiftDuckDB performs no rounding and rejects nonfinite values. Whole-row Phase 1 converts the Decimal and constructs an owned typed native value through `duckdb_create_decimal` before any native row mutation. A later-column deterministic Decimal rejection therefore mutates zero native columns, and the same live Appender remains recoverable. Phase 2 appends that typed value through `duckdb_append_value`; Swift owns and destroys the temporary `duckdb_value` after the native append copies/stores it. Native Phase-2 failure remains terminal under the existing Appender rules.
+For Decimal rows, `Foundation.Decimal` maps only to DuckDB `DECIMAL(W,S)`. Exact target width/scale fit is required; Duck performs no rounding and rejects nonfinite values. Whole-row Phase 1 converts the Decimal and constructs an owned typed native value through `duckdb_create_decimal` before any native row mutation. A later-column deterministic Decimal rejection therefore mutates zero native columns, and the same live Appender remains recoverable. Phase 2 appends that typed value through `duckdb_append_value`; Swift owns and destroys the temporary `duckdb_value` after the native append copies/stores it. Native Phase-2 failure remains terminal under the existing Appender rules.
 
 ## Lifetime rules
 
@@ -153,9 +152,9 @@ When using a pooled Connection, finish the Appender scope within the exact live 
 
 ## Concurrency rules
 
-Concurrent public `append(...)` calls on one Appender are safe at the complete-row boundary. SwiftDuckDB sends one fully normalized row through the owner `Connection` actor as one synchronous native row operation, so columns from separate public rows do not interleave. Structured child tasks must finish before the Appender body returns in either mode.
+Concurrent public `append(...)` calls on one Appender are safe at the complete-row boundary. Duck sends one fully normalized row through the owner `Connection` actor as one synchronous native row operation, so columns from separate public rows do not interleave. Structured child tasks must finish before the Appender body returns in either mode.
 
-Do not perform ordinary work on the **same Connection** from inherited Appender-body context. While an ordinary scope is live, SwiftDuckDB rejects same-Connection:
+Do not perform ordinary work on the **same Connection** from inherited Appender-body context. While an ordinary scope is live, Duck rejects same-Connection:
 
 ```text
 Connection.query
@@ -181,11 +180,11 @@ There are two important classes of row failure:
 
 Primitive native failure is reported as `.appenderAppend(column:message:)` with a 1-based column. End-row or auto-flush failure is `.appenderRowCompletion` and does not invent a column number.
 
-If a terminal native row failure occurs, catching that immediate error inside the body does **not** make the scope successful. SwiftDuckDB remembers the first terminal truth and rethrows it when the scope finalizes. In transaction mode, a terminal/finalization/body-exit failure that escapes the Appender scope makes the outer transaction rollback-only; catching it in the surrounding transaction body cannot restore COMMIT eligibility.
+If a terminal native row failure occurs, catching that immediate error inside the body does **not** make the scope successful. Duck remembers the first terminal truth and rethrows it when the scope finalizes. In transaction mode, a terminal/finalization/body-exit failure that escapes the Appender scope makes the outer transaction rollback-only; catching it in the surrounding transaction body cannot restore COMMIT eligibility.
 
-Cancellation is cooperative at SwiftDuckDB's boundaries. It is checked before caller-side row work and again on the owner actor immediately before synchronous native row mutation. Swift cancellation does not promise to preempt a native C operation already running synchronously.
+Cancellation is cooperative at Duck's boundaries. It is checked before caller-side row work and again on the owner actor immediately before synchronous native row mutation. Swift cancellation does not promise to preempt a native C operation already running synchronously.
 
-When cancellation is observed before successful final close, SwiftDuckDB discards still-buffered Appender data rather than intentionally flushing it. Ordinary cancellation cannot roll back rows DuckDB already auto-flushed earlier; transaction-Appender cancellation makes the outer transaction rollback-only, so outer rollback removes transaction-local auto-flushed batches too. Cancellation is cooperative at Swift boundaries and does not preempt a synchronous native C call already running.
+When cancellation is observed before successful final close, Duck discards still-buffered Appender data rather than intentionally flushing it. Ordinary cancellation cannot roll back rows DuckDB already auto-flushed earlier; transaction-Appender cancellation makes the outer transaction rollback-only, so outer rollback removes transaction-local auto-flushed batches too. Cancellation is cooperative at Swift boundaries and does not preempt a synchronous native C call already running.
 
 ## The scope is not atomic
 
@@ -209,7 +208,7 @@ A deliberately pre-created or otherwise non-inheriting same-Transaction child ca
 
 ## Current non-goals
 
-Do not invent or teach these as current SwiftDuckDB Appender API:
+Do not invent or teach these as current Duck Appender API:
 
 ```text
 free-standing/manual-close Appender
@@ -223,4 +222,4 @@ nested/complex families
 Appender pooling/cache
 ```
 
-When an unfamiliar call site appears to require one of these, inspect the installed SwiftDuckDB version/source instead of guessing a future API.
+When an unfamiliar call site appears to require one of these, inspect the installed Duck version/source instead of guessing a future API.
