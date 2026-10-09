@@ -3,15 +3,15 @@
 import PackageDescription
 
 let package = Package(
-    name: "SwiftDuckDB",
+    name: "Duck",
     platforms: [
         .iOS(.v15),
         .macOS(.v12)
     ],
     products: [
         .library(
-            name: "SwiftDuckDB",
-            targets: ["SwiftDuckDB"]
+            name: "Duck",
+            targets: ["Duck"]
         )
     ],
     dependencies: [
@@ -22,7 +22,7 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "SwiftDuckDB",
+            name: "Duck",
             dependencies: [
                 "Cduckdb",
                 .product(name: "SQL", package: "sql")
@@ -399,7 +399,7 @@ let package = Package(
         "duckdb/extension/json/json_common.cpp",
         "duckdb/ub_extension_json_json_functions.cpp",
         "duckdb/generated_extension_loader_package_build.cpp",
-        "swiftduckdb_observation.cpp",
+        "duck_internal_observation.cpp",
       ],
       cxxSettings: [
         .headerSearchPath("duckdb/src/include"),
@@ -471,9 +471,9 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "SwiftDuckDBTests",
+            name: "DuckTests",
             dependencies: [
-                "SwiftDuckDB",
+                "Duck",
                 "Cduckdb",
                 "A1PendingGate",
                 .product(name: "SQL", package: "sql")

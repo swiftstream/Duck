@@ -22,9 +22,9 @@ struct ObservationBridgeTests {
         try #require(duckdb_prepare(connected, selectSQL, &selectStatement) == DuckDBSuccess)
         defer { duckdb_destroy_prepare(&selectStatement) }
         let preparedSelect = try #require(selectStatement)
-        #expect(swiftduckdb_prepared_statement_is_read_only(preparedSelect))
+        #expect(duck_internal_prepared_statement_is_read_only(preparedSelect))
         #expect(duckdb_bind_int32(preparedSelect, 1, 1) == DuckDBError)
-        #expect(!swiftduckdb_prepared_statement_is_read_only(preparedSelect))
+        #expect(!duck_internal_prepared_statement_is_read_only(preparedSelect))
 
         let createSequenceSQL = SQL
             .create
@@ -43,19 +43,19 @@ struct ObservationBridgeTests {
         var nextValueStatement: duckdb_prepared_statement?
         try #require(duckdb_prepare(connected, nextValueSQL, &nextValueStatement) == DuckDBSuccess)
         let preparedNextValue = try #require(nextValueStatement)
-        #expect(!swiftduckdb_prepared_statement_is_read_only(preparedNextValue))
+        #expect(!duck_internal_prepared_statement_is_read_only(preparedNextValue))
         duckdb_destroy_prepare(&nextValueStatement)
 
         var nextValueResult = duckdb_result()
         try #require(duckdb_query(connected, nextValueSQL, &nextValueResult) == DuckDBSuccess)
         defer { duckdb_destroy_result(&nextValueResult) }
-        #expect(!swiftduckdb_result_is_read_only(&nextValueResult))
+        #expect(!duck_internal_result_is_read_only(&nextValueResult))
         #expect(try firstInt64(in: &nextValueResult) == 7)
 
         var ordinaryResult = duckdb_result()
         try #require(duckdb_query(connected, selectSQL, &ordinaryResult) == DuckDBSuccess)
         defer { duckdb_destroy_result(&ordinaryResult) }
-        #expect(swiftduckdb_result_is_read_only(&ordinaryResult))
+        #expect(duck_internal_result_is_read_only(&ordinaryResult))
 
         let table = Path.Table("observation_bridge_rows")
         let createTableSQL = SQL
@@ -77,13 +77,13 @@ struct ObservationBridgeTests {
         var insertResult = duckdb_result()
         try #require(duckdb_query(connected, insertSQL, &insertResult) == DuckDBSuccess)
         defer { duckdb_destroy_result(&insertResult) }
-        #expect(!swiftduckdb_result_is_read_only(&insertResult))
+        #expect(!duck_internal_result_is_read_only(&insertResult))
     }
 
     @Test("Read-only bridges are safe for null and error states")
     func readOnlyBridgesHandleNullAndErrorStates() throws {
-        #expect(!swiftduckdb_prepared_statement_is_read_only(nil))
-        #expect(!swiftduckdb_result_is_read_only(nil))
+        #expect(!duck_internal_prepared_statement_is_read_only(nil))
+        #expect(!duck_internal_result_is_read_only(nil))
 
         var database: duckdb_database?
         try #require(duckdb_open(nil, &database) == DuckDBSuccess)
@@ -96,7 +96,7 @@ struct ObservationBridgeTests {
         let invalidSQL = SQL.raw("SELECT FROM").prepare(.duck).plain
         var errorResult = duckdb_result()
         #expect(duckdb_query(connected, invalidSQL, &errorResult) == DuckDBError)
-        #expect(!swiftduckdb_result_is_read_only(&errorResult))
+        #expect(!duck_internal_result_is_read_only(&errorResult))
         duckdb_destroy_result(&errorResult)
     }
 }

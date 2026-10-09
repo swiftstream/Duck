@@ -178,7 +178,7 @@ func destroysFailedPreparedStatement() {
 @Test("Persists data across a unique file-backed database reopen")
 func reopensPersistentDatabase() throws {
     let databaseURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("SwiftDuckDB-\(UUID().uuidString)")
+        .appendingPathComponent("cduckdb-persistence-\(UUID().uuidString)")
         .appendingPathExtension("duckdb")
     defer { try? FileManager.default.removeItem(at: databaseURL) }
 

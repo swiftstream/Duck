@@ -1,6 +1,6 @@
-# SwiftDuckDB
+# Duck
 
-SwiftDuckDB exposes DuckDB through a small Swift API with SwifQL as the query-construction layer.
+Duck exposes DuckDB through a small Swift API with SQL as its Swift query-construction dependency.
 
 `Database` owns the database lifetime. Each `Connection` is an actor that owns one native DuckDB connection, and async query execution stays on that connection. Results are copied into Swift-owned `QueryResult`, `Row`, and `Value` values before native result resources are released.
 
@@ -15,39 +15,37 @@ These are manifest facts, not a claim of broader platform/runtime validation bey
 
 The repository toolchain pin is Swift 6.3.3.
 
-SwiftDuckDB currently depends on SwifQL `2.0.0-beta.6.0.1` exactly.
+Duck 1.x uses SQL `>=2.0.0,<3.0.0`; the current manifest declares SQL from `2.0.0`, and this checkout currently resolves SQL `2.1.0`. Duck and SQL have independent major-version lines: a future Duck 2.x may intentionally continue to use SQL 2.x, while any SQL 3.x adoption requires an explicit compatibility review.
+
+The current vendored/upstream DuckDB engine base is v1.5.5. Duck's package version and the DuckDB engine version are separate version lines.
 
 ## Installation
 
-This checkout does not currently declare a public SwiftDuckDB Git remote or released SwiftDuckDB version, so this README does not invent one. For local package development, add SwiftDuckDB by path and add the pinned SwifQL product for the query-building API:
+This checkout does not currently declare a public Duck Git remote or released Duck version, so this README does not invent one. For local package development, add a checkout by path and depend on the `Duck` library product. If the checkout directory is named `Duck`:
 
 ```swift
 // Package.swift
 
 dependencies: [
-    .package(path: "../SwiftDuckDB"),
-    .package(
-        url: "https://github.com/SwifQL/SwifQL.git",
-        exact: "2.0.0-beta.6.0.1"
-    )
+    .package(path: "../Duck")
 ],
 targets: [
     .target(
         name: "MyApp",
         dependencies: [
-            .product(name: "SwiftDuckDB", package: "SwiftDuckDB"),
-            .product(name: "SwifQL", package: "SwifQL")
+            .product(name: "Duck", package: "duck")
         ]
     )
 ]
 ```
 
-Then import SwiftDuckDB and SwifQL where you build and execute queries. Import Foundation as well when using values such as `Data`:
+Ordinary consumers only need to import Duck. Duck re-exports SQL's public query-construction surface; an explicit `import SQL` remains supported when a consumer wants it, but is not required for the normal one-import API.
+
+Import Foundation as well when using values such as `Data`:
 
 ```swift
 import Foundation
-import SwiftDuckDB
-import SwifQL
+import Duck
 ```
 
 ## Open a database
@@ -78,7 +76,7 @@ let pool = try database.pool(maximumConnections: 4)
 
 let users = Path.Table("users")
 let result = try await pool.connection { connection in
-    try await SwifQL
+    try await SQL
         .select(users.column("id"), users.column("name"))
         .from(users)
         .query(on: connection)
@@ -95,7 +93,7 @@ For one managed commit boundary, use `pool.transaction`:
 let users = Path.Table("users")
 
 try await pool.transaction { transaction in
-    try await SwifQL
+    try await SQL
         .insertInto(users, fields: "id", "name")
         .values
         .values(Int32(42), "Mira")
@@ -112,7 +110,7 @@ Observation remains attached to the `Database`, not to the pool:
 ```swift
 let users = Path.Table("users")
 let observation = try database.observe(
-    SwifQL
+    SQL
         .select(users.column("id"), users.column("name"))
         .from(users)
 )
@@ -130,9 +128,9 @@ Shutdown stops new checkouts, fails queued checkouts with `.poolClosed`, and wai
 
 The current pool has scoped checkout only. It has no manual checkout/release, checkout timeout, idle lifetime policy, session reset, statement cache, pool metrics, or global registry.
 
-## Query with SwifQL
+## Query with SQL
 
-SwiftDuckDB does not expose ordinary handwritten SQL strings as its normal query API. Build executable queries with SwifQL.
+Duck does not expose ordinary handwritten SQL strings as its normal query API. Build executable queries with SQL.
 
 For this SQL goal:
 
@@ -144,7 +142,7 @@ ORDER BY name ASC
 LIMIT 10;
 ```
 
-Define the table with SwifQL:
+Define the table with SQL:
 
 ```swift
 struct User: Table {
@@ -174,14 +172,14 @@ let result = try await User
     .query(on: connection)
 ```
 
-`User.select(\.$email, ...)` is a thin selected-column convenience over SwifQL's existing `TableSelector`. The parameterless `User.select` form remains available when you want the table's normal all-column selection behavior.
+`User.select(\.$email, ...)` is a thin selected-column convenience over SQL's existing `TableSelector`. The parameterless `User.select` form remains available when you want the table's normal all-column selection behavior.
 
 ## Query-centered and Connection-centered execution
 
 The query-centered form keeps the query readable while still making the concrete `Connection` explicit:
 
 ```swift
-let result = try await SwifQL
+let result = try await SQL
     .select(Path.Table("users").column("email"))
     .from(Path.Table("users"))
     .query(on: connection)
@@ -190,7 +188,7 @@ let result = try await SwifQL
 The underlying Connection API is also public:
 
 ```swift
-let query = SwifQL
+let query = SQL
     .select(Path.Table("users").column("email"))
     .from(Path.Table("users"))
 
@@ -206,7 +204,7 @@ Use `QueryObservation` when an application needs the latest successful `QueryRes
 ```swift
 let users = Path.Table("users")
 
-let observation = try SwifQL
+let observation = try SQL
     .select(users.column("id"), users.column("name"))
     .from(users)
     .observe(on: database)
@@ -221,11 +219,11 @@ The equivalent Database-centered form is `try database.observe(query)`. Creating
 
 `QueryObservation` is a reusable `AsyncSequence` whose element is `QueryResult`. It is deliberately **latest-state**, not an event log: equal results are suppressed, delivery is bounded, and intermediate invalidated states may coalesce or be dropped when newer state supersedes them. Create another iterator when an independent consumer needs its own refresh lifetime.
 
-Observation execution keeps the normal prepared/bound SwiftDuckDB path. Plain SQL derived for dependency analysis is analysis-only and is never executed. Every refresh runs inside a native READ ONLY transaction. If DuckDB cannot prove the prepared query read-only, iteration fails with `.observationRequiresReadOnlyQuery` rather than executing it as an observation.
+Observation execution keeps the normal prepared/bound Duck path. Plain SQL derived for dependency analysis is analysis-only and is never executed. Every refresh runs inside a native READ ONLY transaction. If DuckDB cannot prove the prepared query read-only, iteration fails with `.observationRequiresReadOnlyQuery` rather than executing it as an observation.
 
 Invalidation is local to the exact `Database` object that created the observation. Ordinary `Connection` mutations and reusable `Statement` mutations on that Database participate. Transaction mutations are published only when the transaction reaches definitive COMMIT or ROLLBACK finalization. Ordinary Appender ingestion follows native visibility, so rows already made durable by DuckDB can become observable before the Appender body itself returns; a Transaction Appender remains transaction-local until outer transaction finalization.
 
-Changes made through another `Database` instance, another process, or direct file mutation are outside the current observation contract. SwiftDuckDB does not poll the database file and does not expose a filesystem watcher, Combine/SwiftUI publisher, `Connection.observe`, `Transaction.observe`, typed/decoded observation, event history, or public observation configuration in this slice.
+Changes made through another `Database` instance, another process, or direct file mutation are outside the current observation contract. Duck does not poll the database file and does not expose a filesystem watcher, Combine/SwiftUI publisher, `Connection.observe`, `Transaction.observe`, typed/decoded observation, event history, or public observation configuration in this slice.
 
 Cancellation or refresh failure terminates only that iterator. The `QueryObservation` value remains reusable, so a later iterator starts with its own private Connection and fresh latest-state delivery.
 
@@ -253,9 +251,9 @@ Column matching uses the model's coding keys. Pass `prefix:` when a result set u
 
 The current model decoder is intentionally flat and keyed. It does not advertise arbitrary nested keyed/unkeyed object graphs or top-level collection/scalar decoding.
 
-## Encode flat models into exact SwiftDuckDB values
+## Encode flat models into exact Duck values
 
-`ModelEncoder` performs the inverse flat projection into ordered SwiftDuckDB `Value` fields:
+`ModelEncoder` performs the inverse flat projection into ordered Duck `Value` fields:
 
 ```swift
 let encoded = try ModelEncoder().encode(
@@ -271,11 +269,11 @@ for field in encoded.fields {
 }
 ```
 
-Field names follow `CodingKeys`, and field order follows the model's encoding order. Supported scalars keep their exact SwiftDuckDB value families, including UUID, Data, Foundation.Decimal, temporal values, Interval, and the availability-gated 128-bit integer bridges. Ordinary synthesized `Optional.none` values may be omitted by `encodeIfPresent`; an explicit `encodeNil(forKey:)` becomes SQL-style `Value.null` semantics. Unsupported nested, unkeyed, or top-level scalar shapes throw instead of falling back to reflection or stringification.
+Field names follow `CodingKeys`, and field order follows the model's encoding order. Supported scalars keep their exact Duck value families, including UUID, Data, Foundation.Decimal, temporal values, Interval, and the availability-gated 128-bit integer bridges. Ordinary synthesized `Optional.none` values may be omitted by `encodeIfPresent`; an explicit `encodeNil(forKey:)` becomes SQL-style `Value.null` semantics. Unsupported nested, unkeyed, or top-level scalar shapes throw instead of falling back to reflection or stringification.
 
 ## Persist `Table` models with explicit Connection or Transaction ownership
 
-For `Table` models, SwiftDuckDB provides a deliberately small insert/update convenience layer. Given an existing `notes` table matching this model:
+For `Table` models, Duck provides a deliberately small insert/update convenience layer. Given an existing `notes` table matching this model:
 
 ```swift
 struct Note: Table {
@@ -339,7 +337,7 @@ Use `.execute(on:)` for statements where you need the number of changed rows rat
 ```swift
 let users = Path.Table("users")
 
-let rowsChanged = try await SwifQL
+let rowsChanged = try await SQL
     .insertInto(users, fields: "email", "name", "role")
     .values
     .values("mira@example.com", "Mira", "admin")
@@ -350,7 +348,7 @@ let rowsChanged = try await SwifQL
 
 ## Reusable prepared statements
 
-Use `Connection.prepare` when the same query shape will execute repeatedly with different values. The builder form creates dynamic `Statement.Parameter` values while ordinary SwifQL values remain fixed in the prepared template.
+Use `Connection.prepare` when the same query shape will execute repeatedly with different values. The builder form creates dynamic `Statement.Parameter` values while ordinary SQL values remain fixed in the prepared template.
 
 ### Prepare once, execute many
 
@@ -361,7 +359,7 @@ let insertUser = try await connection.prepare { parameters in
     let email = parameters.parameter()
     let name = parameters.parameter()
 
-    return SwifQL
+    return SQL
         .insertInto(users, fields: "email", "name", "role")
         .values
         .values(email, name, "member")
@@ -380,7 +378,7 @@ A reusable `SELECT` uses the same model:
 let findUser = try await connection.prepare { parameters in
     let email = parameters.parameter()
 
-    return SwifQL
+    return SQL
         .select(users.column("id"), users.column("name"))
         .from(users)
         .where(users.column("email") == email)
@@ -390,11 +388,11 @@ let mike = try await findUser.query("mike@example.com")
 let olga = try await findUser.query("olga@example.com")
 ```
 
-For a query with no dynamic parameters, prepare the SwifQL query directly and call `query()` or `execute()` with no arguments:
+For a query with no dynamic parameters, prepare the SQL query directly and call `query()` or `execute()` with no arguments:
 
 ```swift
 let admins = try await connection.prepare(
-    SwifQL
+    SQL
         .select(users.column("id"))
         .from(users)
         .where(users.column("role") == "admin")
@@ -429,9 +427,9 @@ A `Statement` cannot execute on a `Transaction` from another `Connection`; that 
 
 `Statement` is `Sendable` and may be called from multiple tasks. Native execution still belongs to the originating `Connection`: ordinary calls are serialized by that connection, transaction calls participate in that transaction's FIFO execution, and separate connections remain independent. A `Statement` strongly retains its originating `Connection`, so it remains usable while the statement itself is alive unless that connection becomes unusable or the statement is terminally invalidated.
 
-Supported dynamic arguments use the same current binding normalization as ordinary execution: `Value`, Optional values whose wrapped type is also supported, `Bool`, signed and unsigned 8/16/32/64-bit integers, `Int`, `UInt`, `Float`, `Double`, Foundation `Decimal`, `String`, Foundation `Data`, Foundation `UUID`, Foundation `Date`, `PureDate`, `PureTime`, `DateTime`, and `SwifQL.Interval`. Naked `nil` is accepted directly on all four variadics. Optional `nil` becomes SQL `NULL`; `Data()` is a valid empty BLOB. Unsupported types fail with `.unsupportedBindingType`, while non-finite or out-of-range Interval values fail with `.binding`; the statement remains reusable after these deterministic binding failures. Targetless reusable Decimal parameters recompute canonical exact natural `DECIMAL(W,S)` for each execution, so clear/rebind does not carry a prior Decimal target or value. Explicit DECIMAL targets reject rounding, nonfinite, and width/scale mismatch deterministically with `.binding`, and the statement remains reusable after those caller-side Decimal binding failures. Transaction-local `Statement.query(on:transaction, ...)` and `execute(on:transaction, ...)` support Decimal through the same exact contract.
+Supported dynamic arguments use the same current binding normalization as ordinary execution: `Value`, Optional values whose wrapped type is also supported, `Bool`, signed and unsigned 8/16/32/64-bit integers, `Int`, `UInt`, `Float`, `Double`, Foundation `Decimal`, `String`, Foundation `Data`, Foundation `UUID`, Foundation `Date`, `PureDate`, `PureTime`, `DateTime`, and `Interval`. Naked `nil` is accepted directly on all four variadics. Optional `nil` becomes SQL `NULL`; `Data()` is a valid empty BLOB. Unsupported types fail with `.unsupportedBindingType`, while non-finite or out-of-range Interval values fail with `.binding`; the statement remains reusable after these deterministic binding failures. Targetless reusable Decimal parameters recompute canonical exact natural `DECIMAL(W,S)` for each execution, so clear/rebind does not carry a prior Decimal target or value. Explicit DECIMAL targets reject rounding, nonfinite, and width/scale mismatch deterministically with `.binding`, and the statement remains reusable after those caller-side Decimal binding failures. Transaction-local `Statement.query(on:transaction, ...)` and `execute(on:transaction, ...)` support Decimal through the same exact contract.
 
-Reusable preparation means SwiftDuckDB retains and reuses one native prepared-statement owner across executions. It does not promise that DuckDB will never internally rebind or replan when native engine conditions require it. SwiftDuckDB also does not expose a manual `$1` / `$2` placeholder API; dynamic parameters are created only through `Statement.Parameters` in the builder closure.
+Reusable preparation means Duck retains and reuses one native prepared-statement owner across executions. It does not promise that DuckDB will never internally rebind or replan when native engine conditions require it. Duck also does not expose a manual `$1` / `$2` placeholder API; dynamic parameters are created only through `Statement.Parameters` in the builder closure.
 
 ## Bulk ingestion with Appender
 
@@ -463,7 +461,7 @@ Appender is a good fit for bulk rows with one fixed shape into one table. Choose
 
 ### Appender targets
 
-The scoped API supports the three current SwifQL path forms:
+The scoped API supports the three current SQL path forms:
 
 ```swift
 let table = Path.Table("events")
@@ -518,12 +516,12 @@ String
 Foundation.Data
 Foundation.UUID
 Foundation.Date
-SwifQL.PureDate / PureTime / DateTime
-SwifQL.Interval
+PureDate / PureTime / DateTime
+Interval
 ```
 
 Naked `nil` is accepted directly; explicit `Value.null` remains valid.
-Optional `nil` becomes SQL `NULL`. `Data()` is a valid empty BLOB. Temporal, Interval, and Foundation.Decimal values are supported through their exact current representations; list/struct/map and other complex families are not implied by this slice. 128-bit integers are supported through the availability-gated Swift bridges described under Reading results. Decimal row values map only to DuckDB `DECIMAL(W,S)` columns: the resolved target width/scale is authoritative, values must fit that exact width and scale, and SwiftDuckDB does not round or convert through `Double`. Nonfinite Decimal values reject. Deterministic Decimal conversion and typed-value construction happen in whole-row Appender Phase 1 before native row mutation, so a later-column Decimal rejection mutates zero native columns and the same live Appender remains recoverable.
+Optional `nil` becomes SQL `NULL`. `Data()` is a valid empty BLOB. Temporal, Interval, and Foundation.Decimal values are supported through their exact current representations; list/struct/map and other complex families are not implied by this slice. 128-bit integers are supported through the availability-gated Swift bridges described under Reading results. Decimal row values map only to DuckDB `DECIMAL(W,S)` columns: the resolved target width/scale is authoritative, values must fit that exact width and scale, and Duck does not round or convert through `Double`. Nonfinite Decimal values reject. Deterministic Decimal conversion and typed-value construction happen in whole-row Appender Phase 1 before native row mutation, so a later-column Decimal rejection mutates zero native columns and the same live Appender remains recoverable.
 
 Wrong row width and unsupported Swift argument types fail before native row mutation, so a later valid row may still be appended within the same live scope.
 
@@ -541,11 +539,11 @@ Do not try to bypass that rule by deliberately moving same-Connection work into 
 
 A native primitive append failure is terminal and surfaces as `.appenderAppend(column:message:)` with a 1-based column. Native row-completion or automatic-flush failure surfaces as `.appenderRowCompletion` without inventing a column number.
 
-Catching a terminal native row error inside the body does not make the scope successful: SwiftDuckDB remembers the first terminal failure and surfaces it again during scope finalization.
+Catching a terminal native row error inside the body does not make the scope successful: Duck remembers the first terminal failure and surfaces it again during scope finalization.
 
-Cancellation is cooperative. SwiftDuckDB checks cancellation before caller-side row work and again on the owning actor immediately before synchronous native row mutation. It does not promise to preempt a native C operation that is already running synchronously.
+Cancellation is cooperative. Duck checks cancellation before caller-side row work and again on the owning actor immediately before synchronous native row mutation. It does not promise to preempt a native C operation that is already running synchronously.
 
-On a successful body return, SwiftDuckDB checks terminal state, Connection usability, and cancellation before explicitly closing/finalizing the native Appender. If cancellation or a body error is observed before successful final close, still-buffered Appender data is discarded rather than intentionally flushed. If cleanup itself fails with an ambiguous buffered-data outcome, the owning Connection is conservatively fail-closed.
+On a successful body return, Duck checks terminal state, Connection usability, and cancellation before explicitly closing/finalizing the native Appender. If cancellation or a body error is observed before successful final close, still-buffered Appender data is discarded rather than intentionally flushed. If cleanup itself fails with an ambiguous buffered-data outcome, the owning Connection is conservatively fail-closed.
 
 ### Appender scopes are not atomic transactions
 
@@ -581,7 +579,7 @@ The current Appender API also does not advertise free-standing/manual-close Appe
 
 ## Transactions
 
-SwiftDuckDB supports both a managed closure transaction and an explicit flat transaction. In either form, work that should participate uses the supplied `Transaction` capability rather than ordinary same-Connection query/execute calls.
+Duck supports both a managed closure transaction and an explicit flat transaction. In either form, work that should participate uses the supplied `Transaction` capability rather than ordinary same-Connection query/execute calls.
 
 ### Managed transaction
 
@@ -591,13 +589,13 @@ Use the closure form when one lexical scope owns the complete transaction lifeti
 let users = Path.Table("users")
 
 let result = try await connection.transaction { transaction in
-    try await SwifQL
+    try await SQL
         .insertInto(users, fields: "email", "name", "role")
         .values
         .values("mira@example.com", "Mira", "admin")
         .execute(on: transaction)
 
-    return try await SwifQL
+    return try await SQL
         .select(users.column("email"), users.column("name"))
         .from(users)
         .query(on: transaction)
@@ -615,7 +613,7 @@ Use `connection.transaction()` when transaction lifetime must span code that doe
 ```swift
 let transaction = try await connection.transaction()
 
-try await SwifQL
+try await SQL
     .insertInto(users, fields: "email", "name", "role")
     .values
     .values("manual@example.com", "Manual", "member")
@@ -634,7 +632,7 @@ defer {
     await transaction.rollbackIfNeeded()
 }
 
-try await SwifQL
+try await SQL
     .insertInto(users, fields: "email", "name", "role")
     .values
     .values("manual@example.com", "Manual", "member")
@@ -645,13 +643,13 @@ try await transaction.commit()
 
 After a successful explicit commit or rollback, `rollbackIfNeeded()` is a no-op. Surrounding task cancellation does not suppress its rollback attempt. On Swift compilers before 6.4, finalize explicitly with `commit()` or `rollback()` and preserve any rollback failure rather than relying on hidden cleanup.
 
-Both `commit()` and `rollback()` are terminal one-shot operations. Committing a rollback-only transaction performs rollback and surfaces its stored first reason. A successful `commit()` means native COMMIT completed definitively. If COMMIT fails after native scheduling has begun, the durable outcome is ambiguous; SwiftDuckDB does not retry COMMIT or promise a compensating rollback, and the Connection becomes fail-closed. A rollback failure is surfaced and likewise fail-closes the Connection.
+Both `commit()` and `rollback()` are terminal one-shot operations. Committing a rollback-only transaction performs rollback and surfaces its stored first reason. A successful `commit()` means native COMMIT completed definitively. If COMMIT fails after native scheduling has begun, the durable outcome is ambiguous; Duck does not retry COMMIT or promise a compensating rollback, and the Connection becomes fail-closed. A rollback failure is surfaced and likewise fail-closes the Connection.
 
 After finalization, later work through that `Transaction` is rejected with `.transactionEnded`. Separate `Connection` values remain independent.
 
 For high-volume complete rows that must share the same commit/rollback boundary, use `transaction.appender(to:)`. A successful Transaction Appender scope does not commit independently; its mutation impact and rows remain transaction-local until outer finalization.
 
-If mandatory rollback cleanup fails while another error is already being handled, SwiftDuckDB throws `TransactionRollbackError`, preserving both `originalError` and the typed `rollbackError`. Later work on a fail-closed Connection receives `.connectionUnusable`; create a fresh Connection instead. Do not parse native diagnostic strings to infer an internal failure stage.
+If mandatory rollback cleanup fails while another error is already being handled, Duck throws `TransactionRollbackError`, preserving both `originalError` and the typed `rollbackError`. Later work on a fail-closed Connection receives `.connectionUnusable`; create a fresh Connection instead. Do not parse native diagnostic strings to infer an internal failure stage.
 
 Normal execution routes still reject user-issued transaction-control SQL. The public transaction API does not advertise savepoints, nested transactions, custom isolation levels, a public READ ONLY transaction mode, or transaction pooling. `pool.transaction` is managed transaction composition inside a pool lease, not a pool of reusable `Transaction` handles.
 
@@ -713,11 +711,11 @@ platforms; `UUID` construction and extraction remain availability-free.
 
 SQL `NULL` is represented explicitly as `.null`. Missing named columns return `nil` from the named row subscript.
 
-BLOB results are returned as Swift `Data`. SwifQL has its own expression semantics for plain Foundation `Data`; this README does not imply that every plain `Data` expression is automatically emitted as a native prepared Data bind.
+BLOB results are returned as Swift `Data`. SQL has its own expression semantics for plain Foundation `Data`; this README does not imply that every plain `Data` expression is automatically emitted as a native prepared Data bind.
 
 ### Temporal values
 
-Bind `PureDate`, `PureTime`, and `DateTime` directly through the normal SwifQL execution path:
+Bind `PureDate`, `PureTime`, and `DateTime` directly through the normal SQL execution path:
 
 ```swift
 let date = PureDate(year: 2026, month: 9, day: 7)
@@ -725,7 +723,7 @@ let time = PureTime(nanosecondsSinceMidnight: 12_345_678_901)
 
 if let date, let time, let dateTime = DateTime(date: date, time: time) {
     let result = try await connection.query(
-        SwifQL.select(
+        SQL.select(
             Fn.cast(date, .date) => "date_value",
             Fn.cast(time, .timeNs) => "time_value",
             Fn.cast(dateTime, .timestampNs) => "timestamp_value"
@@ -740,15 +738,15 @@ if let date, let time, let dateTime = DateTime(date: date, time: time) {
 
 `Foundation.Date` represents an instant and naturally binds to DuckDB `TIMESTAMPTZ`. Use `Value.timestampTZ(date)`, `value.get(Date.self)`, `value.timestampTZValue`, `row.value("value", as: Date.self)`, or `row.timestampTZ("value")` for exact-family access. Binding and result materialization require exact per-value microsecond representability; there is no tolerance, silent rounding, or truncation. DuckDB `TIMESTAMPTZ` infinities are not representable as `Foundation.Date`, and no timezone identifier is retained.
 
-`TIME_NS` preserves nanoseconds exactly. Timestamp bindings reject values that cannot be represented at the requested precision; they do not round. `DateTime` remains a civil, timezone-free value in the non-TZ `TIMESTAMP_S` / `TIMESTAMP_MS` / `TIMESTAMP` / `TIMESTAMP_NS` family and does not bridge through `Foundation.Date` or `TIMESTAMPTZ`. `PureDate` remains `DATE`; `PureTime` remains `TIME` / `TIME_NS`. Standalone `PureTime` preserves `24:00`; `DateTime` follows SwifQL's civil semantics and canonicalizes that value to the next day's midnight.
+`TIME_NS` preserves nanoseconds exactly. Timestamp bindings reject values that cannot be represented at the requested precision; they do not round. `DateTime` remains a civil, timezone-free value in the non-TZ `TIMESTAMP_S` / `TIMESTAMP_MS` / `TIMESTAMP` / `TIMESTAMP_NS` family and does not bridge through `Foundation.Date` or `TIMESTAMPTZ`. `PureDate` remains `DATE`; `PureTime` remains `TIME` / `TIME_NS`. Standalone `PureTime` preserves `24:00`; `DateTime` follows SQL's civil semantics and canonicalizes that value to the next day's midnight.
 
-`SwifQL.Interval` preserves independent `months`, `days`, and `microseconds` components. Mixed signs and non-normalized structural values remain exact: months and days are not converted into one another, and microseconds are passed as an exact `Int64`. DuckDB's native month/day fields are `Int32`, so values outside that range and SwifQL's explicit positive/negative infinity states are rejected at binding or Appender preflight with `.binding` or `.appenderAppend`. `Interval` is not equivalent to Foundation `TimeInterval`, and it does not unconditionally bridge to Swift `Duration`.
+`Interval` preserves independent `months`, `days`, and `microseconds` components. Mixed signs and non-normalized structural values remain exact: months and days are not converted into one another, and microseconds are passed as an exact `Int64`. DuckDB's native month/day fields are `Int32`, so values outside that range and SQL's explicit positive/negative infinity states are rejected at binding or Appender preflight with `.binding` or `.appenderAppend`. `Interval` is not equivalent to Foundation `TimeInterval`, and it does not unconditionally bridge to Swift `Duration`.
 
-Plain `Interval` and `Optional<Interval>` are directly usable through ordinary SwifQL execution. `Value.interval(...)` is the SwiftDuckDB facade for stored/extracted values and Sendable dynamic routes such as reusable `Statement` and Appender; `Value` does not claim ordinary SwifQL `Encodable` or `SwifQLable` conformance.
+Plain `Interval` and `Optional<Interval>` are directly usable through ordinary SQL execution. `Value.interval(...)` is the Duck facade for stored/extracted values and Sendable dynamic routes such as reusable `Statement` and Appender; `Value` does not claim `SQLEncodable` or ordinary `SQLable` conformance.
 
 ```swift
 let interval = Interval(months: 1, days: 40, microseconds: 2)
-let result = try await connection.query(SwifQL.select(interval => "value"))
+let result = try await connection.query(SQL.select(interval => "value"))
 
 if let row = result.rows.first, let exact = row.interval("value") {
     _ = exact
@@ -757,9 +755,9 @@ if let row = result.rows.first, let exact = row.interval("value") {
 
 ### Exact Decimal values
 
-`Foundation.Decimal` is a supported exact scalar family across ordinary query bindings, reusable `Statement` dynamic/fixed bindings, Appender complete rows, and result reading. Transport is exact: SwiftDuckDB does not route Decimal through `Double` or `Float`, and it does not implicitly round or truncate.
+`Foundation.Decimal` is a supported exact scalar family across ordinary query bindings, reusable `Statement` dynamic/fixed bindings, Appender complete rows, and result reading. Transport is exact: Duck does not route Decimal through `Double` or `Float`, and it does not implicitly round or truncate.
 
-An explicit resolved `DECIMAL(W,S)` target is authoritative. The value must fit that exact width and scale or binding/preflight rejects. Targetless Decimal bindings use a canonical minimal exact natural `W/S`; the zero natural target is `DECIMAL(1,0)`. Width/scale is schema/result metadata carried on `ResultColumn.logicalType.decimalWidth` and `.decimalScale`. It is not part of `Value` numeric identity: numeric `1.20` and `1.2` may compare as the same `Foundation.Decimal` while result metadata can differ. SwiftDuckDB does not claim that `Foundation.Decimal` preserves user-entered textual trailing zeros as `Value` identity. Nonfinite Decimal values, including `Decimal.nan`, reject at the native-conversion/preflight boundary.
+An explicit resolved `DECIMAL(W,S)` target is authoritative. The value must fit that exact width and scale or binding/preflight rejects. Targetless Decimal bindings use a canonical minimal exact natural `W/S`; the zero natural target is `DECIMAL(1,0)`. Width/scale is schema/result metadata carried on `ResultColumn.logicalType.decimalWidth` and `.decimalScale`. It is not part of `Value` numeric identity: numeric `1.20` and `1.2` may compare as the same `Foundation.Decimal` while result metadata can differ. Duck does not claim that `Foundation.Decimal` preserves user-entered textual trailing zeros as `Value` identity. Nonfinite Decimal values, including `Decimal.nan`, reject at the native-conversion/preflight boundary.
 
 Read exact Decimal results through `Value.decimal(decimal)`, `value.get(Decimal.self)`, `value.decimalValue`, `row.value("amount", as: Decimal.self)`, `row.value(index, as: Decimal.self)`, `row.decimal("amount")`, and `row.decimal(index)`. Extraction remains exact-family only; there is no numeric coercion.
 
@@ -771,7 +769,7 @@ let amount = Decimal(
 
 if let amount {
     let result = try await connection.query(
-        SwifQL.select(Fn.cast(amount, .decimal(19, 0)) => "amount")
+        SQL.select(Fn.cast(amount, .decimal(19, 0)) => "amount")
     )
 
     if let row = result.rows.first {
@@ -795,13 +793,13 @@ let first = try database.connect()
 let second = try database.connect()
 ```
 
-Operations submitted to one `Connection` are serialized through that connection's execution ownership, including across actor reentrancy. Separate connections do not share one SwiftDuckDB execution gate.
+Operations submitted to one `Connection` are serialized through that connection's execution ownership, including across actor reentrancy. Separate connections do not share one Duck execution gate.
 
 ## Cancellation
 
-Async execution is cancellation-aware. SwiftDuckDB checks cancellation before native work, between pending execution tasks, around final execution, and while copying result chunks. Cancellation surfaces as Swift `CancellationError`.
+Async execution is cancellation-aware. Duck checks cancellation before native work, between pending execution tasks, around final execution, and while copying result chunks. Cancellation surfaces as Swift `CancellationError`.
 
-Cancellation is cooperative at those boundaries. SwiftDuckDB does not promise instantaneous preemption in the middle of every synchronous native DuckDB call or a deterministic cancellation latency once such a call is already running.
+Cancellation is cooperative at those boundaries. Duck does not promise instantaneous preemption in the middle of every synchronous native DuckDB call or a deterministic cancellation latency once such a call is already running.
 
 ## Errors
 
@@ -811,19 +809,19 @@ Native diagnostic strings are useful diagnostics, but their exact text is not a 
 
 ## Raw SQL escape hatch
 
-When a query cannot yet be expressed through the declarative surface, raw SQL remains available explicitly through SwifQL:
+When a query cannot yet be expressed through the declarative surface, raw SQL remains available explicitly through SQL:
 
 ```swift
-try await SwifQL
+try await SQL
     .raw("PRAGMA version")
     .execute(on: connection)
 ```
 
-Treat `SwifQL.raw(...)` as an escape hatch. Normal SwiftDuckDB examples should prefer declarative SwifQL construction.
+Treat `SQL.raw(...)` as an escape hatch. Normal Duck examples should prefer declarative SQL construction.
 
 ## Current scope
 
-The current public slice covers database/connection ownership, SwifQL query execution, bounded scoped `ConnectionPool` checkout with managed `pool.transaction` and graceful shutdown, reusable prepared statements, managed and flat explicitly finalized transactions, latest-state `QueryObservation` for read-only same-Database reactive queries, ordinary and explicit-Transaction scoped Appender ingestion with complete-table or fixed selected columns, primitive, temporal, Interval, and exact Foundation.Decimal binding/result values, mutation row counts, typed-table selected-column convenience, flat keyed Codable row/result projection, exact flat `ModelEncoder` values, explicit Connection/Transaction `Table` insert/update conveniences, structured connection concurrency, and cancellation-aware execution.
+The current public slice covers database/connection ownership, SQL query execution, bounded scoped `ConnectionPool` checkout with managed `pool.transaction` and graceful shutdown, reusable prepared statements, managed and flat explicitly finalized transactions, latest-state `QueryObservation` for read-only same-Database reactive queries, ordinary and explicit-Transaction scoped Appender ingestion with complete-table or fixed selected columns, primitive, temporal, Interval, and exact Foundation.Decimal binding/result values, mutation row counts, typed-table selected-column convenience, flat keyed Codable row/result projection, exact flat `ModelEncoder` values, explicit Connection/Transaction `Table` insert/update conveniences, structured connection concurrency, and cancellation-aware execution.
 
 The current Observation surface is intentionally bounded to reusable latest-state `QueryResult` delivery for mutations routed through the same `Database` instance. It does not advertise event-history delivery, typed/decoded observation, `Connection.observe` or `Transaction.observe`, public observation options, polling, filesystem/process-wide watching, or UI-framework publishers.
 
