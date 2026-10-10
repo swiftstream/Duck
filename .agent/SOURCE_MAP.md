@@ -32,7 +32,7 @@ There is intentionally no model/provider/tool-specific stable session-orchestrat
 
 ## Package / Public Surface
 
-- `Package.swift`: SwiftPM manifest for the `Duck` library product, public `Duck` target, internal generated `Cduckdb` target, SQL dependency from `2.0.0`, and both Swift Testing targets. It uses Swift tools 6.3, iOS 15+, macOS 12+, Swift language mode 6, and the upstream-generated C++11 setting.
+- `Package.swift`: SwiftPM manifest for the `Duck` library product, public `Duck` target, internal generated `Cduckdb` target, SQL dependency from `2.1.0`, and both Swift Testing targets. It uses Swift tools 6.3, iOS 15+, macOS 12+, Swift language mode 6, and the upstream-generated C++11 setting.
 - `Package.resolved`: intentionally ignored local SwiftPM resolution evidence, not committed source-of-truth; current resolution maps SQL `2.1.0` to revision `1099bb8f62d2b6bacddfc6617318ddf4cfc7511e`.
 - `.swift-version`: tracked exact Swift `6.3.3` toolchain pin.
 - `README.md`: public query, reusable-Statement, managed + flat explicitly finalized Transaction, latest-state `QueryObservation`, ordinary and Transaction Appender including fixed selected columns, exact temporal/Foundation.Date/Interval values, exact Foundation.Decimal/DECIMAL, and flat Codable / Model Layer documentation. Observation examples preserve same-Database/native-READ-ONLY/latest-state boundaries; executable query examples use SQL, and ordinary String execution/manual `$1` placeholder APIs are not taught.

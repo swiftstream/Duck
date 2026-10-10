@@ -23,7 +23,7 @@ Current required behavior is verified from the completed Swift 6 / Duck-capable 
 - Duck preparation emits `$1`, `$2`, ... bindings;
 - Swift 6.3.3 strict-concurrency validation is clean while query/part/prepared/bind graphs remain intentionally non-Sendable where truthful.
 
-Duck depends on the published `SQL` package from `https://github.com/SwiftStream/SQL`. `Package.swift` declares `from: "2.0.0"`, so Duck 1.x accepts the reviewed SQL 2.x compatibility line (`>=2.0.0,<3.0.0`). The current generated `Package.resolved` evidence resolves SQL `2.1.0` at revision `1099bb8f62d2b6bacddfc6617318ddf4cfc7511e`. Duck and SQL have independent major-version lines; a future Duck major does not by itself require an SQL major change.
+Duck depends on the published `SQL` package from `https://github.com/SwiftStream/SQL`. `Package.swift` declares `from: "2.1.0"`, so Duck 1.x accepts the reviewed SQL 2.x compatibility line (`>=2.1.0,<3.0.0`). The current generated `Package.resolved` evidence resolves SQL `2.1.0` at revision `1099bb8f62d2b6bacddfc6617318ddf4cfc7511e`. Duck and SQL have independent major-version lines; a future Duck major does not by itself require an SQL major change.
 
 Do not commit a machine-local path dependency or a stale remote revision that predates required Duck/Swift-6 behavior.
 

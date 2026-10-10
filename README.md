@@ -15,7 +15,7 @@ These are manifest facts, not a claim of broader platform/runtime validation bey
 
 The repository toolchain pin is Swift 6.3.3.
 
-Duck 1.x uses SQL `>=2.0.0,<3.0.0`; the current manifest declares SQL from `2.0.0`, and this checkout currently resolves SQL `2.1.0`. Duck and SQL have independent major-version lines: a future Duck 2.x may intentionally continue to use SQL 2.x, while any SQL 3.x adoption requires an explicit compatibility review.
+Duck 1.x uses SQL `>=2.1.0,<3.0.0`; the current manifest declares SQL from `2.1.0`, and this checkout currently resolves SQL `2.1.0`. Duck and SQL have independent major-version lines: a future Duck 2.x may intentionally continue to use SQL 2.x, while any SQL 3.x adoption requires an explicit compatibility review.
 
 The current vendored/upstream DuckDB engine base is v1.5.5. Duck's package version and the DuckDB engine version are separate version lines.
 
