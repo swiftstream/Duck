@@ -8,9 +8,9 @@ Foundation C5 is CLOSED at local commit `0dc702c5bcf53647c35e8177d35360c299a0e63
 
 Foundation C6 is CLOSED at local commit `31973379133ed290a749d2e5f9dbc9b266b2ab00`, subject **📖 Synchronize governance and skills**, after full validation and an independent CLEAN whole-candidate audit.
 
-Foundation C7 is CLOSED at local commit `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf`. C8 semantic development-history leakage cleanup is current with implementation/validation/audit closure in progress; C9 remains future. Production source/API behavior, the durable `__swiftduckdb.migrations` compatibility namespace, and protected unrelated `.agent/STYLE_GUIDELINES.md` WIP must remain unchanged.
+Foundation C7 is CLOSED at local commit `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf`. C8 semantic development-history leakage cleanup is CLOSED at local commit `0b8baa756b523f00f309b2a007ead7d0570e6b28`. C9 final Foundation closure is CURRENT / AUTHORIZED with validation/audit/closure in progress. Production source/API behavior, the durable `__swiftduckdb.migrations` compatibility namespace, and protected unrelated `.agent/STYLE_GUIDELINES.md` WIP must remain unchanged.
 
-The required pre-v1 sequence is C8 closure, C9 final Foundation closure, separate v1 technical validation + independent release audit, real local macOS SwiftUI and UIKitPlus consumers, final public-doc polish/audit, and then local `v1.0.0`.
+The required pre-v1 sequence is C9 final Foundation closure, separate v1 technical validation + independent release audit, real local macOS SwiftUI and UIKitPlus consumers, final public-doc polish/audit, final release snapshot gate, and then local `v1.0.0`.
 
 No major Advanced Appender or nested/complex Value expansion is authorized before local v1.0.0 unless the smallest bounded correction is proven to be a release blocker. Post-v1 feature work requires a separate v1.1.0 roadmap.
 

@@ -7,8 +7,8 @@ Unresolved choices that must not be treated as implemented architecture.
 The current durable product priority is to finish a locally release-ready Duck `v1.0.0` before another major feature layer:
 
 ```text
-Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf` -> C8 current / closure in progress -> C9 future
--> technical release validation
+Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf` -> C8 CLOSED at `0b8baa756b523f00f309b2a007ead7d0570e6b28` -> C9 CURRENT / final Foundation validation-audit-closure in progress
+-> technical release validation (future, separate)
 -> independent release audit
 -> real SwiftUI and UIKitPlus macOS consumers
 -> final public-doc polish/audit

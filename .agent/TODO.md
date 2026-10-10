@@ -9,8 +9,8 @@ Ideas and maintainer-prioritized capabilities that are not yet active approved i
 The current priority is release readiness, not another feature layer:
 
 ```text
-Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf` -> C8 current / closure in progress -> C9 future
--> v1.0.0 technical release validation
+Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf` -> C8 CLOSED at `0b8baa756b523f00f309b2a007ead7d0570e6b28` -> C9 CURRENT / final Foundation validation-audit-closure in progress
+-> v1.0.0 technical release validation (future, separate)
 -> independent release audit
 -> real local macOS SwiftUI consumer
 -> real local macOS UIKitPlus consumer
