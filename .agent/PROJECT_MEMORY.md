@@ -4,7 +4,7 @@ Durable current-state facts useful beyond immediate source inspection.
 
 ## Current State
 
-- Swift Package Manager library package/product/primary target name is `Duck`. Foundation C5 completed the technical/public rename at local commit `0dc702c5bcf53647c35e8177d35360c299a0e63b`; C6 stable-governance/skills/publication synchronization closed at local commit `31973379133ed290a749d2e5f9dbc9b266b2ab00`; C7 physical relocation to `SwiftStream/Duck` closed at local commit `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf`; C8 semantic development-history leakage cleanup closed at local commit `0b8baa756b523f00f309b2a007ead7d0570e6b28`. C9 final Foundation closure is CURRENT / AUTHORIZED with validation/audit/closure in progress.
+- Swift Package Manager library package/product/primary target name is `Duck`. Foundation C5 completed the technical/public rename at local commit `0dc702c5bcf53647c35e8177d35360c299a0e63b`; C6 stable-governance/skills/publication synchronization closed at local commit `31973379133ed290a749d2e5f9dbc9b266b2ab00`; C7 physical relocation to `SwiftStream/Duck` closed at local commit `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf`; C8 semantic development-history leakage cleanup closed at local commit `0b8baa756b523f00f309b2a007ead7d0570e6b28`; C9 final Foundation closure closed at local commit `6e99a95add3ba57e27f95c88e019666e9af8ec54`. The SQL minimum correction closed at local commit `bc90ee75541519ba900d6139b706824aee66a577`; `V1-TRP-001` is CLOSED, Duck v1 requires SQL `>=2.1.0,<3.0.0`, and v1.0.0 technical release validation is CURRENT / AUTHORIZED.
 - The package uses Swift tools 6.3, Swift language mode 6, iOS 15+ and macOS 12+ manifest deployment targets.
 - The tracked repository toolchain pin is `.swift-version` with exact Swift `6.3.3`. `swiftly.pkg` is intentionally absent and must not be recreated unless the maintainer explicitly changes that policy.
 - `Package.swift` declares SQL from `2.1.0` at `https://github.com/SwiftStream/SQL`; the current generated `Package.resolved` evidence resolves SQL `2.1.0` at revision `1099bb8f62d2b6bacddfc6617318ddf4cfc7511e`. `Package.swift` is the committed dependency declaration; `Package.resolved` remains intentionally ignored local resolution evidence.
@@ -68,7 +68,7 @@ Durable current-state facts useful beyond immediate source inspection.
 ## v1.0 Product Boundary
 
 - The primary product goal is local publicly-ready `v1.0.0`, not another major feature layer.
-- Required remaining order is C9 final Foundation closure -> separate v1 technical validation -> independent release audit -> real macOS SwiftUI and UIKitPlus consumers -> final public-doc polish/audit -> final release snapshot -> local v1.0.0.
+- Required remaining order is current v1 technical validation -> independent release audit -> release-readiness state checkpoint -> real macOS SwiftUI consumer -> real macOS UIKitPlus consumer -> final public-doc polish/audit -> final release snapshot -> local v1.0.0. C9 and the SQL-minimum correction are already CLOSED.
 - Advanced Appender and nested/complex Value families remain preserved future work but are deferred until after local v1.0.0 unless a minimal release-blocker correction is proven.
 - Post-v1 feature ordering belongs to a separate v1.1.0 roadmap.
 - Push/remote release/publication remains a separate explicit maintainer gate.

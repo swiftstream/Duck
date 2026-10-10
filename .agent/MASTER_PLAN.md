@@ -32,8 +32,9 @@ The active Foundation/release sequence is:
 C6 stable governance / skills / publication synchronization — complete at local commit `31973379133ed290a749d2e5f9dbc9b266b2ab00`
 -> C7 physical repository move to SwiftStream/Duck — complete at local commit `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf`
 -> C8 semantic development-history leakage cleanup — complete at local commit `0b8baa756b523f00f309b2a007ead7d0570e6b28`
--> C9 final Foundation closure — current; validation/audit/closure in progress
--> separate v1.0.0 technical release validation
+-> C9 final Foundation closure — complete at local commit `6e99a95add3ba57e27f95c88e019666e9af8ec54`
+-> SQL minimum correction — complete at local commit `bc90ee75541519ba900d6139b706824aee66a577`; v1 SQL floor is `2.1.0`
+-> v1.0.0 technical release validation — CURRENT / AUTHORIZED
 -> fresh independent release audit
 -> real local macOS SwiftUI consumer
 -> real local macOS UIKitPlus consumer
@@ -42,7 +43,7 @@ C6 stable governance / skills / publication synchronization — complete at loca
 -> local v1.0.0
 ```
 
-C5, the technical/public package rename to `Duck`, is complete at local commit `0dc702c5bcf53647c35e8177d35360c299a0e63b`. C6 stable governance/skills/publication synchronization is complete at local commit `31973379133ed290a749d2e5f9dbc9b266b2ab00`. C7 physical relocation to `SwiftStream/Duck` is CLOSED at local commit `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf`. C8 semantic development-history leakage cleanup is CLOSED at local commit `0b8baa756b523f00f309b2a007ead7d0570e6b28`. C9 final Foundation closure is CURRENT / AUTHORIZED with validation/audit/closure in progress; the v1.0.0 technical release validation remains a separate future gate.
+C5, the technical/public package rename to `Duck`, is complete at local commit `0dc702c5bcf53647c35e8177d35360c299a0e63b`. C6 stable governance/skills/publication synchronization is complete at local commit `31973379133ed290a749d2e5f9dbc9b266b2ab00`. C7 physical relocation to `SwiftStream/Duck` is CLOSED at local commit `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf`. C8 semantic development-history leakage cleanup is CLOSED at local commit `0b8baa756b523f00f309b2a007ead7d0570e6b28`. C9 final Foundation closure is CLOSED at local commit `6e99a95add3ba57e27f95c88e019666e9af8ec54`. The SQL minimum correction is CLOSED at local commit `bc90ee75541519ba900d6139b706824aee66a577`; `V1-TRP-001` is CLOSED and Duck v1 now requires SQL `>=2.1.0,<3.0.0`. The v1.0.0 technical release validation is CURRENT / AUTHORIZED; its runtime validation and later independent release audit are not yet complete.
 
 Until local v1.0.0, do not start Advanced Appender expansion, per-cell `DEFAULT`, QueryAppender, public DataChunk/vector writing, manual Appender lifecycle expansion, or nested/complex `LIST` / `ARRAY` / `MAP` / `STRUCT` / `UNION` / `ENUM` Value/result families unless a newly proven release blocker requires the smallest bounded correction. Those feature families remain preserved for separate post-v1.0 prioritization, initially through a new v1.1.0 roadmap rather than by inheriting old TODO order automatically.
 
