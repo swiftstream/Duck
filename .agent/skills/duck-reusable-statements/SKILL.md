@@ -1,6 +1,6 @@
 ---
 name: duck-reusable-statements
-description: Use for Duck reusable prepared Statements, Statement.Parameters builder bindings, repeated query/execute calls, Statement ownership and concurrency, failure/reuse behavior, and explicit execution inside an owning Transaction.
+description: Use for Duck reusable prepared Statements, Statement.Parameters builder bindings, repeated query/execute calls, Statement ownership and concurrency, failure/reuse behavior, and explicit execution inside an owning DuckTransaction.
 license: LICENSE.txt
 ---
 
@@ -85,7 +85,7 @@ A public `Statement` strongly retains the `Connection` that prepared it and stor
 
 Do not claim parallel native execution for one Statement merely because multiple Swift tasks call it.
 
-## 6. Execute explicitly inside the owning Transaction
+## 6. Execute explicitly inside the owning DuckTransaction
 
 ```swift
 try await connection.transaction { transaction in
@@ -104,7 +104,7 @@ try await connection.transaction { transaction in
 }
 ```
 
-A Statement used with a Transaction from another Connection fails with `.statementConnectionMismatch`. Ordinary `statement.query(...)` / `statement.execute(...)` calls from a live same-Connection transaction body are rejected; use the explicit `on: transaction` overloads.
+A Statement used with a DuckTransaction from another Connection fails with `.statementConnectionMismatch`. Ordinary `statement.query(...)` / `statement.execute(...)` calls from a live same-Connection transaction body are rejected; use the explicit `on: transaction` overloads.
 
 Transaction-local Statement failures participate in rollback-only first-reason behavior. Catching the immediate Statement error does not restore COMMIT eligibility.
 

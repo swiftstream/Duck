@@ -85,7 +85,7 @@ let result = try await pool.connection { connection in
 
 `maximumConnections` must be greater than zero. The pool opens Connections only when needed and owns at most that many at once. Concurrent checkout waits when all slots are in use; queued requests are served in order, and cancellation of a queued request frees its place. Each native Connection still serializes its own operations. A pool permits work on separate Connections; it does not make one Connection execute native operations in parallel.
 
-The closure owns one exact lease. Finish and await all work using its `Connection` before returning. The pool completes mandatory return cleanup before `connection` completes. Do not store the Connection, a Statement prepared on it, a Transaction, or an Appender for use after the lease. A later checkout of the same Connection does not restore authority to resources from an earlier lease. Using a stale pooled Connection fails with `.poolLeaseExpired`. Starting another `pool.connection` from within a live lease of that same pool fails with `.poolReentrantCheckout`.
+The closure owns one exact lease. Finish and await all work using its `Connection` before returning. The pool completes mandatory return cleanup before `connection` completes. Do not store the Connection, a Statement prepared on it, a DuckTransaction, or an Appender for use after the lease. A later checkout of the same Connection does not restore authority to resources from an earlier lease. Using a stale pooled Connection fails with `.poolLeaseExpired`. Starting another `pool.connection` from within a live lease of that same pool fails with `.poolReentrantCheckout`.
 
 For one managed commit boundary, use `pool.transaction`:
 
@@ -101,7 +101,7 @@ try await pool.transaction { transaction in
 }
 ```
 
-`pool.transaction` checks out a Connection and calls its managed `connection.transaction` inside that lease. The existing managed transaction rules apply: a successful body commits only after native COMMIT succeeds; a thrown error or observed cancellation takes the rollback path; a database operation can make the transaction rollback-only even if its immediate error is caught. Use the supplied `Transaction` for participating work. This is the same transaction engine used without a pool.
+`pool.transaction` checks out a Connection and calls its managed `connection.transaction` inside that lease. The existing managed transaction rules apply: a successful body commits only after native COMMIT succeeds; a thrown error or observed cancellation takes the rollback path; a database operation can make the transaction rollback-only even if its immediate error is caught. Use the supplied `DuckTransaction` for participating work. This is the same transaction engine used without a pool.
 
 If you create a flat transaction inside `pool.connection`, explicitly commit or roll it back before the lease ends. Returning successfully with a live flat transaction triggers rollback cleanup and `.poolTransactionNotFinalized`; a rollback cleanup failure is surfaced as `TransactionRollbackError`. Prefer `pool.transaction` when the whole transaction fits one closure.
 
@@ -223,7 +223,7 @@ Observation execution keeps the normal prepared/bound Duck path. Plain SQL deriv
 
 Invalidation is local to the exact `Database` object that created the observation. Ordinary `Connection` mutations and reusable `Statement` mutations on that Database participate. Transaction mutations are published only when the transaction reaches definitive COMMIT or ROLLBACK finalization. Ordinary Appender ingestion follows native visibility, so rows already made durable by DuckDB can become observable before the Appender body itself returns; a Transaction Appender remains transaction-local until outer transaction finalization.
 
-Changes made through another `Database` instance, another process, or direct file mutation are outside the current observation contract. Duck does not poll the database file and does not expose a filesystem watcher, Combine/SwiftUI publisher, `Connection.observe`, `Transaction.observe`, typed/decoded observation, event history, or public observation configuration in this slice.
+Changes made through another `Database` instance, another process, or direct file mutation are outside the current observation contract. Duck does not poll the database file and does not expose a filesystem watcher, Combine/SwiftUI publisher, `Connection.observe`, `DuckTransaction.observe`, typed/decoded observation, event history, or public observation configuration in this slice.
 
 Cancellation or refresh failure terminates only that iterator. The `QueryObservation` value remains reusable, so a later iterator starts with its own private Connection and fresh latest-state delivery.
 
@@ -271,7 +271,7 @@ for field in encoded.fields {
 
 Field names follow `CodingKeys`, and field order follows the model's encoding order. Supported scalars keep their exact Duck value families, including UUID, Data, Foundation.Decimal, temporal values, Interval, and the availability-gated 128-bit integer bridges. Ordinary synthesized `Optional.none` values may be omitted by `encodeIfPresent`; an explicit `encodeNil(forKey:)` becomes SQL-style `Value.null` semantics. Unsupported nested, unkeyed, or top-level scalar shapes throw instead of falling back to reflection or stringification.
 
-## Persist `Table` models with explicit Connection or Transaction ownership
+## Persist `Table` models with explicit Connection or DuckTransaction ownership
 
 For `Table` models, Duck provides a deliberately small insert/update convenience layer. Given an existing `notes` table matching this model:
 
@@ -324,11 +324,11 @@ try await connection.transaction { transaction in
 }
 ```
 
-Transaction-backed model persistence reuses the same model query builders and executes through the existing `Transaction` engine. It does not create ambient transaction participation: same-Connection work that should participate still uses the supplied `Transaction` explicitly.
+Transaction-backed model persistence reuses the same model query builders and executes through the existing `DuckTransaction` engine. It does not create ambient transaction participation: same-Connection work that should participate still uses the supplied `DuckTransaction` explicitly.
 
 Model payloads travel through prepared placeholders rather than being interpolated into SQL text.
 
-This model layer is not a broad ORM. It does not advertise repository identity maps, `save`/`persist` aliases, model delete/upsert/batch/arbitrary-WHERE persistence, migrations, model-integrated observation/reactive APIs, arbitrary nested model graphs, model-driven transaction lifecycle, savepoints/custom isolation, new platform guarantees, or application-specific readiness claims. Model helpers execute through an ordinary `Connection` or `Transaction` lease when a pool is used; they do not own or configure a `ConnectionPool`.
+This model layer is not a broad ORM. It does not advertise repository identity maps, `save`/`persist` aliases, model delete/upsert/batch/arbitrary-WHERE persistence, migrations, model-integrated observation/reactive APIs, arbitrary nested model graphs, model-driven transaction lifecycle, savepoints/custom isolation, new platform guarantees, or application-specific readiness claims. Model helpers execute through an ordinary `Connection` or `DuckTransaction` lease when a pool is used; they do not own or configure a `ConnectionPool`.
 
 ## Mutations and `rowsChanged`
 
@@ -403,7 +403,7 @@ let result = try await admins.query()
 
 ### Reuse inside a transaction
 
-A `Statement` belongs to the `Connection` that prepared it. To execute that same statement inside a transaction on its owner connection, pass the explicit `Transaction` capability:
+A `Statement` belongs to the `Connection` that prepared it. To execute that same statement inside a transaction on its owner connection, pass the explicit `DuckTransaction` capability:
 
 ```swift
 try await connection.transaction { transaction in
@@ -423,11 +423,11 @@ try await connection.transaction { transaction in
 }
 ```
 
-A `Statement` cannot execute on a `Transaction` from another `Connection`; that fails with `.statementConnectionMismatch` without poisoning the unrelated transaction. An ordinary `statement.query(...)` or `statement.execute(...)` call made from the live transaction body on the same connection is rejected with `.transactionScopeViolation`. Use the explicit `on: transaction` overload when the statement should participate in that transaction.
+A `Statement` cannot execute on a `DuckTransaction` from another `Connection`; that fails with `.statementConnectionMismatch` without poisoning the unrelated transaction. An ordinary `statement.query(...)` or `statement.execute(...)` call made from the live transaction body on the same connection is rejected with `.transactionScopeViolation`. Use the explicit `on: transaction` overload when the statement should participate in that transaction.
 
 `Statement` is `Sendable` and may be called from multiple tasks. Native execution still belongs to the originating `Connection`: ordinary calls are serialized by that connection, transaction calls participate in that transaction's FIFO execution, and separate connections remain independent. A `Statement` strongly retains its originating `Connection`, so it remains usable while the statement itself is alive unless that connection becomes unusable or the statement is terminally invalidated.
 
-Supported dynamic arguments use the same current binding normalization as ordinary execution: `Value`, Optional values whose wrapped type is also supported, `Bool`, signed and unsigned 8/16/32/64-bit integers, `Int`, `UInt`, `Float`, `Double`, Foundation `Decimal`, `String`, Foundation `Data`, Foundation `UUID`, Foundation `Date`, `PureDate`, `PureTime`, `DateTime`, and `Interval`. Naked `nil` is accepted directly on all four variadics. Optional `nil` becomes SQL `NULL`; `Data()` is a valid empty BLOB. Unsupported types fail with `.unsupportedBindingType`, while non-finite or out-of-range Interval values fail with `.binding`; the statement remains reusable after these deterministic binding failures. Targetless reusable Decimal parameters recompute canonical exact natural `DECIMAL(W,S)` for each execution, so clear/rebind does not carry a prior Decimal target or value. Explicit DECIMAL targets reject rounding, nonfinite, and width/scale mismatch deterministically with `.binding`, and the statement remains reusable after those caller-side Decimal binding failures. Transaction-local `Statement.query(on:transaction, ...)` and `execute(on:transaction, ...)` support Decimal through the same exact contract.
+Supported dynamic arguments use the same current binding normalization as ordinary execution: `Value`, Optional values whose wrapped type is also supported, `Bool`, signed and unsigned 8/16/32/64-bit integers, `Int`, `UInt`, `Float`, `Double`, Foundation `Decimal`, `String`, Foundation `Data`, Foundation `UUID`, Foundation `Date`, `PureDate`, `PureTime`, `DateTime`, and `Interval`. Naked `nil` is accepted directly on all four variadics. Optional `nil` becomes SQL `NULL`; `Data()` is a valid empty BLOB. Unsupported types fail with `.unsupportedBindingType`, while non-finite or out-of-range Interval values fail with `.binding`; the statement remains reusable after these deterministic binding failures. Targetless reusable Decimal parameters recompute canonical exact natural `DECIMAL(W,S)` for each execution, so clear/rebind does not carry a prior Decimal target or value. Explicit DECIMAL targets reject rounding, nonfinite, and width/scale mismatch deterministically with `.binding`, and the statement remains reusable after those caller-side Decimal binding failures. DuckTransaction-local `Statement.query(on:transaction, ...)` and `execute(on:transaction, ...)` support Decimal through the same exact contract.
 
 Reusable preparation means Duck retains and reuses one native prepared-statement owner across executions. It does not promise that DuckDB will never internally rebind or replan when native engine conditions require it. Duck also does not expose a manual `$1` / `$2` placeholder API; dynamic parameters are created only through `Statement.Parameters` in the builder closure.
 
@@ -496,7 +496,7 @@ try await connection.appender(to: events, columns: ["kind", "id"]) { appender in
 
 Here `kind` receives the first argument and `id` the second, regardless of table-column order; the example assumes `kind` is nullable. Omitted columns receive their DuckDB `DEFAULT`, or `NULL` if they have no default. A selected column passed `nil` receives explicit SQL `NULL`; omit the column from `columns:` to request its default. The selection is fixed for the scope; there is no per-row `DEFAULT` marker or mid-scope selection change.
 
-The same `columns: [String]` form is public for all six combinations of `Connection` or `Transaction` with `Path.Table`, `Path.SchemaWithTable`, or `Path.CatalogWithSchemaAndTable`. For example, `transaction.appender(to: schemaTable, columns: ["kind", "id"])` uses the same argument order inside the outer transaction.
+The same `columns: [String]` form is public for all six combinations of `Connection` or `DuckTransaction` with `Path.Table`, `Path.SchemaWithTable`, or `Path.CatalogWithSchemaAndTable`. For example, `transaction.appender(to: schemaTable, columns: ["kind", "id"])` uses the same argument order inside the outer transaction.
 
 The list must be nonempty and contain valid, distinct, appendable column names. Empty, duplicate, unknown, or generated columns fail creation before the body runs; pass names as plain column names, including any embedded quote characters, rather than SQL-quoted identifiers. Wrong selected-row width, unsupported Swift values, and deterministic whole-row preflight errors occur before native row mutation and can be caught while the scope remains live. A native append, row-completion, or auto-flush error is terminal for that scope even when caught in its body.
 
@@ -553,7 +553,7 @@ That means a later body error or cancellation can discard rows that are still bu
 
 ### Appender inside an explicit transaction
 
-Use the explicit `Transaction` capability when a complete-row import must roll back as one part of the surrounding transaction:
+Use the explicit `DuckTransaction` capability when a complete-row import must roll back as one part of the surrounding transaction:
 
 ```swift
 let events = Path.Table("events")
@@ -579,7 +579,7 @@ The current Appender API also does not advertise free-standing/manual-close Appe
 
 ## Transactions
 
-Duck supports both a managed closure transaction and an explicit flat transaction. In either form, work that should participate uses the supplied `Transaction` capability rather than ordinary same-Connection query/execute calls.
+Duck supports both a managed closure transaction and an explicit flat transaction. In either form, work that should participate uses the supplied `DuckTransaction` capability rather than ordinary same-Connection query/execute calls.
 
 ### Managed transaction
 
@@ -604,7 +604,7 @@ let result = try await connection.transaction { transaction in
 
 A normal body return commits only after native COMMIT succeeds. A thrown body error or observed cancellation rolls the transaction back. If a database operation makes the transaction rollback-only, catching that immediate error does not restore commit eligibility: finalization rolls back and surfaces the stored first reason.
 
-Use the supplied `Transaction` for same-Connection work inside the body. Ordinary query/execute calls on that `Connection` are rejected while the reservation is live rather than silently joining the transaction. Structured child work may share the `Transaction` when it is awaited before the body returns.
+Use the supplied `DuckTransaction` for same-Connection work inside the body. Ordinary query/execute calls on that `Connection` are rejected while the reservation is live rather than silently joining the transaction. Structured child work may share the `DuckTransaction` when it is awaited before the body returns.
 
 ### Flat transaction with explicit finalization
 
@@ -645,13 +645,13 @@ After a successful explicit commit or rollback, `rollbackIfNeeded()` is a no-op.
 
 Both `commit()` and `rollback()` are terminal one-shot operations. Committing a rollback-only transaction performs rollback and surfaces its stored first reason. A successful `commit()` means native COMMIT completed definitively. If COMMIT fails after native scheduling has begun, the durable outcome is ambiguous; Duck does not retry COMMIT or promise a compensating rollback, and the Connection becomes fail-closed. A rollback failure is surfaced and likewise fail-closes the Connection.
 
-After finalization, later work through that `Transaction` is rejected with `.transactionEnded`. Separate `Connection` values remain independent.
+After finalization, later work through that `DuckTransaction` is rejected with `.transactionEnded`. Separate `Connection` values remain independent.
 
 For high-volume complete rows that must share the same commit/rollback boundary, use `transaction.appender(to:)`. A successful Transaction Appender scope does not commit independently; its mutation impact and rows remain transaction-local until outer finalization.
 
 If mandatory rollback cleanup fails while another error is already being handled, Duck throws `TransactionRollbackError`, preserving both `originalError` and the typed `rollbackError`. Later work on a fail-closed Connection receives `.connectionUnusable`; create a fresh Connection instead. Do not parse native diagnostic strings to infer an internal failure stage.
 
-Normal execution routes still reject user-issued transaction-control SQL. The public transaction API does not advertise savepoints, nested transactions, custom isolation levels, a public READ ONLY transaction mode, or transaction pooling. `pool.transaction` is managed transaction composition inside a pool lease, not a pool of reusable `Transaction` handles.
+Normal execution routes still reject user-issued transaction-control SQL. The public transaction API does not advertise savepoints, nested transactions, custom isolation levels, a public READ ONLY transaction mode, or transaction pooling. `pool.transaction` is managed transaction composition inside a pool lease, not a pool of reusable `DuckTransaction` handles.
 
 ## Reading results
 
@@ -821,8 +821,8 @@ Treat `SQL.raw(...)` as an escape hatch. Normal Duck examples should prefer decl
 
 ## Current scope
 
-The current public slice covers database/connection ownership, SQL query execution, bounded scoped `ConnectionPool` checkout with managed `pool.transaction` and graceful shutdown, reusable prepared statements, managed and flat explicitly finalized transactions, latest-state `QueryObservation` for read-only same-Database reactive queries, ordinary and explicit-Transaction scoped Appender ingestion with complete-table or fixed selected columns, primitive, temporal, Interval, and exact Foundation.Decimal binding/result values, mutation row counts, typed-table selected-column convenience, flat keyed Codable row/result projection, exact flat `ModelEncoder` values, explicit Connection/Transaction `Table` insert/update conveniences, structured connection concurrency, and cancellation-aware execution.
+The current public slice covers database/connection ownership, SQL query execution, bounded scoped `ConnectionPool` checkout with managed `pool.transaction` and graceful shutdown, reusable prepared statements, managed and flat explicitly finalized transactions, latest-state `QueryObservation` for read-only same-Database reactive queries, ordinary and explicit-DuckTransaction scoped Appender ingestion with complete-table or fixed selected columns, primitive, temporal, Interval, and exact Foundation.Decimal binding/result values, mutation row counts, typed-table selected-column convenience, flat keyed Codable row/result projection, exact flat `ModelEncoder` values, explicit Connection/DuckTransaction `Table` insert/update conveniences, structured connection concurrency, and cancellation-aware execution.
 
-The current Observation surface is intentionally bounded to reusable latest-state `QueryResult` delivery for mutations routed through the same `Database` instance. It does not advertise event-history delivery, typed/decoded observation, `Connection.observe` or `Transaction.observe`, public observation options, polling, filesystem/process-wide watching, or UI-framework publishers.
+The current Observation surface is intentionally bounded to reusable latest-state `QueryResult` delivery for mutations routed through the same `Database` instance. It does not advertise event-history delivery, typed/decoded observation, `Connection.observe` or `DuckTransaction.observe`, public observation options, polling, filesystem/process-wide watching, or UI-framework publishers.
 
 The current API also does not advertise per-row Appender `DEFAULT`, QueryAppender, public data-chunk/vector, or manual-lifecycle surfaces, broad ORM/repository identity semantics, model delete/upsert/batch/arbitrary-WHERE persistence, arbitrary nested model graphs, manual pool checkout/release, pool timeouts/idle lifetimes/session reset/statement cache/metrics/registry, savepoints, nested transactions, custom transaction isolation/public READ ONLY modes, or complex result families beyond the currently implemented Value families.

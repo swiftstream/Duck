@@ -39,7 +39,7 @@ Exact Foundation.Decimal integration
 - public Agent Skill coverage: Appender-specific Decimal contract PRESENT in `duck-appender`; broader cross-surface publication remains sourced below
 
 Codable / Model Layer
-- implementation: accepted flat keyed Row/QueryResult Decodable projection, exact flat ModelEncoder, and explicit Connection/Transaction Table insert/update conveniences
+- implementation: accepted flat keyed Row/QueryResult Decodable projection, exact flat ModelEncoder, and explicit Connection/DuckTransaction Table insert/update conveniences
 - README: PRESENT
 - detailed social/article source: PRESENT below as 006
 - public Agent Skill coverage: PRESENT as source-owned `duck-codable-models`; central federation onboarding/publication remains separate
@@ -149,7 +149,7 @@ let result = try await admins.query()
 
 ### Explicit Transaction use
 
-A prepared `Statement` is physically owned by the `Connection` that created it. To use it inside a transaction on that same owner, pass the explicit `Transaction` capability:
+A prepared `Statement` is physically owned by the `Connection` that created it. To use it inside a transaction on that same owner, pass the explicit `DuckTransaction` capability:
 
 ```swift
 try await connection.transaction { transaction in
@@ -168,7 +168,7 @@ try await connection.transaction { transaction in
 }
 ```
 
-A `Statement` cannot execute on a `Transaction` from another `Connection`; that fails with `.statementConnectionMismatch` before the unrelated transaction is registered/poisoned.
+A `Statement` cannot execute on a `DuckTransaction` from another `Connection`; that fails with `.statementConnectionMismatch` before the unrelated transaction is registered/poisoned.
 
 An ordinary `statement.query(...)` / `statement.execute(...)` call from the live same-Connection transaction body is rejected with `.transactionScopeViolation`. Transaction participation is explicit through the `on: transaction` overloads.
 
@@ -263,7 +263,7 @@ Preserve these three user-facing motivations:
 
 1. high-volume repeated INSERT / UPDATE;
 2. frequently repeated SELECT with changing values;
-3. reuse of one already-prepared query inside an explicit owning `Transaction`.
+3. reuse of one already-prepared query inside an explicit owning `DuckTransaction`.
 
 ## 002 — Scoped Appender: bulk ingestion without pretending the closure is a transaction
 
@@ -304,9 +304,9 @@ try await connection.appender(to: events, columns: ["kind", "id"]) { appender in
 
 The first value goes to `kind`, the second to `id`, even when table order differs; the example assumes `kind` is nullable. Every `append` call is still one complete row relative to this fixed selection. Omitting a table column lets DuckDB supply its `DEFAULT`, or `NULL` when no default exists. Passing `nil` for a **selected** column writes explicit SQL `NULL` and does not request its default. This allows a caller to distinguish a missing import field from an explicit null without adding a per-cell default marker. Existing no-`columns:` overloads keep complete-table-row behavior.
 
-Both `Connection` and `Transaction` expose `columns: [String]` for all three target forms: `Path.Table`, `Path.SchemaWithTable`, and `Path.CatalogWithSchemaAndTable`. The list cannot be empty, and duplicate, unknown, or generated columns fail creation before the body starts. Column names are passed as names, not SQL-quoted identifier fragments; a name containing a quote carries that quote literally. Selection cannot change during the scope. A wrong selected-row width, unsupported Swift value, or deterministic whole-row preflight mismatch mutates no native row columns and is recoverable inside the live body. Native append, end-row, or automatic-flush failure remains terminal.
+Both `Connection` and `DuckTransaction` expose `columns: [String]` for all three target forms: `Path.Table`, `Path.SchemaWithTable`, and `Path.CatalogWithSchemaAndTable`. The list cannot be empty, and duplicate, unknown, or generated columns fail creation before the body starts. Column names are passed as names, not SQL-quoted identifier fragments; a name containing a quote carries that quote literally. Selection cannot change during the scope. A wrong selected-row width, unsupported Swift value, or deterministic whole-row preflight mismatch mutates no native row columns and is recoverable inside the live body. Native append, end-row, or automatic-flush failure remains terminal.
 
-Selected columns retain the Appender's ownership boundary. The ordinary scope may auto-flush a durable prefix before body completion, so a later error or cancellation cannot promise to roll it back. A `Transaction.appender(to: events, columns: ["kind", "id"])` scope instead participates in the explicit outer transaction: auto-flushed rows remain transaction-local until finalization, and a failed scope makes the outer transaction rollback-only even when its error is caught by the surrounding transaction body. Cancellation remains cooperative at Swift boundaries. The scoped Appender must finish within any pool lease that supplied its Connection; lease return does not create a mutation signal. Same-`Database` `QueryObservation` follows ordinary native visibility or definitive transaction finalization, delivering latest query state rather than one event per row. Separate Database instances and external file/process writes are outside that invalidation contract.
+Selected columns retain the Appender's ownership boundary. The ordinary scope may auto-flush a durable prefix before body completion, so a later error or cancellation cannot promise to roll it back. A `DuckTransaction.appender(to: events, columns: ["kind", "id"])` scope instead participates in the explicit outer transaction: auto-flushed rows remain transaction-local until finalization, and a failed scope makes the outer transaction rollback-only even when its error is caught by the surrounding transaction body. Cancellation remains cooperative at Swift boundaries. The scoped Appender must finish within any pool lease that supplied its Connection; lease return does not create a mutation signal. Same-`Database` `QueryObservation` follows ordinary native visibility or definitive transaction finalization, delivering latest query state rather than one event per row. Separate Database instances and external file/process writes are outside that invalidation contract.
 
 The choice remains workload based: a selected-column Appender works when every row shares one fixed set and order of supplied columns; a reusable `Statement` is better when each row needs SQL expressions, UPDATE/SELECT behavior, or another repeated query shape. This slice adds no manual flush/close, mid-scope column changes, per-cell `DEFAULT`, QueryAppender, or public chunk/vector writer. It implies no release, new platform validation, central Agent Skill publication, or support for arbitrary default expressions beyond the tested pinned-engine behavior.
 
@@ -318,7 +318,7 @@ Duck preserves that character without exposing DuckDB's lower-level per-column m
 
 ### Appender versus one-shot INSERT versus reusable Statement
 
-There are four useful choices in the current API: one-shot execution, a reusable `Statement`, ordinary `Connection.appender(to:)`, and `Transaction.appender(to:)` inside an explicit transaction.
+There are four useful choices in the current API: one-shot execution, a reusable `Statement`, ordinary `Connection.appender(to:)`, and `DuckTransaction.appender(to:)` inside an explicit transaction.
 
 **One-shot query/execute** is the simplest choice for occasional mutations:
 
@@ -330,7 +330,7 @@ try await SQL
     .execute(on: connection)
 ```
 
-**Reusable `Statement`** is appropriate when one SQL shape repeats with changing values, including INSERT/UPDATE/SELECT, or when the same prepared statement must participate explicitly in a supported `Transaction`:
+**Reusable `Statement`** is appropriate when one SQL shape repeats with changing values, including INSERT/UPDATE/SELECT, or when the same prepared statement must participate explicitly in a supported `DuckTransaction`:
 
 ```swift
 let insertEvent = try await connection.prepare { parameters in
@@ -374,7 +374,7 @@ try await connection.transaction { transaction in
 }
 ```
 
-`Connection.appender(to:)` provides a scoped Appender lifetime and ordinary Connection admission, but it is non-atomic across DuckDB's automatic Appender flushes: a later body error or cancellation can discard still-buffered rows without rolling back earlier auto-flushed batches. `Transaction.appender(to:)` uses the same public `Appender` type, complete-row value families, scoped lifetime, and three target forms — `Path.Table`, `Path.SchemaWithTable`, and `Path.CatalogWithSchemaAndTable` — while participating in the already-active explicit outer transaction. Auto-flushed transaction-Appender batches remain transaction-local; outer COMMIT persists them and outer ROLLBACK removes them.
+`Connection.appender(to:)` provides a scoped Appender lifetime and ordinary Connection admission, but it is non-atomic across DuckDB's automatic Appender flushes: a later body error or cancellation can discard still-buffered rows without rolling back earlier auto-flushed batches. `DuckTransaction.appender(to:)` uses the same public `Appender` type, complete-row value families, scoped lifetime, and three target forms — `Path.Table`, `Path.SchemaWithTable`, and `Path.CatalogWithSchemaAndTable` — while participating in the already-active explicit outer transaction. Auto-flushed transaction-Appender batches remain transaction-local; outer COMMIT persists them and outer ROLLBACK removes them.
 
 The transaction Appender scope does not commit independently and is not a nested transaction, savepoint, or implicit ambient transaction. A body error, cancellation, terminal native append/row-completion failure, or finalization failure that escapes the scope makes the outer transaction rollback-only. Catching that failure in the surrounding transaction body cannot turn the later outcome into a successful COMMIT. If the surrounding transaction body catches an arbitrary Appender-body error and returns, outer transaction finalization later surfaces `.appenderTransactionAborted(...)` rather than permitting COMMIT; callers should use the typed error, never parse diagnostic text.
 
@@ -904,7 +904,7 @@ Use a reusable `Statement` when one prepared SQL shape repeats with changing val
 
 Use the managed `Connection.transaction { ... }` form when multiple same-Connection operations need one lexical commit/rollback boundary, or the flat `connection.transaction()` form when explicit lifetime/finalization is required.
 
-Use `Connection.appender` for bulk complete-row ingestion, or `Transaction.appender` when that ingestion must participate in an already-active explicit transaction.
+Use `Connection.appender` for bulk complete-row ingestion, or `DuckTransaction.appender` when that ingestion must participate in an already-active explicit transaction.
 
 Use `QueryObservation` when a read-only query should refresh as same-`Database` mutations invalidate its latest state.
 
@@ -963,7 +963,7 @@ let result = try await connection.transaction { transaction in
 }
 ```
 
-The supplied `Transaction` is how same-Connection work explicitly participates. Duck does not turn the underlying Connection into an ambient transaction mode that ordinary APIs silently join.
+The supplied `DuckTransaction` is how same-Connection work explicitly participates. Duck does not turn the underlying Connection into an ambient transaction mode that ordinary APIs silently join.
 
 ### Flat transactions cover explicit lifetime
 
@@ -1051,7 +1051,7 @@ The affected Connection is fail-closed after unrecoverable rollback cleanup fail
 
 ### Transaction lifetime is explicit
 
-A `Transaction` is not a reusable connection mode. Managed closure lifetime ends with outer finalization; flat lifetime ends with explicit terminal finalization. Later work through a finalized Transaction is rejected with `.transactionEnded`.
+A `DuckTransaction` is not a reusable connection mode. Managed closure lifetime ends with outer finalization; flat lifetime ends with explicit terminal finalization. Later work through a finalized DuckTransaction is rejected with `.transactionEnded`.
 
 Starting another managed or flat transaction on the same Connection while one is already pending or active is rejected with `.transactionAlreadyActive`.
 
@@ -1059,7 +1059,7 @@ Separate Connections remain independent.
 
 ### Structured child operations can share the Transaction
 
-Structured child tasks may submit work through the same live `Transaction` as long as all participating work is awaited before the transaction body returns.
+Structured child tasks may submit work through the same live `DuckTransaction` as long as all participating work is awaited before the transaction body returns.
 
 The native transaction operations remain serialized through the transaction's Connection-owned scheduling. Concurrent Swift submission therefore does not imply parallel native execution on one connection.
 
@@ -1086,7 +1086,7 @@ try await connection.transaction { transaction in
 }
 ```
 
-A Statement cannot execute on a Transaction from another Connection; Duck rejects that mismatch before the unrelated transaction is poisoned.
+A Statement cannot execute on a DuckTransaction from another Connection; Duck rejects that mismatch before the unrelated transaction is poisoned.
 
 Ordinary `statement.query(...)` / `statement.execute(...)` from a live same-Connection transaction body is also rejected. Transaction participation remains explicit through the `on: transaction` forms.
 
@@ -1369,10 +1369,10 @@ insertNonReturning(on: Connection)
 update(on:key,on: Connection) -> Self
 updateNonReturning(on:key,on: Connection)
 
-insert(on: Transaction) -> Self
-insertNonReturning(on: Transaction)
-update(on:key,on: Transaction) -> Self
-updateNonReturning(on:key,on: Transaction)
+insert(on: DuckTransaction) -> Self
+insertNonReturning(on: DuckTransaction)
+update(on:key,on: DuckTransaction) -> Self
+updateNonReturning(on:key,on: DuckTransaction)
 ```
 
 There is no model-level delete/upsert/batch/arbitrary-WHERE expansion hidden behind this capability.
@@ -1394,15 +1394,15 @@ try await connection.transaction { transaction in
 }
 ```
 
-Transaction-backed model persistence reuses the same model query builders and then executes through the existing `Transaction` query/execute engine.
+Transaction-backed model persistence reuses the same model query builders and then executes through the existing `DuckTransaction` query/execute engine.
 
 That means model persistence inherits the same explicit transaction boundary:
 
 ```text
-same Connection + should participate -> pass Transaction
+same Connection + should participate -> pass DuckTransaction
 ordinary same-Connection API inside live transaction -> rejected rather than ambiently joined
 body/operation failure -> existing rollback/rollback-only semantics
-escaped Transaction -> transactionEnded
+escaped DuckTransaction -> transactionEnded
 ```
 
 The model layer does not create a second transaction state machine.
@@ -1442,7 +1442,7 @@ model delete/upsert/batch/arbitrary-WHERE CRUD APIs
 arbitrary nested Codable object/array graphs
 migrations/schema evolution
 model-integrated observation/reactive APIs
-pool ownership/configuration (leased Connection/Transaction work can use the dedicated Connection Pooling surface, entry 008)
+pool ownership/configuration (leased Connection/DuckTransaction work can use the dedicated Connection Pooling surface, entry 008)
 model-driven transaction lifecycle, savepoints, or custom isolation
 implicit ambient transaction participation
 new platform/runtime guarantees
@@ -1621,7 +1621,7 @@ DuckDB may auto-flush an earlier prefix before the Swift body returns. Once that
 
 A later body error can discard still-buffered rows, but it cannot make already auto-flushed ordinary rows disappear.
 
-A `Transaction.appender(to:)` is different: completed target impact remains accumulated in the outer transaction and publishes only at definitive outer transaction finalization.
+A `DuckTransaction.appender(to:)` is different: completed target impact remains accumulated in the outer transaction and publishes only at definitive outer transaction finalization.
 
 The public message is about real visibility, not a fixed implementation threshold.
 
@@ -1665,7 +1665,7 @@ Do not turn Observation v1 into implied support for:
 
 ```text
 Connection.observe
-Transaction.observe
+DuckTransaction.observe
 typed/decoded observation elements
 per-row/per-statement event history
 guaranteed delivery of every intermediate state
@@ -1748,7 +1748,7 @@ try await pool.transaction { transaction in
 }
 ```
 
-`pool.transaction` is the short spelling for checking out a Connection and running `connection.transaction` in that scope. It does not create another transaction engine or a reusable Transaction pool. Use the supplied `Transaction` for every operation intended to share its commit boundary. A normal body return leads to commit only after native COMMIT succeeds. A thrown body error or observed cancellation takes rollback; catching a database operation error cannot clear rollback-only state.
+`pool.transaction` is the short spelling for checking out a Connection and running `connection.transaction` in that scope. It does not create another transaction engine or a reusable Transaction pool. Use the supplied `DuckTransaction` for every operation intended to share its commit boundary. A normal body return leads to commit only after native COMMIT succeeds. A thrown body error or observed cancellation takes rollback; catching a database operation error cannot clear rollback-only state.
 
 Flat transactions are available through a leased Connection when a lexical managed body is unsuitable, but the caller must explicitly finish them before leaving the pool closure. An unfinalized flat transaction is rolled back during return and a successful body receives `.poolTransactionNotFinalized`; cleanup failure may produce `TransactionRollbackError`.
 

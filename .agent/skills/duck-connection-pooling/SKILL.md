@@ -52,13 +52,13 @@ try await pool.transaction { transaction in
 }
 ```
 
-`pool.transaction` is exactly a pool Connection scope containing `connection.transaction(body)`. It has the managed Transaction's existing commit, rollback, rollback-only, failure, and cancellation behavior. A successful body return commits only after native COMMIT succeeds. A body error or observed cancellation takes rollback. Use the supplied `Transaction` for participating work; ordinary same-Connection operations do not join it ambiently. This is not a second transaction engine or a pool of Transaction handles.
+`pool.transaction` is exactly a pool Connection scope containing `connection.transaction(body)`. It has the managed DuckTransaction's existing commit, rollback, rollback-only, failure, and cancellation behavior. A successful body return commits only after native COMMIT succeeds. A body error or observed cancellation takes rollback. Use the supplied `DuckTransaction` for participating work; ordinary same-Connection operations do not join it ambiently. This is not a second transaction engine or a pool of DuckTransaction handles.
 
 If a flat `connection.transaction()` is used inside `pool.connection`, explicitly commit or roll back before returning. A successful body that leaves it live receives `.poolTransactionNotFinalized` after cleanup attempts rollback. If rollback cleanup also fails, `TransactionRollbackError` preserves the failure information and the Connection is fail-closed. Prefer the managed form for one lexical unit of work.
 
 ## 5. Keep leased resources in the same scope
 
-Prepare and use a reusable Statement only while its originating Connection's exact lease is live. An Appender scope must finish within the lease. Ordinary Appender ingestion can expose auto-flushed prefixes before the body ends; use an explicit Transaction when all rows need one commit/rollback boundary. Follow the Statement, Appender, or Transaction skill for their detailed APIs and error rules. Do not invent statement caches or Appender pools as features of `ConnectionPool`.
+Prepare and use a reusable Statement only while its originating Connection's exact lease is live. An Appender scope must finish within the lease. Ordinary Appender ingestion can expose auto-flushed prefixes before the body ends; use an explicit DuckTransaction when all rows need one commit/rollback boundary. Follow the Statement, Appender, or Transaction skill for their detailed APIs and error rules. Do not invent statement caches or Appender pools as features of `ConnectionPool`.
 
 ## 6. Observe through the Database
 

@@ -1,6 +1,6 @@
 ---
 name: duck-codable-models
-description: Use for Duck flat Row/QueryResult Decodable projection, ModelEncoder, Table model insert/update on Connection or Transaction, omission-vs-NULL semantics, changed-field persistence, and model-layer boundaries.
+description: Use for Duck flat Row/QueryResult Decodable projection, ModelEncoder, Table model insert/update on Connection or DuckTransaction, omission-vs-NULL semantics, changed-field persistence, and model-layer boundaries.
 license: LICENSE.txt
 ---
 
@@ -169,17 +169,17 @@ insertNonReturning(on: Connection)
 update(on:key,on: Connection) -> Self
 updateNonReturning(on:key,on: Connection)
 
-insert(on: Transaction) -> Self
-insertNonReturning(on: Transaction)
-update(on:key,on: Transaction) -> Self
-updateNonReturning(on:key,on: Transaction)
+insert(on: DuckTransaction) -> Self
+insertNonReturning(on: DuckTransaction)
+update(on:key,on: DuckTransaction) -> Self
+updateNonReturning(on:key,on: DuckTransaction)
 ```
 
 Do not invent model `save`, `persist`, delete, upsert, batch, repository, identity-map, or arbitrary-WHERE APIs.
 
 Use normal SQL directly when the required query does not match this small convenience surface.
 
-## 10. Use the same model operations inside an explicit Transaction
+## 10. Use the same model operations inside an explicit DuckTransaction
 
 ```swift
 try await connection.transaction { transaction in
@@ -196,9 +196,9 @@ try await connection.transaction { transaction in
 }
 ```
 
-Transaction-backed model persistence reuses the same model query builders and executes through the existing `Transaction` query/execute engine.
+Transaction-backed model persistence reuses the same model query builders and executes through the existing `DuckTransaction` query/execute engine.
 
-Do not treat these methods as ambient transaction joining. Same-Connection work that should participate still uses the supplied `Transaction` explicitly.
+Do not treat these methods as ambient transaction joining. Same-Connection work that should participate still uses the supplied `DuckTransaction` explicitly.
 
 Switch to the dedicated transaction skill when rollback-only state, cancellation, COMMIT/ROLLBACK failure, Statement transaction execution, or Transaction Appender semantics are central.
 

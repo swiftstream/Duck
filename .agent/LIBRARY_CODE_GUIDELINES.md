@@ -8,7 +8,7 @@ Inherit `STYLE_GUIDELINES.md`. Higher-authority system/product decisions govern 
 
 - The package, product, and primary Swift module remain `Duck` unless a reviewed restructuring changes them.
 - Avoid repeating `Duck` as a type prefix when a direct semantic concept is unambiguous inside the module.
-- Prefer direct database concepts such as `Database`, `Connection`, `Transaction`, `Statement`, `Result`, `Row`, `Value`, or `Appender` only when the type actually owns that role.
+- Prefer direct database concepts such as `Database`, `Connection`, `DuckTransaction`, `Statement`, `Result`, `Row`, `Value`, or `Appender` only when the type actually owns that role.
 - Qualifiers such as `Configuration`, `Options`, `Handle`, `Error`, `Result`, `Reference`, or `State` are valid when they distinguish a real semantic role.
 - `Manager`, `Repository`, `Factory`, `Service`, `Helper`, `Utils`, `Data`, and `Model` are review prompts when a direct semantic owner is clearer. They are not mechanically banned.
 

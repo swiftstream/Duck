@@ -20,7 +20,7 @@ Push/tag/remote release remains separately unauthorized.
 
 ### Codable / Model Layer — COMPLETE
 
-The accepted current surface owns arbitrary flat `Row` / `QueryResult` decoding, exact flat `ModelEncoder` semantics, `Table` / `@Column` persistence extraction, prepared model bindings, explicit-`Connection` insert/update returning and non-returning conveniences, and matching explicit-`Transaction` overloads that reuse the transaction engine.
+The accepted current surface owns arbitrary flat `Row` / `QueryResult` decoding, exact flat `ModelEncoder` semantics, `Table` / `@Column` persistence extraction, prepared model bindings, explicit-`Connection` insert/update returning and non-returning conveniences, and matching explicit-`DuckTransaction` overloads that reuse the transaction engine.
 
 Current closure evidence remains build PASS with 358/358 tests, 0 failures, 0 skips, and no new Duck-owned warnings. README, publication source material, the source-owned `duck-codable-models` skill, and stable governance are closed current state.
 
@@ -32,7 +32,7 @@ Final accepted executable evidence includes Swift 6.3.3 build PASS and 455/455 t
 
 ### Observation / Reactive Queries — COMPLETE
 
-The accepted v1 surface is a UI-neutral reusable latest-state `QueryObservation` over `QueryResult`, native READ ONLY refreshes, actual successful `NativeResult.isReadOnly` truth, bounded/coalescing delivery, same-`Database` invalidation, managed + flat manual Transaction finalization/publication, and ordinary/Transaction Appender visibility integration.
+The accepted v1 surface is a UI-neutral reusable latest-state `QueryObservation` over `QueryResult`, native READ ONLY refreshes, actual successful `NativeResult.isReadOnly` truth, bounded/coalescing delivery, same-`Database` invalidation, managed + flat manual DuckTransaction finalization/publication, and ordinary/Transaction Appender visibility integration.
 
 The current boundary explicitly does not promise event-log delivery, reusable prepared-handle VIEW rebind, cross-Database invalidation, cross-process/file watching, or framework-specific publishers. Accepted executable evidence remains Swift 6.3.3 build + 557/557 tests in 11 suites with zero failures/skips, focused Swift 6.4 public Observation/manual-finalization coverage, and Swift 6.4 build PASS.
 

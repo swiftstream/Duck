@@ -150,7 +150,7 @@ At terminal finalization:
 - read-only/no-impact finalization publishes nothing;
 - rollback failure or ambiguous post-scheduling COMMIT failure conservatively publishes Database-wide invalidation and fail-closes the Connection.
 
-This rule applies to both the managed closure form and the flat/manual Transaction lifecycle.
+This rule applies to both the managed closure form and the flat/manual DuckTransaction lifecycle.
 
 For detailed transaction ownership, rollback-only behavior, explicit `commit()` / `rollback()`, and Swift 6.4 `rollbackIfNeeded()`, switch to the `duck-transactions` skill.
 
@@ -160,7 +160,7 @@ Ordinary `Connection.appender(to:)` is not an atomic transaction. DuckDB may mak
 
 Observation follows that real native visibility: a durable auto-flushed prefix may invalidate matching observations before final Appender scope completion.
 
-A `Transaction.appender(to:)` behaves differently. Its target impact is accumulated into the surrounding transaction and publication waits for definitive outer transaction finalization.
+A `DuckTransaction.appender(to:)` behaves differently. Its target impact is accumulated into the surrounding transaction and publication waits for definitive outer transaction finalization.
 
 Use the `duck-appender` skill when row validation, ordinary non-atomic ingestion, Transaction Appender rollback behavior, or Appender failure semantics are central.
 
@@ -198,7 +198,7 @@ Do not infer or generate:
 
 ```text
 Connection.observe
-Transaction.observe
+DuckTransaction.observe
 typed/decoded observation elements
 per-row or per-statement event history
 guaranteed delivery of every intermediate state

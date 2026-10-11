@@ -16,7 +16,7 @@ flat/manual      -> let transaction = try await connection.transaction()
                     ... explicit commit() / rollback()
 ```
 
-In both forms, work that belongs to the transaction uses the supplied `Transaction` capability. Duck does not provide ambient same-Connection transaction joining.
+In both forms, work that belongs to the transaction uses the supplied `DuckTransaction` capability. Duck does not provide ambient same-Connection transaction joining.
 
 ## 1. Prefer the managed closure for one lexical lifetime
 
@@ -93,7 +93,7 @@ Do not generate this API for compiler versions below 6.4.
 
 ## 4. Same-Connection participation is explicit
 
-Inside either transaction lifetime, same-Connection work that should participate must use the `Transaction`:
+Inside either transaction lifetime, same-Connection work that should participate must use the `DuckTransaction`:
 
 ```swift
 try await SQL
@@ -127,9 +127,9 @@ After terminal finalization, later transaction operations fail with `.transactio
 
 For a flat transaction, successful terminal finalization releases the Connection reservation immediately.
 
-For a managed transaction, an explicit `commit()` or `rollback()` called inside the body terminalizes the Transaction but the managed outer reservation remains owned until body exit. This prevents the body from silently turning into ordinary same-Connection work after manual finalization.
+For a managed transaction, an explicit `commit()` or `rollback()` called inside the body terminalizes the DuckTransaction but the managed outer reservation remains owned until body exit. This prevents the body from silently turning into ordinary same-Connection work after manual finalization.
 
-Do not treat a terminal Transaction as a reusable connection mode.
+Do not treat a terminal DuckTransaction as a reusable connection mode.
 
 ## 7. COMMIT failure has a conservative ambiguity boundary
 
@@ -166,9 +166,9 @@ Dropping the last Swift reference does not start an unstructured deinitializer T
 
 The caller must arrange terminal cleanup. Prefer the managed closure when that ownership requirement is inconvenient; use Swift 6.4 `rollbackIfNeeded()` in `defer` when explicit lifetime is required.
 
-## 10. Structured child work may share a live Transaction
+## 10. Structured child work may share a live DuckTransaction
 
-Structured child tasks may submit operations through the same live `Transaction` when all work is awaited before finalization.
+Structured child tasks may submit operations through the same live `DuckTransaction` when all work is awaited before finalization.
 
 Native transaction operations remain serialized through the existing Connection-owned transaction scheduler.
 
@@ -178,7 +178,7 @@ Do not claim parallel native execution merely because several Swift tasks submit
 
 A reusable `Statement` is owned by the Connection that prepared it.
 
-Use the explicit Transaction overload inside either managed or flat transaction lifetime:
+Use the explicit DuckTransaction overload inside either managed or flat transaction lifetime:
 
 ```swift
 let result = try await findUser.query(
@@ -187,7 +187,7 @@ let result = try await findUser.query(
 )
 ```
 
-A Statement cannot execute on a Transaction from another Connection; that fails with `.statementConnectionMismatch`.
+A Statement cannot execute on a DuckTransaction from another Connection; that fails with `.statementConnectionMismatch`.
 
 Ordinary `statement.query(...)` / `statement.execute(...)` on the same live Connection are not ambient transaction participation. Use the `on: transaction` forms.
 

@@ -143,15 +143,15 @@ Keep raw SQL exceptional. Normal examples and generated application code should 
 
 Use a reusable `Statement` when one prepared SQL shape repeats with changing values.
 
-Use `Connection.transaction` and the supplied `Transaction` when multiple same-Connection operations must share an explicit commit/rollback boundary.
+Use `Connection.transaction` and the supplied `DuckTransaction` when multiple same-Connection operations must share an explicit commit/rollback boundary.
 
-Use `Connection.appender` for bulk complete-row ingestion, or `Transaction.appender` when that ingestion must participate in an already-active explicit transaction.
+Use `Connection.appender` for bulk complete-row ingestion, or `DuckTransaction.appender` when that ingestion must participate in an already-active explicit transaction.
 
-Use the dedicated `duck-codable-models` skill when work centers on `Row.decode`, `QueryResult.first/all(decoding:)`, `ModelEncoder`, or explicit `Table` insert/update through a `Connection` or `Transaction`.
+Use the dedicated `duck-codable-models` skill when work centers on `Row.decode`, `QueryResult.first/all(decoding:)`, `ModelEncoder`, or explicit `Table` insert/update through a `Connection` or `DuckTransaction`.
 
 Use the dedicated `duck-observation` skill when a read-only query should become a reusable latest-state `QueryObservation` driven by same-`Database` mutation invalidation.
 
-Do not duplicate the detailed Statement, Transaction, Appender, Codable/model, or Observation lifecycle rules in this basic query workflow; switch to the dedicated skill when those semantics become central.
+Do not duplicate the detailed Statement, DuckTransaction, Appender, Codable/model, or Observation lifecycle rules in this basic query workflow; switch to the dedicated skill when those semantics become central.
 
 ## 10. Current non-goals
 
@@ -162,7 +162,7 @@ broad ORM/repository identity semantics beyond the dedicated flat Codable/model 
 arbitrary nested/unkeyed Codable model graphs beyond the current flat model boundary
 migrations
 connection pooling (use the dedicated `duck-connection-pooling` skill)
-manual transaction lifecycle details beyond the dedicated Transaction capability
+manual transaction lifecycle details beyond the dedicated DuckTransaction capability
 savepoints/custom isolation
 advanced Appender lifecycle surfaces
 complex nested result families not implemented by the current Value model

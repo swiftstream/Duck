@@ -17,13 +17,13 @@ Use ordinary `Connection.appender(to:)` when:
 - each row can be supplied as ordinary supported Swift values or `Value` values;
 - you do not need per-row SQL expressions or rollback across the whole import.
 
-Use `Transaction.appender(to:)` inside `connection.transaction` when:
+Use `DuckTransaction.appender(to:)` inside `connection.transaction` when:
 
 - you need high-volume full or selected-column rows to share the explicit outer transaction's COMMIT/ROLLBACK boundary;
 - you want auto-flushed Appender batches to remain transaction-local until the outer transaction commits;
 - you do not need per-row SQL expressions or an Appender savepoint/nested transaction.
 
-Prefer a reusable `Statement` when you need a repeated SQL shape such as INSERT/UPDATE/SELECT, fixed and dynamic query values, or explicit execution inside a supported `Transaction`.
+Prefer a reusable `Statement` when you need a repeated SQL shape such as INSERT/UPDATE/SELECT, fixed and dynamic query values, or explicit execution inside a supported `DuckTransaction`.
 
 ## Basic scoped usage
 
@@ -68,7 +68,7 @@ try await connection.appender(to: events, columns: ["kind", "id"]) { appender in
 
 `kind` receives the first value and `id` the second even if the table declares them in another order; the example assumes `kind` is nullable. An omitted table column receives its DuckDB `DEFAULT`, or `NULL` when it has no default. A selected `nil` is explicit SQL `NULL`; omission is how a column's default participates. The selected list is fixed for the scope, and each call remains a complete row relative to that list. There is no per-cell `DEFAULT` marker or mid-scope column change.
 
-The `columns: [String]` overload exists for each of `Path.Table`, `Path.SchemaWithTable`, and `Path.CatalogWithSchemaAndTable` on both `Connection` and `Transaction` (six forms). For example, use `transaction.appender(to: events, columns: ["kind", "id"])` inside `connection.transaction` when the selected rows must roll back with the outer transaction.
+The `columns: [String]` overload exists for each of `Path.Table`, `Path.SchemaWithTable`, and `Path.CatalogWithSchemaAndTable` on both `Connection` and `DuckTransaction` (six forms). For example, use `transaction.appender(to: events, columns: ["kind", "id"])` inside `connection.transaction` when the selected rows must roll back with the outer transaction.
 
 The list must be nonempty. Empty, duplicate, unknown, or generated names fail creation before the body runs with an Appender creation error; supply plain names, including any embedded quote character, rather than SQL-quoted identifiers. Selection setup failure releases the scope. A wrong selected-row width, unsupported Swift value, or deterministic whole-row preflight failure is recoverable before native mutation while the scope remains live. Native append, end-row, or auto-flush failure is terminal.
 
@@ -138,7 +138,7 @@ For Decimal rows, `Foundation.Decimal` maps only to DuckDB `DECIMAL(W,S)`. Exact
 
 ## Lifetime rules
 
-Treat the `Appender` as scoped authority supplied by either `Connection.appender(to:)` or `Transaction.appender(to:)` inside an explicit transaction.
+Treat the `Appender` as scoped authority supplied by either `Connection.appender(to:)` or `DuckTransaction.appender(to:)` inside an explicit transaction.
 
 - Await all Appender work before the body returns.
 - Do not store an Appender for later use after the body ends.
@@ -196,7 +196,7 @@ Therefore:
 - a later cancellation has the same non-atomic boundary;
 - successful scope completion explicitly finalizes the Appender, but the closure is not an all-or-nothing commit unit.
 
-If your workflow requires atomic multi-step database semantics, use `Transaction.appender(to:)` inside `connection.transaction`. It shares the explicit outer transaction's commit/rollback boundary, but does not provide an independent commit, savepoint, or nested Appender transaction. Use a reusable `Statement` instead when repeated SQL shape, query/update/select behavior, or per-row SQL-expression flexibility matters, including explicit transaction execution.
+If your workflow requires atomic multi-step database semantics, use `DuckTransaction.appender(to:)` inside `connection.transaction`. It shares the explicit outer transaction's commit/rollback boundary, but does not provide an independent commit, savepoint, or nested Appender transaction. Use a reusable `Statement` instead when repeated SQL shape, query/update/select behavior, or per-row SQL-expression flexibility matters, including explicit transaction execution.
 
 ### Transaction Appender failure and scope rules
 
