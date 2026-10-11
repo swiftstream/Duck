@@ -227,7 +227,7 @@ extension Table {
     ///
     /// Uninitialized optional columns are omitted so database defaults remain
     /// eligible. Explicit `Optional.none` binds SQL `NULL`.
-    public func insert(on transaction: Transaction) async throws -> Self {
+    public func insert(on transaction: DuckTransaction) async throws -> Self {
         let query = try persistenceInsertQuery(returning: true)
         let result = try await transaction.query(query)
         guard let decoded = try result.first(decoding: Self.self) else {
@@ -239,7 +239,7 @@ extension Table {
     }
 
     /// Inserts this model through the supplied transaction without decoding a row.
-    public func insertNonReturning(on transaction: Transaction) async throws {
+    public func insertNonReturning(on transaction: DuckTransaction) async throws {
         let query = try persistenceInsertQuery(returning: false)
         _ = try await transaction.execute(query)
     }
@@ -251,7 +251,7 @@ extension Table {
     /// row after execution throws `DatabaseError.invalidResult`.
     public func update<C: ColumnRepresentable>(
         on keyColumn: KeyPath<Self, C>,
-        on transaction: Transaction
+        on transaction: DuckTransaction
     ) async throws -> Self {
         guard let query = try persistenceUpdateQuery(on: keyColumn, returning: true) else {
             return self
@@ -270,7 +270,7 @@ extension Table {
     /// decoding a row. A zero-changed model returns successfully without SQL.
     public func updateNonReturning<C: ColumnRepresentable>(
         on keyColumn: KeyPath<Self, C>,
-        on transaction: Transaction
+        on transaction: DuckTransaction
     ) async throws {
         guard let query = try persistenceUpdateQuery(on: keyColumn, returning: false) else {
             return

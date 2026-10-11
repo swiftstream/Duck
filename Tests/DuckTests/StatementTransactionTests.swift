@@ -326,7 +326,7 @@ func finalizedTransactionRejectsReusableStatement() async throws {
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
-    var escaped: Transaction?
+    var escaped: DuckTransaction?
 
     try await connection.transaction { transaction in
         escaped = transaction

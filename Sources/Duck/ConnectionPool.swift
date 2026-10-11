@@ -601,10 +601,10 @@ public actor ConnectionPool {
     /// Runs a scoped managed transaction on one Pool-managed Connection.
     ///
     /// A normal body return commits; an error or cancellation rolls back.
-    /// The supplied Transaction is valid only inside this managed lifecycle
+    /// The supplied DuckTransaction is valid only inside this managed lifecycle
     /// and this lease scope.
     public nonisolated(nonsending) func transaction<Result>(
-        _ body: (Transaction) async throws -> Result
+        _ body: (DuckTransaction) async throws -> Result
     ) async throws -> Result {
         try await connection { connection in
             try await connection.transaction(body)

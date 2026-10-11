@@ -604,7 +604,7 @@ public struct TransactionRollbackError: Error {
     }
 }
 
-public struct Transaction: Sendable {
+public struct DuckTransaction: Sendable {
     let connection: Connection
     let reservationId: TransactionReservationId
 

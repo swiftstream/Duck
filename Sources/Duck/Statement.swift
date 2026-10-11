@@ -244,7 +244,7 @@ public final class Statement: Sendable {
     }
 
     public func query(
-        on transaction: Transaction,
+        on transaction: DuckTransaction,
         _ values: (any Sendable)?...
     ) async throws -> QueryResult {
         try await withTransactionOperation(on: transaction, values: values) {
@@ -262,7 +262,7 @@ public final class Statement: Sendable {
 
     @discardableResult
     public func execute(
-        on transaction: Transaction,
+        on transaction: DuckTransaction,
         _ values: (any Sendable)?...
     ) async throws -> UInt64 {
         try await withTransactionOperation(on: transaction, values: values) {
@@ -295,7 +295,7 @@ public final class Statement: Sendable {
     }
 
     private func withTransactionOperation<Result>(
-        on transaction: Transaction,
+        on transaction: DuckTransaction,
         values: [(any Sendable)?],
         operation: (
             Connection,

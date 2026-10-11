@@ -173,7 +173,7 @@ enum MigrationHistory {
         name: String,
         batch: Int64,
         appliedAt: Date,
-        on transaction: Transaction
+        on transaction: DuckTransaction
     ) async throws {
         let table = Path.Schema(schemaName).table(tableName)
         let query = SQL
@@ -184,7 +184,7 @@ enum MigrationHistory {
     }
 
     /// Deletes exactly one retained history row by its factual id.
-    static func delete(id: Int64, on transaction: Transaction) async throws {
+    static func delete(id: Int64, on transaction: DuckTransaction) async throws {
         let table = Path.Schema(schemaName).table(tableName)
         let query = SQL
             .delete

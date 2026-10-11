@@ -92,7 +92,7 @@ private func insert(
     _ id: Int32,
     value: Int32,
     into table: Path.Table,
-    on transaction: Transaction
+    on transaction: DuckTransaction
 ) async throws {
     try await SQL
         .insertInto(table, fields: "id", "value")
@@ -529,7 +529,7 @@ func closedFinalizerFailureReconstructsRollbackError() {
 @Test("TM20 forgotten flat handle does not run deinit cleanup")
 func forgottenFlatHandleDoesNotRunDeinitCleanup() async throws {
     let context = try await makeManualTransactionContext()
-    var forgotten: Transaction? = try await context.connection.transaction()
+    var forgotten: DuckTransaction? = try await context.connection.transaction()
     let reservationId = try #require(forgotten?.reservationId)
     forgotten = nil
 
@@ -562,10 +562,10 @@ func flatRollbackMutationPublishesOneObservationSignal() async throws {
     #expect(count == 1)
 }
 
-@Test("TM23 no Transaction.begin symbol is introduced")
-func noTransactionBeginSymbolIsIntroduced() {
-    let source = (try? String(contentsOfFile: "Sources/Duck/Transaction.swift", encoding: .utf8)) ?? ""
-    #expect(!source.contains("Transaction.begin"))
+@Test("TM23 no DuckTransaction.begin symbol is introduced")
+func noDuckTransactionBeginSymbolIsIntroduced() {
+    let source = (try? String(contentsOfFile: "Sources/Duck/DuckTransaction.swift", encoding: .utf8)) ?? ""
+    #expect(!source.contains("DuckTransaction.begin"))
 }
 
 #if compiler(>=6.4)

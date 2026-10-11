@@ -220,7 +220,7 @@ extension Connection {
     }
 }
 
-extension Transaction {
+extension DuckTransaction {
     /// Creates a scoped Transaction Appender whose rows follow the selected column order; omitted columns use DEFAULT or NULL.
     public nonisolated(nonsending) func appender<Result>(
         to table: Path.Table,

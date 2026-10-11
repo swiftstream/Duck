@@ -318,13 +318,13 @@ struct MigrationRevertTests {
 
 private struct RevertMigration: Migration {
     let name: String
-    private let upAction: @Sendable (Transaction) async throws -> Void
-    private let downAction: @Sendable (Transaction) async throws -> Void
+    private let upAction: @Sendable (DuckTransaction) async throws -> Void
+    private let downAction: @Sendable (DuckTransaction) async throws -> Void
 
     init(
         name: String,
-        up: @escaping @Sendable (Transaction) async throws -> Void = { _ in },
-        down: @escaping @Sendable (Transaction) async throws -> Void = { _ in }
+        up: @escaping @Sendable (DuckTransaction) async throws -> Void = { _ in },
+        down: @escaping @Sendable (DuckTransaction) async throws -> Void = { _ in }
     ) {
         self.name = name
         upAction = up
@@ -441,7 +441,7 @@ private struct RevertValues: Table {
 private func revertTableMigration(
     name: String,
     order: RevertOrder? = nil,
-    down: (@Sendable (Transaction) async throws -> Void)? = nil
+    down: (@Sendable (DuckTransaction) async throws -> Void)? = nil
 ) -> RevertMigration {
     RevertMigration(
         name: name,
@@ -462,14 +462,14 @@ private func revertTableMigration(
     )
 }
 
-private func createRevertTable(on transaction: Transaction) async throws {
+private func createRevertTable(on transaction: DuckTransaction) async throws {
     try await CreateTableBuilder<RevertValues>()
         .checkIfNotExists()
         .column("value", .varchar, .notNull)
         .execute(on: transaction)
 }
 
-private func insertRevertValue(_ value: String, on transaction: Transaction) async throws {
+private func insertRevertValue(_ value: String, on transaction: DuckTransaction) async throws {
     let table = Path.Table(RevertValues.tableName)
     try await SQL.insertInto(table, fields: "value")
         .values
@@ -477,7 +477,7 @@ private func insertRevertValue(_ value: String, on transaction: Transaction) asy
         .execute(on: transaction)
 }
 
-private func deleteRevertValue(_ value: String, on transaction: Transaction) async throws {
+private func deleteRevertValue(_ value: String, on transaction: DuckTransaction) async throws {
     let table = Path.Table(RevertValues.tableName)
     try await SQL.delete
         .from(table)

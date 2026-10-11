@@ -471,10 +471,10 @@ public actor Connection {
     ///
     /// A normal body return commits; an error or cancellation rolls back. If an
     /// operation made the transaction rollback-only, finalization rolls it back and
-    /// surfaces the stored reason. The supplied `Transaction` is valid only for this
+    /// surfaces the stored reason. The supplied `DuckTransaction` is valid only for this
     /// managed lifecycle.
     public nonisolated(nonsending) func transaction<Result>(
-        _ body: (Transaction) async throws -> Result
+        _ body: (DuckTransaction) async throws -> Result
     ) async throws -> Result {
         try Task.checkCancellation()
         try await rejectLiveTransactionBodyMisuse(asTransaction: true)
@@ -504,7 +504,7 @@ public actor Connection {
             throw primary
         }
 
-        let transaction = Transaction(connection: self, reservationId: reservationId)
+        let transaction = DuckTransaction(connection: self, reservationId: reservationId)
         let scopes = TransactionBodyContext.scopes + [
             TransactionBodyScope(connectionId: id, reservationId: reservationId)
         ]
@@ -638,7 +638,7 @@ public actor Connection {
     /// or `rollback()`; on compiler >= 6.4, `rollbackIfNeeded()` is available for
     /// best-effort asynchronous cleanup. While the reservation is active, ordinary
     /// direct operations on this `Connection` are rejected.
-    public nonisolated(nonsending) func transaction() async throws -> Transaction {
+    public nonisolated(nonsending) func transaction() async throws -> DuckTransaction {
         try Task.checkCancellation()
         try await rejectLiveTransactionBodyMisuse(asTransaction: true)
         try await rejectLiveAppenderBodyMisuse()
@@ -654,7 +654,7 @@ public actor Connection {
             rollback: lifecycle.rollback
         ) {
         case .started:
-            return Transaction(connection: self, reservationId: reservationId)
+            return DuckTransaction(connection: self, reservationId: reservationId)
         case .cancelledBeforeStart:
             throw CancellationError()
         case .failed(let primary, let rollbackFailure):

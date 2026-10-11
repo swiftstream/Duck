@@ -45,7 +45,7 @@ private func insert(
     _ id: Int32,
     value: Int32,
     into table: Path.Table,
-    on transaction: Transaction
+    on transaction: DuckTransaction
 ) async throws {
     try await transaction.execute(
         SQL

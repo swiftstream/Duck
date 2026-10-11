@@ -14,7 +14,7 @@ public struct MigrationPlan {
     }
 
     /// Executes every plan entry in order on the supplied migration transaction.
-    nonisolated(nonsending) func execute(on transaction: Transaction) async throws {
+    nonisolated(nonsending) func execute(on transaction: DuckTransaction) async throws {
         for entry in entries {
             switch entry {
             case .query(let query):
@@ -28,10 +28,10 @@ public struct MigrationPlan {
 
 /// An imperative migration step that runs inside the current migration transaction.
 public struct Run {
-    fileprivate let body: (Transaction) async throws -> Void
+    fileprivate let body: (DuckTransaction) async throws -> Void
 
     /// Creates a migration step from an asynchronous transaction body.
-    public init(_ body: @escaping (Transaction) async throws -> Void) {
+    public init(_ body: @escaping (DuckTransaction) async throws -> Void) {
         self.body = body
     }
 }

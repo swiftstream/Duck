@@ -262,13 +262,13 @@ struct MigrationExecutionTests {
 
 private struct ExecutionMigration: Migration {
     let name: String
-    private let upAction: @Sendable (Transaction) async throws -> Void
-    private let downAction: @Sendable (Transaction) async throws -> Void
+    private let upAction: @Sendable (DuckTransaction) async throws -> Void
+    private let downAction: @Sendable (DuckTransaction) async throws -> Void
 
     init(
         name: String,
-        up: @escaping @Sendable (Transaction) async throws -> Void = { _ in },
-        down: @escaping @Sendable (Transaction) async throws -> Void = { _ in }
+        up: @escaping @Sendable (DuckTransaction) async throws -> Void = { _ in },
+        down: @escaping @Sendable (DuckTransaction) async throws -> Void = { _ in }
     ) {
         self.name = name
         upAction = up
@@ -380,20 +380,20 @@ private func executionMigration(name: String, order: ExecutionOrder) -> Executio
 
 private func tableMigration(
     name: String,
-    up: @escaping @Sendable (Transaction) async throws -> Void,
-    down: @escaping @Sendable (Transaction) async throws -> Void = { _ in }
+    up: @escaping @Sendable (DuckTransaction) async throws -> Void,
+    down: @escaping @Sendable (DuckTransaction) async throws -> Void = { _ in }
 ) -> ExecutionMigration {
     ExecutionMigration(name: name, up: up, down: down)
 }
 
-private func createValuesTable(on transaction: Transaction) async throws {
+private func createValuesTable(on transaction: DuckTransaction) async throws {
     try await CreateTableBuilder<MigrationValues>()
         .checkIfNotExists()
         .column("value", .varchar, .notNull)
         .execute(on: transaction)
 }
 
-private func insertValue(_ value: String, on transaction: Transaction) async throws {
+private func insertValue(_ value: String, on transaction: DuckTransaction) async throws {
     let table = Path.Table(MigrationValues.tableName)
     try await SQL.insertInto(table, fields: "value")
         .values

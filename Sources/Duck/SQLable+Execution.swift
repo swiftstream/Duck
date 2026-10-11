@@ -17,12 +17,12 @@ extension SQLable {
         try await connection.execute(self)
     }
 
-    public nonisolated(nonsending) func query(on transaction: Transaction) async throws -> QueryResult {
+    public nonisolated(nonsending) func query(on transaction: DuckTransaction) async throws -> QueryResult {
         try await transaction.query(self)
     }
 
     @discardableResult
-    public nonisolated(nonsending) func execute(on transaction: Transaction) async throws -> UInt64 {
+    public nonisolated(nonsending) func execute(on transaction: DuckTransaction) async throws -> UInt64 {
         try await transaction.execute(self)
     }
 }

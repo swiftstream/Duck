@@ -545,7 +545,7 @@ func pendingTransactionIsRejected() async throws {
 func escapedTransactionFailsBeforePreparation() async throws {
     let database = try Database()
     let connection = try database.connect()
-    var escaped: Transaction?
+    var escaped: DuckTransaction?
 
     try await connection.transaction { transaction in
         escaped = transaction

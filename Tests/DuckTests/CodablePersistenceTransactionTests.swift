@@ -327,7 +327,7 @@ func escapedTransactionRejectsPersistence() async throws {
     let connection = try Database().connect()
     try await createTransactionPersistenceTable(on: connection)
 
-    var escaped: Transaction?
+    var escaped: DuckTransaction?
     try await connection.transaction { transaction in
         escaped = transaction
     }

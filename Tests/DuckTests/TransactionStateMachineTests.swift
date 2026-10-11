@@ -507,7 +507,7 @@ func commitC0ClassificationFailureRollsBackAndReusesConnection() async throws {
         return
     }
 
-    let transaction = Transaction(connection: connection, reservationId: reservationId)
+    let transaction = DuckTransaction(connection: connection, reservationId: reservationId)
     try await SQL
         .insertInto(table, fields: "id")
         .values

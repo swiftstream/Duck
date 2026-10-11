@@ -580,7 +580,7 @@ func finalizedTransactionRejectsLaterTransactionAppender() async throws {
         named: "transaction_appender_finalized_transaction",
         columns: [NewColumn("id", .integer)]
     )
-    var escaped: Transaction?
+    var escaped: DuckTransaction?
 
     try await connection.transaction { transaction in
         escaped = transaction

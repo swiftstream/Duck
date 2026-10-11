@@ -399,13 +399,13 @@ func revertCancellationWithSuccessfulRollbackReleasesCoordination() async throws
 
 private struct ConcurrencyMigration: Migration {
     let name: String
-    private let upAction: @Sendable (Transaction) async throws -> Void
-    private let downAction: @Sendable (Transaction) async throws -> Void
+    private let upAction: @Sendable (DuckTransaction) async throws -> Void
+    private let downAction: @Sendable (DuckTransaction) async throws -> Void
 
     init(
         name: String,
-        up: @escaping @Sendable (Transaction) async throws -> Void = { _ in },
-        down: @escaping @Sendable (Transaction) async throws -> Void = { _ in }
+        up: @escaping @Sendable (DuckTransaction) async throws -> Void = { _ in },
+        down: @escaping @Sendable (DuckTransaction) async throws -> Void = { _ in }
     ) {
         self.name = name
         upAction = up
@@ -510,8 +510,8 @@ private actor MigrationBarrier {
 
 private func concurrencyMigration(
     name: String,
-    up: @escaping @Sendable (Transaction) async throws -> Void = { _ in },
-    down: @escaping @Sendable (Transaction) async throws -> Void = { _ in }
+    up: @escaping @Sendable (DuckTransaction) async throws -> Void = { _ in },
+    down: @escaping @Sendable (DuckTransaction) async throws -> Void = { _ in }
 ) -> ConcurrencyMigration {
     ConcurrencyMigration(name: name, up: up, down: down)
 }

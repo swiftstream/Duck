@@ -287,7 +287,7 @@ struct ConnectionPoolTransactionTests {
     @Test("TX09 stale managed Transaction cannot perform native work after return")
     func staleTransactionCannotPerformNativeWorkAfterReturn() async throws {
         let pool = try Database().pool(maximumConnections: 1)
-        var escapedTransaction: Transaction?
+        var escapedTransaction: DuckTransaction?
 
         try await pool.transaction { transaction in
             escapedTransaction = transaction
