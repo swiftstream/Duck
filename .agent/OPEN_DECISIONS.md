@@ -9,9 +9,11 @@ The current durable product priority is to finish a locally release-ready Duck `
 ```text
 Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf` -> C8 CLOSED at `0b8baa756b523f00f309b2a007ead7d0570e6b28` -> C9 CLOSED at `6e99a95add3ba57e27f95c88e019666e9af8ec54`
 -> SQL minimum correction CLOSED at `bc90ee75541519ba900d6139b706824aee66a577`; `V1-TRP-001` CLOSED; SQL floor `2.1.0`
--> technical release validation CURRENT / AUTHORIZED
--> independent release audit
--> real SwiftUI and UIKitPlus macOS consumers
+-> technical release validation COMPLETE
+-> independent release audit COMPLETE
+-> release-readiness state checkpoint COMPLETE
+-> real SwiftUI macOS consumer CLOSED / independently accepted
+-> real UIKitPlus macOS consumer CURRENT / AUTHORIZED
 -> final public-doc polish/audit
 -> local v1.0.0
 -> separate v1.1.0 roadmap
