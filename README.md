@@ -2,7 +2,7 @@
 
 Duck exposes DuckDB through a small Swift API with SQL as its Swift query-construction dependency.
 
-`Database` owns the database lifetime. Each `Connection` is an actor that owns one native DuckDB connection, and async query execution stays on that connection. Results are copied into Swift-owned `QueryResult`, `Row`, and `Value` values before native result resources are released.
+`Database` owns the database lifetime. Each `Connection` is an actor that owns one native DuckDB connection, and async query execution stays on that connection. Results are copied into Swift-owned `QueryResult`, `ResultRow`, and `Value` values before native result resources are released.
 
 ## Requirements
 
@@ -15,13 +15,13 @@ These are manifest facts, not a claim of broader platform/runtime validation bey
 
 The repository toolchain pin is Swift 6.3.3.
 
-Duck 1.x uses SQL `>=2.1.0,<3.0.0`; the current manifest declares SQL from `2.1.0`, and this checkout currently resolves SQL `2.1.0`. Duck and SQL have independent major-version lines: a future Duck 2.x may intentionally continue to use SQL 2.x, while any SQL 3.x adoption requires an explicit compatibility review.
+The package currently declares SQL from `2.1.0` up to the next major version (`<3.0.0`).
 
 The current vendored/upstream DuckDB engine base is v1.5.5. Duck's package version and the DuckDB engine version are separate version lines.
 
 ## Installation
 
-This checkout does not currently declare a public Duck Git remote or released Duck version, so this README does not invent one. For local package development, add a checkout by path and depend on the `Duck` library product. If the checkout directory is named `Duck`:
+For local package development, add the checkout by path and depend on the `Duck` library product. If the checkout directory is named `Duck`:
 
 ```swift
 // Package.swift
@@ -229,7 +229,7 @@ Cancellation or refresh failure terminates only that iterator. The `QueryObserva
 
 ## Decode rows into flat Codable models
 
-`Row` and `QueryResult` can project materialized result data into flat keyed `Decodable` models without giving the model access to native DuckDB result lifetime.
+`ResultRow` and `QueryResult` can project materialized result data into flat keyed `Decodable` models without giving the model access to native DuckDB result lifetime.
 
 ```swift
 struct UserRecord: Codable {
@@ -328,7 +328,33 @@ Transaction-backed model persistence reuses the same model query builders and ex
 
 Model payloads travel through prepared placeholders rather than being interpolated into SQL text.
 
-This model layer is not a broad ORM. It does not advertise repository identity maps, `save`/`persist` aliases, model delete/upsert/batch/arbitrary-WHERE persistence, migrations, model-integrated observation/reactive APIs, arbitrary nested model graphs, model-driven transaction lifecycle, savepoints/custom isolation, new platform guarantees, or application-specific readiness claims. Model helpers execute through an ordinary `Connection` or `DuckTransaction` lease when a pool is used; they do not own or configure a `ConnectionPool`.
+This model layer is not a broad ORM. It does not advertise repository identity maps, `save`/`persist` aliases, model delete/upsert/batch/arbitrary-WHERE persistence, model-driven migration generation, model-integrated observation/reactive APIs, arbitrary nested model graphs, model-driven transaction lifecycle, savepoints/custom isolation, new platform guarantees, or application-specific readiness claims. Duck migrations are authored separately with `Migration` and run through `Database.migrator(_:)`. Model helpers execute through an ordinary `Connection` or `DuckTransaction` lease when a pool is used; they do not own or configure a `ConnectionPool`.
+
+## Migrations
+
+Define ordered `up` and `down` plans with `Migration`, then run pending migrations through the database's migrator:
+
+```swift
+struct CreateTasks: Migration {
+    let name = "001_create_tasks"
+
+    @MigrationBuilder var up: MigrationPlan {
+        SQL.create.table[any: Path.Table("tasks")].tableDefinitions(
+            NewColumn("id", .integer),
+            NewColumn("title", .varchar)
+        )
+    }
+
+    @MigrationBuilder var down: MigrationPlan {
+        SQL.drop.table[any: Path.Table("tasks")]
+    }
+}
+
+let migrator = database.migrator([CreateTasks()])
+let currentBatch = try await migrator.migrate()
+```
+
+`migrate()` applies all pending migrations in the supplied order as one transaction and returns the current batch. Migration plans use SQL expressions; `Run` is available for imperative work that needs the supplied `DuckTransaction`. This migration runner is separate from the flat Codable model layer: it does not generate schema changes from models.
 
 ## Mutations and `rowsChanged`
 
@@ -418,7 +444,7 @@ try await connection.transaction { transaction in
         "transaction@example.com"
     )
 
-    // Use result here before the transaction body returns.
+    // Consume or return the materialized result as needed.
     _ = result
 }
 ```
@@ -665,10 +691,12 @@ for row in result.rows {
 }
 ```
 
-Rows can also be accessed by position:
+Use a guarded first-row lookup and exact typed extraction when you need a value:
 
 ```swift
-let firstValue = result.rows[0][0]
+if let row = result.rows.first, let id = row.value("id", as: Int64.self) {
+    print(id)
+}
 ```
 
 The public `Value` is a value facade, not an enum. Construction keeps the
@@ -683,7 +711,7 @@ let id = row.value("id", as: Int64.self)
 let first = row.value(0, as: Int64.self)
 ```
 
-`Row` also offers `row.string("email")`, `row.int64("id")`, and the positional
+`ResultRow` also offers `row.string("email")`, `row.int64("id")`, and the positional
 `row.string(0)` / `row.int64(0)` helpers. Extraction is exact: a wrong
 requested type, SQL `NULL`, a missing named column, or an out-of-range
 positional convenience all produce `nil` without numeric coercion.
@@ -807,6 +835,14 @@ Public database/query/transaction/statement/Appender failures use `DatabaseError
 
 Native diagnostic strings are useful diagnostics, but their exact text is not a stable symbolic-type contract.
 
+## Examples
+
+The checked-in demo projects and run instructions are collected here:
+
+- [Examples index](Examples/README.md)
+- [SwiftUI demos](Examples/SwiftUI/README.md)
+- [UIKitPlus demo](Examples/UIKitPlus/README.md)
+
 ## Raw SQL escape hatch
 
 When a query cannot yet be expressed through the declarative surface, raw SQL remains available explicitly through SQL:
@@ -821,7 +857,7 @@ Treat `SQL.raw(...)` as an escape hatch. Normal Duck examples should prefer decl
 
 ## Current scope
 
-The current public slice covers database/connection ownership, SQL query execution, bounded scoped `ConnectionPool` checkout with managed `pool.transaction` and graceful shutdown, reusable prepared statements, managed and flat explicitly finalized transactions, latest-state `QueryObservation` for read-only same-Database reactive queries, ordinary and explicit-DuckTransaction scoped Appender ingestion with complete-table or fixed selected columns, primitive, temporal, Interval, and exact Foundation.Decimal binding/result values, mutation row counts, typed-table selected-column convenience, flat keyed Codable row/result projection, exact flat `ModelEncoder` values, explicit Connection/DuckTransaction `Table` insert/update conveniences, structured connection concurrency, and cancellation-aware execution.
+The current public slice covers database/connection ownership, SQL query execution, bounded scoped `ConnectionPool` checkout with managed `pool.transaction` and graceful shutdown, reusable prepared statements, managed and flat explicitly finalized transactions, ordered `Migration` plans through `Database.migrator(_:)`, latest-state `QueryObservation` for read-only same-Database reactive queries, ordinary and explicit-DuckTransaction scoped Appender ingestion with complete-table or fixed selected columns, primitive, temporal, Interval, and exact Foundation.Decimal binding/result values, mutation row counts, typed-table selected-column convenience, flat keyed Codable row/result projection, exact flat `ModelEncoder` values, explicit Connection/DuckTransaction `Table` insert/update conveniences, structured connection concurrency, and cancellation-aware execution.
 
 The current Observation surface is intentionally bounded to reusable latest-state `QueryResult` delivery for mutations routed through the same `Database` instance. It does not advertise event-history delivery, typed/decoded observation, `Connection.observe` or `DuckTransaction.observe`, public observation options, polling, filesystem/process-wide watching, or UI-framework publishers.
 

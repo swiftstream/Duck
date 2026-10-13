@@ -14,8 +14,8 @@ Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf
 -> release-readiness state checkpoint COMPLETE
 -> real SwiftUI macOS consumer CLOSED / independently accepted
 -> real UIKitPlus macOS consumer CLOSED / independently accepted
--> final public-doc polish/audit CURRENT / AUTHORIZED
--> final release snapshot gate
+-> final public-doc polish/audit CLOSED / independently accepted
+-> final release snapshot gate CURRENT / AUTHORIZED
 -> local v1.0.0
 -> separate v1.1.0 roadmap
 ```
@@ -33,7 +33,7 @@ This priority boundary is durable product direction, not permission to skip norm
 
 ## Future Public Resource APIs
 
-The current `Database` / `Connection` / `DuckTransaction` / `Statement` / `Appender` / `QueryResult` / `Row` / `Value` slice is implemented and is no longer an open design question. Scoped transaction ownership, ordinary and transaction Appender complete-row/lifetime/concurrency/error semantics, same-Connection restrictions, ordinary non-atomic Appender auto-flush, transaction-Appender rollback-only/finalization behavior, and independent-Connection semantics are reviewed current state.
+The current `Database` / `Connection` / `DuckTransaction` / `Statement` / `Appender` / `QueryResult` / `ResultRow` / `Value` slice is implemented and is no longer an open design question. Scoped transaction ownership, ordinary and transaction Appender complete-row/lifetime/concurrency/error semantics, same-Connection restrictions, ordinary non-atomic Appender auto-flush, transaction-Appender rollback-only/finalization behavior, and independent-Connection semantics are reviewed current state.
 
 Still unresolved for future separately reviewed capabilities:
 
