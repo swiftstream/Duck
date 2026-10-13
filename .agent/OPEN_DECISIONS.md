@@ -13,8 +13,9 @@ Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf
 -> independent release audit COMPLETE
 -> release-readiness state checkpoint COMPLETE
 -> real SwiftUI macOS consumer CLOSED / independently accepted
--> real UIKitPlus macOS consumer CURRENT / AUTHORIZED
--> final public-doc polish/audit
+-> real UIKitPlus macOS consumer CLOSED / independently accepted
+-> final public-doc polish/audit CURRENT / AUTHORIZED
+-> final release snapshot gate
 -> local v1.0.0
 -> separate v1.1.0 roadmap
 ```
