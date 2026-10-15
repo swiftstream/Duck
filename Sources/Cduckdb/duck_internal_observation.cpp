@@ -3,6 +3,10 @@
 #include "duckdb/main/capi/capi_internal.hpp"
 #include "duckdb/main/prepared_statement.hpp"
 
+// Keep Duck-owned bridge diagnostics enabled after vendored headers.
+#pragma clang diagnostic warning "-Wshorten-64-to-32"
+#pragma clang diagnostic warning "-Wparentheses"
+
 bool duck_internal_prepared_statement_is_read_only(duckdb_prepared_statement statement) {
 	if (!statement) {
 		return false;

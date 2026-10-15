@@ -454,7 +454,9 @@ let package = Package(
         .define("DUCKDB_EXTENSION_PARQUET_LINKED"),
         .define("DUCKDB_EXTENSION_ICU_LINKED"),
         .define("DUCKDB_EXTENSION_JSON_LINKED"),
-        .define("DUCKDB_BUILD_LIBRARY")
+        .define("DUCKDB_BUILD_LIBRARY"),
+        .disableWarning("shorten-64-to-32"),
+        .disableWarning("parentheses")
       ]
     ),
     .target(
