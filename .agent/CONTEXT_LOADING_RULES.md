@@ -54,6 +54,8 @@ Load only when needed:
 - `TASKS_ARCHIVE.md` only when compact completed milestone history materially helps;
 - `TODO.md` for non-approved future ideas.
 
+Cold debt annexes under `.agent/tech-debt/**` are **never** part of default context loading, even when `TECH_DEBT.md` itself is relevant. Read one specific annex only after the matching debt entry has been explicitly promoted into active research/planning work. Do not enumerate or bulk-load that directory during ordinary project startup, release work, or unrelated tasks.
+
 Do not confuse any of these with active executable approval in `TASKS.md`.
 
 ## External Context

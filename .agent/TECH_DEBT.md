@@ -131,3 +131,21 @@ ENUM
 **Current boundary:** scalar/exact Value/result work is complete for Bool, signed/unsigned integer widths, Float/Double, String/Data, UUID, Int128/UInt128 availability bridges, PureDate/PureTime/DateTime, Foundation.Date/TIMESTAMPTZ, Interval, and Foundation.Decimal. Nested/complex families remain separately gated.
 
 **Closure condition:** promote a dedicated nested/complex Value/result capability and implement the existing universal value-vertical contract across query binding, reusable Statement, Appender, result materialization, NULL/Optional, logical metadata, boundaries, and exact rejection behavior.
+
+### Client migration long-history DX / forward rollup compaction
+
+**Status:** DEFERRED capability debt. Not a v1.0.0 release blocker and not implementation authorization.
+
+**Priority:** intentionally deferred until after the v1.0.0 release unless new benchmark evidence proves a release-critical client migration failure.
+
+**Deferred capability:** determine whether long-lived client applications need a higher-level forward-only migration compaction/rollup workflow for fresh databases and long-dormant populated databases with hundreds or thousands of historical migrations.
+
+**Current boundary:** the existing foundation `Migration` / `MigrationPlan` / `Migrator` surface, including `down` / `revert`, remains the accepted general migration engine. Client long-history DX is a separate forward-only product problem. No numeric schema version, Point/Milestone abstraction, current-model schema authority, permanent duplicate fresh schema, or implementation plan is accepted by this debt entry.
+
+**Evidence gate:** fresh empty-history replay and dormant populated-history replay must be benchmarked before deciding that a dedicated optimization is worth implementing. The current strongest research candidate is a thin client layer with a short linear chain of segment-local forward rollups, factual old history retained, old source pruned only after forward-equivalence proof, generated historical-name compatibility metadata, and first-class historical database migration testing. This remains a research candidate, not frozen architecture.
+
+**Cold research dossier:** `.agent/tech-debt/CLIENT_MIGRATION_LONG_HISTORY_DX.md`.
+
+**Context-budget rule:** do **not** load the dossier during ordinary project startup, v1.0.0 release/readme work, unrelated implementation, or routine audits. Load it only after this exact debt is explicitly promoted into active research/planning work. The dossier is intentionally excluded from default project context.
+
+**Closure condition:** either (a) benchmark/product evidence rejects the need, (b) an independently audited forward client migration strategy is implemented, validated against supported historical states, and documented, or (c) a materially better replacement architecture supersedes this research and is independently accepted. Before closing this debt under any of these modes, move accepted durable rules into their proper source/public/governance owners, close or remove this debt entry as appropriate, then **delete `.agent/tech-debt/CLIENT_MIGRATION_LONG_HISTORY_DX.md`** and verify no active/stable documentation still depends on it.
