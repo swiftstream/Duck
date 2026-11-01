@@ -78,6 +78,19 @@ extension DatabaseIdentifier {
 
 Then ordinary calls can use `.app` directly.
 
+For one-shot work, execute directly on the identifier. Duck opens a fresh Connection on the canonical runtime for that operation:
+
+```swift
+let users = DB.Table("users")
+
+let result = try await SQL
+    .select(users.column("id"), users.column("name"))
+    .from(users)
+    .query(on: .app)
+```
+
+Use an explicit `Connection` when several operations should share one connection, when preparing reusable statements, or when explicit transaction/Appender lifetime matters.
+
 ## Pool connections for scoped concurrent work
 
 Create a bounded pool from the identifier that owns the logical database:
@@ -283,7 +296,7 @@ for field in encoded.fields {
 
 Field names follow `CodingKeys`, and field order follows the model's encoding order. Supported scalars keep their exact Duck value families, including UUID, Data, Foundation.Decimal, temporal values, Interval, and the availability-gated 128-bit integer bridges. Ordinary synthesized `Optional.none` values may be omitted by `encodeIfPresent`; an explicit `encodeNil(forKey:)` becomes SQL-style `Value.null` semantics. Unsupported nested, unkeyed, or top-level scalar shapes throw instead of falling back to reflection or stringification.
 
-## Persist `Table` models with explicit Connection or DuckTransaction ownership
+## Persist `Table` models
 
 For `Table` models, Duck provides a deliberately small insert/update/batch-insert convenience layer. Given an existing `notes` table matching this model:
 
@@ -861,8 +874,8 @@ Native diagnostic strings are useful diagnostics, but their exact text is not a 
 The checked-in demo projects and run instructions are collected here:
 
 - [Examples index](Examples/README.md)
-- [SwiftUI demos](Examples/SwiftUI/README.md)
-- [UIKitPlus demo](Examples/UIKitPlus/README.md)
+- [SwiftUI example project](Examples/SwiftUI/DuckDemo.xcodeproj)
+- [UIKit example project](Examples/UIKit/DuckDemo.xcodeproj)
 
 ## Raw SQL escape hatch
 
