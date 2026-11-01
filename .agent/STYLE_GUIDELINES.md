@@ -39,10 +39,23 @@ Common Swift source conventions for all SwiftDuckDB-owned production and test co
 - Keep derived values derived instead of duplicating mutable state.
 - Prefer overloads that improve real call sites while funneling behavior into one internal implementation rather than duplicating logic.
 
+## Documentation
+
+- SwiftDuckDB production library source has 100% DocC coverage for `public` and `internal` declarations: types, stored/computed properties, initializers, subscripts, methods, and free functions.
+- Every newly introduced or materially changed `public` or `internal` declaration must receive an accurate `///` DocC comment in the same change.
+- Public API documentation has no exceptions. Public methods must state the domain operation and, when non-`Void`, the meaning of the returned value.
+- Internal DocC should document the declaration's role or invariant without narrating obvious implementation steps.
+- Keep DocC concise and factual. One sentence is preferred when it fully explains the declaration.
+- Add longer mechanics only when callers or maintainers need them to use or change the declaration safely.
+- Destructive or easily confused APIs must document the distinction directly at the relevant methods rather than relying on distant overview prose.
+- Do not duplicate incidental implementation details, test history, planning rationale, or coding-agent workflow in DocC.
+- `private` and `fileprivate` declarations are exempt from blanket DocC coverage; document only non-obvious invariants or mechanics.
+- Test-local helpers and fixture-only declarations are exempt unless they intentionally serve as public API examples or reusable documented support code.
+- Documentation coverage and semantic accuracy are source-review gates. Missing or stale required DocC blocks acceptance.
+
 ## Comments and Production Design
 
 - Comments explain non-obvious intent, invariants, ordering, lifetime, or constraints rather than narrating obvious code.
 - Do not add AI/coding-agent attribution to source headers, generated documentation, or commit messages.
 - Establish clean production ownership, API, and design before test design.
 - Library-specific concurrency, C-boundary, query, platform, error/resource, test, and review rules belong in `LIBRARY_CODE_GUIDELINES.md`.
-
