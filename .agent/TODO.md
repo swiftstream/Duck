@@ -19,7 +19,11 @@ Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf
 -> final public-doc polish/audit CLOSED / independently accepted
 -> SQL3/batch candidate synchronization CLOSED / accepted
 -> Bridges-like DatabaseIdentifier correction CLOSED / final audit CLEAN
--> final release snapshot CURRENT / AUTHORIZED
+-> DuckDB 2.x adoption research CURRENT / AUTHORIZED
+-> independently audited DuckDB 2.x implementation plan
+-> DuckDB 2.x adoption + mandatory separate SwiftStream/SQL PRIMARY compatibility result/landing for any required SQL-owned changes
+-> fresh Duck validation / consumer gates
+-> new final independent release snapshot
 -> local v1.0.0
 -> separate v1.1.0 roadmap
 ```
@@ -34,7 +38,7 @@ Platform validation remains an assurance track and participates where required b
 
 ## Other Future Work
 
-- Define the long-term DuckDB upgrade/version policy beyond the approved current v1.5.5 source snapshot.
+- After the pre-v1 DuckDB 2.x adoption closes, define the long-term DuckDB upgrade/version policy beyond that first accepted 2.x-backed public baseline.
 - Evaluate optional DuckDB extensions and bundle-size tradeoffs beyond the current generated extension set.
 - Decide when to request central `swiftstream/skills` onboarding for Duck after source-owned public packages are ready. Source preparation under the established `.agent/skills` root and `.agent/SKILL_INDEX.md` does not itself authorize central federation registration.
 - Continue real platform build/runtime validation for the intended iOS 15+, macOS 12+, Linux, Android, and Windows environments under supported Swift 6.3+ toolchains when the correct environment exists.

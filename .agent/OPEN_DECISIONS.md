@@ -16,7 +16,10 @@ Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf
 -> real UIKitPlus macOS consumer CLOSED / independently accepted
 -> final public-doc polish/audit CLOSED / independently accepted
 -> Bridges-like DatabaseIdentifier pre-v1 correction CLOSED / final whole-candidate audit CLEAN at 30/30
--> final release snapshot gate CURRENT / AUTHORIZED
+-> DuckDB 2.x adoption research CURRENT / AUTHORIZED
+-> DuckDB 2.x adoption + mandatory separate SwiftStream/SQL PRIMARY compatibility handoff for SQL-owned impacts
+-> fresh Duck validation/consumer gates
+-> final release snapshot
 -> local v1.0.0
 -> separate v1.1.0 roadmap
 ```
@@ -29,8 +32,12 @@ This priority boundary is durable product direction, not permission to skip norm
 
 ## DuckDB Integration
 
-- Long-term DuckDB upgrade/version policy beyond the approved current `v1.5.5` pin.
-- Optional-extension and bundle-size strategy beyond the approved current generated set: `core_functions`, `parquet`, `icu`, and `json`.
+- **Current pre-v1 gate:** select and adopt a suitable DuckDB 2.x release for the first public Duck `v1.0.0`. On 2026-11-01, DuckDB `2.0.0` LTS is the only released 2.0.x patch; `2.0.1` is scheduled but not yet available. Exact patch choice remains evidence-driven.
+- Research must resolve storage compatibility for existing 1.5.x files, stable-C-API compatibility, generated Swift-package/vendor changes, extension/ICU packaging, and parser/runtime semantic changes before implementation authorization.
+- SwiftStream/SQL owns Duck-dialect grammar/rendering. A separate SQL PRIMARY compatibility handoff is mandatory; any SQL-owned release-blocking correction must land there rather than in Duck.
+- Migration long-history/rollup research is deferred tech debt and no longer precedes this DuckDB 2.x gate.
+- Long-term DuckDB upgrade/version policy beyond the first accepted DuckDB 2.x-backed public baseline remains a future decision.
+- Optional-extension and bundle-size strategy beyond the release-required generated set remains open and must be re-evaluated because DuckDB 2.x removes ICU from the core build.
 
 ## Future Public Resource APIs
 
