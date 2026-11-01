@@ -10,13 +10,18 @@ The current priority is release readiness, not another feature layer:
 
 ```text
 Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf` -> C8 CLOSED at `0b8baa756b523f00f309b2a007ead7d0570e6b28` -> C9 CLOSED at `6e99a95add3ba57e27f95c88e019666e9af8ec54`
--> SQL minimum correction CLOSED at `bc90ee75541519ba900d6139b706824aee66a577`; `V1-TRP-001` CLOSED; SQL floor `2.1.0`
--> v1.0.0 technical release validation CURRENT / AUTHORIZED
--> independent release audit
--> real local macOS SwiftUI consumer
--> real local macOS UIKitPlus consumer
--> final public-doc polish/audit
+-> SQL minimum correction CLOSED at `bc90ee75541519ba900d6139b706824aee66a577`; `V1-TRP-001` CLOSED; historical former SQL-2 floor `2.1.0`
+-> v1.0.0 technical release validation COMPLETE
+-> independent release audit COMPLETE
+-> release-readiness state checkpoint COMPLETE
+-> real local macOS SwiftUI consumer CLOSED / independently accepted
+-> real local macOS UIKitPlus consumer CLOSED / independently accepted
+-> final public-doc polish/audit CLOSED / independently accepted
+-> SQL3/batch candidate synchronization CLOSED / accepted
+-> Bridges-like DatabaseIdentifier correction CLOSED / final audit CLEAN
+-> final release snapshot CURRENT / AUTHORIZED
 -> local v1.0.0
+-> separate v1.1.0 roadmap
 ```
 
 The two previously verified transaction-adjacent research items are already resolved to their current boundary: deterministic active-pending cancellation integration coverage is DONE, and post-COMMIT recovery research found no safe public recovery contract so fail-close remains the reviewed limitation.

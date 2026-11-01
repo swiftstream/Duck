@@ -8,21 +8,27 @@ Foundation C5 is CLOSED at local commit `0dc702c5bcf53647c35e8177d35360c299a0e63
 
 Foundation C6 is CLOSED at local commit `31973379133ed290a749d2e5f9dbc9b266b2ab00`, subject **📖 Synchronize governance and skills**, after full validation and an independent CLEAN whole-candidate audit.
 
-Foundation C7 is CLOSED at local commit `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf`. C8 semantic development-history leakage cleanup is CLOSED at local commit `0b8baa756b523f00f309b2a007ead7d0570e6b28`. C9 final Foundation closure is CLOSED at local commit `6e99a95add3ba57e27f95c88e019666e9af8ec54`. The SQL minimum correction is CLOSED at local commit `bc90ee75541519ba900d6139b706824aee66a577`; `V1-TRP-001` is CLOSED and Duck v1 SQL floor is `2.1.0`. v1.0.0 technical validation, independent release audit, release-readiness checkpoint, DuckTransaction correction, and real macOS SwiftUI consumer gate are CLOSED. The corrected SwiftUI Attempt06 independent re-audit is CLEAN at 120/120 with zero findings. The real macOS UIKitPlus consumer is CLOSED / independently accepted after Validation-04 passed one XcodeGen, one exact dependency resolution, one cold Xcode 26.6 / Swift 6.3.3 macOS arm64 application build, and one real LaunchServices run with exact `DUCK-UIKITPLUS-RELEASE-OK\n`; the independent post-execution Sol audit passed 156/156 with zero findings. Final public-doc polish/audit is CLOSED / independently accepted after the exact applied README passed an independent final Sol audit at 182/182 with 60/60 direct questions and zero findings. Final release snapshot is CURRENT / AUTHORIZED. Production source/API behavior, the durable `__swiftduckdb.migrations` compatibility namespace, and protected unrelated `.agent/STYLE_GUIDELINES.md` WIP must remain unchanged.
+Foundation C7 is CLOSED at local commit `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf`. C8 semantic development-history leakage cleanup is CLOSED at local commit `0b8baa756b523f00f309b2a007ead7d0570e6b28`. C9 final Foundation closure is CLOSED at local commit `6e99a95add3ba57e27f95c88e019666e9af8ec54`. The SQL minimum correction is CLOSED at local commit `bc90ee75541519ba900d6139b706824aee66a577`; `V1-TRP-001` remains CLOSED as the historical SQL-2 floor gate. SQL 3.1.0 is the current candidate floor and `Package.swift` declares `>=3.1.0,<4.0.0`; the SQL3 `DB.Table` / `DB.Schema.Table` surface migration and stable synchronization are accepted candidate state. v1.0.0 technical validation, independent release audit, release-readiness checkpoint, DuckTransaction correction, and real macOS SwiftUI consumer gate are CLOSED. The corrected SwiftUI Attempt06 independent re-audit is CLEAN at 120/120 with zero findings. The real macOS UIKitPlus consumer is CLOSED / independently accepted after Validation-04 passed one XcodeGen, one exact dependency resolution, one cold Xcode 26.6 / Swift 6.3.3 macOS arm64 application build, and one real LaunchServices run with exact `DUCK-UIKITPLUS-RELEASE-OK\n`; the independent post-execution Sol audit passed 156/156 with zero findings. Final public-doc polish/audit is CLOSED / independently accepted after the exact applied README passed an independent final Sol audit at 182/182 with 60/60 direct questions and zero findings. Typed Table `batchInsert(on:)` implementation, Swift 6.3.3/6.4 validation, strict SwiftUI consumer validation, runtime smoke, external-Sol F01 correction, stable SQL3/batch public-surface synchronization, and its independent final audit are CLOSED / accepted. Production source/API behavior, the durable `__swiftduckdb.migrations` compatibility namespace, and protected unrelated `.agent/STYLE_GUIDELINES.md` WIP must remain unchanged.
 
-The required remaining pre-v1 sequence is final release snapshot gate -> local `v1.0.0`.
+The required remaining pre-v1 sequence is final independent release snapshot gate CURRENT -> local `v1.0.0`. The Bridges-like DatabaseIdentifier correction is CLOSED / CLEAN through its final whole-candidate audit and docs-only closure at A01-A30 = 30/30 with zero findings. Wave 3 execution evidence includes Swift 6.3.3 full package 683/22 PASS, Swift 6.4 build-tests PASS, canonical SwiftUI Xcode 26.6 PASS, and canonical UIKit Xcode 26.6 arm64-simulator PASS; the final snapshot owns only any genuinely missing closure rows.
 
 No major Advanced Appender or nested/complex Value expansion is authorized before local v1.0.0 unless the smallest bounded correction is proven to be a release blocker. Post-v1 feature work requires a separate v1.1.0 roadmap.
 
 Push/tag/remote release remains separately unauthorized.
 
+## Current active release gate
+
+### Final independent v1.0.0 release snapshot — CURRENT / AUTHORIZED
+
+The Bridges-like DatabaseIdentifier correction is CLOSED / CLEAN. Its final independent audit and closure passed A01-A30 = 30/30 with `FINDING_IDS=NONE` and authorized the release-snapshot gate. The snapshot must reconcile the exact live working-tree candidate against the earlier CLEAN R2 snapshot plus the accepted DatabaseIdentifier delta, carry forward byte-identical execution evidence, and execute only genuinely missing release boundaries. No staging, commit, push, tag, or remote release is authorized by this task.
+
 ## Current capability state
 
 ### Codable / Model Layer — COMPLETE
 
-The accepted current surface owns arbitrary flat `ResultRow` / `QueryResult` decoding, exact flat `ModelEncoder` semantics, `Table` / `@Column` persistence extraction, prepared model bindings, explicit-`Connection` insert/update returning and non-returning conveniences, and matching explicit-`DuckTransaction` overloads that reuse the transaction engine.
+The accepted current surface owns arbitrary flat `ResultRow` / `QueryResult` decoding, exact flat `ModelEncoder` semantics, `Table` / `@Column` persistence extraction, prepared model bindings, explicit-`Connection` insert/update returning and non-returning conveniences, matching explicit-`DuckTransaction` overloads, and typed atomic `Collection<Table>.batchInsert(on:)` with Connection- and DuckTransaction-backed forms.
 
-Current closure evidence remains build PASS with 358/358 tests, 0 failures, 0 skips, and no new Duck-owned warnings. README, publication source material, the source-owned `duck-codable-models` skill, and stable governance are closed current state.
+The original single-row closure evidence remains historical baseline. The batch extension is additionally validated by focused Appender/batch coverage, full Swift 6.3.3 and Swift 6.4 suites, strict Xcode 26.6 consumer build, runtime smoke/sanity, and the corrected F01 cancellation/error-precedence proof. Stable README/skill/source-map/current-state synchronization and its independent final audit are CLOSED / accepted historical evidence.
 
 ### Migrations — COMPLETE
 
@@ -32,15 +38,15 @@ Final accepted executable evidence includes Swift 6.3.3 build PASS and 455/455 t
 
 ### Observation / Reactive Queries — COMPLETE
 
-The accepted v1 surface is a UI-neutral reusable latest-state `QueryObservation` over `QueryResult`, native READ ONLY refreshes, actual successful `NativeResult.isReadOnly` truth, bounded/coalescing delivery, same-`Database` invalidation, managed + flat manual DuckTransaction finalization/publication, and ordinary/Transaction Appender visibility integration.
+The accepted v1 surface is a UI-neutral reusable latest-state `QueryObservation` over `QueryResult`, native READ ONLY refreshes, actual successful `NativeResult.isReadOnly` truth, bounded/coalescing delivery, same-identifier canonical-runtime invalidation, managed + flat manual DuckTransaction finalization/publication, and ordinary/Transaction Appender visibility integration.
 
-The current boundary explicitly does not promise event-log delivery, reusable prepared-handle VIEW rebind, cross-Database invalidation, cross-process/file watching, or framework-specific publishers. Accepted executable evidence remains Swift 6.3.3 build + 557/557 tests in 11 suites with zero failures/skips, focused Swift 6.4 public Observation/manual-finalization coverage, and Swift 6.4 build PASS.
+The current boundary explicitly does not promise event-log delivery, reusable prepared-handle VIEW rebind, cross-identifier/cross-process invalidation, cross-process/file watching, or framework-specific publishers. Accepted executable evidence remains Swift 6.3.3 build + 557/557 tests in 11 suites with zero failures/skips, focused Swift 6.4 public Observation/manual-finalization coverage, and Swift 6.4 build PASS.
 
 ### Connection Pooling — COMPLETE
 
-The public surface is `Database.pool(maximumConnections:)`, actor `ConnectionPool` with `maximumConnections`, scoped `pool.connection`, thin `pool.transaction`, and `shutdown()`.
+The public surface is `DatabaseIdentifier.pool(maximumConnections:)`, actor `ConnectionPool` with `maximumConnections`, scoped `pool.connection`, thin `pool.transaction`, and `shutdown()`.
 
-The accepted implementation preserves FIFO cancellation-safe checkout, full-token lease liveness, retirement/replacement of unusable Connections, lease-safe Observation refresh/publication, pooled Appender visibility, and same-`Database` observation locality. Full Swift 6.3.3 validation is 636 tests / 18 suites with 0 failures / 0 skips / 0 warnings. README, publication source material, and the source-owned `duck-connection-pooling` skill complete public closure.
+The accepted implementation preserves FIFO cancellation-safe checkout, full-token lease liveness, retirement/replacement of unusable Connections, lease-safe Observation refresh/publication, pooled Appender visibility, and same-identifier canonical-runtime observation locality. Full Swift 6.3.3 validation is 636 tests / 18 suites with 0 failures / 0 skips / 0 warnings. README, publication source material, and the source-owned `duck-connection-pooling` skill complete public closure.
 
 The fixed selected-column Appender slice is also accepted current state with Swift 6.3.3 build and 647 tests in 20 suites passing.
 

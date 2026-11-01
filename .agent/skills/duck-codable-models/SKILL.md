@@ -1,12 +1,12 @@
 ---
 name: duck-codable-models
-description: Use for Duck flat Row/QueryResult Decodable projection, ModelEncoder, Table model insert/update on Connection or DuckTransaction, omission-vs-NULL semantics, changed-field persistence, and model-layer boundaries.
+description: Use for Duck flat Row/QueryResult Decodable projection, ModelEncoder, Table model insert/update and typed batchInsert on Connection or DuckTransaction, omission-vs-NULL semantics, changed-field persistence, and model-layer boundaries.
 license: LICENSE.txt
 ---
 
 # Duck Codable / Model Layer
 
-Use this skill when Duck work centers on flat Codable models or the explicit `Table` insert/update conveniences. Keep query construction, transaction ownership, and model persistence boundaries visible rather than treating Duck as a broad ORM.
+Use this skill when Duck work centers on flat Codable models or the explicit `Table` insert/update/batch-insert conveniences. Keep query construction, transaction ownership, and model persistence boundaries visible rather than treating Duck as a broad ORM.
 
 ## 1. Decode a materialized Row into a flat model
 
@@ -173,9 +173,12 @@ insert(on: DuckTransaction) -> Self
 insertNonReturning(on: DuckTransaction)
 update(on:key,on: DuckTransaction) -> Self
 updateNonReturning(on:key,on: DuckTransaction)
+
+Collection<Table>.batchInsert(on: Connection)
+Collection<Table>.batchInsert(on: DuckTransaction)
 ```
 
-Do not invent model `save`, `persist`, delete, upsert, batch, repository, identity-map, or arbitrary-WHERE APIs.
+Do not invent model `save`, `persist`, delete, upsert, repository, identity-map, or arbitrary-WHERE APIs.
 
 Use normal SQL directly when the required query does not match this small convenience surface.
 
@@ -202,7 +205,33 @@ Do not treat these methods as ambient transaction joining. Same-Connection work 
 
 Switch to the dedicated transaction skill when rollback-only state, cancellation, COMMIT/ROLLBACK failure, Statement transaction execution, or Transaction Appender semantics are central.
 
-## 11. Model payloads use prepared placeholders
+## 11. Batch-insert homogeneous Table collections
+
+Use `batchInsert(on:)` when a homogeneous collection of one `Table` type should be inserted through the typed model layer:
+
+```swift
+try await notes.batchInsert(on: connection)
+```
+
+The `Connection` overload performs complete synchronous preflight before native mutation and owns a managed transaction, so the batch is atomic. If work already participates in an explicit transaction, pass that capability instead:
+
+```swift
+try await notes.batchInsert(on: transaction)
+```
+
+The transaction overload does not start a nested transaction. Both overloads use selected-column Appender runs rather than repeated `insertNonReturning` calls.
+
+Per-row wrapper state keeps the normal persistence distinction:
+
+```text
+untouched @Column       -> omitted, database DEFAULT remains eligible
+explicit Optional.none -> selected column with SQL NULL
+initialized value      -> selected column with its exact Duck Value
+```
+
+Rows may have different initialized-column signatures. Duck preserves collection order and opens one selected-column Appender for each contiguous run with the same ordered signature. The whole batch is preflighted/materialized first, so memory use is proportional to the supplied batch. An empty collection is a no-op.
+
+## 12. Model payloads use prepared placeholders
 
 Dynamic model values are carried through prepared placeholders and the existing binding normalization. They are not interpolated into SQL text.
 
@@ -210,7 +239,7 @@ Preserve exact value-family transport for UUID, Data, Decimal, temporal values, 
 
 Do not introduce raw handwritten CRUD SQL merely to implement model persistence.
 
-## 12. Choose direct SQL when the model convenience is the wrong abstraction
+## 13. Choose direct SQL when the model convenience is the wrong abstraction
 
 Use the basic query-execution workflow for:
 
@@ -220,13 +249,13 @@ joins and aggregates
 arbitrary WHERE predicates
 custom SET expressions
 DELETE/UPSERT shapes
-batch operations
+heterogeneous or expression-driven bulk operations that do not fit typed Table batchInsert
 queries that do not map naturally to one flat model
 ```
 
 The model layer complements SQL; it does not replace it.
 
-## 13. Current non-goals
+## 14. Current non-goals
 
 Do not infer or generate:
 
@@ -234,7 +263,7 @@ Do not infer or generate:
 repository identity maps or unit-of-work behavior
 broad ORM semantics
 save/persist magic
-model delete/upsert/batch/arbitrary-WHERE persistence
+model delete/upsert/arbitrary-WHERE persistence
 arbitrary nested Codable object/array graphs
 migrations/schema evolution
 observation/reactive queries

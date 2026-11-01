@@ -8,13 +8,14 @@ The current durable product priority is to finish a locally release-ready Duck `
 
 ```text
 Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf` -> C8 CLOSED at `0b8baa756b523f00f309b2a007ead7d0570e6b28` -> C9 CLOSED at `6e99a95add3ba57e27f95c88e019666e9af8ec54`
--> SQL minimum correction CLOSED at `bc90ee75541519ba900d6139b706824aee66a577`; `V1-TRP-001` CLOSED; SQL floor `2.1.0`
+-> SQL minimum correction CLOSED at `bc90ee75541519ba900d6139b706824aee66a577`; `V1-TRP-001` CLOSED; historical former SQL-2 floor `2.1.0`
 -> technical release validation COMPLETE
 -> independent release audit COMPLETE
 -> release-readiness state checkpoint COMPLETE
 -> real SwiftUI macOS consumer CLOSED / independently accepted
 -> real UIKitPlus macOS consumer CLOSED / independently accepted
 -> final public-doc polish/audit CLOSED / independently accepted
+-> Bridges-like DatabaseIdentifier pre-v1 correction CLOSED / final whole-candidate audit CLEAN at 30/30
 -> final release snapshot gate CURRENT / AUTHORIZED
 -> local v1.0.0
 -> separate v1.1.0 roadmap
@@ -33,7 +34,7 @@ This priority boundary is durable product direction, not permission to skip norm
 
 ## Future Public Resource APIs
 
-The current `Database` / `Connection` / `DuckTransaction` / `Statement` / `Appender` / `QueryResult` / `ResultRow` / `Value` slice is implemented and is no longer an open design question. Scoped transaction ownership, ordinary and transaction Appender complete-row/lifetime/concurrency/error semantics, same-Connection restrictions, ordinary non-atomic Appender auto-flush, transaction-Appender rollback-only/finalization behavior, and independent-Connection semantics are reviewed current state.
+The current `DatabaseIdentifier` / `Connection` / `DuckTransaction` / `Statement` / `Appender` / `QueryResult` / `ResultRow` / `Value` slice is implemented and is no longer an open design question. The live `Database` runtime is internal and is not a consumer ownership model. `DatabaseIdentifier` is a lightweight value identity: equivalent identifiers lazily resolve one strongly retained process-lifetime canonical runtime through the internal registry. v1 intentionally exposes no unregister/close operation that could create a second runtime while old Connections remain alive. Scoped transaction ownership, ordinary and transaction Appender complete-row/lifetime/concurrency/error semantics, same-Connection restrictions, ordinary non-atomic Appender auto-flush, transaction-Appender rollback-only/finalization behavior, and independent-Connection semantics are reviewed current state.
 
 Still unresolved for future separately reviewed capabilities:
 
@@ -47,13 +48,13 @@ Resolved query-construction rules are not open decisions:
 - all Duck-owned SQL is constructed through SQL;
 - Duck execution uses `prepare(.duck)`;
 - explicit raw SQL is represented through `SQL.raw(...)`, not a parallel ordinary String construction path;
-- the first public execution/result slice uses explicit `Database` and actor-isolated `Connection` ownership;
+- the public execution/result slice uses lightweight `DatabaseIdentifier` identity and actor-isolated explicit `Connection` ownership;
 - query-centered conveniences delegate to the same Connection engine;
 - typed-table selected-column convenience remains ordinary SQL construction sugar.
 
-Codable / Model Layer architecture and public closure are accepted current state. The accepted surface owns arbitrary flat Row/QueryResult decoding, exact flat ModelEncoder semantics, Table/@Column persistence extraction, prepared model bindings, explicit-Connection insert/update, and matching explicit-DuckTransaction persistence overloads that reuse the existing transaction engine. Any later expansion beyond that accepted boundary requires a new reviewed decision. Migrations are also accepted current state: the final name-only declarative `Migration`/`Migrator` model, batch history, atomic pending-batch migrate, reverse batch revert, exact `UInt` current-batch APIs, final build/test validation, and independent source/evidence audit are complete. No broader schema-diff/generation/reflection/discovery/cross-process-locking design is implied by that closure.
+Codable / Model Layer architecture is accepted current state. The accepted surface owns arbitrary flat Row/QueryResult decoding, exact flat ModelEncoder semantics, Table/@Column persistence extraction, prepared model bindings, explicit-Connection insert/update, matching explicit-DuckTransaction persistence overloads, and typed `Collection<Table>.batchInsert(on:)` on Connection or DuckTransaction with full preflight, DEFAULT-versus-explicit-NULL preservation, and managed atomicity for the Connection form. Any later expansion beyond that accepted boundary requires a new reviewed decision. Migrations are also accepted current state: the final name-only declarative `Migration`/`Migrator` model, batch history, atomic pending-batch migrate, reverse batch revert, exact `UInt` current-batch APIs, final build/test validation, and independent source/evidence audit are complete. No broader schema-diff/generation/reflection/discovery/cross-process-locking design is implied by that closure.
 
-Observation / Reactive Queries core architecture is no longer an open decision. The accepted v1 contract is a same-Database, UI-neutral, latest-state `QueryObservation` model with native READ ONLY refresh, actual successful-result `IsReadOnly` truth, bounded/coalescing delivery, ordinary/reusable-Statement mutation invalidation, managed + flat manual DuckTransaction publication, and ordinary/Transaction Appender visibility integration. An already prepared reusable VIEW handle is not promised to rebind to later catalog changes. Preflight non-read-only rejection uses `observationRequiresReadOnlyQuery`, while an unexpected successful non-read-only native result remains `invalidResult`. Accepted executable evidence remains Swift 6.3.3 build + 557/557 tests in 11 suites with zero failures/skips, focused Swift 6.4 public Observation/manual-finalization coverage, and Swift 6.4 build PASS. Any future expansion beyond this accepted boundary requires a new reviewed decision rather than reopening the closed design implicitly.
+Observation / Reactive Queries core architecture is no longer an open decision. The accepted v1 contract is a same-identifier canonical-runtime, UI-neutral, latest-state `QueryObservation` model with native READ ONLY refresh, actual successful-result `IsReadOnly` truth, bounded/coalescing delivery, ordinary/reusable-Statement mutation invalidation, managed + flat manual DuckTransaction publication, and ordinary/Transaction Appender visibility integration. An already prepared reusable VIEW handle is not promised to rebind to later catalog changes. Preflight non-read-only rejection uses `observationRequiresReadOnlyQuery`, while an unexpected successful non-read-only native result remains `invalidResult`. Accepted executable evidence remains Swift 6.3.3 build + 557/557 tests in 11 suites with zero failures/skips, focused Swift 6.4 public Observation/manual-finalization coverage, and Swift 6.4 build PASS. Any future expansion beyond this accepted boundary requires a new reviewed decision rather than reopening the closed design implicitly.
 
 ### Nested / Complex Value & Result Families — DEFERRED NICE-TO-HAVE
 

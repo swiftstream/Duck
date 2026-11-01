@@ -1,6 +1,6 @@
 ---
 name: duck-connection-pooling
-description: Use for Duck bounded ConnectionPool creation, scoped Connection checkout, managed pool transactions, lease-bound Statement/Appender work, Database Observation interaction, checkout cancellation, and graceful shutdown.
+description: Use for Duck bounded ConnectionPool creation from DatabaseIdentifier, scoped Connection checkout, managed pool transactions, lease-bound Statement/Appender work, identifier Observation interaction, checkout cancellation, and graceful shutdown.
 license: LICENSE.txt
 ---
 
@@ -8,19 +8,19 @@ license: LICENSE.txt
 
 Use this skill when application work needs multiple independent Duck Connections with a bounded, reusable owner. For ordinary one-off work on a caller-owned Connection, use the query-execution skill. For detailed transaction or Observation semantics, load the matching dedicated skill when that workflow becomes central.
 
-## 1. Create a bounded pool from one Database
+## 1. Create a bounded pool from one DatabaseIdentifier
 
 ```swift
-let database = try Database()
-let pool = try database.pool(maximumConnections: 4)
+let database = DatabaseIdentifier.memory()
+let pool = try await database.pool(maximumConnections: 4)
 ```
 
-`Database.pool(maximumConnections:)` throws for nonpositive capacity. The pool is lazy and belongs to that exact `Database`. It opens Connections on demand up to `maximumConnections`; do not describe it as a global Connection registry or as owning Connections from another Database.
+`DatabaseIdentifier.pool(maximumConnections:)` resolves the identifier's canonical runtime and creates a lazy bounded pool on it. It throws for nonpositive capacity. The pool opens Connections on demand up to `maximumConnections`; do not describe the pool itself as the global identifier registry or as owning Connections from another logical database.
 
 ## 2. Keep each checkout inside its closure
 
 ```swift
-let users = Path.Table("users")
+let users = DB.Table("users")
 
 let result = try await pool.connection { connection in
     try await SQL
@@ -60,17 +60,16 @@ If a flat `connection.transaction()` is used inside `pool.connection`, explicitl
 
 Prepare and use a reusable Statement only while its originating Connection's exact lease is live. An Appender scope must finish within the lease. Ordinary Appender ingestion can expose auto-flushed prefixes before the body ends; use an explicit DuckTransaction when all rows need one commit/rollback boundary. Follow the Statement, Appender, or Transaction skill for their detailed APIs and error rules. Do not invent statement caches or Appender pools as features of `ConnectionPool`.
 
-## 6. Observe through the Database
+## 6. Observe through the DatabaseIdentifier
 
 ```swift
-let observation = try database.observe(
-    SQL
-        .select(users.column("id"), users.column("name"))
-        .from(users)
-)
+let observation = try SQL
+    .select(users.column("id"), users.column("name"))
+    .from(users)
+    .observe(on: database)
 ```
 
-`database.observe(...)` and SQL `.observe(on: database)` remain the public Observation entrypoints. There is no `pool.observe` or `Connection.observe`. Each observation iterator owns a private refresh Connection. Pooled mutations on the exact same Database publish through the existing Connection Observation path. COMMIT/ROLLBACK and Appender visibility retain their normal rules. Pool lease return, retirement, and replacement alone do not fabricate invalidations. A stale pooled Connection's internal refresh work fails with `.poolLeaseExpired`. Observation is latest-state and read-only; it does not watch another Database instance or external file mutations.
+`database.observe(...)` and SQL `.observe(on: database)` remain the public Observation entrypoints. There is no `pool.observe` or `Connection.observe`. Each observation iterator owns a private refresh Connection on the canonical runtime. Pooled mutations created from an equivalent identifier publish through that same Observation coordinator. COMMIT/ROLLBACK and Appender visibility retain their normal rules. Pool lease return, retirement, and replacement alone do not fabricate invalidations. A stale pooled Connection's internal refresh work fails with `.poolLeaseExpired`. Observation is latest-state and read-only; it does not watch a different identifier or external file/process mutations.
 
 ## 7. Shut down outside every live lease
 

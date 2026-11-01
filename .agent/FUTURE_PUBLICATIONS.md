@@ -11,7 +11,7 @@ Every public capability requires detailed publication source material under the 
 Current coverage/backfill state:
 
 ```text
-Database / Connection / public query execution
+DatabaseIdentifier / Connection / public query execution
 - README: PRESENT
 - detailed social/article source: PRESENT below as 004
 - public Agent Skill coverage: PRESENT as source-owned `duck-query-execution`; central federation onboarding/publication remains separate
@@ -45,7 +45,7 @@ Codable / Model Layer
 - public Agent Skill coverage: PRESENT as source-owned `duck-codable-models`; central federation onboarding/publication remains separate
 
 Observation / Reactive Queries
-- implementation: accepted reusable latest-state `QueryObservation` with same-Database invalidation across ordinary execution, definitive Transaction finalization, and Appender visibility
+- implementation: accepted reusable latest-state `QueryObservation` with same-identifier canonical-runtime invalidation across ordinary execution, definitive Transaction finalization, and Appender visibility
 - README: PRESENT
 - detailed social/article source: PRESENT below as 007
 - public Agent Skill coverage: PRESENT as source-owned `duck-observation`; central federation onboarding/publication remains separate
@@ -92,7 +92,7 @@ Duck does not expose manual `$1` / `$2` placeholder construction. Dynamic values
 ### Prepare once, execute many INSERTs
 
 ```swift
-let users = Path.Table("users")
+let users = DB.Table("users")
 
 let insertUser = try await connection.prepare { parameters in
     let email = parameters.parameter()
@@ -184,7 +184,7 @@ Statement
                  -> NativeConnection
 ```
 
-`Statement` strongly retains its originating `Connection` and stores no native handle itself. A statement can therefore remain usable after external lexical references to the `Database` / `Connection` are dropped, while the `Statement` remains alive.
+`Statement` strongly retains its originating `Connection` and stores no native handle itself. A statement can therefore remain usable after external lexical references to the `DatabaseIdentifier` / `Connection` are dropped, while the `Statement` remains alive.
 
 All public Statement async operations retain the Statement through queued/native-active completion. Deinit cleanup only schedules idempotent registry removal back on the owner Connection actor.
 
@@ -255,7 +255,7 @@ SQL query template
 -> query/execute
 ```
 
-They do not themselves provide the separate Codable / Model Layer, repository identity semantics, migrations, or observation/reactive behavior. Use the dedicated model capability when flat Codable projection or explicit Table insert/update is the actual task.
+They do not themselves provide the separate Codable / Model Layer, repository identity semantics, migrations, or observation/reactive behavior. Use the dedicated model capability when flat Codable projection, explicit Table insert/update, or typed Table batch insertion is the actual task.
 
 ### Best publication angles
 
@@ -278,7 +278,7 @@ When an application already has many rows in memory or arriving from an import p
 Duck now exposes DuckDB's Appender mechanism through a deliberately small Swift surface:
 
 ```swift
-let events = Path.Table("events")
+let events = DB.Table("events")
 
 try await connection.appender(to: events) { appender in
     try await appender.append(Int32(1), "opened", Data([0x01]))
@@ -293,7 +293,7 @@ The public contract is intentionally row-shaped: one `append(...)` call is one c
 An import often supplies only part of a table row. Choose those columns once when opening the Appender:
 
 ```swift
-let events = Path.Table("events")
+let events = DB.Table("events")
 
 try await connection.appender(to: events, columns: ["kind", "id"]) { appender in
     try await appender.append("opened", Int32(1))
@@ -304,9 +304,9 @@ try await connection.appender(to: events, columns: ["kind", "id"]) { appender in
 
 The first value goes to `kind`, the second to `id`, even when table order differs; the example assumes `kind` is nullable. Every `append` call is still one complete row relative to this fixed selection. Omitting a table column lets DuckDB supply its `DEFAULT`, or `NULL` when no default exists. Passing `nil` for a **selected** column writes explicit SQL `NULL` and does not request its default. This allows a caller to distinguish a missing import field from an explicit null without adding a per-cell default marker. Existing no-`columns:` overloads keep complete-table-row behavior.
 
-Both `Connection` and `DuckTransaction` expose `columns: [String]` for all three target forms: `Path.Table`, `Path.SchemaWithTable`, and `Path.CatalogWithSchemaAndTable`. The list cannot be empty, and duplicate, unknown, or generated columns fail creation before the body starts. Column names are passed as names, not SQL-quoted identifier fragments; a name containing a quote carries that quote literally. Selection cannot change during the scope. A wrong selected-row width, unsupported Swift value, or deterministic whole-row preflight mismatch mutates no native row columns and is recoverable inside the live body. Native append, end-row, or automatic-flush failure remains terminal.
+Both `Connection` and `DuckTransaction` expose `columns: [String]` for the SQL 3 structural target types `DB.Table` and `DB.Schema.Table`; a catalog-qualified `DB.Schema.Table` carries its catalog through `DB.Schema`. The list cannot be empty, and duplicate, unknown, or generated columns fail creation before the body starts. Column names are passed as names, not SQL-quoted identifier fragments; a name containing a quote carries that quote literally. Selection cannot change during the scope. A wrong selected-row width, unsupported Swift value, or deterministic whole-row preflight mismatch mutates no native row columns and is recoverable inside the live body. Native append, end-row, or automatic-flush failure remains terminal.
 
-Selected columns retain the Appender's ownership boundary. The ordinary scope may auto-flush a durable prefix before body completion, so a later error or cancellation cannot promise to roll it back. A `DuckTransaction.appender(to: events, columns: ["kind", "id"])` scope instead participates in the explicit outer transaction: auto-flushed rows remain transaction-local until finalization, and a failed scope makes the outer transaction rollback-only even when its error is caught by the surrounding transaction body. Cancellation remains cooperative at Swift boundaries. The scoped Appender must finish within any pool lease that supplied its Connection; lease return does not create a mutation signal. Same-`Database` `QueryObservation` follows ordinary native visibility or definitive transaction finalization, delivering latest query state rather than one event per row. Separate Database instances and external file/process writes are outside that invalidation contract.
+Selected columns retain the Appender's ownership boundary. The ordinary scope may auto-flush a durable prefix before body completion, so a later error or cancellation cannot promise to roll it back. A `DuckTransaction.appender(to: events, columns: ["kind", "id"])` scope instead participates in the explicit outer transaction: auto-flushed rows remain transaction-local until finalization, and a failed scope makes the outer transaction rollback-only even when its error is caught by the surrounding transaction body. Cancellation remains cooperative at Swift boundaries. The scoped Appender must finish within any pool lease that supplied its Connection; lease return does not create a mutation signal. Same-identifier canonical-runtime `QueryObservation` follows ordinary native visibility or definitive transaction finalization, delivering latest query state rather than one event per row. Different identifier identities and external file/process writes are outside that invalidation contract.
 
 The choice remains workload based: a selected-column Appender works when every row shares one fixed set and order of supplied columns; a reusable `Statement` is better when each row needs SQL expressions, UPDATE/SELECT behavior, or another repeated query shape. This slice adds no manual flush/close, mid-scope column changes, per-cell `DEFAULT`, QueryAppender, or public chunk/vector writer. It implies no release, new platform validation, central Agent Skill publication, or support for arbitrary default expressions beyond the tested pinned-engine behavior.
 
@@ -374,7 +374,7 @@ try await connection.transaction { transaction in
 }
 ```
 
-`Connection.appender(to:)` provides a scoped Appender lifetime and ordinary Connection admission, but it is non-atomic across DuckDB's automatic Appender flushes: a later body error or cancellation can discard still-buffered rows without rolling back earlier auto-flushed batches. `DuckTransaction.appender(to:)` uses the same public `Appender` type, complete-row value families, scoped lifetime, and three target forms — `Path.Table`, `Path.SchemaWithTable`, and `Path.CatalogWithSchemaAndTable` — while participating in the already-active explicit outer transaction. Auto-flushed transaction-Appender batches remain transaction-local; outer COMMIT persists them and outer ROLLBACK removes them.
+`Connection.appender(to:)` provides a scoped Appender lifetime and ordinary Connection admission, but it is non-atomic across DuckDB's automatic Appender flushes: a later body error or cancellation can discard still-buffered rows without rolling back earlier auto-flushed batches. `DuckTransaction.appender(to:)` uses the same public `Appender` type, complete-row value families, scoped lifetime, and SQL 3 target types — `DB.Table` plus schema/catalog-qualified `DB.Schema.Table` — while participating in the already-active explicit outer transaction. Auto-flushed transaction-Appender batches remain transaction-local; outer COMMIT persists them and outer ROLLBACK removes them.
 
 The transaction Appender scope does not commit independently and is not a nested transaction, savepoint, or implicit ambient transaction. A body error, cancellation, terminal native append/row-completion failure, or finalization failure that escapes the scope makes the outer transaction rollback-only. Catching that failure in the surrounding transaction body cannot turn the later outcome into a successful COMMIT. If the surrounding transaction body catches an arbitrary Appender-body error and returns, outer transaction finalization later surfaces `.appenderTransactionAborted(...)` rather than permitting COMMIT; callers should use the typed error, never parse diagnostic text.
 
@@ -442,9 +442,9 @@ Ordinary same-Connection work inherited from that Appender body is rejected inst
 Independent work should use another Connection:
 
 ```swift
-let database = try Database()
-let ingestConnection = try database.connect()
-let lookupConnection = try database.connect()
+let database = DatabaseIdentifier.memory()
+let ingestConnection = try await database.connect()
+let lookupConnection = try await database.connect()
 
 try await ingestConnection.appender(to: events) { appender in
     async let lookup = lookupConnection.query(
@@ -754,39 +754,40 @@ Preserve these user-facing angles:
 4. width/scale metadata lives on `ResultColumn`, not in `Value` numeric identity;
 5. deterministic rejection is part of correctness: Appender preflight can refuse a later-column Decimal without poisoning the live scope, while native append/end-row/finalization failure remains terminal.
 
-## 004 — Database, Connection, and SQL query execution
+## 004 — DatabaseIdentifier, Connection, and SQL query execution
 
 Status: **implemented source material / future article-publication candidate**
 
 Trigger for publication: when the maintainer chooses to turn this durable source material into channel-specific public copy.
 
-### Start with explicit ownership
+### Start with lightweight identity and explicit execution ownership
 
-Duck keeps database storage and executable connection ownership explicit:
+Duck separates application-facing database identity from executable Connection ownership:
 
 ```swift
-let database = try Database()
-let connection = try database.connect()
+let database = DatabaseIdentifier.memory()
+let connection = try await database.connect()
 ```
 
-Use `Database()` for an in-memory database or `Database(path:)` for a file-backed database. A `Database` can create multiple independent `Connection` actors through `connect()`.
+Use `DatabaseIdentifier.memory()` for one unique in-memory database, `DatabaseIdentifier(memory:)` for a stable named in-memory identity, or `DatabaseIdentifier(path:)` for a file-backed database. Constructing the identifier does not open DuckDB. First operational use lazily registers the canonical process-lifetime runtime, and equivalent identifiers resolve that same runtime.
 
 That split is the foundation of the public execution model:
 
 ```text
-Database
-  -> one or more Connection actors
-       -> Connection-owned native execution
+DatabaseIdentifier
+  -> canonical internal runtime
+       -> one or more Connection actors
+            -> Connection-owned native execution
 ```
 
-A Connection is not just a convenience wrapper around a global native handle. It is the Swift concurrency owner for one native connection and its admitted work.
+Application code does not carry a central live database object. A Connection is not just a convenience wrapper around a global native handle; it is the Swift concurrency owner for one native connection and its admitted work.
 
 ### Build normal queries with SQL
 
 The normal public path is declarative SQL:
 
 ```swift
-let users = Path.Table("users")
+let users = DB.Table("users")
 
 let result = try await SQL
     .select(users.column("id"), users.column("name"))
@@ -906,7 +907,7 @@ Use the managed `Connection.transaction { ... }` form when multiple same-Connect
 
 Use `Connection.appender` for bulk complete-row ingestion, or `DuckTransaction.appender` when that ingestion must participate in an already-active explicit transaction.
 
-Use `QueryObservation` when a read-only query should refresh as same-`Database` mutations invalidate its latest state.
+Use `QueryObservation` when a read-only query should refresh as mutations routed through the same canonical `DatabaseIdentifier` runtime invalidate its latest state.
 
 The important design message is to keep ownership and capability boundaries explicit rather than introducing ambient behavior.
 
@@ -918,19 +919,19 @@ Do not turn the baseline query API into implied support for:
 broad ORM/repository identity semantics beyond the dedicated flat Codable/model capability
 arbitrary nested/unkeyed Codable model graphs beyond the dedicated model layer
 savepoints/custom isolation
-Observation expansion beyond the dedicated latest-state same-Database capability
+Observation expansion beyond the dedicated latest-state same-identifier capability
 advanced Appender lifecycle surfaces
 complex nested result families beyond the current Value model
 platform-support guarantees not documented by the current public package
 ```
 
-Flat model decoding/encoding and explicit Table insert/update now belong to the dedicated Codable / Model Layer capability rather than the baseline query-execution story.
+Flat model decoding/encoding and explicit Table insert/update/batch-insert now belong to the dedicated Codable / Model Layer capability rather than the baseline query-execution story.
 
 ### Best publication angles
 
 Preserve these user-facing angles:
 
-1. `Database` owns storage while `Connection` owns one executable native connection;
+1. `DatabaseIdentifier` names the logical database, Duck's internal canonical runtime owns storage lifetime, and each `Connection` owns one executable native connection;
 2. declarative SQL is the normal query language, with raw SQL kept explicit;
 3. `query` returns materialized result data while `execute` returns rows changed;
 4. exact typed Row/Value reading avoids silent numeric coercion;
@@ -947,7 +948,7 @@ Trigger for publication: when the maintainer chooses to turn this durable source
 Duck exposes a managed transaction through the closure overload of `Connection.transaction`:
 
 ```swift
-let users = Path.Table("users")
+let users = DB.Table("users")
 
 let result = try await connection.transaction { transaction in
     try await SQL
@@ -1095,7 +1096,7 @@ Ordinary `statement.query(...)` / `statement.execute(...)` from a live same-Conn
 For high-volume complete rows that should commit or roll back with the rest of the transaction, use `transaction.appender(to:)`:
 
 ```swift
-let events = Path.Table("events")
+let events = DB.Table("events")
 
 try await connection.transaction { transaction in
     try await transaction.appender(to: events) { appender in
@@ -1127,9 +1128,9 @@ Use the managed closure or flat Swift transaction API instead of layering a seco
 
 ### Observation publication follows finalization
 
-When a same-Database `QueryObservation` is active, transaction operations accumulate mutation impact without publishing ordinary per-operation invalidations.
+When a same-identifier canonical-runtime `QueryObservation` is active, transaction operations accumulate mutation impact without publishing ordinary per-operation invalidations.
 
-Definitive COMMIT or ROLLBACK publishes the accumulated non-empty impact after native finalization. Read-only/no-impact finalization publishes nothing. Rollback failure and ambiguous post-scheduling COMMIT conservatively publish Database-wide invalidation while fail-closing the Connection.
+Definitive COMMIT or ROLLBACK publishes the accumulated non-empty impact after native finalization. Read-only/no-impact finalization publishes nothing. Rollback failure and ambiguous post-scheduling COMMIT conservatively publish runtime-wide invalidation while fail-closing the Connection.
 
 This includes managed automatic finalization, explicit finalizers, flat `commit()` / `rollback()`, and Swift 6.4 `rollbackIfNeeded()`.
 
@@ -1175,7 +1176,7 @@ The design deliberately stops short of pretending Duck is a full ORM. The useful
 ```text
 materialized row -> flat Decodable model
 flat Encodable model -> ordered exact Value fields
-Table model -> explicit insert/update on a supplied Connection or Transaction
+Table model -> explicit insert/update plus typed batch insert on a supplied Connection or Transaction
 ```
 
 Ownership remains visible at the call site and query construction remains SQL-backed.
@@ -1189,7 +1190,7 @@ struct UserRecord: Codable {
     let role: String
 }
 
-let usersTable = Path.Table("users")
+let usersTable = DB.Table("users")
 
 let result = try await SQL
     .select(
@@ -1373,9 +1374,28 @@ insert(on: DuckTransaction) -> Self
 insertNonReturning(on: DuckTransaction)
 update(on:key,on: DuckTransaction) -> Self
 updateNonReturning(on:key,on: DuckTransaction)
+
+Collection<Table>.batchInsert(on: Connection)
+Collection<Table>.batchInsert(on: DuckTransaction)
 ```
 
-There is no model-level delete/upsert/batch/arbitrary-WHERE expansion hidden behind this capability.
+There is no model-level delete/upsert/arbitrary-WHERE expansion hidden behind this capability.
+
+### Batch-insert Table collections without turning the model layer into an ORM
+
+For a homogeneous collection of one `Table` type:
+
+```swift
+try await notes.batchInsert(on: connection)
+```
+
+The Connection form synchronously preflights the whole collection before native mutation and then uses one managed transaction, making the batch atomic even across DuckDB Appender auto-flush boundaries. Inside an existing transaction:
+
+```swift
+try await notes.batchInsert(on: transaction)
+```
+
+This second form uses the caller's transaction rather than creating a nested one. Both forms use selected-column Appenders. Untouched columns stay omitted and DEFAULT-eligible, explicitly assigned `nil` remains SQL NULL, initialized values preserve their exact Duck `Value`, and rows with different initialized-column sets are emitted in input order as contiguous signature runs. Full preflight materializes prepared batch data in memory, so this API deliberately trades streaming memory bounds for deterministic all-row validation before mutation.
 
 ### Use the same model operations inside an explicit transaction
 
@@ -1424,7 +1444,7 @@ arbitrary WHERE predicates
 joins/aggregates/window expressions
 custom SET expressions
 delete/upsert shapes
-batch operations
+heterogeneous or expression-driven bulk operations outside typed Table batchInsert
 partial projections that are not a model decode
 query forms outside the small persistence convenience surface
 ```
@@ -1438,7 +1458,7 @@ Do not turn this capability into implied support for:
 ```text
 repository identity maps or unit-of-work semantics
 save/persist magic or automatic graph persistence
-model delete/upsert/batch/arbitrary-WHERE CRUD APIs
+model delete/upsert/arbitrary-WHERE CRUD APIs
 arbitrary nested Codable object/array graphs
 migrations/schema evolution
 model-integrated observation/reactive APIs
@@ -1457,7 +1477,8 @@ Preserve these user-facing angles:
 2. ModelEncoder preserves exact database-relevant scalar families instead of stringifying values;
 3. untouched optional Table columns and explicit NULL are intentionally different persistence states;
 4. insert/update conveniences remain explicit about their Connection or Transaction owner;
-5. changed-field key updates cover a useful model workflow without pretending Duck is a broad ORM;
+5. typed batch insertion gives homogeneous Table collections an atomic Connection form and caller-owned Transaction form without hiding Appender/default/NULL semantics;
+6. changed-field key updates cover a useful model workflow without pretending Duck is a broad ORM;
 6. direct SQL remains the escape path whenever the small model convenience surface is not the right abstraction.
 
 ## 007 — Observation / Reactive Queries: latest database state without pretending it is an event log
@@ -1477,7 +1498,7 @@ Duck therefore exposes Observation as a latest-state query capability rather tha
 ### The smallest useful observation
 
 ```swift
-let users = Path.Table("users")
+let users = DB.Table("users")
 
 let observation = try SQL
     .select(users.column("id"), users.column("name"))
@@ -1489,7 +1510,7 @@ for try await result in observation {
 }
 ```
 
-The Database-centered spelling is equivalent:
+The identifier-centered spelling is equivalent:
 
 ```swift
 let query = SQL
@@ -1514,7 +1535,7 @@ This means one consumer can stop or fail without consuming another iterator's st
 The contract is:
 
 ```text
-same-Database mutation invalidation
+same-identifier canonical-runtime mutation invalidation
 -> refresh read-only query
 -> suppress result if equal to previous state
 -> otherwise deliver latest successful QueryResult
@@ -1554,25 +1575,25 @@ Duck analyzes the query to narrow invalidation when table identity is safe.
 
 A successful query with no table dependency is a valid empty dependency rather than an automatic failure.
 
-When dependency extraction or identity is unsafe, Duck falls back to Database-wide invalidation. Missing a required refresh is worse than refreshing conservatively.
+When dependency extraction or identity is unsafe, Duck falls back to runtime-wide invalidation. Missing a required refresh is worse than refreshing conservatively.
 
 These dependency details are implementation behavior, not a public API for callers to manipulate.
 
-### The same Database instance is the boundary
+### One canonical identifier runtime is the boundary
 
-Observation invalidation is owned by one concrete `Database` object.
+Observation invalidation is owned by the canonical runtime resolved by a `DatabaseIdentifier`.
 
-Mutations routed through that same Database participate, including:
-- ordinary Connection query/execute;
+Mutations routed through equivalent identifiers participate, including:
+- ordinary identifier/Connection query/execute;
 - reusable Statement query/execute;
 - transaction finalization after transaction-local work;
 - Appender visibility/finalization.
 
-Duck does not claim that a separate `Database` object opening the same file shares an Observation registry.
+Independently reconstructed equivalent identifiers share the same Observation coordinator. A different identifier identity does not.
 
-It also does not watch:
+Duck also does not watch:
 - another process;
-- direct file changes;
+- direct external file changes;
 - an external DuckDB client.
 
 There is no polling loop or filesystem watcher hidden behind `QueryObservation`.
@@ -1585,9 +1606,9 @@ The practical model is:
 
 ```text
 successful read-only result     -> no invalidation
-successful non-read-only result -> Database-wide invalidation
+successful non-read-only result -> runtime-wide invalidation
 failure before pending attempt  -> no invalidation
-pending attempted, no result    -> conservative Database-wide invalidation
+pending attempted, no result    -> conservative runtime-wide invalidation
 ```
 
 Publication for a successful mutation happens before later result-materialization/cancellation checks can hide the fact that native mutation already occurred.
@@ -1607,7 +1628,7 @@ At definitive finalization:
 
 Publishing after rollback can still matter for non-transactional engine state, such as sequence advancement, even when ordinary row changes were reverted.
 
-If rollback fails, Duck conservatively publishes Database-wide invalidation and fail-closes the Connection.
+If rollback fails, Duck conservatively publishes runtime-wide invalidation and fail-closes the Connection.
 
 If COMMIT fails after native scheduling began and the durable result is ambiguous, Duck likewise publishes conservatively and fail-closes rather than pretending the outcome is known.
 
@@ -1655,7 +1676,7 @@ If a caller already knows exactly when it needs one snapshot, use normal query e
 let result = try await query.query(on: connection)
 ```
 
-Observation is useful when the caller wants the same read-only query to refresh automatically in response to mutations routed through the same Database.
+Observation is useful when the caller wants the same read-only query to refresh automatically in response to mutations routed through the same canonical `DatabaseIdentifier` runtime.
 
 Do not add an observation merely to avoid writing one explicit query call.
 
@@ -1669,14 +1690,14 @@ DuckTransaction.observe
 typed/decoded observation elements
 per-row/per-statement event history
 guaranteed delivery of every intermediate state
-cross-Database-instance invalidation
+cross-identifier invalidation
 cross-process/file watching
 filesystem watchers
 polling/timer correctness
 Combine/SwiftUI/UIKit publishers
 public observation configuration/options
 manual refresh controls
-pool-owned Observation iterators or a `pool.observe` / `Connection.observe` API (Observation stays Database-bound even when work uses the dedicated Connection Pooling surface, entry 008)
+pool-owned Observation iterators or a `pool.observe` / `Connection.observe` API (Observation stays identifier-bound even when work uses the dedicated Connection Pooling surface, entry 008)
 a guarantee that DuckDB rebinds an already-prepared handle after catalog changes
 ```
 
@@ -1687,7 +1708,7 @@ Preserve these user-facing angles:
 1. `QueryObservation` models the latest successful query state, not a mutation event log;
 2. every iterator gets an independent private Connection/runtime while the observation value stays reusable;
 3. native READ ONLY execution is the safety boundary for reactive queries;
-4. same-Database invalidation integrates ordinary execution, transaction finalization, and Appender visibility without UI-framework coupling;
+4. same-identifier canonical-runtime invalidation integrates ordinary execution, transaction finalization, and Appender visibility without UI-framework coupling;
 5. transactions publish at definitive COMMIT/ROLLBACK boundaries rather than leaking uncommitted state;
 6. external file/process changes are explicitly outside the contract instead of being vaguely implied;
 7. conservative invalidation prefers an extra refresh over a missed state change.
@@ -1701,9 +1722,9 @@ Trigger for publication: when the maintainer chooses a channel and completes its
 ### Start with one scope
 
 ```swift
-let database = try Database()
-let pool = try database.pool(maximumConnections: 4)
-let users = Path.Table("users")
+let database = DatabaseIdentifier.memory()
+let pool = try await database.pool(maximumConnections: 4)
+let users = DB.Table("users")
 
 let rows = try await pool.connection { connection in
     try await SQL
@@ -1717,7 +1738,7 @@ The caller receives a `QueryResult` whose values are Swift-owned. The leased Con
 
 ### Why a pool exists
 
-An embedded application can have several independent units of database work: a request reading a dashboard, a background import, and a command updating one row. A single Connection serializes its native work. Creating an unbounded new Connection for every unit of work gives the application no capacity limit. `Database.pool(maximumConnections:)` offers a bounded, lazy set of Connections with one explicit scope per checkout. It opens them on demand and keeps reuse behind the pool. The count must be positive.
+An embedded application can have several independent units of database work: a request reading a dashboard, a background import, and a command updating one row. A single Connection serializes its native work. Creating an unbounded new Connection for every unit of work gives the application no capacity limit. `DatabaseIdentifier.pool(maximumConnections:)` resolves the canonical runtime and offers a bounded, lazy set of Connections with one explicit scope per checkout. It opens them on demand and keeps reuse behind the pool. The count must be positive.
 
 The bound concerns live or reserved Connections, not an automatic limit on task creation. When every slot is occupied, checkout waits in FIFO order. Cancellation of a queued checkout removes that request; it does not leak a slot. A body should release its lease promptly rather than waiting on work that needs another lease of the same pool.
 
@@ -1734,7 +1755,7 @@ let count = try await pool.connection { connection in
 
 This closure is the validity boundary. Await any child work that uses the Connection before returning. A reference kept beyond the scope cannot be used as a fresh pooled Connection, even if a later checkout happens to reuse the same actor. Statements, Transactions, and Appenders created under a lease also remain bound to their originating Connection and lease lifetime. A stale pooled operation fails with `.poolLeaseExpired`.
 
-Reentering `pool.connection` from within an active lease of the same pool fails with `.poolReentrantCheckout`. Independent work that needs another Connection should be structured outside that live lease. Separate `Database` instances have separate pool ownership; a pool belongs to the exact `Database` that created it.
+Reentering `pool.connection` from within an active lease of the same pool fails with `.poolReentrantCheckout`. Independent work that needs another Connection should be structured outside that live lease. A pool belongs to the canonical runtime resolved by the identifier that created it; a different identifier identity owns a different logical database.
 
 ### Put a transaction inside the lease
 
@@ -1752,7 +1773,7 @@ try await pool.transaction { transaction in
 
 Flat transactions are available through a leased Connection when a lexical managed body is unsuitable, but the caller must explicitly finish them before leaving the pool closure. An unfinalized flat transaction is rolled back during return and a successful body receives `.poolTransactionNotFinalized`; cleanup failure may produce `TransactionRollbackError`.
 
-### Observation stays with the Database
+### Observation stays with the DatabaseIdentifier
 
 ```swift
 let observation = try database.observe(
@@ -1770,7 +1791,7 @@ try await pool.connection { connection in
 }
 ```
 
-An observation iterator has its own private refresh Connection; it does not hold a pool lease. Mutations made through a Connection from the same `Database` publish through the existing Observation coordinator. Managed transaction finalization and Appender native visibility keep their existing publication boundaries. Returning a lease, retiring an unusable Connection, or opening its replacement is not itself a mutation and produces no synthetic observation signal. `QueryObservation` remains a latest-state read-only query sequence, not a per-write event log or an external-file watcher. There is no `pool.observe` or `Connection.observe` method.
+An observation iterator has its own private refresh Connection; it does not hold a pool lease. Mutations made through a Connection from an equivalent `DatabaseIdentifier` publish through the same canonical Observation coordinator. Managed transaction finalization and Appender native visibility keep their existing publication boundaries. Returning a lease, retiring an unusable Connection, or opening its replacement is not itself a mutation and produces no synthetic observation signal. `QueryObservation` remains a latest-state read-only query sequence, not a per-write event log or an external-file watcher. There is no `pool.observe` or `Connection.observe` method.
 
 ### Close intentionally
 
@@ -1789,5 +1810,5 @@ Pool capacity is not a claim that all DuckDB work runs in parallel: each individ
 1. One bounded pool can serve independent app requests while keeping Connection lifetime explicit.
 2. Scoped leases keep stale resources from silently participating in later work.
 3. The transaction convenience reuses managed Connection semantics instead of adding a parallel commit model.
-4. Database-bound Observation continues across lease return and reuse without claiming event delivery.
+4. Identifier-bound canonical-runtime Observation continues across lease return and reuse without claiming event delivery.
 5. Graceful shutdown has an explicit stop-and-drain boundary.

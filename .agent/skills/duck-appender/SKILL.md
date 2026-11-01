@@ -31,7 +31,7 @@ Prefer a reusable `Statement` when you need a repeated SQL shape such as INSERT/
 import Foundation
 import Duck
 
-let users = Path.Table("users")
+let users = DB.Table("users")
 
 try await connection.appender(to: users) { appender in
     try await appender.append(
@@ -57,7 +57,7 @@ Without `columns:`, each `append(...)` call supplies one **complete table row** 
 For sparse imports, choose the column list at scope creation and supply one value for each selected column in that exact order:
 
 ```swift
-let events = Path.Table("events")
+let events = DB.Table("events")
 
 try await connection.appender(to: events, columns: ["kind", "id"]) { appender in
     try await appender.append("opened", Int32(1))
@@ -68,30 +68,26 @@ try await connection.appender(to: events, columns: ["kind", "id"]) { appender in
 
 `kind` receives the first value and `id` the second even if the table declares them in another order; the example assumes `kind` is nullable. An omitted table column receives its DuckDB `DEFAULT`, or `NULL` when it has no default. A selected `nil` is explicit SQL `NULL`; omission is how a column's default participates. The selected list is fixed for the scope, and each call remains a complete row relative to that list. There is no per-cell `DEFAULT` marker or mid-scope column change.
 
-The `columns: [String]` overload exists for each of `Path.Table`, `Path.SchemaWithTable`, and `Path.CatalogWithSchemaAndTable` on both `Connection` and `DuckTransaction` (six forms). For example, use `transaction.appender(to: events, columns: ["kind", "id"])` inside `connection.transaction` when the selected rows must roll back with the outer transaction.
+The `columns: [String]` overload exists for both `DB.Table` and `DB.Schema.Table` on `Connection` and `DuckTransaction`. For example, use `transaction.appender(to: events, columns: ["kind", "id"])` inside `connection.transaction` when the selected rows must roll back with the outer transaction.
 
 The list must be nonempty. Empty, duplicate, unknown, or generated names fail creation before the body runs with an Appender creation error; supply plain names, including any embedded quote character, rather than SQL-quoted identifiers. Selection setup failure releases the scope. A wrong selected-row width, unsupported Swift value, or deterministic whole-row preflight failure is recoverable before native mutation while the scope remains live. Native append, end-row, or auto-flush failure is terminal.
 
 The scoped target may be:
 
 ```swift
-Path.Table("users")
-Path.SchemaWithTable(schema: "analytics", table: "events")
-Path.CatalogWithSchemaAndTable(
-    catalog: "your_catalog",
-    schema: "analytics",
-    table: "events"
-)
+DB.Table("users")
+DB.Schema("analytics").table("events")
+DB.Catalog("your_catalog").schema("analytics").table("events")
 ```
 
-Use the target form that matches the existing table you intend to append to.
+Use `DB.Table` for an unqualified table. Schema- and catalog-qualified targets use `DB.Schema.Table`; catalog qualification is carried by the schema value.
 
-Both ordinary and transaction Appender modes support all three target forms: `Path.Table`, `Path.SchemaWithTable`, and `Path.CatalogWithSchemaAndTable`.
+Both ordinary and transaction Appender modes support `DB.Table` and `DB.Schema.Table`.
 
 For explicit transaction participation:
 
 ```swift
-let events = Path.Table("events")
+let events = DB.Table("events")
 
 try await connection.transaction { transaction in
     try await transaction.appender(to: events) { appender in
@@ -148,7 +144,7 @@ Treat the `Appender` as scoped authority supplied by either `Connection.appender
 
 The public `Appender` is `Sendable`, so structured child tasks may capture it while the scope remains live and the parent awaits them before returning.
 
-When using a pooled Connection, finish the Appender scope within the exact live `pool.connection` lease; `pool.transaction` offers the transaction form. A stale pooled capability fails with `.poolLeaseExpired`, and a fail-closed Connection is retired under the pool's existing policy. Appender mutations routed through the same `Database` participate in its existing latest-state `QueryObservation` invalidation: ordinary auto-flushed prefixes may become visible before scope end, while transaction impact publishes at definitive outer finalization. Observation is not a per-row event stream or cross-process watcher.
+When using a pooled Connection, finish the Appender scope within the exact live `pool.connection` lease; `pool.transaction` offers the transaction form. A stale pooled capability fails with `.poolLeaseExpired`, and a fail-closed Connection is retired under the pool's existing policy. Appender mutations routed through the same canonical `DatabaseIdentifier` runtime participate in its existing latest-state `QueryObservation` invalidation: ordinary auto-flushed prefixes may become visible before scope end, while transaction impact publishes at definitive outer finalization. Observation is not a per-row event stream or cross-process watcher.
 
 ## Concurrency rules
 

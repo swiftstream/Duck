@@ -21,7 +21,7 @@ In both forms, work that belongs to the transaction uses the supplied `DuckTrans
 ## 1. Prefer the managed closure for one lexical lifetime
 
 ```swift
-let users = Path.Table("users")
+let users = DB.Table("users")
 
 let result = try await connection.transaction { transaction in
     try await SQL
@@ -198,7 +198,7 @@ Switch to `duck-reusable-statements` when preparation, binding layout, or reuse 
 Use `transaction.appender(to:)` when complete-row ingestion must commit or roll back with the surrounding transaction:
 
 ```swift
-let events = Path.Table("events")
+let events = DB.Table("events")
 
 try await transaction.appender(to: events) { appender in
     try await appender.append(Int32(1), "opened", Data())
@@ -216,7 +216,7 @@ Switch to `duck-appender` when row validation, native Appender failure, or ordin
 
 ## 13. Transaction Observation publication occurs at finalization
 
-When the same `Database` has active `QueryObservation` iterators, transaction mutations accumulate Observation impact while the transaction is live.
+When the same canonical `DatabaseIdentifier` runtime has active `QueryObservation` iterators, transaction mutations accumulate Observation impact while the transaction is live.
 
 Normal transaction operations do not publish ordinary invalidations individually.
 
@@ -228,7 +228,7 @@ Definitive terminal behavior is:
 
 This applies to managed automatic finalization, explicit managed finalizers, flat `commit()` / `rollback()`, and Swift 6.4 `rollbackIfNeeded()`.
 
-Use `duck-observation` when latest-state delivery, dependency matching, or same-Database observation boundaries are the main task.
+Use `duck-observation` when latest-state delivery, dependency matching, or same-identifier observation boundaries are the main task.
 
 ## 14. Do not issue transaction-control SQL manually
 

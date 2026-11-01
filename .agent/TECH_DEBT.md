@@ -13,13 +13,15 @@ Entries in this category must be supported by current repository/compiler/runtim
 
 A debt entry is not implementation authorization. Promote it into executable work through normal planning/review before changing production code.
 
+**SQL 3.0.0 reassessment (2026-10-17):** the published SQL 3.0.0 production source was rechecked for the four Foundation C4 typed-grammar gaps below. It still has no dedicated typed DuckDB session-setting statement for `SET threads = 1`, no typed arbitrary-query `EXPLAIN` wrapper, no typed DuckDB `PRAGMA` statement surface, and no typed `BEGIN TRANSACTION READ ONLY` mode. Those four gaps therefore remain OPEN; only their version baseline changes from the prior SQL 2.x / 2.1 line to the current SQL 3.x line.
+
 ### Deterministic active-pending cancellation integration coverage — CLOSED
 
 **Status:** CLOSED (2026-09-28). Maintainer authorized durable closure after CLEAN Sol audit.
 
 **Closed by:** test-only `PendingExecutionGate` C ABI (volatile DuckDB scalar callback + condition-variable gate) and `Tests/DuckTests/ActivePendingCancellationTests.swift`. The harness synchronizes on actual native pending entry without sleeps, timing guesses, or production test hooks: `threads = 1` / `external_threads = 1` are asserted; callback count stays zero through `EXPLAIN`, `duckdb_prepare`, and `duckdb_pending_prepared`; the callback enters once only during public `Connection.query`; cancellation is requested only after entry and surfaces `CancellationError`; execution callback count is exactly one; and the same `Connection` remains reusable. Provenance is attributed to `duckdb_pending_execute_task` on the caller with zero worker threads.
 
-**Current SQL construction boundary:** the settings-inspection `SELECT` in `ActivePendingCancellationTests.swift` uses structural SQL 2.x composition with `Fn.build` for `current_setting` and typed casts; no raw SELECT remains for that inspection. Two separate OPEN typed-construction gaps remain below for the fixed `SET threads = 1` statement and the fixed `EXPLAIN` wrapper.
+**Current SQL construction boundary:** the settings-inspection `SELECT` in `ActivePendingCancellationTests.swift` uses structural SQL 3.x composition with `Fn.build` for `current_setting` and typed casts; no raw SELECT remains for that inspection. Two separate OPEN typed-construction gaps remain below for the fixed `SET threads = 1` statement and the fixed `EXPLAIN` wrapper.
 
 ### Post-COMMIT scheduling Connection recovery
 
@@ -39,69 +41,69 @@ A debt entry is not implementation authorization. Promote it into executable wor
 
 Do not weaken the reviewed fail-close policy merely to preserve Connection reuse.
 
-### Foundation C4 — SQL 2.x session SET statement grammar
+### Foundation C4 — SQL 3.x session SET statement grammar
 
 **Status:** OPEN typed-construction gap identified by Foundation Modernization C4.
 
 **Callsite family:** `Tests/DuckTests/ActivePendingCancellationTests.swift` uses the fixed test-only statement `SET threads = 1` to force deterministic single-thread scheduling for the active-pending cancellation harness.
 
-**Missing SQL typed construct:** the pinned SQL 2.1 surface has generic `SET` composition used by DML/DDL continuations, but no dedicated session-setting statement API that owns a setting identifier plus a grammar-valid literal value for DuckDB `SET <name> = <value>`. Ordinary Swift scalar SQLable values are prepared bindings, so generic composition does not prove the exact session-setting grammar required here.
+**Missing SQL typed construct:** the reviewed SQL 3.0.0 surface has generic `SET` composition used by DML/DDL continuations, but no dedicated session-setting statement API that owns a setting identifier plus a grammar-valid literal value for DuckDB `SET <name> = <value>`. Ordinary Swift scalar SQLable values are prepared bindings, so generic composition does not prove the exact session-setting grammar required here.
 
 **Safety boundary:** the retained raw statement is a fixed repository-owned literal with no user, external, or runtime interpolation. It is not application data construction and must remain limited to the exact setting statement.
 
-**Why typed replacement is currently impossible:** C4 inspection of the pinned SQL 2.1 source/tests found no session-setting builder or equivalent exact structural surface. Reconstructing the statement manually from low-level/custom parts would merely reimplement raw grammar and would not satisfy the Foundation requirement for an existing typed representation.
+**Why typed replacement is currently impossible:** C4 inspection of the reviewed SQL 3.0.0 source/tests found no session-setting builder or equivalent exact structural surface. Reconstructing the statement manually from low-level/custom parts would merely reimplement raw grammar and would not satisfy the Foundation requirement for an existing typed representation.
 
-**Closure condition:** replace the raw statement when a supported SQL 2.x release exposes an exact typed session-setting API whose Duck rendering is `SET threads = 1` without unsafe interpolation or an invalid prepared bind.
+**Closure condition:** replace the raw statement when a supported SQL 3.x release exposes an exact typed session-setting API whose Duck rendering is `SET threads = 1` without unsafe interpolation or an invalid prepared bind.
 
-**Reassessment:** re-check this family on every relevant SQL 2.x update that adds DuckDB session/configuration statement support.
+**Reassessment:** re-check this family on every relevant SQL 3.x update that adds DuckDB session/configuration statement support.
 
-### Foundation C4 — SQL 2.x EXPLAIN statement wrapper
+### Foundation C4 — SQL 3.x EXPLAIN statement wrapper
 
 **Status:** OPEN typed-construction gap identified by Foundation Modernization C4.
 
 **Callsite family:** `Tests/DuckTests/ActivePendingCancellationTests.swift` wraps the already-structural gated query with the fixed `EXPLAIN` statement prefix to prove that explain/preparation does not execute the volatile pending gate.
 
-**Missing SQL typed construct:** the pinned SQL 2.1 source exposes no `EXPLAIN` statement wrapper that accepts an arbitrary structural child query while preserving its preparation semantics.
+**Missing SQL typed construct:** the reviewed SQL 3.0.0 source exposes no `EXPLAIN` statement wrapper that accepts an arbitrary structural child query while preserving its preparation semantics.
 
 **Safety boundary:** only the fixed `EXPLAIN` grammar prefix remains raw; the child query is structural SQL. No user or external input enters the raw fragment.
 
-**Why typed replacement is currently impossible:** C4 inspection found no dedicated or equivalent exact `EXPLAIN` surface in the pinned SQL 2.1 source/tests. Replacing the single keyword with a low-level custom operator would not add type ownership and would only disguise the same grammar escape hatch.
+**Why typed replacement is currently impossible:** C4 inspection found no dedicated or equivalent exact `EXPLAIN` surface in the reviewed SQL 3.0.0 source/tests. Replacing the single keyword with a low-level custom operator would not add type ownership and would only disguise the same grammar escape hatch.
 
-**Closure condition:** migrate when SQL 2.x provides a typed `EXPLAIN` wrapper that composes an existing SQLable query without changing its bind/execution contract.
+**Closure condition:** migrate when SQL 3.x provides a typed `EXPLAIN` wrapper that composes an existing SQLable query without changing its bind/execution contract.
 
-**Reassessment:** re-check on relevant SQL 2.x releases that add statement wrappers or DuckDB EXPLAIN support.
+**Reassessment:** re-check on relevant SQL 3.x releases that add statement wrappers or DuckDB EXPLAIN support.
 
-### Foundation C4 — SQL 2.x PRAGMA statement grammar
+### Foundation C4 — SQL 3.x PRAGMA statement grammar
 
 **Status:** OPEN typed-construction gap identified by Foundation Modernization C4.
 
 **Callsite family:** the current raw escape-hatch example `PRAGMA version` appears in the executable README example, `.agent/skills/duck-query-execution/SKILL.md`, and the current-intent example in `.agent/FUTURE_PUBLICATIONS.md`.
 
-**Missing SQL typed construct:** the pinned SQL 2.1 source/tests expose no typed `PRAGMA` statement surface.
+**Missing SQL typed construct:** the reviewed SQL 3.0.0 source/tests expose no typed `PRAGMA` statement surface.
 
 **Safety boundary:** the retained example is the fixed literal `PRAGMA version`; it contains no user, external, or runtime interpolation. This debt does not authorize arbitrary raw PRAGMA construction elsewhere.
 
-**Why typed replacement is currently impossible:** there is no exact supported SQL 2.x structural representation for this statement. A manually assembled custom keyword/name sequence would remain an untyped grammar reproduction rather than a typed replacement.
+**Why typed replacement is currently impossible:** there is no exact supported SQL 3.x structural representation for this statement. A manually assembled custom keyword/name sequence would remain an untyped grammar reproduction rather than a typed replacement.
 
-**Closure condition:** replace the three synchronized example callsites when SQL 2.x adds a typed DuckDB PRAGMA statement API capable of representing `PRAGMA version`.
+**Closure condition:** replace the three synchronized example callsites when SQL 3.x adds a typed DuckDB PRAGMA statement API capable of representing `PRAGMA version`.
 
-**Reassessment:** re-check this family on every relevant SQL 2.x release that adds PRAGMA or DuckDB administrative statement support.
+**Reassessment:** re-check this family on every relevant SQL 3.x release that adds PRAGMA or DuckDB administrative statement support.
 
-### Foundation C4 — SQL 2.x read-only transaction begin grammar
+### Foundation C4 — SQL 3.x read-only transaction begin grammar
 
 **Status:** OPEN typed-construction gap identified by Foundation Modernization C4.
 
 **Callsite family:** `Sources/Duck/Connection.swift` creates the observation lifecycle begin snapshot with the fixed statement `BEGIN TRANSACTION READ ONLY`.
 
-**Missing SQL typed construct:** SQL 2.1 exposes ordinary transaction atoms such as `SQL.begin`, `SQL.commit`, and `SQL.rollback`, but no exact typed transaction-mode API for `BEGIN TRANSACTION READ ONLY`.
+**Missing SQL typed construct:** the reviewed SQL 3.0.0 surface exposes ordinary transaction atoms such as `SQL.begin`, `SQL.commit`, and `SQL.rollback`, but no exact typed transaction-mode API for `BEGIN TRANSACTION READ ONLY`.
 
 **Safety boundary:** this is a fixed production-owned literal with no interpolation. It exists to enforce the observation read-only transaction contract; callers cannot supply or modify its SQL text.
 
-**Why typed replacement is currently impossible:** C4 inspection found no read-only transaction mode/begin builder in the pinned SQL 2.1 source/tests. Appending ad-hoc custom tokens to `SQL.begin` would merely reproduce unsupported grammar manually and would not be an existing typed representation.
+**Why typed replacement is currently impossible:** C4 inspection found no read-only transaction mode/begin builder in the reviewed SQL 3.0.0 source/tests. Appending ad-hoc custom tokens to `SQL.begin` would merely reproduce unsupported grammar manually and would not be an existing typed representation.
 
-**Closure condition:** replace the fixed raw statement when SQL 2.x provides a typed read-only transaction-begin surface that renders the exact DuckDB grammar and preserves the existing `PreparedQuerySnapshot` split/plain semantics.
+**Closure condition:** replace the fixed raw statement when SQL 3.x provides a typed read-only transaction-begin surface that renders the exact DuckDB grammar and preserves the existing `PreparedQuerySnapshot` split/plain semantics.
 
-**Reassessment:** re-check on every relevant SQL 2.x update that expands transaction-mode support.
+**Reassessment:** re-check on every relevant SQL 3.x update that expands transaction-mode support.
 
 ## Category B — Maintainer-Directed Deferred Capability Debt
 

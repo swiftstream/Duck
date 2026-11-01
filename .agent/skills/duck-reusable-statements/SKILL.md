@@ -11,7 +11,7 @@ Use this skill when one SQL shape should be prepared once and executed repeatedl
 ## 1. Prepare dynamic values with `Statement.Parameters`
 
 ```swift
-let users = Path.Table("users")
+let users = DB.Table("users")
 
 let insertUser = try await connection.prepare { parameters in
     let email = parameters.parameter()

@@ -1,12 +1,12 @@
 ---
 name: duck-observation
-description: Use for Duck QueryObservation latest-state reactive queries, same-Database invalidation, native READ ONLY refresh safety, transaction/Appender publication boundaries, iterator cancellation, and Observation v1 non-goals.
+description: Use for Duck QueryObservation latest-state reactive queries, same-identifier canonical-runtime invalidation, native READ ONLY refresh safety, transaction/Appender publication boundaries, iterator cancellation, and Observation v1 non-goals.
 license: LICENSE.txt
 ---
 
 # Duck Observation / Reactive Queries
 
-Use this skill when application code needs the latest successful result of a read-only SQL query to refresh as mutations flow through the same Duck `Database`.
+Use this skill when application code needs the latest successful result of a read-only SQL query to refresh as mutations flow through the same logical Duck `DatabaseIdentifier`.
 
 `QueryObservation` is deliberately a latest-state `AsyncSequence<QueryResult>`, not an event stream and not a filesystem watcher.
 
@@ -15,7 +15,8 @@ Use this skill when application code needs the latest successful result of a rea
 Prefer the query-centered form when it reads naturally:
 
 ```swift
-let users = Path.Table("users")
+let database = DatabaseIdentifier.memory()
+let users = DB.Table("users")
 
 let observation = try SQL
     .select(users.column("id"), users.column("name"))
@@ -23,7 +24,7 @@ let observation = try SQL
     .observe(on: database)
 ```
 
-The Database-centered form is equivalent:
+The identifier-centered form is equivalent:
 
 ```swift
 let query = SQL
@@ -105,9 +106,9 @@ Refresh execution uses the prepared/bound path. Plain SQL derived from the query
 
 Preserve normal SQL binding safety. Do not reconstruct observation queries as handwritten SQL strings.
 
-## 7. Invalidation belongs to one exact Database instance
+## 7. Invalidation belongs to one canonical identifier runtime
 
-An observation listens only to mutations routed through the same `Database` object that created it.
+An observation listens to mutations routed through the canonical runtime resolved by its `DatabaseIdentifier`. Independently reconstructed equivalent identifiers converge on that same runtime and Observation coordinator.
 
 This includes accepted mutation paths such as:
 - ordinary `Connection.query` / `execute`;
@@ -116,7 +117,7 @@ This includes accepted mutation paths such as:
 - ordinary and Transaction Appender visibility/finalization.
 
 Do not promise observation of changes made through:
-- a different `Database` instance, even if it opens the same file;
+- a different `DatabaseIdentifier` identity;
 - another process;
 - direct external file mutation;
 - a filesystem watcher or polling loop.
@@ -188,7 +189,7 @@ Cancellation remains cooperative around Swift/native boundaries; do not promise 
 
 Use one-shot `query(on:)` / `connection.query(...)` when the caller needs one snapshot and already controls when to refresh.
 
-Use `QueryObservation` when the application wants Duck to refresh the same read-only query in response to same-Database mutation invalidation.
+Use `QueryObservation` when the application wants Duck to refresh the same read-only query in response to same-identifier canonical-runtime mutation invalidation.
 
 Do not introduce an Observation layer merely to avoid explicitly issuing a one-time query.
 
@@ -202,7 +203,7 @@ DuckTransaction.observe
 typed/decoded observation elements
 per-row or per-statement event history
 guaranteed delivery of every intermediate state
-cross-Database-instance invalidation
+cross-identifier invalidation
 cross-process/file mutation watching
 filesystem watchers
 polling/timer correctness
@@ -211,7 +212,7 @@ SwiftUI/UIKit/UIKitUltra coupling
 public observation configuration/options
 manual refresh controls
 a guarantee that DuckDB rebinds an already-prepared handle after catalog changes
-pool-owned Observation iterators or `pool.observe` / `Connection.observe` (use `duck-connection-pooling` for pool work; Observation stays Database-bound)
+pool-owned Observation iterators or `pool.observe` / `Connection.observe` (use `duck-connection-pooling` for pool work; Observation stays identifier-bound)
 ```
 
-Keep Observation v1 UI-neutral, latest-state, same-Database, read-only, and QueryResult-based.
+Keep Observation v1 UI-neutral, latest-state, same-identifier, read-only, and QueryResult-based.
