@@ -17,7 +17,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/SwiftStream/SQL",
-            from: "2.1.0"
+            from: "3.1.0"
         )
     ],
     targets: [

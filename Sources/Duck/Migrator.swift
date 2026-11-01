@@ -1,11 +1,35 @@
+/// Runtime source retained by one migrator.
+private enum MigratorDatabaseSource: Sendable {
+    /// A public logical identifier resolved lazily when migration work begins.
+    case identifier(DatabaseIdentifier)
+    /// An internal exact runtime retained for regression coverage.
+    case database(Database)
+
+    /// Resolves the live runtime used by this migration operation.
+    func resolve() async throws -> Database {
+        switch self {
+        case .identifier(let identifier):
+            try await identifier.resolveDatabase()
+        case .database(let database):
+            database
+        }
+    }
+}
+
 /// An immutable name-snapshotted runner for atomic forward and batch-oriented reverse migrations.
 public struct Migrator: Sendable {
-    private let database: Database
+    private let source: MigratorDatabaseSource
     private let migrations: [RegisteredMigration]
 
-    /// Creates the internal immutable database and migration snapshot used by the public factory.
+    /// Creates the immutable identifier and migration snapshot used by the public factory.
+    init(identifier: DatabaseIdentifier, migrations: [any Migration]) {
+        source = .identifier(identifier)
+        self.migrations = snapshotMigrations(migrations)
+    }
+
+    /// Creates an internal exact-runtime migration snapshot for regression coverage.
     init(database: Database, migrations: [any Migration]) {
-        self.database = database
+        source = .database(database)
         self.migrations = snapshotMigrations(migrations)
     }
 
@@ -115,6 +139,7 @@ public struct Migrator: Sendable {
         try Task.checkCancellation()
         try validateMigrations(migrations)
 
+        let database = try await source.resolve()
         let coordinator = MigrationRunCoordinator.shared
         try await coordinator.acquire(for: database)
 

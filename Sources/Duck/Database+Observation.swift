@@ -1,21 +1,32 @@
 import SQL
 
-extension Database {
+extension DatabaseIdentifier {
     /// Captures a reusable latest successful state observation synchronously.
     ///
-    /// The returned observation belongs to this exact `Database` instance. Its
-    /// iterators reexecute prepared and bound SQL inside native READ ONLY
-    /// transactions, while the plain SQL snapshot is used only for dependency
-    /// analysis and is never executed. Only mutations routed through this same
-    /// `Database` instance participate in invalidation; changes made through another
-    /// `Database` instance, another process, or directly to the database file are
-    /// outside this observation contract.
+    /// Equivalent identifiers resolve one canonical runtime, so mutations routed
+    /// through any equivalent identifier or one of its Connections participate in
+    /// invalidation. Changes made by another process or directly to the database
+    /// file remain outside this observation contract.
     public func observe(_ query: any SQLable) throws -> QueryObservation {
+        QueryObservation(identifier: self, snapshot: try PreparedQuerySnapshot(query))
+    }
+
+    /// Builds a reusable latest-state observation through this identifier.
+    public func observe(
+        @SQLBuilder _ build: () -> SQLBuilder.Root
+    ) throws -> QueryObservation {
+        try observe(build())
+    }
+}
+
+extension Database {
+    /// Captures an internal exact-runtime observation for regression coverage.
+    func observe(_ query: any SQLable) throws -> QueryObservation {
         QueryObservation(database: self, snapshot: try PreparedQuerySnapshot(query))
     }
 
-    /// Builds a reusable latest-state observation through the existing observation path.
-    public func observe(
+    /// Builds an internal exact-runtime observation for regression coverage.
+    func observe(
         @SQLBuilder _ build: () -> SQLBuilder.Root
     ) throws -> QueryObservation {
         try observe(build())

@@ -1,11 +1,16 @@
 import Foundation
 
+/// Stable identity used to serialize migration runs for one logical database.
 enum MigrationCoordinationKey: Hashable, Sendable {
-    case memory(UUID)
+    /// One named in-memory database identity.
+    case memoryName(String)
+    /// One canonical file-backed database path.
     case file(String)
 }
 
+/// Coordinates mutually exclusive migration runs for logical databases.
 actor MigrationRunCoordinator {
+    /// Process-wide migration-run coordinator.
     static let shared = MigrationRunCoordinator()
 
     private struct FileOwnerReference {
@@ -15,6 +20,7 @@ actor MigrationRunCoordinator {
     private var activeKeys: Set<MigrationCoordinationKey> = []
     private var fileOwners: [String: FileOwnerReference] = [:]
 
+    /// Acquires migration-run authority for one live database runtime.
     func acquire(for database: Database) throws {
         let key = database.migrationCoordinationKey
 
@@ -35,6 +41,7 @@ actor MigrationRunCoordinator {
         activeKeys.insert(key)
     }
 
+    /// Releases migration-run authority for one live database runtime.
     func release(for database: Database) {
         activeKeys.remove(database.migrationCoordinationKey)
     }

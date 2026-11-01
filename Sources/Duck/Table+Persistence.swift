@@ -107,7 +107,7 @@ extension Table {
         let query = SQL
             .insertInto(
                 Self.table,
-                fields: fields.map { Path.Column($0.name) }
+                fields: fields.map { DB.Column($0.name) }
             )
             .values
             .values(
@@ -149,13 +149,47 @@ extension Table {
         let query = SQL
             .update(Self.table)
             .set[items: changed.map { field in
-                Path.Column(field.name) == BoundModelValue(value: field.value)
+                DB.Column(field.name) == BoundModelValue(value: field.value)
             }]
             .where(
-                Path.Column(keyName) == BoundModelValue(value: keyField.value)
+                DB.Column(keyName) == BoundModelValue(value: keyField.value)
             )
 
         return returning ? query.returning.asterisk : query
+    }
+}
+
+// MARK: - Public DatabaseIdentifier-backed persistence conveniences
+
+extension Table {
+    /// Inserts this model through a fresh Connection for the supplied database identifier.
+    public func insert(on database: DatabaseIdentifier) async throws -> Self {
+        let connection = try await database.connect()
+        return try await insert(on: connection)
+    }
+
+    /// Inserts this model without decoding a row through the supplied database identifier.
+    public func insertNonReturning(on database: DatabaseIdentifier) async throws {
+        let connection = try await database.connect()
+        try await insertNonReturning(on: connection)
+    }
+
+    /// Updates changed non-key fields through the supplied database identifier.
+    public func update<C: ColumnRepresentable>(
+        on keyColumn: KeyPath<Self, C>,
+        on database: DatabaseIdentifier
+    ) async throws -> Self {
+        let connection = try await database.connect()
+        return try await update(on: keyColumn, on: connection)
+    }
+
+    /// Updates changed non-key fields without decoding a row through the supplied database identifier.
+    public func updateNonReturning<C: ColumnRepresentable>(
+        on keyColumn: KeyPath<Self, C>,
+        on database: DatabaseIdentifier
+    ) async throws {
+        let connection = try await database.connect()
+        try await updateNonReturning(on: keyColumn, on: connection)
     }
 }
 
@@ -276,5 +310,164 @@ extension Table {
             return
         }
         _ = try await transaction.execute(query)
+    }
+}
+
+// MARK: - Batch insert preparation
+
+/// Resolved Appender target for a batch element type, mirroring SQL's
+/// schema/catalog-aware `Decodable.table` resolution.
+private enum TableBatchTarget {
+    case plain(DB.Table)
+    case qualified(DB.Schema.Table)
+}
+
+/// One contiguous run of prepared rows that share an ordered column signature.
+///
+/// A run maps to exactly one selected-column Appender scope, so columns omitted by every
+/// row of that run stay DEFAULT-eligible while an explicitly assigned `Optional.none`
+/// remains SQL NULL. `rows` preserves the caller's input order.
+struct TableBatchRun: Sendable {
+    /// Ordered selected-column signature shared by every row of this run.
+    let columns: [String]
+    /// Exact prepared bindings per model row, in the caller's input order.
+    let rows: [[Value]]
+}
+
+// MARK: - Public batch insert
+
+extension Collection where Element: Table {
+    /// Inserts every model atomically through a fresh Connection for the supplied identifier.
+    public func batchInsert(on database: DatabaseIdentifier) async throws {
+        let connection = try await database.connect()
+        try await batchInsert(on: connection)
+    }
+
+    /// Inserts every model of this homogeneous collection atomically through a managed
+    /// transaction owned by Duck.
+    ///
+    /// All rows are prepared before the first native mutation and then streamed through
+    /// selected-column DuckDB Appender scopes inside `connection.transaction { ... }`, so
+    /// either the whole batch commits or none of it does; no row is retained after a later
+    /// failure. Per row, an uninitialized column is omitted so its database DEFAULT stays
+    /// eligible, an explicitly assigned `Optional.none` binds SQL NULL, and an assigned
+    /// value binds its exact representation. Rows may differ in which columns they
+    /// initialize, and input order is preserved.
+    ///
+    /// An empty collection is a successful no-op that requires no table, opens no Appender
+    /// and starts no transaction. A row with zero initialized columns throws
+    /// `DatabaseError.invalidResult` before any mutation. Observation invalidation is
+    /// published once by the managed transaction at commit. `Element` need not be
+    /// `Sendable`.
+    public func batchInsert(on connection: Connection) async throws {
+        let runs = try preparedBatchRuns()
+        guard !runs.isEmpty else {
+            return
+        }
+        try await connection.transaction { transaction in
+            try await Self.executeBatchRuns(runs, on: transaction)
+        }
+    }
+
+    /// Inserts every model of this homogeneous collection through the caller's existing
+    /// transaction.
+    ///
+    /// Uses the same selected-column Appender path and the same per-row DEFAULT versus
+    /// explicit NULL semantics as the `Connection` overload, but begins no transaction of
+    /// its own: the caller owns begin/commit/rollback, every Appender scope belongs to that
+    /// transaction, and any failure makes it follow its existing rollback-only truth so
+    /// already-appended runs are rolled back with it. Input order is preserved and an
+    /// empty collection is a successful no-op that opens no Appender. `Element` need not be
+    /// `Sendable`.
+    public func batchInsert(on transaction: DuckTransaction) async throws {
+        let runs = try preparedBatchRuns()
+        guard !runs.isEmpty else {
+            return
+        }
+        try await Self.executeBatchRuns(runs, on: transaction)
+    }
+
+    /// Prepares every row into contiguous signature runs without touching the database.
+    ///
+    /// Reuses single-row `persistenceFields()` extraction. Merging compares only the
+    /// immediately preceding run, so a signature that reappears later starts a new run and
+    /// input execution order is never permuted.
+    private func preparedBatchRuns() throws -> [TableBatchRun] {
+        var runs: [TableBatchRun] = []
+        var columns: [String] = []
+        var rows: [[Value]] = []
+
+        for element in self {
+            let fields = try element.persistenceFields()
+            guard !fields.isEmpty else {
+                throw DatabaseError.invalidResult(
+                    "INSERT has no initialized fields for model \(String(describing: Element.self)) table \(Element.tableName)"
+                )
+            }
+
+            let signature = fields.map(\.name)
+            if signature != columns {
+                if !rows.isEmpty {
+                    runs.append(TableBatchRun(columns: columns, rows: rows))
+                }
+                columns = signature
+                rows = []
+            }
+            rows.append(fields.map(\.value))
+        }
+
+        if !rows.isEmpty {
+            runs.append(TableBatchRun(columns: columns, rows: rows))
+        }
+        return runs
+    }
+
+    /// Resolves the element type's Appender target the same way SQL resolves `Self.table`.
+    private static func batchTarget() -> TableBatchTarget {
+        if let catalogable = Element.self as? Catalogable.Type {
+            return .qualified(
+                catalogable.schema
+                    .inCatalog(catalogable.catalog)
+                    .table(Element.tableName)
+            )
+        }
+        if let schemable = Element.self as? Schemable.Type {
+            return .qualified(schemable.schema.table(Element.tableName))
+        }
+        return .plain(DB.Table(Element.tableName))
+    }
+
+    /// Appends each run through its own selected-column Transaction Appender, sequentially
+    /// in input order.
+    ///
+    /// `static` so no non-`Sendable` `Collection` self stays alive across suspension; only
+    /// `TableBatchRun` data and the element metatype are used here.
+    private static func executeBatchRuns(
+        _ runs: [TableBatchRun],
+        on transaction: DuckTransaction
+    ) async throws {
+        let target = batchTarget()
+        for run in runs {
+            switch target {
+            case .plain(let table):
+                try await transaction.appender(to: table, columns: run.columns) { appender in
+                    try await appendPrepared(run, through: appender)
+                }
+            case .qualified(let table):
+                try await transaction.appender(to: table, columns: run.columns) { appender in
+                    try await appendPrepared(run, through: appender)
+                }
+            }
+        }
+    }
+
+    /// Streams one run's prepared bindings through an open Appender in row order.
+    private static func appendPrepared(
+        _ run: TableBatchRun,
+        through appender: Appender
+    ) async throws {
+        for row in run.rows {
+            try await appender.appendPreparedRow(row)
+        }
     }
 }

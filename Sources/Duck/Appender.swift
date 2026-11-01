@@ -92,12 +92,71 @@ public final class Appender: Sendable {
         let bindings = try values.map { try normalizeBinding($0 as Any) }
         try await connection.appendAppenderRow(id, bindings: bindings)
     }
+
+    /// Appends one row of already-normalized bindings prepared by typed `Table` batch persistence,
+    /// which builds exact `Value` representations and must not re-run heterogeneous `normalizeBinding`.
+    ///
+    /// Cancellation is observed only by the actor-side append, which checks Appender state and stored
+    /// terminal failure first; a caller-side check here would preempt that precedence.
+    func appendPreparedRow(_ bindings: [Value]) async throws {
+        let retainedSelf = self
+        defer { withExtendedLifetime(retainedSelf) {} }
+
+        guard bindings.count == expectedArgumentCount else {
+            throw DatabaseError.appenderArgumentCount(
+                expected: expectedArgumentCount,
+                actual: bindings.count
+            )
+        }
+
+        try await connection.appendAppenderRow(id, bindings: bindings)
+    }
+}
+
+extension DatabaseIdentifier {
+    /// Creates a scoped Appender on a fresh Connection using the selected column order.
+    public nonisolated(nonsending) func appender<Result>(
+        to table: DB.Table,
+        columns: [String],
+        _ body: (Appender) async throws -> Result
+    ) async throws -> Result {
+        let connection = try await connect()
+        return try await connection.appender(to: table, columns: columns, body)
+    }
+
+    /// Creates a scoped Appender on a fresh Connection for a qualified table using the selected column order.
+    public nonisolated(nonsending) func appender<Result>(
+        to table: DB.Schema.Table,
+        columns: [String],
+        _ body: (Appender) async throws -> Result
+    ) async throws -> Result {
+        let connection = try await connect()
+        return try await connection.appender(to: table, columns: columns, body)
+    }
+
+    /// Creates a scoped Appender on a fresh Connection for one table.
+    public nonisolated(nonsending) func appender<Result>(
+        to table: DB.Table,
+        _ body: (Appender) async throws -> Result
+    ) async throws -> Result {
+        let connection = try await connect()
+        return try await connection.appender(to: table, body)
+    }
+
+    /// Creates a scoped Appender on a fresh Connection for one qualified table.
+    public nonisolated(nonsending) func appender<Result>(
+        to table: DB.Schema.Table,
+        _ body: (Appender) async throws -> Result
+    ) async throws -> Result {
+        let connection = try await connect()
+        return try await connection.appender(to: table, body)
+    }
 }
 
 extension Connection {
     /// Creates a scoped Appender whose rows follow the selected column order; omitted columns use DEFAULT or NULL.
     public nonisolated(nonsending) func appender<Result>(
-        to table: Path.Table,
+        to table: DB.Table,
         columns: [String],
         _ body: (Appender) async throws -> Result
     ) async throws -> Result {
@@ -108,30 +167,17 @@ extension Connection {
         )
     }
 
-    /// Creates a scoped Appender for a schema-qualified table whose rows follow the selected column order.
+    /// Creates a scoped Appender for a schema- or catalog-qualified table whose rows follow the selected column order.
     public nonisolated(nonsending) func appender<Result>(
-        to table: Path.SchemaWithTable,
-        columns: [String],
-        _ body: (Appender) async throws -> Result
-    ) async throws -> Result {
-        try await withAppender(
-            target: AppenderTarget(catalog: nil, schema: table.schema, table: table.table),
-            selectedColumns: columns,
-            body
-        )
-    }
-
-    /// Creates a scoped Appender for a catalog-qualified table whose rows follow the selected column order.
-    public nonisolated(nonsending) func appender<Result>(
-        to table: Path.CatalogWithSchemaAndTable,
+        to table: DB.Schema.Table,
         columns: [String],
         _ body: (Appender) async throws -> Result
     ) async throws -> Result {
         try await withAppender(
             target: AppenderTarget(
-                catalog: table.catalog,
-                schema: table.schema,
-                table: table.table
+                catalog: table.schema.catalog?.name,
+                schema: table.schema.name,
+                table: table.name
             ),
             selectedColumns: columns,
             body
@@ -139,7 +185,7 @@ extension Connection {
     }
 
     public nonisolated(nonsending) func appender<Result>(
-        to table: Path.Table,
+        to table: DB.Table,
         _ body: (Appender) async throws -> Result
     ) async throws -> Result {
         try await withAppender(
@@ -149,24 +195,14 @@ extension Connection {
     }
 
     public nonisolated(nonsending) func appender<Result>(
-        to table: Path.SchemaWithTable,
-        _ body: (Appender) async throws -> Result
-    ) async throws -> Result {
-        try await withAppender(
-            target: AppenderTarget(catalog: nil, schema: table.schema, table: table.table),
-            body
-        )
-    }
-
-    public nonisolated(nonsending) func appender<Result>(
-        to table: Path.CatalogWithSchemaAndTable,
+        to table: DB.Schema.Table,
         _ body: (Appender) async throws -> Result
     ) async throws -> Result {
         try await withAppender(
             target: AppenderTarget(
-                catalog: table.catalog,
-                schema: table.schema,
-                table: table.table
+                catalog: table.schema.catalog?.name,
+                schema: table.schema.name,
+                table: table.name
             ),
             body
         )
@@ -223,7 +259,7 @@ extension Connection {
 extension DuckTransaction {
     /// Creates a scoped Transaction Appender whose rows follow the selected column order; omitted columns use DEFAULT or NULL.
     public nonisolated(nonsending) func appender<Result>(
-        to table: Path.Table,
+        to table: DB.Table,
         columns: [String],
         _ body: (Appender) async throws -> Result
     ) async throws -> Result {
@@ -234,30 +270,17 @@ extension DuckTransaction {
         )
     }
 
-    /// Creates a scoped Transaction Appender for a schema-qualified table whose rows follow the selected column order.
+    /// Creates a scoped Transaction Appender for a schema- or catalog-qualified table whose rows follow the selected column order.
     public nonisolated(nonsending) func appender<Result>(
-        to table: Path.SchemaWithTable,
-        columns: [String],
-        _ body: (Appender) async throws -> Result
-    ) async throws -> Result {
-        try await withAppender(
-            target: AppenderTarget(catalog: nil, schema: table.schema, table: table.table),
-            selectedColumns: columns,
-            body
-        )
-    }
-
-    /// Creates a scoped Transaction Appender for a catalog-qualified table whose rows follow the selected column order.
-    public nonisolated(nonsending) func appender<Result>(
-        to table: Path.CatalogWithSchemaAndTable,
+        to table: DB.Schema.Table,
         columns: [String],
         _ body: (Appender) async throws -> Result
     ) async throws -> Result {
         try await withAppender(
             target: AppenderTarget(
-                catalog: table.catalog,
-                schema: table.schema,
-                table: table.table
+                catalog: table.schema.catalog?.name,
+                schema: table.schema.name,
+                table: table.name
             ),
             selectedColumns: columns,
             body
@@ -265,7 +288,7 @@ extension DuckTransaction {
     }
 
     public nonisolated(nonsending) func appender<Result>(
-        to table: Path.Table,
+        to table: DB.Table,
         _ body: (Appender) async throws -> Result
     ) async throws -> Result {
         try await withAppender(
@@ -275,24 +298,14 @@ extension DuckTransaction {
     }
 
     public nonisolated(nonsending) func appender<Result>(
-        to table: Path.SchemaWithTable,
-        _ body: (Appender) async throws -> Result
-    ) async throws -> Result {
-        try await withAppender(
-            target: AppenderTarget(catalog: nil, schema: table.schema, table: table.table),
-            body
-        )
-    }
-
-    public nonisolated(nonsending) func appender<Result>(
-        to table: Path.CatalogWithSchemaAndTable,
+        to table: DB.Schema.Table,
         _ body: (Appender) async throws -> Result
     ) async throws -> Result {
         try await withAppender(
             target: AppenderTarget(
-                catalog: table.catalog,
-                schema: table.schema,
-                table: table.table
+                catalog: table.schema.catalog?.name,
+                schema: table.schema.name,
+                table: table.name
             ),
             body
         )
