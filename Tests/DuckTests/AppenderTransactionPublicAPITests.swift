@@ -6,8 +6,8 @@ import Testing
 struct AppenderTransactionPublicAPITests {
     @Test("Public Transaction Appender commits rows through a table target")
     func publicTransactionAppenderCommitsTableRows() async throws {
-        let connection = try Database().connect()
-        let table = Path.Table("public_transaction_appender_rows")
+        let connection = try await DatabaseIdentifier.memory().connect()
+        let table = DB.Table("public_transaction_appender_rows")
 
         try await connection.execute(
             SQL
@@ -41,8 +41,8 @@ struct AppenderTransactionPublicAPITests {
 
     @Test("Public Transaction Appender commits through a schema-qualified target")
     func publicTransactionAppenderCommitsSchemaTarget() async throws {
-        let connection = try Database().connect()
-        let schema = Path.Schema("public_transaction_schema")
+        let connection = try await DatabaseIdentifier.memory().connect()
+        let schema = DB.Schema("public_transaction_schema")
         let table = schema.table("events")
 
         _ = try await connection.execute(SQL.create.schema[any: schema])
@@ -70,7 +70,7 @@ struct AppenderTransactionPublicAPITests {
 
     @Test("Public Transaction Appender commits through a catalog-qualified target")
     func publicTransactionAppenderCommitsCatalogTarget() async throws {
-        let connection = try Database().connect()
+        let connection = try await DatabaseIdentifier.memory().connect()
         let catalogResult = try await connection.query(
             SQL.select(Fn.build(.custom("current_database"), body: []) => "catalog")
         )
@@ -79,12 +79,8 @@ struct AppenderTransactionPublicAPITests {
         let catalog = try #require(catalogValue.get(String.self))
 
         let schemaName = "public_catalog_schema"
-        let schema = Path.Schema(schemaName)
-        let table = Path.CatalogWithSchemaAndTable(
-            catalog: catalog,
-            schema: schemaName,
-            table: "events"
-        )
+        let schema = DB.Schema(schemaName)
+        let table = DB.Catalog(catalog).schema(schemaName).table("events")
 
         _ = try await connection.execute(SQL.create.schema[any: schema])
         _ = try await connection.execute(

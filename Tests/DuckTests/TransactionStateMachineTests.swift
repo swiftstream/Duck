@@ -485,7 +485,7 @@ func reservationStateSerializesQueuedOperationsFIFO() throws {
 func commitC0ClassificationFailureRollsBackAndReusesConnection() async throws {
     let database = try Database()
     let connection = try database.connect()
-    let table = Path.Table("transaction c0 cleanup items")
+    let table = DB.Table("transaction c0 cleanup items")
 
     try await SQL
         .create

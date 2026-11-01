@@ -28,7 +28,7 @@ struct ObservationBridgeTests {
 
         let createSequenceSQL = SQL
             .create
-            .sequence[any: Path.Identifier("observation_bridge_sequence")]
+            .sequence[any: DB.Object("observation_bridge_sequence")]
             .start(7)
             .prepare(.duck)
             .plain
@@ -57,7 +57,7 @@ struct ObservationBridgeTests {
         defer { duckdb_destroy_result(&ordinaryResult) }
         #expect(duck_internal_result_is_read_only(&ordinaryResult))
 
-        let table = Path.Table("observation_bridge_rows")
+        let table = DB.Table("observation_bridge_rows")
         let createTableSQL = SQL
             .create
             .table[any: table]

@@ -116,7 +116,7 @@ private func makePublicNote(
 
 @Test("Normal-import public API proves insert/update returning and non-returning")
 func normalImportPublicAPICRUD() async throws {
-    let connection = try Database().connect()
+    let connection = try await DatabaseIdentifier.memory().connect()
 
     try await CreateTableBuilder<PublicNote>()
         .checkIfNotExists()

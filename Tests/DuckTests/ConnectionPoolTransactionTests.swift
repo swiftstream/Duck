@@ -56,7 +56,7 @@ private func makePoolTransactionTableName() -> String {
 }
 
 private func createPoolTransactionTable(
-    _ table: Path.Table,
+    _ table: DB.Table,
     on pool: ConnectionPool
 ) async throws {
     _ = try await pool.connection { connection in
@@ -73,7 +73,7 @@ struct ConnectionPoolTransactionTests {
     @Test("TX01 pool.transaction commits through the existing transaction engine")
     func transactionSuccessCommits() async throws {
         let pool = try Database().pool(maximumConnections: 1)
-        let table = Path.Table(makePoolTransactionTableName())
+        let table = DB.Table(makePoolTransactionTableName())
         try await createPoolTransactionTable(table, on: pool)
 
         let result = try await pool.transaction { transaction in
@@ -100,7 +100,7 @@ struct ConnectionPoolTransactionTests {
     @Test("TX02 pool.transaction rolls back and preserves its body error")
     func transactionBodyErrorRollsBack() async throws {
         let pool = try Database().pool(maximumConnections: 1)
-        let table = Path.Table(makePoolTransactionTableName())
+        let table = DB.Table(makePoolTransactionTableName())
         try await createPoolTransactionTable(table, on: pool)
 
         do {
@@ -146,14 +146,14 @@ struct ConnectionPoolTransactionTests {
     func maxOneCheckoutWaitsForTransactionFinalization() async throws {
         let pool = try Database().pool(maximumConnections: 1)
         let tableName = makePoolTransactionTableName()
-        let table = Path.Table(tableName)
+        let table = DB.Table(tableName)
         try await createPoolTransactionTable(table, on: pool)
         let transactionStarted = PoolTransactionSignal()
         let finishTransaction = PoolTransactionSignal()
         let checkoutEntered = PoolTransactionSignal()
 
         let transactionTask = Task {
-            let taskTable = Path.Table(tableName)
+            let taskTable = DB.Table(tableName)
             try await pool.transaction { transaction in
                 try await SQL
                     .insertInto(taskTable, fields: "id")
@@ -169,7 +169,7 @@ struct ConnectionPoolTransactionTests {
         let checkoutTask = Task {
             return try await pool.connection { connection in
                 await checkoutEntered.signal()
-                let taskTable = Path.Table(tableName)
+                let taskTable = DB.Table(tableName)
                 let rows = try await SQL
                     .select(taskTable.column("id"))
                     .from(taskTable)
@@ -226,7 +226,7 @@ struct ConnectionPoolTransactionTests {
     @Test("TX06 flat transaction leak rolls back after a successful Pool body")
     func flatTransactionLeakRollsBackAfterSuccessfulBody() async throws {
         let pool = try Database().pool(maximumConnections: 1)
-        let table = Path.Table(makePoolTransactionTableName())
+        let table = DB.Table(makePoolTransactionTableName())
         try await createPoolTransactionTable(table, on: pool)
 
         do {
@@ -256,7 +256,7 @@ struct ConnectionPoolTransactionTests {
     @Test("TX07 flat transaction leak preserves the exact Pool body error")
     func flatTransactionLeakPreservesBodyError() async throws {
         let pool = try Database().pool(maximumConnections: 1)
-        let table = Path.Table(makePoolTransactionTableName())
+        let table = DB.Table(makePoolTransactionTableName())
         try await createPoolTransactionTable(table, on: pool)
 
         do {
@@ -310,7 +310,7 @@ struct ConnectionPoolTransactionTests {
         let database = try Database()
         let pool = try database.pool(maximumConnections: 1)
         let tableName = makePoolTransactionTableName()
-        try await createPoolTransactionTable(Path.Table(tableName), on: pool)
+        try await createPoolTransactionTable(DB.Table(tableName), on: pool)
 
         let transactionStarted = PoolTransactionSignal()
         let finishTransaction = PoolTransactionSignal()
@@ -320,7 +320,7 @@ struct ConnectionPoolTransactionTests {
         let poolReturnTask = Task {
             try await pool.connection { connection in
                 let managedTask = Task {
-                    let taskTable = Path.Table(tableName)
+                    let taskTable = DB.Table(tableName)
                     try await connection.transaction { transaction in
                         try await SQL
                             .insertInto(taskTable, fields: "id")
@@ -355,7 +355,7 @@ struct ConnectionPoolTransactionTests {
         try await pool.shutdown()
 
         let freshConnection = try database.connect()
-        let resultTable = Path.Table(tableName)
+        let resultTable = DB.Table(tableName)
         let rows = try await SQL
             .select(resultTable.column("id"))
             .from(resultTable)

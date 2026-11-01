@@ -177,7 +177,7 @@ func appenderIntervalRoundTrip() throws {
     defer { duckdb_disconnect(&connection) }
     let connected = try #require(connection)
 
-    let table = Path.Table("interval_contract_appender")
+    let table = DB.Table("interval_contract_appender")
     let create = SQL.create.table[any: table].tableDefinitions(
         NewColumn("value", .interval)
     )

@@ -296,7 +296,7 @@ func pooledReturnRollsBackLeakedFlatTransaction() async throws {
     let first = fixture.token()
     try await fixture.connection.activatePoolLease(first)
 
-    let table = Path.Table(
+    let table = DB.Table(
         "pool_lease_" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
     )
 

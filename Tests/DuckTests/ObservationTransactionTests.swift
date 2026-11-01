@@ -6,7 +6,7 @@ import Testing
 private struct ObservationTransactionContext {
     let database: Database
     let connection: Connection
-    let table: Path.Table
+    let table: DB.Table
     let sequenceName: String
 }
 
@@ -16,7 +16,7 @@ private func makeObservationTransactionContext() async throws -> ObservationTran
     let database = try Database()
     let connection = try database.connect()
     let suffix = UUID().uuidString.replacingOccurrences(of: "-", with: "")
-    let table = Path.Table("observation_transaction_\(suffix)")
+    let table = DB.Table("observation_transaction_\(suffix)")
     let sequenceName = "observation_sequence_\(suffix)"
     try await connection.execute(
         SQL
@@ -30,7 +30,7 @@ private func makeObservationTransactionContext() async throws -> ObservationTran
     try await connection.execute(
         SQL
             .create
-            .sequence[any: Path.Identifier(sequenceName)]
+            .sequence[any: DB.Object(sequenceName)]
             .start(1)
     )
     return ObservationTransactionContext(
@@ -44,7 +44,7 @@ private func makeObservationTransactionContext() async throws -> ObservationTran
 private func insert(
     _ id: Int32,
     value: Int32,
-    into table: Path.Table,
+    into table: DB.Table,
     on transaction: DuckTransaction
 ) async throws {
     try await transaction.execute(
@@ -66,13 +66,13 @@ private func nextvalQuery(_ sequenceName: String) -> any SQLable {
 private func sequenceObservationQuery(_ sequenceName: String) -> any SQLable {
     let sequences = Fn.build(.custom("duckdb_sequences"), body: [])
     return SQL
-        .select(Path.Column("last_value"))
+        .select(DB.Column("last_value"))
         .from(sequences)
-        .where(Path.Column("sequence_name") == sequenceName)
+        .where(DB.Column("sequence_name") == sequenceName)
 }
 
 private func rows(
-    from table: Path.Table,
+    from table: DB.Table,
     on connection: Connection
 ) async throws -> QueryResult {
     try await connection.query(
@@ -237,9 +237,9 @@ func sequenceObserverDependencyIsExactlyEmptyTables() throws {
     let sequences = Fn.build(.custom("duckdb_sequences"), body: [])
     let sql = try PreparedQuerySnapshot(
         SQL
-            .select(Path.Column("last_value"))
+            .select(DB.Column("last_value"))
             .from(sequences)
-            .where(Path.Column("sequence_name") == "some_sequence")
+            .where(DB.Column("sequence_name") == "some_sequence")
     ).analysisSQL
     #expect(ObservationDependency.analyze(sql: sql, on: connection) == .tables([]))
 }
@@ -347,7 +347,7 @@ func rollbackOnlyCommitPublishesImpactAndPreservesError() async throws {
     var expected: DatabaseError?
     do {
         _ = try await transaction.execute(
-            SQL.insertInto(Path.Table("observation_transaction_missing"), fields: "id")
+            SQL.insertInto(DB.Table("observation_transaction_missing"), fields: "id")
                 .values.values(Int32(1))
         )
         Issue.record("Expected missing-table operation to fail.")

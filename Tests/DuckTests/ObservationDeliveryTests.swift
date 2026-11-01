@@ -2,11 +2,11 @@
 import SQL
 import Testing
 
-private func observationDeliveryValueTable(_ name: String) -> Path.Table {
-    Path.Table(name)
+private func observationDeliveryValueTable(_ name: String) -> DB.Table {
+    DB.Table(name)
 }
 
-private func createObservationDeliveryValueTable(_ table: Path.Table) -> any SQLable {
+private func createObservationDeliveryValueTable(_ table: DB.Table) -> any SQLable {
     SQL
         .create
         .table[any: table]
@@ -15,18 +15,18 @@ private func createObservationDeliveryValueTable(_ table: Path.Table) -> any SQL
 
 private func insertObservationDeliveryValue(
     _ value: Int32,
-    into table: Path.Table
+    into table: DB.Table
 ) -> any SQLable {
     SQL.insertInto(table, fields: "value").values.values(value)
 }
 
-private func selectObservationDeliveryValue(from table: Path.Table) -> any SQLable {
+private func selectObservationDeliveryValue(from table: DB.Table) -> any SQLable {
     SQL.select(table.column("value")).from(table)
 }
 
 private func updateObservationDeliveryValue(
     _ value: Int32,
-    in table: Path.Table
+    in table: DB.Table
 ) -> any SQLable {
     SQL
         .update(table)
@@ -49,7 +49,7 @@ struct ObservationDeliveryTests {
     func snapshotsBindingsAndEmitsInitialState() async throws {
         let database = try Database()
         let connection = try database.connect()
-        let table = Path.Table("observation_delivery_snapshot")
+        let table = DB.Table("observation_delivery_snapshot")
         try await connection.execute(
             SQL
                 .create
@@ -85,7 +85,7 @@ struct ObservationDeliveryTests {
         try await connection.execute(
             SQL
                 .create
-                .sequence[any: Path.Identifier("observation_delivery_sequence")]
+                .sequence[any: DB.Object("observation_delivery_sequence")]
                 .start(41)
         )
 
@@ -114,20 +114,20 @@ struct ObservationDeliveryTests {
         try await reader.execute(
             SQL
                 .create
-                .sequence[any: Path.Identifier("observation_delivery_view_sequence")]
+                .sequence[any: DB.Object("observation_delivery_view_sequence")]
                 .start(73)
         )
         try await reader.execute(
             SQL
                 .create
-                .view[any: Path.Identifier("observation_delivery_view")]
+                .view[any: DB.Object("observation_delivery_view")]
                 .as
                 .select(
                     SQLableParts(parts: SQLPartSafeValue(Int32(1))) => "value"
                 )
         )
 
-        let view = Path.Table("observation_delivery_view")
+        let view = DB.Table("observation_delivery_view")
         let observation = try database.observe(
             selectObservationDeliveryValue(from: view)
         )
@@ -139,7 +139,7 @@ struct ObservationDeliveryTests {
                 .create
                 .or
                 .replace
-                .view[any: Path.Identifier("observation_delivery_view")]
+                .view[any: DB.Object("observation_delivery_view")]
                 .as
                 .select(
                     observationDeliveryNextValue(
@@ -248,7 +248,7 @@ struct ObservationDeliveryTests {
         try await reader.execute(
             SQL
                 .create
-                .view[any: Path.Identifier("observation_delivery_switch")]
+                .view[any: DB.Object("observation_delivery_switch")]
                 .as
                 .select(left.column("value"))
                 .from(left)
@@ -263,7 +263,7 @@ struct ObservationDeliveryTests {
                 .create
                 .or
                 .replace
-                .view[any: Path.Identifier("observation_delivery_switch")]
+                .view[any: DB.Object("observation_delivery_switch")]
                 .as
                 .select(right.column("value"))
                 .from(right)

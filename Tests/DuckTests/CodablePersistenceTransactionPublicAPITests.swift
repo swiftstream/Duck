@@ -116,7 +116,7 @@ private func makePublicTransactionNote(
 
 @Test("Normal-import public API proves all four Transaction persistence overloads")
 func normalImportPublicTransactionAPICRUD() async throws {
-    let connection = try Database().connect()
+    let connection = try await DatabaseIdentifier.memory().connect()
 
     try await CreateTableBuilder<PublicTransactionNote>()
         .checkIfNotExists()

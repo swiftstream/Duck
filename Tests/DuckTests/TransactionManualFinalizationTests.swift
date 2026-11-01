@@ -6,7 +6,7 @@ import Testing
 private struct ManualTransactionContext {
     let database: Database
     let connection: Connection
-    let table: Path.Table
+    let table: DB.Table
 }
 
 private struct ManualBodyError: Error {}
@@ -60,7 +60,7 @@ private actor ManualTransactionTaskRunner {
         release: ManualTransactionSignal
     ) async throws {
         let transaction = try await connection.transaction()
-        let table = Path.Table(tableName)
+        let table = DB.Table(tableName)
         defer {
             await transaction.rollbackIfNeeded()
         }
@@ -75,7 +75,7 @@ private func makeManualTransactionContext() async throws -> ManualTransactionCon
     let database = try Database()
     let connection = try database.connect()
     let name = "manual_transaction_" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
-    let table = Path.Table(name)
+    let table = DB.Table(name)
     try await connection.execute(
         SQL
             .create
@@ -91,7 +91,7 @@ private func makeManualTransactionContext() async throws -> ManualTransactionCon
 private func insert(
     _ id: Int32,
     value: Int32,
-    into table: Path.Table,
+    into table: DB.Table,
     on transaction: DuckTransaction
 ) async throws {
     try await SQL
@@ -102,7 +102,7 @@ private func insert(
 }
 
 private func rows(
-    from table: Path.Table,
+    from table: DB.Table,
     on connection: Connection
 ) async throws -> QueryResult {
     try await SQL
@@ -424,7 +424,7 @@ func commitOnRollbackOnlyStateThrowsFirstReason() async throws {
     var firstReason: DatabaseError?
     do {
         _ = try await transaction.execute(
-            SQL.insertInto(Path.Table("manual_transaction_missing"), fields: "id", "value")
+            SQL.insertInto(DB.Table("manual_transaction_missing"), fields: "id", "value")
                 .values.values(Int32(1), Int32(1))
         )
         Issue.record("Expected the missing-table operation to fail.")
@@ -449,7 +449,7 @@ func caughtManualFinalizerFailureDominatesNormalReturn() async throws {
         try await context.connection.transaction { transaction in
             do {
                 _ = try await transaction.execute(
-                    SQL.insertInto(Path.Table("manual_transaction_missing"), fields: "id", "value")
+                    SQL.insertInto(DB.Table("manual_transaction_missing"), fields: "id", "value")
                         .values.values(Int32(1), Int32(1))
                 )
             } catch let error as DatabaseError {
@@ -475,7 +475,7 @@ func caughtManualFinalizerFailureDominatesLaterBodyError() async throws {
         try await context.connection.transaction { transaction in
             do {
                 _ = try await transaction.execute(
-                    SQL.insertInto(Path.Table("manual_transaction_missing"), fields: "id", "value")
+                    SQL.insertInto(DB.Table("manual_transaction_missing"), fields: "id", "value")
                         .values.values(Int32(1), Int32(1))
                 )
             } catch let error as DatabaseError {

@@ -394,7 +394,7 @@ private func createValuesTable(on transaction: DuckTransaction) async throws {
 }
 
 private func insertValue(_ value: String, on transaction: DuckTransaction) async throws {
-    let table = Path.Table(MigrationValues.tableName)
+    let table = DB.Table(MigrationValues.tableName)
     try await SQL.insertInto(table, fields: "value")
         .values
         .values(value)
@@ -402,7 +402,7 @@ private func insertValue(_ value: String, on transaction: DuckTransaction) async
 }
 
 private func valueRows(on connection: Connection) async throws -> [String] {
-    let table = Path.Table(MigrationValues.tableName)
+    let table = DB.Table(MigrationValues.tableName)
     let result = try await SQL
         .select(table.column("value"))
         .from(table)
@@ -414,13 +414,13 @@ private func valueRows(on connection: Connection) async throws -> [String] {
 }
 
 private func valuesTableExists(on connection: Connection) async throws -> Bool {
-    let table = Path.Schema("information_schema").table("tables")
+    let table = DB.Schema("information_schema").table("tables")
     let result = try await SQL
-        .select(Path.Column("table_name"))
+        .select(DB.Column("table_name"))
         .from(table)
         .where(
-            (Path.Column("table_schema") == "main")
-                .and(Path.Column("table_name") == MigrationValues.tableName)
+            (DB.Column("table_schema") == "main")
+                .and(DB.Column("table_name") == MigrationValues.tableName)
         )
         .query(on: connection)
     return !result.rows.isEmpty

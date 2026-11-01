@@ -98,7 +98,7 @@ private func makePoolAppenderTableName() -> String {
 }
 
 private func createPoolAppenderTable(
-    _ table: Path.Table,
+    _ table: DB.Table,
     on connection: Connection
 ) async throws {
     _ = try await connection.execute(
@@ -117,7 +117,7 @@ struct ConnectionPoolAppenderTests {
     @Test("AP01 normal pooled Appender writes complete rows")
     func ap01NormalPooledAppenderWritesRows() async throws {
         let pool = try Database().pool(maximumConnections: 1)
-        let table = Path.Table(makePoolAppenderTableName())
+        let table = DB.Table(makePoolAppenderTableName())
 
         try await pool.connection { connection in
             try await createPoolAppenderTable(table, on: connection)
@@ -156,10 +156,10 @@ struct ConnectionPoolAppenderTests {
 
         let poolReturnTask = Task<Void, Error> {
             try await pool.connection { connection in
-                let table = Path.Table(tableName)
+                let table = DB.Table(tableName)
                 try await createPoolAppenderTable(table, on: connection)
                 let appenderTask = Task<Void, Error> {
-                    let taskTable = Path.Table(tableName)
+                    let taskTable = DB.Table(tableName)
                     try await connection.appender(to: taskTable) { appender in
                         try await appender.append(Int32(1), "held")
                         await scopeActive.signal()
@@ -183,7 +183,7 @@ struct ConnectionPoolAppenderTests {
         let l2Task = Task<(ConnectionId, [ResultRow]), Error> {
             try await pool.connection { connection in
                 await coordination.record(.l2Entered)
-                let table = Path.Table(tableName)
+                let table = DB.Table(tableName)
                 let result = try await connection.query(
                     SQL
                         .select(table.column("id"), table.column("name"))
@@ -245,10 +245,10 @@ struct ConnectionPoolAppenderTests {
 
         let poolReturnTask = Task<Void, Error> {
             try await pool.connection { connection in
-                let table = Path.Table(tableName)
+                let table = DB.Table(tableName)
                 try await createPoolAppenderTable(table, on: connection)
                 let appenderTask = Task<Void, Error> {
-                    let taskTable = Path.Table(tableName)
+                    let taskTable = DB.Table(tableName)
                     try await connection.appender(to: taskTable) { appender in
                         try await appender.append(Int32(1), "accepted")
                         await scopeActive.signal()
@@ -303,7 +303,7 @@ struct ConnectionPoolAppenderTests {
                 == .database(.poolLeaseExpired)
         )
 
-        let table = Path.Table(tableName)
+        let table = DB.Table(tableName)
         let result = try await pool.connection { connection in
             let beforeRecovery = try await connection.query(
                 SQL
@@ -340,7 +340,7 @@ struct ConnectionPoolAppenderTests {
     @Test("AP04 fail-closed Appender retires the pooled Connection")
     func ap04FailClosedAppenderRetiresConnection() async throws {
         let pool = try Database().pool(maximumConnections: 1)
-        let table = Path.Table(makePoolAppenderTableName())
+        let table = DB.Table(makePoolAppenderTableName())
         let message = "pooled Appender fail-closed test"
 
         let firstLease = try await pool.connection { connection in

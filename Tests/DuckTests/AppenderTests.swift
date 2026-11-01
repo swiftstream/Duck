@@ -12,7 +12,7 @@ private enum AppenderBodyTestError: Error, Sendable {
 @Test("Scoped Appender writes complete rows through a table target")
 func scopedAppenderWritesTableRows() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("appender_public_rows")
+    let table = DB.Table("appender_public_rows")
 
     try await connection.execute(
         SQL
@@ -69,11 +69,8 @@ func scopedAppenderWritesTableRows() async throws {
 @Test("Scoped Appender accepts a schema-qualified target")
 func scopedAppenderWritesSchemaTarget() async throws {
     let connection = try Database().connect()
-    let schema = Path.Schema("appender_public_schema")
-    let table = Path.SchemaWithTable(
-        schema: schema.name,
-        table: "events"
-    )
+    let schema = DB.Schema("appender_public_schema")
+    let table = schema.table("events")
 
     _ = try await connection.execute(SQL.create.schema[any: schema])
     _ = try await connection.execute(
@@ -110,12 +107,8 @@ func scopedAppenderWritesCatalogTarget() async throws {
     }
 
     let schemaName = "appender_catalog_schema"
-    let schema = Path.Schema(schemaName)
-    let table = Path.CatalogWithSchemaAndTable(
-        catalog: catalog,
-        schema: schemaName,
-        table: "events"
-    )
+    let schema = DB.Schema(schemaName)
+    let table = DB.Catalog(catalog).schema(schemaName).table("events")
 
     _ = try await connection.execute(SQL.create.schema[any: schema])
     _ = try await connection.execute(
@@ -143,7 +136,7 @@ func appenderCreateFailureReleasesOrdinaryAdmission() async throws {
     let connection = try Database().connect()
 
     do {
-        try await connection.appender(to: Path.Table("missing_public_appender_table")) { _ in }
+        try await connection.appender(to: DB.Table("missing_public_appender_table")) { _ in }
         Issue.record("Expected missing-table Appender creation to fail.")
     } catch let error as DatabaseError {
         guard case .appenderCreation(let message) = error else {
@@ -160,7 +153,7 @@ func appenderCreateFailureReleasesOrdinaryAdmission() async throws {
 @Test("Post-admission Appender cancellation releases ordinary admission")
 func postAdmissionAppenderCancellationReleasesOrdinaryAdmission() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("appender_cancelled_setup")
+    let table = DB.Table("appender_cancelled_setup")
     try await connection.execute(
         SQL
             .create
@@ -192,7 +185,7 @@ func postAdmissionAppenderCancellationReleasesOrdinaryAdmission() async throws {
 @Test("Escaped Appender rejects use after scope end")
 func escapedAppenderRejectsAfterScopeEnd() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("appender_escaped_scope")
+    let table = DB.Table("appender_escaped_scope")
     try await connection.execute(
         SQL
             .create
@@ -217,7 +210,7 @@ func escapedAppenderRejectsAfterScopeEnd() async throws {
 @Test("Appender body rejects inherited same-Connection outer operations")
 func appenderBodyRejectsSameConnectionOuterOperations() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("appender_scope_guards")
+    let table = DB.Table("appender_scope_guards")
     try await connection.execute(
         SQL
             .create
@@ -266,7 +259,7 @@ func appenderBodyRejectsSameConnectionOuterOperations() async throws {
 @Test("Appender is rejected from a live same-Connection transaction body")
 func appenderRejectsLiveTransactionBody() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("appender_transaction_exclusion")
+    let table = DB.Table("appender_transaction_exclusion")
     try await connection.execute(
         SQL
             .create
@@ -289,7 +282,7 @@ func appenderScopePermitsDifferentConnectionWork() async throws {
     let database = try Database()
     let appenderConnection = try database.connect()
     let independentConnection = try database.connect()
-    let table = Path.Table("appender_other_connection")
+    let table = DB.Table("appender_other_connection")
     try await appenderConnection.execute(
         SQL
             .create
@@ -309,7 +302,7 @@ func appenderScopePermitsDifferentConnectionWork() async throws {
 @Test("Caller-local Appender row validation remains recoverable")
 func appenderCallerValidationRemainsRecoverable() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("appender_caller_validation")
+    let table = DB.Table("appender_caller_validation")
     try await connection.execute(
         SQL
             .create
@@ -352,7 +345,7 @@ func appenderCallerValidationRemainsRecoverable() async throws {
 @Test("Deterministic Appender preflight mismatch stays recoverable")
 func appenderDeterministicPreflightMismatchStaysRecoverable() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("appender_terminal_error")
+    let table = DB.Table("appender_terminal_error")
     try await connection.execute(
         SQL
             .create
@@ -389,7 +382,7 @@ func appenderDeterministicPreflightMismatchStaysRecoverable() async throws {
 @Test("Appender finalization failure remains local to the scope")
 func appenderFinalizationFailureLeavesConnectionUsable() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("appender_finalization_error")
+    let table = DB.Table("appender_finalization_error")
     try await connection.execute(
         SQL
             .create
@@ -422,7 +415,7 @@ func appenderFinalizationFailureLeavesConnectionUsable() async throws {
 @Test("Appender body error discards buffered rows and releases its scope")
 func appenderBodyErrorDiscardsBufferedRows() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("appender_body_error")
+    let table = DB.Table("appender_body_error")
     try await connection.execute(
         SQL
             .create
@@ -449,7 +442,7 @@ func appenderBodyErrorDiscardsBufferedRows() async throws {
 @Test("Appender accepts naked nil, Optional values, and explicit Value null")
 func appenderAcceptsNakedNilAndOptionalValues() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("appender_nullable_inputs")
+    let table = DB.Table("appender_nullable_inputs")
     try await connection.execute(
         SQL
             .create

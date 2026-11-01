@@ -64,7 +64,7 @@ func destroysFailedQueryResult() throws {
     try #require(duckdb_connect(database, &connection) == DuckDBSuccess)
     defer { duckdb_disconnect(&connection) }
 
-    let missingTable = Path.Table("table_that_does_not_exist")
+    let missingTable = DB.Table("table_that_does_not_exist")
     let sql = SQL
         .select(SQL.asterisk)
         .from(missingTable)
@@ -182,7 +182,7 @@ func reopensPersistentDatabase() throws {
         .appendingPathExtension("duckdb")
     defer { try? FileManager.default.removeItem(at: databaseURL) }
 
-    let valuesTable = Path.Table("values_table")
+    let valuesTable = DB.Table("values_table")
     let writeSQL = SQL
         .create
         .table[any: valuesTable]

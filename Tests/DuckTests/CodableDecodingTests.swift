@@ -346,7 +346,7 @@ func queryResultAllOrderAndMalformed() async throws {
         .select(Fn.cast(Int64(1), .bigint) => "id", "a" => "name")
         .union(all: SQL.select(Fn.cast(Int64(2), .bigint) => "id", "b" => "name"))
         .union(all: SQL.select(Fn.cast(Int64(3), .bigint) => "id", "c" => "name"))
-        .orderBy(.asc(Path.Column("id")))
+        .orderBy(.asc(DB.Column("id")))
         .query(on: connection)
     let models = try ordered.all(decoding: OrderedRowModel.self)
     #expect(models.map(\.id) == [1, 2, 3])

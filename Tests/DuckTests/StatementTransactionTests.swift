@@ -44,8 +44,8 @@ private func statementTransactionResultValue(
 private func makeStatementTransactionTable(
     on connection: Connection,
     named name: String
-) async throws -> Path.Table {
-    let table = Path.Table(name)
+) async throws -> DB.Table {
+    let table = DB.Table(name)
     try await connection.execute(
         SQL
             .create
@@ -287,7 +287,7 @@ func statementTransactionVariantsAcceptNakedNil() async throws {
     let some: Int32? = 17
     let none: Int32? = nil
 
-    let table = Path.Table("statement_transaction_naked_nil")
+    let table = DB.Table("statement_transaction_naked_nil")
     _ = try await SQL
         .create
         .table[any: table]

@@ -14,7 +14,7 @@ private func observationPublicNextValueQuery() -> any SQLable {
 struct ObservationPublicAPITests {
     @Test("Public observation API is nameable, reusable, and iterable")
     func publicObservationAPI() async throws {
-        let database = try Database()
+        let database = DatabaseIdentifier.memory()
         let query = SQL.select(Int32(42) => "value")
         let first: QueryObservation = try database.observe(query)
         let second: QueryObservation = try query.observe(on: database)
@@ -32,12 +32,12 @@ struct ObservationPublicAPITests {
 
     @Test("Public direct nextval observation reports the semantic error without advancing")
     func publicNextvalRejection() async throws {
-        let database = try Database()
-        let connection = try database.connect()
+        let database = DatabaseIdentifier.memory()
+        let connection = try await database.connect()
         try await connection.execute(
             SQL
                 .create
-                .sequence[any: Path.Identifier("observation_public_sequence")]
+                .sequence[any: DB.Object("observation_public_sequence")]
                 .start(19)
         )
 

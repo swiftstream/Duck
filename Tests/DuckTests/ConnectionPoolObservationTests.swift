@@ -10,7 +10,7 @@ private func connectionPoolObservationName(_ prefix: String) -> String {
 }
 
 private func createConnectionPoolObservationTable(
-    _ table: Path.Table,
+    _ table: DB.Table,
     on connection: Connection
 ) async throws {
     try await connection.execute(
@@ -25,7 +25,7 @@ private func createConnectionPoolObservationTable(
 }
 
 private func connectionPoolObservationQuery(
-    for table: Path.Table
+    for table: DB.Table
 ) -> any SQLable {
     SQL.select(table.column("id"), table.column("value")).from(table)
 }
@@ -35,9 +35,9 @@ private func connectionPoolObservationSequenceQuery(
 ) -> any SQLable {
     let sequences = Fn.build(.custom("duckdb_sequences"), body: [])
     return SQL
-        .select(Path.Column("last_value"))
+        .select(DB.Column("last_value"))
         .from(sequences)
-        .where(Path.Column("sequence_name") == sequenceName)
+        .where(DB.Column("sequence_name") == sequenceName)
 }
 
 private func createConnectionPoolObservationSequence(
@@ -45,7 +45,7 @@ private func createConnectionPoolObservationSequence(
 ) -> any SQLable {
     SQL
         .create
-        .sequence[any: Path.Identifier(sequenceName)]
+        .sequence[any: DB.Object(sequenceName)]
         .start(1)
 }
 
@@ -62,7 +62,7 @@ private func connectionPoolObservationNextValueQuery(
 private func insertConnectionPoolObservationRow(
     _ id: Int32,
     value: Int32,
-    into table: Path.Table,
+    into table: DB.Table,
     on connection: Connection
 ) async throws {
     try await connection.execute(
@@ -111,7 +111,7 @@ struct ConnectionPoolObservationTests {
     func databaseObservationSurvivesPoolLeaseReuse() async throws {
         let database = try Database()
         let pool = try database.pool(maximumConnections: 1)
-        let table = Path.Table(connectionPoolObservationName("pool_observation_lease"))
+        let table = DB.Table(connectionPoolObservationName("pool_observation_lease"))
 
         let (initialConnectionId, initialIterator) = try await pool.connection { connection in
             try await createConnectionPoolObservationTable(table, on: connection)
@@ -146,7 +146,7 @@ struct ConnectionPoolObservationTests {
     func pooledObservationRefreshRequiresActiveLease() async throws {
         let database = try Database()
         let pool = try database.pool(maximumConnections: 1)
-        let table = Path.Table(connectionPoolObservationName("pool_observation_refresh"))
+        let table = DB.Table(connectionPoolObservationName("pool_observation_refresh"))
         let pooledConnection = try await pool.connection { connection in
             try await createConnectionPoolObservationTable(table, on: connection)
             return connection
@@ -186,7 +186,7 @@ struct ConnectionPoolObservationTests {
     func poolTransactionPublishesCommitAndRollbackImpact() async throws {
         let database = try Database()
         let pool = try database.pool(maximumConnections: 1)
-        let table = Path.Table(connectionPoolObservationName("pool_observation_transaction"))
+        let table = DB.Table(connectionPoolObservationName("pool_observation_transaction"))
         let sequenceName = connectionPoolObservationName("pool_observation_sequence")
         try await pool.connection { connection in
             try await createConnectionPoolObservationTable(table, on: connection)
@@ -266,7 +266,7 @@ struct ConnectionPoolObservationTests {
     func pooledAppenderPublishesAfterFinalization() async throws {
         let database = try Database()
         let pool = try database.pool(maximumConnections: 1)
-        let table = Path.Table(connectionPoolObservationName("pool_observation_appender"))
+        let table = DB.Table(connectionPoolObservationName("pool_observation_appender"))
         try await pool.connection { connection in
             try await createConnectionPoolObservationTable(table, on: connection)
         }
@@ -296,7 +296,7 @@ struct ConnectionPoolObservationTests {
     func retirementAndReplacementPreserveObservationTruth() async throws {
         let database = try Database()
         let pool = try database.pool(maximumConnections: 1)
-        let table = Path.Table(connectionPoolObservationName("pool_observation_retirement"))
+        let table = DB.Table(connectionPoolObservationName("pool_observation_retirement"))
         try await pool.connection { connection in
             try await createConnectionPoolObservationTable(table, on: connection)
         }
@@ -362,7 +362,7 @@ struct ConnectionPoolObservationTests {
         let database = try Database()
         let otherDatabase = try Database()
         let pool = try database.pool(maximumConnections: 1)
-        let table = Path.Table(connectionPoolObservationName("pool_observation_locality"))
+        let table = DB.Table(connectionPoolObservationName("pool_observation_locality"))
         try await pool.connection { connection in
             try await createConnectionPoolObservationTable(table, on: connection)
         }

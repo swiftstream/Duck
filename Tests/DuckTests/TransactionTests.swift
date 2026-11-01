@@ -142,10 +142,10 @@ private func startTransactionAttempt(
     }
 }
 
-private func makeTransactionTestConnection() async throws -> (Connection, Path.Table) {
+private func makeTransactionTestConnection() async throws -> (Connection, DB.Table) {
     let database = try Database()
     let connection = try database.connect()
-    let table = Path.Table(TransactionTestItem.tableName)
+    let table = DB.Table(TransactionTestItem.tableName)
 
     try await SQL
         .create
@@ -160,7 +160,7 @@ private func makeTransactionTestConnection() async throws -> (Connection, Path.T
 }
 
 private func selectTransactionRows(
-    from table: Path.Table,
+    from table: DB.Table,
     on connection: Connection
 ) async throws -> QueryResult {
     try await SQL
@@ -253,7 +253,7 @@ func transactionBodyErrorRollsBackAndPreservesIdentity() async throws {
 @Test("Caught operation failure makes transaction rollback-only and rejects new work before preparation")
 func caughtOperationFailureMakesTransactionRollbackOnly() async throws {
     let (connection, table) = try await makeTransactionTestConnection()
-    let missingTable = Path.Table("transaction missing table")
+    let missingTable = DB.Table("transaction missing table")
     let preparationProbe = TransactionPreparationProbe()
     var storedFailure: DatabaseError?
 
@@ -291,7 +291,7 @@ func caughtOperationFailureMakesTransactionRollbackOnly() async throws {
 @Test("Later uncaught body error wins over earlier caught rollback-only reason")
 func laterBodyErrorWinsAfterCaughtOperationFailure() async throws {
     let (connection, table) = try await makeTransactionTestConnection()
-    let missingTable = Path.Table("transaction later body error missing table")
+    let missingTable = DB.Table("transaction later body error missing table")
     let laterFailure = TransactionBodyFailure()
 
     do {
@@ -601,7 +601,7 @@ func structuredChildrenShareTransaction() async throws {
         try await withThrowingTaskGroup(of: UInt64.self, returning: [UInt64].self) { group in
             for value in 1...8 {
                 group.addTask {
-                    let childTable = Path.Table(tableName)
+                    let childTable = DB.Table(tableName)
                     return try await SQL
                         .insertInto(childTable, fields: "id", "name")
                         .values
@@ -743,7 +743,7 @@ func cancellationBeforeCommitRollsBack() async throws {
     let release = TransactionTestSignal()
 
     let task = Task {
-        let taskTable = Path.Table(tableName)
+        let taskTable = DB.Table(tableName)
         return try await connection.transaction { transaction in
             try await SQL
                 .insertInto(taskTable, fields: "id", "name")

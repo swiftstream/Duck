@@ -309,7 +309,7 @@ func decimalStatementFailureThenValidReuse() async throws {
 @Test("Decimal Appender covers narrow and hugeint physical carriers")
 func decimalAppenderPhysicalCoverage() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("decimal_appender_physical")
+    let table = DB.Table("decimal_appender_physical")
     try await connection.execute(
         SQL.create.table[any: table].tableDefinitions(
             NewColumn("w4", .decimal(4, 0)),
@@ -375,7 +375,7 @@ func decimalAppenderPhysicalCoverage() async throws {
 @Test("Decimal Appender recovers after rounding, width, and nonfinite later-column failures")
 func decimalAppenderLaterColumnFailuresAreAtomicAndReusable() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("decimal_appender_preflight")
+    let table = DB.Table("decimal_appender_preflight")
     try await connection.execute(
         SQL.create.table[any: table].tableDefinitions(
             NewColumn("id", .integer),
@@ -434,7 +434,7 @@ func decimalAppenderLaterColumnFailuresAreAtomicAndReusable() async throws {
 @Test("Decimal Appender rejects a wrong logical family before native row mutation")
 func decimalAppenderRejectsWrongLogicalFamilyAndRecovers() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("decimal_appender_wrong_family")
+    let table = DB.Table("decimal_appender_wrong_family")
     try await connection.execute(
         SQL.create.table[any: table].tableDefinitions(
             NewColumn("id", .integer),

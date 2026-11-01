@@ -290,7 +290,7 @@ func copiesRecursiveLogicalMetadata() async throws {
     try await connection.execute(
         SQL
             .create
-            .type[any: Path.Identifier("metadata_mood")]
+            .type[any: DB.Object("metadata_mood")]
             .as
             .enum("sad", "ok", "happy")
     )
@@ -373,7 +373,7 @@ func copiesAndInspectsDeepRecursiveMetadata() async throws {
     try await connection.execute(
         SQL
             .create
-            .type[any: Path.Identifier("deep_metadata_mood")]
+            .type[any: DB.Object("deep_metadata_mood")]
             .as
             .enum("sad", "ok", "happy")
     )
@@ -521,7 +521,7 @@ func stabilizesRepeatedRecursiveMetadataCapture() async throws {
     try await connection.execute(
         SQL
             .create
-            .type[any: Path.Identifier("repeated_metadata_mood")]
+            .type[any: DB.Object("repeated_metadata_mood")]
             .as
             .enum("sad", "ok", "happy")
     )
@@ -560,7 +560,7 @@ private func captureRecursiveMetadata() async throws -> [ResultColumn] {
     try await connection.execute(
         SQL
             .create
-            .type[any: Path.Identifier("retained_metadata_mood")]
+            .type[any: DB.Object("retained_metadata_mood")]
             .as
             .enum("sad", "ok", "happy")
     )

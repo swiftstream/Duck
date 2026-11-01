@@ -1,6 +1,6 @@
 import Foundation
 import SQL
-import Duck
+@testable import Duck
 import Testing
 
 private struct HardeningFixture: Sendable, Equatable {
@@ -391,7 +391,7 @@ func mixedFamilyStatementsOnSeparateConnectionsRemainIndependent() async throws 
 @Test("Concurrent mixed-family Appender rows preserve complete correlation sets")
 func concurrentMixedFamilyAppenderRowsPreserveCorrelation() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("value_hardening_appender_rows")
+    let table = DB.Table("value_hardening_appender_rows")
     try await connection.execute(
         SQL.create.table[any: table].tableDefinitions(
             NewColumn("id", .integer),
@@ -676,7 +676,7 @@ func decimalStatementsOnSeparateConnectionsRemainIndependent() async throws {
 @Test("Concurrent Decimal Appender rows preserve id/value correlation")
 func concurrentDecimalAppenderRowsPreserveCorrelation() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("value_hardening_decimal_appender_rows")
+    let table = DB.Table("value_hardening_decimal_appender_rows")
     try await connection.execute(
         SQL.create.table[any: table].tableDefinitions(
             NewColumn("id", .integer),
@@ -841,7 +841,7 @@ func decimalStatementFailuresRecoverWithoutStaleTargets() async throws {
 @Test("Decimal Appender failures remain atomic and reusable")
 func decimalAppenderFailuresRemainAtomicAndReusable() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("value_hardening_decimal_appender_recovery")
+    let table = DB.Table("value_hardening_decimal_appender_recovery")
     try await connection.execute(
         SQL.create.table[any: table].tableDefinitions(
             NewColumn("id", .integer),

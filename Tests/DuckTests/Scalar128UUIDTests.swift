@@ -541,7 +541,7 @@ func reusableStatementUInt128UUIDVertical() async throws {
 // MARK: - Appender vertical + C07 matrix
 
 private func nativeRowCount(_ connection: NativeConnection, table: String) throws -> Int64 {
-    let table = Path.Table(table)
+    let table = DB.Table(table)
     let statement = try connection.prepare(
         SQL
             .select(Fn.cast(Fn.count(SQL.asterisk), .bigint) => "count")
@@ -564,7 +564,7 @@ func appenderC07SameSignMatrix() throws {
     let connection = try database.connect()
 
     func readback(_ table: String) throws -> Value {
-        let table = Path.Table(table)
+        let table = DB.Table(table)
         let result = try execute(
             connection,
             SQL.select(table.column("value")).from(table)
@@ -575,7 +575,7 @@ func appenderC07SameSignMatrix() throws {
     }
 
     func roundTrip(table: String, type: Type, value: Value, expected: Value) throws {
-        let tablePath = Path.Table(table)
+        let tablePath = DB.Table(table)
         _ = try execute(
             connection,
             SQL
@@ -591,7 +591,7 @@ func appenderC07SameSignMatrix() throws {
     }
 
     func rejects(table: String, type: Type, value: Value) throws {
-        let tablePath = Path.Table(table)
+        let tablePath = DB.Table(table)
         _ = try execute(
             connection,
             SQL
@@ -663,7 +663,7 @@ func appenderC07SameSignMatrix() throws {
 @Test("Appender B1 vertical round-trips boundaries with UUID logical identity")
 func appenderB1Vertical() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("b1_vertical_rows")
+    let table = DB.Table("b1_vertical_rows")
     _ = try await connection.execute(
         SQL
             .create
@@ -767,7 +767,7 @@ func appenderB1Vertical() async throws {
 @Test("Appender later-column mismatch mutates zero columns and stays reusable")
 func appenderNoPartialRowOnLaterColumnMismatch() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("b1_no_partial_rows")
+    let table = DB.Table("b1_no_partial_rows")
     _ = try await connection.execute(
         SQL
             .create

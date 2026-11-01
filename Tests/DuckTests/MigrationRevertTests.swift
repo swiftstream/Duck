@@ -296,7 +296,7 @@ struct MigrationRevertTests {
         let database = try Database()
         let observed = RevertObservation()
         let migration = RevertMigration(name: "observed", down: { transaction in
-            let table = Path.Schema("__swiftduckdb").table("migrations")
+            let table = DB.Schema("__swiftduckdb").table("migrations")
             let result = try await SQL
                 .select(Fn.count(table.column("id")) => "count")
                 .from(table)
@@ -470,7 +470,7 @@ private func createRevertTable(on transaction: DuckTransaction) async throws {
 }
 
 private func insertRevertValue(_ value: String, on transaction: DuckTransaction) async throws {
-    let table = Path.Table(RevertValues.tableName)
+    let table = DB.Table(RevertValues.tableName)
     try await SQL.insertInto(table, fields: "value")
         .values
         .values(value)
@@ -478,15 +478,15 @@ private func insertRevertValue(_ value: String, on transaction: DuckTransaction)
 }
 
 private func deleteRevertValue(_ value: String, on transaction: DuckTransaction) async throws {
-    let table = Path.Table(RevertValues.tableName)
+    let table = DB.Table(RevertValues.tableName)
     try await SQL.delete
         .from(table)
-        .where(Path.Column("value") == value)
+        .where(DB.Column("value") == value)
         .execute(on: transaction)
 }
 
 private func revertValueRows(on connection: Connection) async throws -> [String] {
-    let table = Path.Table(RevertValues.tableName)
+    let table = DB.Table(RevertValues.tableName)
     let result = try await SQL
         .select(table.column("value"))
         .from(table)

@@ -8,7 +8,7 @@ func nativeAppenderPersistsCurrentPrimitiveValueFamily() throws {
     let database = try NativeDatabase()
     let connection = try database.connect()
 
-    let table = Path.Table("native_appender_values")
+    let table = DB.Table("native_appender_values")
     _ = try execute(
         connection,
         SQL
@@ -119,7 +119,7 @@ func failedNativeAppenderCreationLeavesConnectionUsable() throws {
         connection,
         SQL
             .create
-            .table[any: Path.Table("native_appender_after_create_failure")]
+            .table[any: DB.Table("native_appender_after_create_failure")]
             .tableDefinitions(NewColumn("value", .integer))
     )
     let appender = try NativeAppender(
@@ -141,7 +141,7 @@ func nativeAppenderDiscardDropsBufferedRows() throws {
         connection,
         SQL
             .create
-            .table[any: Path.Table("native_appender_discard")]
+            .table[any: DB.Table("native_appender_discard")]
             .tableDefinitions(NewColumn("value", .integer))
     )
     let appender = try NativeAppender(connection: connection, table: "native_appender_discard")
@@ -160,7 +160,7 @@ func nativeAppenderDeinitDiscardsBufferedRows() throws {
         connection,
         SQL
             .create
-            .table[any: Path.Table("native_appender_deinit_discard")]
+            .table[any: DB.Table("native_appender_deinit_discard")]
             .tableDefinitions(NewColumn("value", .integer))
     )
 
@@ -184,7 +184,7 @@ func nativeAppenderRowCountMismatchIsRecoverable() throws {
         connection,
         SQL
             .create
-            .table[any: Path.Table("native_appender_row_count")]
+            .table[any: DB.Table("native_appender_row_count")]
             .tableDefinitions(
                 NewColumn("first", .integer),
                 NewColumn("second", .integer)
@@ -215,7 +215,7 @@ func nativeAppenderReportsFailingPrimitiveColumn() throws {
         connection,
         SQL
             .create
-            .table[any: Path.Table("native_appender_column_error")]
+            .table[any: DB.Table("native_appender_column_error")]
             .tableDefinitions(NewColumn("value", .integer))
     )
     let appender = try NativeAppender(connection: connection, table: "native_appender_column_error")
@@ -241,7 +241,7 @@ func nativeAppenderCloseReportsConstraintFinalizationFailure() throws {
         connection,
         SQL
             .create
-            .table[any: Path.Table("native_appender_unique")]
+            .table[any: DB.Table("native_appender_unique")]
             .tableDefinitions(NewColumn("id", .integer).primaryKey())
     )
 
@@ -273,7 +273,7 @@ func nativeAppenderStronglyRetainsNativeConnection() throws {
         try #require(connection),
         SQL
             .create
-            .table[any: Path.Table("native_appender_parent_lifetime")]
+            .table[any: DB.Table("native_appender_parent_lifetime")]
             .tableDefinitions(NewColumn("value", .integer))
     )
 
@@ -313,7 +313,7 @@ private func rowCount(
         connection,
         SQL
             .select(Fn.cast(Fn.count(SQL.asterisk), .bigint) => "count")
-            .from(Path.Table(table))
+            .from(DB.Table(table))
     )
     let rows = try #require(try result.materializeNextChunk())
     let row = try #require(rows.first)

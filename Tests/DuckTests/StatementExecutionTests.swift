@@ -32,7 +32,7 @@ func reusableStatementSelectsDifferentValues() async throws {
 @Test("Reusable Statement INSERT accepts different values on repeated execution")
 func reusableStatementInsertsDifferentValues() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("statement_insert_events")
+    let table = DB.Table("statement_insert_events")
     try await connection.execute(
         SQL
             .create
@@ -74,7 +74,7 @@ func reusableStatementInsertsDifferentValues() async throws {
 @Test("Reusable Statement UPDATE accepts different values on repeated execution")
 func reusableStatementUpdatesDifferentValues() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("statement_update_events")
+    let table = DB.Table("statement_update_events")
     try await connection.execute(
         SQL
             .create
@@ -266,7 +266,7 @@ func reusableStatementAcceptsNakedNilValues() async throws {
     #expect(try statementResultValue(try await queryStatement.query(none), column: "value") == .null)
     #expect(try statementResultValue(try await queryStatement.query(Value.null), column: "value") == .null)
 
-    let table = Path.Table("statement_naked_nil_events")
+    let table = DB.Table("statement_naked_nil_events")
     try await connection.execute(
         SQL
             .create

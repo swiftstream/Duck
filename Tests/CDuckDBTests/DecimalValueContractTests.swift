@@ -105,7 +105,7 @@ func directCDecimalAppendValueOwnership() throws {
     defer { duckdb_close(&database) }
     defer { duckdb_disconnect(&connection) }
     let connected = try #require(connection)
-    let table = Path.Table("decimal_contract_appender")
+    let table = DB.Table("decimal_contract_appender")
 
     var setup = duckdb_result()
     try #require(

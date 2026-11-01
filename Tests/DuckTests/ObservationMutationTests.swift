@@ -3,7 +3,7 @@ import SQL
 import Testing
 
 private func createObservationTable(
-    _ table: Path.Table,
+    _ table: DB.Table,
     on connection: Connection
 ) async throws {
     try await connection.execute(
@@ -52,7 +52,7 @@ private func drainInvalidations(
 func connectionExecuteInsertRefreshesObservation() async throws {
     let database = try Database()
     let connection = try database.connect()
-    let table = Path.Table("observation_mutation_insert")
+    let table = DB.Table("observation_mutation_insert")
     try await createObservationTable(table, on: connection)
 
     let observation = try database.observe(SQL.select(table.column("id")).from(table))
@@ -70,7 +70,7 @@ func connectionExecuteInsertRefreshesObservation() async throws {
 func connectionExecuteUpdateRefreshesObservation() async throws {
     let database = try Database()
     let connection = try database.connect()
-    let table = Path.Table("observation_mutation_update")
+    let table = DB.Table("observation_mutation_update")
     try await createObservationTable(table, on: connection)
     try await connection.execute(
         SQL.insertInto(table, fields: "id", "value").values.values(Int32(1), Int32(10))
@@ -94,7 +94,7 @@ func connectionExecuteUpdateRefreshesObservation() async throws {
 func connectionExecuteDeleteRefreshesObservation() async throws {
     let database = try Database()
     let connection = try database.connect()
-    let table = Path.Table("observation_mutation_delete")
+    let table = DB.Table("observation_mutation_delete")
     try await createObservationTable(table, on: connection)
     try await connection.execute(
         SQL.insertInto(table, fields: "id", "value").values.values(Int32(1), Int32(10))
@@ -116,7 +116,7 @@ func ddlPublishesDatabaseInvalidation() async throws {
     let database = try Database()
     let connection = try database.connect()
     let count = try await drainInvalidations(database) {
-        let table = Path.Table("observation_mutation_ddl")
+        let table = DB.Table("observation_mutation_ddl")
         try await connection.execute(
             SQL
                 .create
@@ -131,7 +131,7 @@ func ddlPublishesDatabaseInvalidation() async throws {
 func connectionQueryInsertReturningRefreshesObservation() async throws {
     let database = try Database()
     let connection = try database.connect()
-    let table = Path.Table("observation_mutation_returning")
+    let table = DB.Table("observation_mutation_returning")
     try await createObservationTable(table, on: connection)
 
     let observation = try database.observe(SQL.select(table.column("id")).from(table))
@@ -170,7 +170,7 @@ func directNextvalPublishesOnce() async throws {
     try await connection.execute(
         SQL
             .create
-            .sequence[any: Path.Identifier("observation_mutation_sequence")]
+            .sequence[any: DB.Object("observation_mutation_sequence")]
             .start(41)
     )
 
@@ -193,7 +193,7 @@ func directNextvalPublishesOnce() async throws {
 func reusableStatementExecuteRefreshesObservation() async throws {
     let database = try Database()
     let connection = try database.connect()
-    let table = Path.Table("observation_mutation_statement_execute")
+    let table = DB.Table("observation_mutation_statement_execute")
     try await createObservationTable(table, on: connection)
     let statement = try await connection.prepare { parameters in
         SQL.insertInto(table, fields: "id", "value")
@@ -214,7 +214,7 @@ func reusableStatementExecuteRefreshesObservation() async throws {
 func reusableStatementQueryReturningRefreshesObservation() async throws {
     let database = try Database()
     let connection = try database.connect()
-    let table = Path.Table("observation_mutation_statement_query")
+    let table = DB.Table("observation_mutation_statement_query")
     try await createObservationTable(table, on: connection)
     let statement = try await connection.prepare(
         SQL
@@ -255,7 +255,7 @@ func reusableSideEffectingSelectStatementPublishesOnce() async throws {
     try await connection.execute(
         SQL
             .create
-            .sequence[any: Path.Identifier("observation_mutation_sequence_reusable")]
+            .sequence[any: DB.Object("observation_mutation_sequence_reusable")]
             .start(73)
     )
     let statement = try await connection.prepare(
@@ -321,7 +321,7 @@ func pendingAttemptFailurePublishesAmbiguity() async throws {
 func lateMaterializationFailurePublishesAfterMutation() async throws {
     let database = try Database()
     let connection = try database.connect()
-    let table = Path.Table("observation_mutation_late_failure")
+    let table = DB.Table("observation_mutation_late_failure")
     try await connection.execute(
         SQL
             .create
@@ -363,7 +363,7 @@ func lateMaterializationFailurePublishesAfterMutation() async throws {
 func transactionMutationPublishesNothingBeforeFinalization() async throws {
     let database = try Database()
     let connection = try database.connect()
-    let table = Path.Table("observation_mutation_transaction")
+    let table = DB.Table("observation_mutation_transaction")
     try await createObservationTable(table, on: connection)
 
     let transaction = try await connection.transaction()

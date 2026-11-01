@@ -9,15 +9,15 @@ struct ObservationDependencyTests {
     func dependencyAnalysisRemainsConservative() throws {
         let database = try NativeDatabase()
         let connection = try database.connect()
-        let table = Path.Table("obs_parameters")
-        let logs = Path.Table("obs_logs")
+        let table = DB.Table("obs_parameters")
+        let logs = DB.Table("obs_logs")
 
         try execute(tableCreationSQL(for: table), on: connection)
         try execute(tableCreationSQL(for: logs), on: connection)
         try execute(
             SQL
                 .create
-                .view[any: Path.Identifier("obs_parameters_view")]
+                .view[any: DB.Object("obs_parameters_view")]
                 .as
                 .select(SQL.asterisk)
                 .from(table)
@@ -75,7 +75,7 @@ struct ObservationDependencyTests {
         #expect(joinTables == simpleTables.union(logsTables))
         #expect(ObservationDependency.analyze(sql: joinSQL, on: connection) == .tables(joinTables))
 
-        let selected = Path.Table("selected")
+        let selected = DB.Table("selected")
         let cteSQL = SQL
             .with(With(selected, SQL.select(SQL.asterisk).from(table)))
             .select(SQL.asterisk)
@@ -89,7 +89,7 @@ struct ObservationDependencyTests {
 
         let viewSQL = SQL
             .select(SQL.asterisk)
-            .from(Path.Table("obs_parameters_view"))
+            .from(DB.Table("obs_parameters_view"))
             .prepare(.duck)
             .plain
         let viewNames = try #require(connection.tableNames(in: viewSQL, qualified: true))
@@ -117,9 +117,9 @@ struct ObservationDependencyTests {
 
         let sequences = Fn.build(.custom("duckdb_sequences"), body: [])
         let sequenceSQL = SQL
-            .select(Path.Column("last_value"))
+            .select(DB.Column("last_value"))
             .from(sequences)
-            .where(Path.Column("sequence_name") == "some_sequence")
+            .where(DB.Column("sequence_name") == "some_sequence")
             .prepare(.duck)
             .plain
         #expect(ObservationDependency.analyze(sql: sequenceSQL, on: connection) == .tables([]))
@@ -219,7 +219,7 @@ struct ObservationDependencyTests {
     }
 }
 
-private func tableCreationSQL(for table: Path.Table) -> String {
+private func tableCreationSQL(for table: DB.Table) -> String {
     SQL.create.table[any: table]
         .tableDefinitions(
             NewColumn("id", .integer),

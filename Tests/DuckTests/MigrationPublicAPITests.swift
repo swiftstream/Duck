@@ -13,16 +13,16 @@ struct MigrationPublicAPITests {
         #expect(defaultMigration.name == "DefaultNamedMigration")
         #expect(explicitMigration.name == "public explicit migration")
 
-        let database = try Database()
+        let database = DatabaseIdentifier.memory()
         let migrator: Migrator = database.migrator([defaultMigration, explicitMigration])
         let firstBatch: UInt = try await migrator.migrate()
         #expect(firstBatch == 1)
 
-        let connection = try database.connect()
+        let connection = try await database.connect()
         #expect(try await publicRows(on: connection, tableName: DefaultNamedMigration.tableName) == [7])
         #expect(try await publicRows(on: connection, tableName: ExplicitNamedMigration.tableName) == [11])
 
-        let history = Path.Schema("__swiftduckdb").table("migrations")
+        let history = DB.Schema("__swiftduckdb").table("migrations")
         let historyResult = try await SQL
             .select(
                 history.column("id"),
@@ -43,7 +43,7 @@ struct MigrationPublicAPITests {
         #expect(try #require(historyResult.rows[1].value("batch", as: Int64.self)) == 1)
         #expect(historyResult.rows[1].value("applied_at", as: Date.self) != nil)
 
-        let columns = Path.Schema("information_schema").table("columns")
+        let columns = DB.Schema("information_schema").table("columns")
         let columnResult = try await SQL
             .select(columns.column("column_name"))
             .from(columns)
@@ -78,7 +78,7 @@ struct MigrationPublicAPITests {
 
     @Test("normal import MigrationError is catchable and equatable")
     func normalImportMigrationErrorIsCatchableAndEquatable() async throws {
-        let database = try Database()
+        let database = DatabaseIdentifier.memory()
         let migrator = database.migrator([InvalidPublicMigration()])
 
         do {
@@ -99,11 +99,11 @@ private struct DefaultNamedMigration: Migration {
     var up: MigrationPlan {
         SQL
             .create
-            .table[any: Path.Table(Self.tableName)]
+            .table[any: DB.Table(Self.tableName)]
             .tableDefinitions(NewColumn("value", .integer))
         Run { transaction in
             try await SQL
-                .insertInto(Path.Table(Self.tableName), fields: "value")
+                .insertInto(DB.Table(Self.tableName), fields: "value")
                 .values
                 .values(Int32(7))
                 .execute(on: transaction)
@@ -115,7 +115,7 @@ private struct DefaultNamedMigration: Migration {
         Run { transaction in
             try await SQL
                 .delete
-                .from(Path.Table(Self.tableName))
+                .from(DB.Table(Self.tableName))
                 .execute(on: transaction)
         }
     }
@@ -129,11 +129,11 @@ private struct ExplicitNamedMigration: Migration {
     var up: MigrationPlan {
         SQL
             .create
-            .table[any: Path.Table(Self.tableName)]
+            .table[any: DB.Table(Self.tableName)]
             .tableDefinitions(NewColumn("value", .integer))
         Run { transaction in
             try await SQL
-                .insertInto(Path.Table(Self.tableName), fields: "value")
+                .insertInto(DB.Table(Self.tableName), fields: "value")
                 .values
                 .values(Int32(11))
                 .execute(on: transaction)
@@ -145,7 +145,7 @@ private struct ExplicitNamedMigration: Migration {
         Run { transaction in
             try await SQL
                 .delete
-                .from(Path.Table(Self.tableName))
+                .from(DB.Table(Self.tableName))
                 .execute(on: transaction)
         }
     }
@@ -168,7 +168,7 @@ private struct InvalidPublicMigration: Migration {
 }
 
 private func publicRows(on connection: Connection, tableName: String) async throws -> [Int32] {
-    let table = Path.Table(tableName)
+    let table = DB.Table(tableName)
     let result = try await SQL
         .select(table.column("value"))
         .from(table)

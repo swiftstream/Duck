@@ -311,7 +311,7 @@ func reusableStatementTemporalVerticalAndReuse() async throws {
 @Test("Appender temporal targets use whole-row preflight and exact round trips")
 func appenderTemporalVerticalAndC07Preflight() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("temporal_appender_rows")
+    let table = DB.Table("temporal_appender_rows")
     try await connection.execute(SQL.create.table[any: table].tableDefinitions(
         NewColumn("date_value", .date),
         NewColumn("time_value", .time),
@@ -342,7 +342,7 @@ func appenderTemporalVerticalAndC07Preflight() async throws {
     #expect(try firstValue(result, column: "timestamp_value") == .dateTime(dateTime))
     #expect(try firstValue(result, column: "timestamp_ns_value") == .dateTime(dateTime))
 
-    let precisionTable = Path.Table("temporal_appender_time_precision")
+    let precisionTable = DB.Table("temporal_appender_time_precision")
     try await connection.execute(SQL.create.table[any: precisionTable].tableDefinitions(
         NewColumn("id", .integer), NewColumn("time_value", .time)
     ))
@@ -390,7 +390,7 @@ func temporalNullOptionalAndNakedNil() async throws {
     #expect(try firstValue(ordinaryNone, column: "value") == .null)
     #expect(try firstValue(ordinarySome, column: "value") == .date(date))
 
-    let table = Path.Table("temporal_optional_values")
+    let table = DB.Table("temporal_optional_values")
     try await connection.execute(SQL.create.table[any: table].tableDefinitions(
         NewColumn("date_value", .date), NewColumn("time_value", .timeNs), NewColumn("date_time_value", .timestampNs)
     ))
@@ -479,7 +479,7 @@ func b01PreparedStatementOutOfDomainDateRemainsReusable() async throws {
 @Test("Appender later-column B01 failure is recoverable without partial row mutation")
 func b01AppenderLaterColumnOutOfDomainDateIsRecoverable() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("temporal_b01_appender")
+    let table = DB.Table("temporal_b01_appender")
     try await connection.execute(SQL.create.table[any: table].tableDefinitions(
         NewColumn("id", .integer), NewColumn("date_value", .date)
     ))
@@ -748,7 +748,7 @@ func foundationDateStatementRejectsInexactNonFiniteAndMismatchedTargets() async 
 @Test("Foundation.Date Appender preflight failures are zero-mutation and reusable")
 func foundationDateAppenderPhaseOneFailureIsZeroMutationAndReusable() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("foundation_date_phase_one_appender")
+    let table = DB.Table("foundation_date_phase_one_appender")
     try await connection.execute(SQL.create.table[any: table].tableDefinitions(
         NewColumn("id", .integer), NewColumn("value", .timestamptz)
     ))
@@ -789,7 +789,7 @@ func foundationDateAppenderPhaseOneFailureIsZeroMutationAndReusable() async thro
 @Test("Foundation.Date Appender and result round-trip preserve TIMESTAMPTZ identity")
 func foundationDateAppenderAndResultRoundTrip() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("foundation_date_round_trip_appender")
+    let table = DB.Table("foundation_date_round_trip_appender")
     try await connection.execute(SQL.create.table[any: table].tableDefinitions(
         NewColumn("id", .integer), NewColumn("value", .timestamptz)
     ))

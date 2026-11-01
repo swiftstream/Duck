@@ -38,7 +38,7 @@ private func bootstrappedFixture() async throws -> HistoryFixture {
 private func malformedFixture(_ definitions: [any SQLable]) async throws -> HistoryFixture {
     let database = try Database()
     let connection = try database.connect()
-    let schema = Path.Schema("__swiftduckdb")
+    let schema = DB.Schema("__swiftduckdb")
     let table = schema.table("migrations")
     try await SQL.create.schema[any: schema].execute(on: connection)
     try await SQL
@@ -126,7 +126,7 @@ func renamedDuckModuleReusesPersistedLegacyHistory() async throws {
     do {
         let database = try Database(path: path)
         let connection = try database.connect()
-        let schema = Path.Schema("__swiftduckdb")
+        let schema = DB.Schema("__swiftduckdb")
         let table = schema.table("migrations")
 
         try await SQL.create.schema[any: schema].execute(on: connection)
@@ -330,7 +330,7 @@ func compositeUniqueConstraintIsRejected() async throws {
         NewColumn("name", .varchar).notNull(),
         NewColumn("batch", .bigint).notNull(),
         NewColumn("applied_at", .timestamptz).notNull(),
-        SQL.unique.values(Path.Column("name"), Path.Column("batch"))
+        SQL.unique.values(DB.Column("name"), DB.Column("batch"))
     ])
 
     await expectInvalidHistorySchema {

@@ -39,8 +39,8 @@ private func makeAppenderTransactionTable(
     on connection: Connection,
     named name: String,
     columns: [NewColumn]
-) async throws -> Path.Table {
-    let table = Path.Table(name)
+) async throws -> DB.Table {
+    let table = DB.Table(name)
     try await connection.execute(
         SQL
             .create
@@ -51,7 +51,7 @@ private func makeAppenderTransactionTable(
 }
 
 private func rowCount(
-    from table: Path.Table,
+    from table: DB.Table,
     on connection: Connection
 ) async throws -> Int64 {
     let result = try await connection.query(
@@ -301,7 +301,7 @@ func transactionAppenderIsolatesAcrossConnections() async throws {
 
     let transactionTask = Task {
         try await connectionA.transaction { transaction in
-            let taskTable = Path.Table(tableName)
+            let taskTable = DB.Table(tableName)
             try await transaction.appender(to: taskTable) { appender in
                 try await appender.append(Int32(1))
                 try await appender.append(Int32(2))
@@ -443,7 +443,7 @@ func precreatedExternalSiblingSucceedsAfterTransactionAppenderScope() async thro
     try await connection.transaction { transaction in
         let child = Task {
             await childGate.wait()
-            let childTable = Path.Table(tableName)
+            let childTable = DB.Table(tableName)
             let result = try await transaction.query(
                 SQL.select(childTable.column("id")).from(childTable)
             )
@@ -696,7 +696,7 @@ func storedRollbackOnlyAppenderReasonOutranksLaterFailClose() async throws {
 @Test("Terminal Transaction Appender native failure remains the first truth")
 func terminalTransactionAppenderNativeFailureRemainsFirstTruth() async throws {
     let connection = try Database().connect()
-    let table = Path.Table("transaction_appender_terminal_failure")
+    let table = DB.Table("transaction_appender_terminal_failure")
     _ = try await connection.execute(
         SQL
             .create
@@ -704,7 +704,7 @@ func terminalTransactionAppenderNativeFailureRemainsFirstTruth() async throws {
             .tableDefinitions(
                 NewColumn("id", .integer)
                     .check(
-                        Path.Column("id") >= SQLableParts(
+                        DB.Column("id") >= SQLableParts(
                             parts: SQLPartSafeValue(Int32(0))
                         )
                     )
@@ -825,7 +825,7 @@ func transactionAppenderCancellationRemainsRollbackOnly() async throws {
 
     let tableName = table.name
     let child = Task { @Sendable [connection, tableName] in
-        let table = Path.Table(tableName)
+        let table = DB.Table(tableName)
         try await connection.transaction { transaction in
             var caughtCancellation = false
             do {

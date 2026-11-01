@@ -84,7 +84,7 @@ private struct ConnectionPersistenceUser: Table {
 
 private struct ConnectionPersistenceSchemaUser: Table, Schemable {
     static let tableName = "codable_connection_persistence_schema_users"
-    static let schemaName = "connection_persistence_schema"
+    static let schema = DB.Schema("connection_persistence_schema")
 
     @Column("id")
     var id: Int64?

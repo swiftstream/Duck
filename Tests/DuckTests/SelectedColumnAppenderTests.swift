@@ -34,7 +34,7 @@ private func selectedAppenderSequenceDefault(_ sequenceName: String) -> any SQLa
 }
 
 private func selectedAppenderCount(
-    _ table: Path.Table,
+    _ table: DB.Table,
     on connection: Connection
 ) async throws -> Int64 {
     let result = try await connection.query(
@@ -64,7 +64,7 @@ struct SelectedColumnAppenderTests {
     func selectedNativeOrderAndMetadata() throws {
         let database = try NativeDatabase()
         let connection = try database.connect()
-        let table = Path.Table("selected_native_order")
+        let table = DB.Table("selected_native_order")
         _ = try selectedNativeExecute(
             connection,
             SQL
@@ -107,7 +107,7 @@ struct SelectedColumnAppenderTests {
     @Test("Omitted selected columns use DEFAULT or NULL while selected nil is NULL")
     func selectedOmissionAndNullSemantics() async throws {
         let connection = try Database().connect()
-        let table = Path.Table("selected_defaults")
+        let table = DB.Table("selected_defaults")
         _ = try await connection.execute(
             SQL
                 .create
@@ -122,10 +122,10 @@ struct SelectedColumnAppenderTests {
         _ = try await connection.execute(
             SQL
                 .create
-                .sequence[any: Path.Identifier("selected_sequence")]
+                .sequence[any: DB.Object("selected_sequence")]
                 .start(50)
         )
-        let sequenceTable = Path.Table("selected_sequence_defaults")
+        let sequenceTable = DB.Table("selected_sequence_defaults")
         _ = try await connection.execute(
             SQL
                 .create
@@ -172,7 +172,7 @@ struct SelectedColumnAppenderTests {
     @Test("Invalid selected names fail creation before body and leave Connection usable")
     func selectedNameFailuresReleaseSetup() async throws {
         let connection = try Database().connect()
-        let table = Path.Table("selected_name_failures")
+        let table = DB.Table("selected_name_failures")
         _ = try await connection.execute(
             SQL
                 .create
@@ -184,7 +184,7 @@ struct SelectedColumnAppenderTests {
                     GeneratedColumn(
                         "generated",
                         .integer,
-                        generatedAlwaysAs: Path.Column("id") + SQLableParts(
+                        generatedAlwaysAs: DB.Column("id") + SQLableParts(
                             parts: SQLPartSafeValue(Int32(1))
                         )
                     )
@@ -231,7 +231,7 @@ struct SelectedColumnAppenderTests {
     func selectedRowPreflightIsRecoverable() async throws {
         let database = try Database()
         let connection = try database.connect()
-        let table = Path.Table("selected_preflight")
+        let table = DB.Table("selected_preflight")
         _ = try await connection.execute(
             SQL
                 .create
@@ -307,7 +307,7 @@ struct SelectedColumnAppenderTests {
     func selectedConstraintFinalizationPublishes() async throws {
         let database = try Database()
         let connection = try database.connect()
-        let table = Path.Table("selected_constraint")
+        let table = DB.Table("selected_constraint")
         _ = try await connection.execute(
             SQL
                 .create
@@ -315,7 +315,7 @@ struct SelectedColumnAppenderTests {
                 .tableDefinitions(
                     NewColumn("id", .integer)
                         .check(
-                            Path.Column("id") > SQLableParts(
+                            DB.Column("id") > SQLableParts(
                                 parts: SQLPartSafeValue(Int32(0))
                             )
                         ),
@@ -343,7 +343,7 @@ struct SelectedColumnAppenderTests {
     func selectedAutoFlushPrefixAndObservation() async throws {
         let database = try Database()
         let connection = try database.connect()
-        let table = Path.Table("selected_autoflush")
+        let table = DB.Table("selected_autoflush")
         _ = try await connection.execute(
             SQL
                 .create
@@ -375,7 +375,7 @@ struct SelectedColumnAppenderTests {
         let database = try Database()
         let connection = try database.connect()
         let observer = try database.connect()
-        let table = Path.Table("selected_transaction")
+        let table = DB.Table("selected_transaction")
         _ = try await connection.execute(
             SQL
                 .create
@@ -432,7 +432,7 @@ struct SelectedColumnAppenderTests {
         let database = try Database()
         let connection = try database.connect()
         let other = try database.connect()
-        let table = Path.Table("selected_guards")
+        let table = DB.Table("selected_guards")
         _ = try await connection.execute(
             SQL
                 .create
@@ -456,7 +456,7 @@ struct SelectedColumnAppenderTests {
 
         let tableName = table.name
         let cancellation = Task {
-            try await connection.appender(to: Path.Table(tableName), columns: ["id"]) { appender in
+            try await connection.appender(to: DB.Table(tableName), columns: ["id"]) { appender in
                 withUnsafeCurrentTask { $0?.cancel() }
                 try await appender.append(Int32(5))
             }
@@ -476,7 +476,7 @@ struct SelectedColumnAppenderTests {
     func selectedPooledScopesReturnCheckout() async throws {
         let database = try Database()
         let pool = try database.pool(maximumConnections: 1)
-        let table = Path.Table("selected_pool")
+        let table = DB.Table("selected_pool")
         let firstId = try await pool.connection { connection in
             _ = try await connection.execute(
                 SQL

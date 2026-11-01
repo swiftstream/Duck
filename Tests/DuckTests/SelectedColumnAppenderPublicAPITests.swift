@@ -14,25 +14,21 @@ private func selectedColumnDefault(
 struct SelectedColumnAppenderPublicAPITests {
     @Test("Normal import exposes all six selected-column overloads")
     func allSelectedColumnPathOverloadsArePublic() async throws {
-        let database = try Database()
-        let connection = try database.connect()
+        let database = DatabaseIdentifier.memory()
+        let connection = try await database.connect()
         let currentDatabase = try await connection.query(
             SQL.select(Fn.build(.custom("current_database"), body: []) => "catalog")
         )
         let catalogValue = try #require(currentDatabase.rows.first?["catalog"])
         let catalog = try #require(catalogValue.get(String.self))
 
-        let table = Path.Table("public_selected_table")
-        let schema = Path.Schema("public_selected_schema")
+        let table = DB.Table("public_selected_table")
+        let schema = DB.Schema("public_selected_schema")
         let schemaTable = schema.table("events")
         let catalogSchemaName = "public_selected_catalog_schema"
-        let catalogSchema = Path.Schema(catalogSchemaName)
-        let catalogTable = Path.CatalogWithSchemaAndTable(
-            catalog: catalog,
-            schema: catalogSchemaName,
-            table: "events"
-        )
-        let legacy = Path.Table("public_selected_legacy")
+        let catalogSchema = DB.Schema(catalogSchemaName)
+        let catalogTable = DB.Catalog(catalog).schema(catalogSchemaName).table("events")
+        let legacy = DB.Table("public_selected_legacy")
 
         _ = try await connection.execute(
             SQL

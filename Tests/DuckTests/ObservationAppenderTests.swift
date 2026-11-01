@@ -14,7 +14,7 @@ private enum ObservationAppenderBodyError: Error, Equatable, Sendable {
 private struct ObservationAppenderContext {
     let database: Database
     let connection: Connection
-    let table: Path.Table
+    let table: DB.Table
 }
 
 private func uniqueTableName(_ prefix: String) -> String {
@@ -27,7 +27,7 @@ private func makeAppenderContext(
 ) async throws -> ObservationAppenderContext {
     let database = try Database()
     let connection = try database.connect()
-    let table = Path.Table(uniqueTableName(prefix))
+    let table = DB.Table(uniqueTableName(prefix))
     try await connection.execute(
         SQL
             .create
@@ -42,7 +42,7 @@ private func makeAppenderContext(
 }
 
 private func rowCount(
-    from table: Path.Table,
+    from table: DB.Table,
     on connection: Connection
 ) async throws -> Int64 {
     let result = try await connection.query(
@@ -127,8 +127,8 @@ private func fullyQualifiedTarget(
     catalog: String,
     schema: String = "main",
     table: String
-) -> Path.CatalogWithSchemaAndTable {
-    Path.CatalogWithSchemaAndTable(catalog: catalog, schema: schema, table: table)
+) -> DB.Schema.Table {
+    DB.Catalog(catalog).schema(schema).table(table)
 }
 
 /// Flips ASCII letter case so a safe identifier spelling is guaranteed to differ from the source.
@@ -189,7 +189,7 @@ struct ObservationAppenderTests {
         #expect(try await rowCount(from: context.table, on: context.connection) == 1)
     }
 
-    @Test("OA02 partial Path.Table and Path.SchemaWithTable close fall back Database-wide")
+    @Test("OA02 partial DB.Table and DB.Schema.Table close fall back Database-wide")
     func oa02PartialTargetsClosePublishDatabaseFallback() async throws {
         let context = try await makeAppenderContext(prefix: "oa02")
         let pathTableRegistration = await context.database.observationCoordinator.register(
@@ -210,7 +210,7 @@ struct ObservationAppenderTests {
         #expect(try await rowCount(from: context.table, on: context.connection) == 8)
 
         let schema = "main"
-        let schemaTable = Path.SchemaWithTable(schema: schema, table: uniqueTableName("oa02_schema"))
+        let schemaTable = DB.Schema(schema).table(uniqueTableName("oa02_schema"))
         try await context.connection.execute(
             SQL
                 .create
@@ -401,8 +401,8 @@ struct ObservationAppenderTests {
         let catalog = try await currentCatalog(on: connection)
         let nameA = uniqueTableName("oa08_a")
         let nameB = uniqueTableName("oa08_b")
-        let tableA = Path.Table(nameA)
-        let tableB = Path.Table(nameB)
+        let tableA = DB.Table(nameA)
+        let tableB = DB.Table(nameB)
         for table in [tableA, tableB] {
             try await connection.execute(
                 SQL
@@ -460,7 +460,7 @@ struct ObservationAppenderTests {
         try await connection.execute(
             SQL
                 .create
-                .table[any: Path.Table(tableName)]
+                .table[any: DB.Table(tableName)]
                 .tableDefinitions(NewColumn("id", .integer))
         )
         let target = fullyQualifiedTarget(catalog: catalog, table: tableName)
@@ -497,17 +497,17 @@ struct ObservationAppenderTests {
 
         let bareObservation = try database.observe(
             SQL
-                .select(Path.Column("id"))
+                .select(DB.Column("id"))
                 .from(SQL.raw(bareTableSpelling))
         )
         let schemaObservation = try database.observe(
             SQL
-                .select(Path.Column("id"))
+                .select(DB.Column("id"))
                 .from(SQL.raw("\(schemaSpelling).\(schemaTableSpelling)"))
         )
         let catalogObservation = try database.observe(
             SQL
-                .select(Path.Column("id"))
+                .select(DB.Column("id"))
                 .from(
                     SQL.raw(
                         "\(catalogSpelling).\(schemaSpelling).\(schemaTableSpelling)"
@@ -546,7 +546,7 @@ struct ObservationAppenderTests {
         let connection = try database.connect()
         let catalog = try await currentCatalog(on: connection)
         let unsafeName = "oa10 unsafe target table"
-        let storageTable = Path.Table(unsafeName)
+        let storageTable = DB.Table(unsafeName)
         _ = try await connection.execute(
             SQL
                 .create
@@ -636,7 +636,7 @@ struct ObservationAppenderTests {
     func oa12OrdinaryThresholdRowFailurePublishesConservatively() async throws {
         let database = try Database()
         let connection = try database.connect()
-        let table = Path.Table(uniqueTableName("oa12"))
+        let table = DB.Table(uniqueTableName("oa12"))
         _ = try await connection.execute(
             SQL
                 .create
@@ -644,7 +644,7 @@ struct ObservationAppenderTests {
                 .tableDefinitions(
                     NewColumn("id", .integer)
                         .check(
-                        Path.Column("id") >= SQLableParts(
+                        DB.Column("id") >= SQLableParts(
                             parts: SQLPartSafeValue(Int32(0))
                         )
                     )
@@ -711,7 +711,7 @@ struct ObservationAppenderTests {
     func oa13OrdinaryFinalizationFailurePublishesConservatively() async throws {
         let database = try Database()
         let connection = try database.connect()
-        let table = Path.Table(uniqueTableName("oa13"))
+        let table = DB.Table(uniqueTableName("oa13"))
         try await connection.execute(
             SQL
                 .create
@@ -829,7 +829,7 @@ struct ObservationAppenderTests {
         let independent = try context.database.connect()
         let catalog = try await currentCatalog(on: context.connection)
         let otherName = uniqueTableName("oa16_other")
-        let otherTable = Path.Table(otherName)
+        let otherTable = DB.Table(otherName)
         try await independent.execute(
             SQL
                 .create
@@ -997,7 +997,6 @@ struct ObservationAppenderTests {
         #expect(count == 0)
         #expect(try await rowCount(from: context.table, on: context.connection) == 0)
     }
-
     @Test("OA20 transaction fully-qualified target selectivity on COMMIT")
     func oa20TransactionExactTargetSelectivityOnCommit() async throws {
         let database = try Database()
@@ -1009,7 +1008,7 @@ struct ObservationAppenderTests {
             try await connection.execute(
                 SQL
                     .create
-                    .table[any: Path.Table(name)]
+                    .table[any: DB.Table(name)]
                     .tableDefinitions(NewColumn("id", .integer))
             )
         }
@@ -1061,8 +1060,8 @@ struct ObservationAppenderTests {
         let catalog = try await currentCatalog(on: connection)
         let nameA = uniqueTableName("oa21_a")
         let nameB = uniqueTableName("oa21_b")
-        let tableA = Path.Table(nameA)
-        let tableB = Path.Table(nameB)
+        let tableA = DB.Table(nameA)
+        let tableB = DB.Table(nameB)
         for table in [tableA, tableB] {
             try await connection.execute(
                 SQL
@@ -1124,7 +1123,7 @@ struct ObservationAppenderTests {
         let connection = try database.connect()
         let catalog = try await currentCatalog(on: connection)
         let unsafeName = "oa22 unsafe target table"
-        let storageTable = Path.Table(unsafeName)
+        let storageTable = DB.Table(unsafeName)
         _ = try await connection.execute(
             SQL
                 .create

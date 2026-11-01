@@ -291,6 +291,59 @@ func unrelatedPublicMigrationBodiesAreConcurrentlyActive() async throws {
     #expect(try await secondRun.value == 1)
 }
 
+@Test("D-C14A equivalent public identifiers reject overlapping migration runs")
+func equivalentPublicIdentifiersRejectOverlappingMigrationRuns() async throws {
+    let name = "migration-identifier-overlap-\(UUID().uuidString)"
+    let first = DatabaseIdentifier(memory: name)
+    let second = DatabaseIdentifier(memory: name)
+    let entered = MigrationSignal()
+    let gate = MigrationGate()
+    let migration = concurrencyMigration(name: "identifier overlap") { _ in
+        await entered.signal()
+        await gate.wait()
+    }
+
+    let firstRun = Task {
+        try await first.migrator([migration]).migrate()
+    }
+    await entered.wait()
+
+    await expectCoordinatorError(.concurrentRun) {
+        _ = try await second.migrator([migration]).migrate()
+    }
+
+    await gate.open()
+    #expect(try await firstRun.value == 1)
+    #expect(try await second.migrator([migration]).migrate() == 1)
+}
+
+@Test("D-C14B distinct public identifiers remain concurrently active")
+func distinctPublicIdentifiersRemainConcurrentlyActive() async throws {
+    let first = DatabaseIdentifier(
+        memory: "migration-identifier-first-\(UUID().uuidString)"
+    )
+    let second = DatabaseIdentifier(
+        memory: "migration-identifier-second-\(UUID().uuidString)"
+    )
+    let barrier = MigrationBarrier(requiredArrivals: 2)
+    let firstMigration = concurrencyMigration(name: "first identifier") { _ in
+        await barrier.arriveAndWait()
+    }
+    let secondMigration = concurrencyMigration(name: "second identifier") { _ in
+        await barrier.arriveAndWait()
+    }
+
+    let firstRun = Task {
+        try await first.migrator([firstMigration]).migrate()
+    }
+    let secondRun = Task {
+        try await second.migrator([secondMigration]).migrate()
+    }
+
+    #expect(try await firstRun.value == 1)
+    #expect(try await secondRun.value == 1)
+}
+
 @Test("D-C15 ordinary migrate failure releases coordination")
 func ordinaryMigrateFailureReleasesCoordination() async throws {
     let database = try Database()
@@ -330,7 +383,7 @@ func migrateCancellationWithSuccessfulRollbackReleasesCoordination() async throw
     let migration = concurrencyMigration(name: "cancellable migrate") { transaction in
         try await SQL
             .create
-            .table[any: Path.Table("cancelled_migration_rows")]
+            .table[any: DB.Table("cancelled_migration_rows")]
             .tableDefinitions(NewColumn("value", .integer))
             .execute(on: transaction)
         await entered.signal()
@@ -364,14 +417,14 @@ func revertCancellationWithSuccessfulRollbackReleasesCoordination() async throws
         up: { transaction in
             try await SQL
                 .create
-                .table[any: Path.Table("cancellable_revert_rows")]
+                .table[any: DB.Table("cancellable_revert_rows")]
                 .tableDefinitions(NewColumn("value", .integer))
                 .execute(on: transaction)
         },
         down: { transaction in
             try await SQL
                 .delete
-                .from(Path.Table("cancellable_revert_rows"))
+                .from(DB.Table("cancellable_revert_rows"))
                 .execute(on: transaction)
             await entered.signal()
             await gate.wait()
@@ -517,13 +570,13 @@ private func concurrencyMigration(
 }
 
 private func migrationTableExists(on connection: Connection, name: String) async throws -> Bool {
-    let tables = Path.Schema("information_schema").table("tables")
+    let tables = DB.Schema("information_schema").table("tables")
     let result = try await SQL
-        .select(Path.Column("table_name"))
+        .select(DB.Column("table_name"))
         .from(tables)
         .where(
-            (Path.Column("table_schema") == "main")
-                .and(Path.Column("table_name") == name)
+            (DB.Column("table_schema") == "main")
+                .and(DB.Column("table_name") == name)
         )
         .query(on: connection)
     return !result.rows.isEmpty
