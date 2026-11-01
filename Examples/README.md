@@ -1,50 +1,82 @@
-# Duck Interactive Demos
+# Duck Examples
 
-Two self-contained Xcode projects demonstrate Duck's public API with SwiftUI and UIKitPlus. Open either checked-in project directly in Xcode; XcodeGen is only needed if you change its adjacent `project.yml`.
+The repository includes two small iOS applications that demonstrate the same Duck-backed TODO flow with different UI frameworks:
 
-## Open and run
+- [`SwiftUI/DuckDemo.xcodeproj`](SwiftUI/DuckDemo.xcodeproj) — SwiftUI
+- [`UIKit/DuckDemo.xcodeproj`](UIKit/DuckDemo.xcodeproj) — UIKit
 
-### SwiftUI
+Both projects use the local Duck package from this repository, target iOS 15 or later, and build in Swift 6 mode with MainActor default isolation and strict memory safety.
 
-Open [`SwiftUI/DuckSwiftUIDemo.xcodeproj`](SwiftUI/DuckSwiftUIDemo.xcodeproj). Choose `DuckSwiftUIDemoMac` with destination **My Mac** for the macOS app, or choose `DuckSwiftUIDemoiOS` and an iPhone Simulator in Xcode's run destination menu for iOS. The project targets macOS 12 and iOS 15 or later.
+## Run an example
 
-### UIKitPlus
+Open either `.xcodeproj` directly in Xcode, select an installed iPhone Simulator, and press Run.
 
-Open [`UIKitPlus/DuckUIKitPlusDemo.xcodeproj`](UIKitPlus/DuckUIKitPlusDemo.xcodeproj). Choose `DuckUIKitPlusDemoMac` with **My Mac**, or choose `DuckUIKitPlusDemoiOS` and an iPhone Simulator. The project targets macOS 12 and iOS 15 or later. Its UIKitPlus Swift package dependency is pinned to a fixed revision in `UIKitPlus/project.yml` and the generated project.
+No separate package checkout is required. Each project references the repository root as a local Swift package, so changes to Duck are picked up directly by the example build.
 
-For either iOS app, use Xcode's run destination selector beside the scheme selector, choose an iPhone Simulator (for example, an installed iPhone model), then press Run. If no simulator is listed, install an iOS Simulator runtime from Xcode > Settings > Platforms.
+## Shared database model
 
-Both projects use Swift language mode 6 and include their generated `.xcodeproj`; opening or running them does not require XcodeGen.
+Both examples intentionally use the same small structure:
 
-## Where Duck is used
+```text
+DuckDemo/
+├── Database/
+│   ├── Database.swift
+│   ├── Migrations/
+│   │   ├── InitialMigration.swift
+│   │   └── Migrations.swift
+│   └── Tables/
+│       └── TodoTable.swift
+└── UI entry points
+```
 
-| Capability | SwiftUI | UIKitPlus |
-| --- | --- | --- |
-| Process-lifetime database initialization, migrations, repositories, seed | `SwiftUI/Shared/Database/DemoDatabase.swift` | `UIKitPlus/Shared/Database/DemoDatabase.swift` |
-| SQL table model and `@Column` | `SwiftUI/Shared/Models/DemoTask.swift` | `UIKitPlus/Shared/Models/DemoTask.swift` |
-| Migration declarations | `SwiftUI/Shared/Database/DemoMigrations.swift` | `UIKitPlus/Shared/Database/DemoMigrations.swift` |
-| CRUD, transactions, typed queries, model persistence, prepared statements, Appender, pool, scalar types | `SwiftUI/Shared/Database/DemoRepository.swift` | `UIKitPlus/Shared/Database/DemoRepository.swift` |
-| `QueryObservation` consumption | `SwiftUI/Shared/Database/DemoObservations.swift` | `UIKitPlus/Shared/Database/DemoObservations.swift` |
-| Main feature destinations and manual/reactive paths | `SwiftUI/Shared/Features/DemoAppView.swift` | `UIKitPlus/Shared/Features/MainViewController.swift` |
-| Isolated Persistence / Reopen helpers | `SwiftUI/Shared/Database/DemoObservations.swift` | `UIKitPlus/Shared/Database/ReopenLab.swift` |
+`DatabaseIdentifier.demo` is a lightweight computed identifier for a file-backed database in Application Support. Constructing `.demo` does not open DuckDB or create a central live database object. `prepareDemoDatabase()` creates the containing directory and runs migrations before ordinary application traffic; the first database operation lazily registers Duck's canonical runtime for that identifier.
 
-The SQL model is spelled `SQL.Table` in both projects to distinguish it from the SwiftUI desktop view `SwiftUI.Table`. SQL construction stays typed and structural through Duck's SQL re-export.
+`Todo` is a typed Duck `Table` with:
 
-## UI paths by platform
+```swift
+@Column("id") var id: UUID
+@Column("name") var name: String
+@Column("created_at") var createdAt: Date
+@Column("done_at") var doneAt: Date?
+@Column("deleted_at") var deletedAt: Date?
+```
 
-- **SwiftUI macOS:** reactive `List`, reactive `SwiftUI.Table`, manual `List`, and manual `SwiftUI.Table` are in `SwiftUI/Shared/Features/DemoAppView.swift`.
-- **SwiftUI iOS:** reactive and manual `List` are in the same view file.
-- **UIKitPlus macOS:** reactive `UList` uses `@UState` and `QueryObservation`; manual `UList` refreshes from Duck after each write. The separate native-table destinations use a directly managed `NSTableView` in `UIKitPlus/macOS/MacTaskTableController.swift` for both reactive and manual variants: the reactive table reloads from `@UState` fed by `QueryObservation`, while the manual table uses a plain array with explicit `reloadData()`.
-- **UIKitPlus iOS:** reactive and manual `UList` paths use `@UState` and Duck reads; the native table screen uses the current UIKitPlus `UTableView` in `UIKitPlus/iOS/IOSTaskTableController.swift`.
+`Todo.Create` owns the table schema. `InitialMigration` seeds the first two rows with typed `batchInsert(on:)`.
 
-## Database lifecycle, reset, and reopen
+## What the apps demonstrate
 
-Each app process creates one file-backed main `Database(path:)`, runs migrations before ordinary database traffic, then shares that owner with repositories and the demonstrations. **Reset Demo Data** uses ordinary DML on that same database owner; it does not replace the owner or delete the main database file.
+The examples stay deliberately small and show the same Duck APIs in real UI code:
 
-**Persistence / Reopen** uses its own isolated lab file. It completes the first create, migrate, seed, and typed readback helper before the second helper creates a new `Database` on the lab path, reruns migrations, verifies the saved sentinel, writes another row, and reads it back. **Reset Reopen Lab** removes only the separate lab file after both helpers have returned.
+- lightweight file-backed `DatabaseIdentifier` identity;
+- lazy canonical runtime resolution through `.demo`;
+- declarative migrations;
+- typed `Table` and `@Column` declarations;
+- typed model inserts and updates directly `on: .demo`;
+- `QueryObservation` directly `on: .demo`;
+- an explicit `Connection` only when one scoped connection is useful for several operations;
+- completion toggling through a typed update;
+- soft deletion through `deletedAt`;
+- migration-time typed batch insertion.
 
-## Product feedback walkthrough
+The UI does not retain a live database owner or keep a second persistence model in sync with Duck. Equivalent uses of `.demo` resolve the same process-lifetime runtime and observation coordinator.
 
-Start with **Overview / Database Lifecycle**, then check **Schema & Table Declarations** and **Migrations**. On both **Reactive CRUD** and **Manual CRUD**, exercise **Add 1**, **Add many**, **Update 1**, **Update many**, **Delete 1**, and **Delete many**; the larger operations act on multiple rows. Then inspect **Transactions**, **Codable / Model Persistence**, **Typed Query Builder**, **Filtering / Sorting / Aggregates**, **Prepared Statements**, **Appender / Bulk Insert**, **Observation Lab**, **Connection Pool**, **Native Scalar Types**, **Persistence / Reopen**, **Errors / Rollback**, **Action Log / Diagnostics**, and **Source Tour**.
+## SwiftUI
 
-The project-specific READMEs provide additional source pointers and run notes: [`SwiftUI/README.md`](SwiftUI/README.md) and [`UIKitPlus/README.md`](UIKitPlus/README.md).
+[`SwiftUI/DuckDemo/ContentView.swift`](SwiftUI/DuckDemo/ContentView.swift) consumes `QueryObservation` directly from a SwiftUI `.task`, renders the current rows with `List`, and performs typed inserts, updates, and soft deletes without receiving a database object in its initializer.
+
+[`SwiftUI/DuckDemo/DemoApp.swift`](SwiftUI/DuckDemo/DemoApp.swift) awaits `prepareDemoDatabase()` before presenting the TODO screen and renders preparation failures instead of trapping the process.
+
+## UIKit
+
+[`UIKit/DuckDemo/ViewController.swift`](UIKit/DuckDemo/ViewController.swift) implements the same behavior with native UIKit:
+
+- `UITextField` and add button for inserts;
+- `UITableView` for observed rows;
+- row selection to toggle completion;
+- trailing swipe action for soft deletion.
+
+[`UIKit/DuckDemo/Base.lproj/Main.storyboard`](UIKit/DuckDemo/Base.lproj/Main.storyboard) owns the navigation controller, TODO input controls, table view, prototype cell, Auto Layout constraints, delegates, outlets, and actions. `ViewController.swift` stays focused on screen behavior and Duck CRUD/observation instead of constructing UIKit views in code.
+
+[`UIKit/DuckDemo/AppDelegate.swift`](UIKit/DuckDemo/AppDelegate.swift) coordinates asynchronous database preparation but owns no database instance. [`UIKit/DuckDemo/SceneDelegate.swift`](UIKit/DuckDemo/SceneDelegate.swift) awaits that preparation after the storyboard scene is connected, then calls `ViewController.start()`. No database work runs inside the application launch callback, and no live database object is passed through the UIKit lifecycle.
+
+The database/table/migration files under `UIKit/DuckDemo/Database` intentionally mirror the SwiftUI example so the difference between the projects is the presentation framework rather than the persistence architecture.
