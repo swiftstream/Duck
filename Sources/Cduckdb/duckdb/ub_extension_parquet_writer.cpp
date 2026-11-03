@@ -19,3 +19,6 @@
 #line 0 "extension/parquet/writer/struct_column_writer.cpp"
 #include "extension/parquet/writer/struct_column_writer.cpp"
 
+#line 0 "extension/parquet/writer/variant_column_writer.cpp"
+#include "extension/parquet/writer/variant_column_writer.cpp"
+

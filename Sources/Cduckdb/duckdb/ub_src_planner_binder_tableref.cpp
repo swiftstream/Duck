@@ -4,6 +4,9 @@
 #line 0 "src/planner/binder/tableref/bind_bound_table_ref.cpp"
 #include "src/planner/binder/tableref/bind_bound_table_ref.cpp"
 
+#line 0 "src/planner/binder/tableref/bind_column_data_ref.cpp"
+#include "src/planner/binder/tableref/bind_column_data_ref.cpp"
+
 #line 0 "src/planner/binder/tableref/bind_delimgetref.cpp"
 #include "src/planner/binder/tableref/bind_delimgetref.cpp"
 
@@ -12,9 +15,6 @@
 
 #line 0 "src/planner/binder/tableref/bind_expressionlistref.cpp"
 #include "src/planner/binder/tableref/bind_expressionlistref.cpp"
-
-#line 0 "src/planner/binder/tableref/bind_column_data_ref.cpp"
-#include "src/planner/binder/tableref/bind_column_data_ref.cpp"
 
 #line 0 "src/planner/binder/tableref/bind_joinref.cpp"
 #include "src/planner/binder/tableref/bind_joinref.cpp"
@@ -30,9 +30,6 @@
 
 #line 0 "src/planner/binder/tableref/bind_table_function.cpp"
 #include "src/planner/binder/tableref/bind_table_function.cpp"
-
-#line 0 "src/planner/binder/tableref/bind_named_parameters.cpp"
-#include "src/planner/binder/tableref/bind_named_parameters.cpp"
 
 #line 0 "src/planner/binder/tableref/plan_joinref.cpp"
 #include "src/planner/binder/tableref/plan_joinref.cpp"

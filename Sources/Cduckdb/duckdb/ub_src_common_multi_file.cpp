@@ -1,6 +1,12 @@
 #line 0 "src/common/multi_file/base_file_reader.cpp"
 #include "src/common/multi_file/base_file_reader.cpp"
 
+#line 0 "src/common/multi_file/multi_file_adaptive_filter_cache.cpp"
+#include "src/common/multi_file/multi_file_adaptive_filter_cache.cpp"
+
+#line 0 "src/common/multi_file/multi_file_column_mapper.cpp"
+#include "src/common/multi_file/multi_file_column_mapper.cpp"
+
 #line 0 "src/common/multi_file/multi_file_function.cpp"
 #include "src/common/multi_file/multi_file_function.cpp"
 
@@ -10,8 +16,8 @@
 #line 0 "src/common/multi_file/multi_file_reader.cpp"
 #include "src/common/multi_file/multi_file_reader.cpp"
 
-#line 0 "src/common/multi_file/multi_file_column_mapper.cpp"
-#include "src/common/multi_file/multi_file_column_mapper.cpp"
+#line 0 "src/common/multi_file/table_function_multi_file.cpp"
+#include "src/common/multi_file/table_function_multi_file.cpp"
 
 #line 0 "src/common/multi_file/union_by_name.cpp"
 #include "src/common/multi_file/union_by_name.cpp"

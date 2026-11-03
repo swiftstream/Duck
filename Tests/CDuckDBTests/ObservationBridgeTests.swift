@@ -57,6 +57,148 @@ struct ObservationBridgeTests {
         defer { duckdb_destroy_result(&ordinaryResult) }
         #expect(duck_internal_result_is_read_only(&ordinaryResult))
 
+        let targetlessParameterizedSQL = SQL
+            .select(Int32(42) => "value")
+            .prepare(.duck)
+            .splitted
+        try #require(targetlessParameterizedSQL.values.count == 1)
+        var targetlessParameterizedStatement: duckdb_prepared_statement?
+        try #require(
+            duckdb_prepare(
+                connected,
+                targetlessParameterizedSQL.query,
+                &targetlessParameterizedStatement
+            ) == DuckDBSuccess
+        )
+        defer { duckdb_destroy_prepare(&targetlessParameterizedStatement) }
+        let preparedTargetlessSelect = try #require(targetlessParameterizedStatement)
+        #expect(!duck_internal_prepared_statement_is_read_only(preparedTargetlessSelect))
+        try #require(duckdb_bind_int32(preparedTargetlessSelect, 1, 42) == DuckDBSuccess)
+        #expect(duck_internal_prepared_statement_is_read_only(preparedTargetlessSelect))
+
+        var targetlessParameterizedResult = duckdb_result()
+        try #require(
+            duckdb_execute_prepared(
+                preparedTargetlessSelect,
+                &targetlessParameterizedResult
+            ) == DuckDBSuccess
+        )
+        defer { duckdb_destroy_result(&targetlessParameterizedResult) }
+        #expect(duck_internal_result_is_read_only(&targetlessParameterizedResult))
+        #expect(duckdb_value_int32(&targetlessParameterizedResult, 0, 0) == 42)
+
+        let sparseParameterSQL = SQL.raw("SELECT $1, $3").prepare(.duck).plain
+        var sparseParameterStatement: duckdb_prepared_statement?
+        try #require(
+            duckdb_prepare(
+                connected,
+                sparseParameterSQL,
+                &sparseParameterStatement
+            ) == DuckDBSuccess
+        )
+        defer { duckdb_destroy_prepare(&sparseParameterStatement) }
+        let preparedSparseParameters = try #require(sparseParameterStatement)
+        #expect(duckdb_nparams(preparedSparseParameters) == 2)
+        var sparseThirdIndex: UInt64 = 0
+        try #require(
+            duckdb_bind_parameter_index(
+                preparedSparseParameters,
+                &sparseThirdIndex,
+                "3"
+            ) == DuckDBSuccess
+        )
+        #expect(sparseThirdIndex == 3)
+        #expect(!duck_internal_prepared_statement_is_read_only(preparedSparseParameters))
+        try #require(duckdb_bind_int32(preparedSparseParameters, 1, 11) == DuckDBSuccess)
+        try #require(duckdb_bind_int32(preparedSparseParameters, 2, 33) == DuckDBSuccess)
+        #expect(!duck_internal_prepared_statement_is_read_only(preparedSparseParameters))
+
+        let orderedSequence = "observation_bridge_order_sequence"
+        let createOrderedSequenceSQL = SQL
+            .create
+            .sequence[any: DB.Object(orderedSequence)]
+            .start(31)
+            .prepare(.duck)
+            .plain
+        var createOrderedSequenceResult = duckdb_result()
+        try #require(
+            duckdb_query(connected, createOrderedSequenceSQL, &createOrderedSequenceResult) == DuckDBSuccess
+        )
+        defer { duckdb_destroy_result(&createOrderedSequenceResult) }
+
+        let unresolvedFirstSQL = SQL
+            .select(
+                Int32(42) => "value",
+                Fn.nextVal(
+                    SQLableParts(parts: SQLPartSafeValue(orderedSequence))
+                ) => "sequence_value"
+            )
+            .prepare(.duck)
+            .splitted
+        try #require(unresolvedFirstSQL.values.count == 1)
+        let unresolvedFirstText = unresolvedFirstSQL.query.lowercased()
+        let unresolvedFirstParameter = try #require(unresolvedFirstText.range(of: "$1")?.lowerBound)
+        let unresolvedFirstNextValue = try #require(unresolvedFirstText.range(of: "nextval")?.lowerBound)
+        #expect(unresolvedFirstParameter < unresolvedFirstNextValue)
+
+        var unresolvedFirstStatement: duckdb_prepared_statement?
+        try #require(
+            duckdb_prepare(
+                connected,
+                unresolvedFirstSQL.query,
+                &unresolvedFirstStatement
+            ) == DuckDBSuccess
+        )
+        defer { duckdb_destroy_prepare(&unresolvedFirstStatement) }
+        let preparedUnresolvedFirst = try #require(unresolvedFirstStatement)
+        #expect(!duck_internal_prepared_statement_is_read_only(preparedUnresolvedFirst))
+        try #require(duckdb_bind_int32(preparedUnresolvedFirst, 1, 42) == DuckDBSuccess)
+        #expect(!duck_internal_prepared_statement_is_read_only(preparedUnresolvedFirst))
+
+        let nextValueFirstSQL = SQL
+            .select(
+                Fn.nextVal(
+                    SQLableParts(parts: SQLPartSafeValue(orderedSequence))
+                ) => "sequence_value",
+                Int32(42) => "value"
+            )
+            .prepare(.duck)
+            .splitted
+        try #require(nextValueFirstSQL.values.count == 1)
+        let nextValueFirstText = nextValueFirstSQL.query.lowercased()
+        let nextValueFirstParameter = try #require(nextValueFirstText.range(of: "$1")?.lowerBound)
+        let nextValueFirstNextValue = try #require(nextValueFirstText.range(of: "nextval")?.lowerBound)
+        #expect(nextValueFirstNextValue < nextValueFirstParameter)
+
+        var nextValueFirstStatement: duckdb_prepared_statement?
+        try #require(
+            duckdb_prepare(
+                connected,
+                nextValueFirstSQL.query,
+                &nextValueFirstStatement
+            ) == DuckDBSuccess
+        )
+        defer { duckdb_destroy_prepare(&nextValueFirstStatement) }
+        let preparedNextValueFirst = try #require(nextValueFirstStatement)
+        #expect(!duck_internal_prepared_statement_is_read_only(preparedNextValueFirst))
+        try #require(duckdb_bind_int32(preparedNextValueFirst, 1, 42) == DuckDBSuccess)
+        #expect(!duck_internal_prepared_statement_is_read_only(preparedNextValueFirst))
+
+        let untouchedSequenceSQL = SQL
+            .select(
+                Fn.nextVal(
+                    SQLableParts(parts: SQLPartSafeValue(orderedSequence))
+                )
+            )
+            .prepare(.duck)
+            .plain
+        var untouchedSequenceResult = duckdb_result()
+        try #require(
+            duckdb_query(connected, untouchedSequenceSQL, &untouchedSequenceResult) == DuckDBSuccess
+        )
+        defer { duckdb_destroy_result(&untouchedSequenceResult) }
+        #expect(try firstInt64(in: &untouchedSequenceResult) == 31)
+
         let table = DB.Table("observation_bridge_rows")
         let createTableSQL = SQL
             .create
@@ -78,6 +220,30 @@ struct ObservationBridgeTests {
         try #require(duckdb_query(connected, insertSQL, &insertResult) == DuckDBSuccess)
         defer { duckdb_destroy_result(&insertResult) }
         #expect(!duck_internal_result_is_read_only(&insertResult))
+
+        let parameterizedSQL = SQL
+            .select(table.column("value"))
+            .from(table)
+            .where(table.column("value") == Int32(1))
+            .prepare(.duck)
+            .splitted
+        try #require(parameterizedSQL.values.count == 1)
+        var parameterizedStatement: duckdb_prepared_statement?
+        try #require(
+            duckdb_prepare(connected, parameterizedSQL.query, &parameterizedStatement) == DuckDBSuccess
+        )
+        defer { duckdb_destroy_prepare(&parameterizedStatement) }
+        let preparedParameterizedSelect = try #require(parameterizedStatement)
+        #expect(duck_internal_prepared_statement_is_read_only(preparedParameterizedSelect))
+        try #require(duckdb_bind_int32(preparedParameterizedSelect, 1, 1) == DuckDBSuccess)
+        #expect(duck_internal_prepared_statement_is_read_only(preparedParameterizedSelect))
+
+        var parameterizedResult = duckdb_result()
+        try #require(
+            duckdb_execute_prepared(preparedParameterizedSelect, &parameterizedResult) == DuckDBSuccess
+        )
+        defer { duckdb_destroy_result(&parameterizedResult) }
+        #expect(duck_internal_result_is_read_only(&parameterizedResult))
     }
 
     @Test("Read-only bridges are safe for null and error states")
@@ -94,6 +260,12 @@ struct ObservationBridgeTests {
         let connected = try #require(connection)
 
         let invalidSQL = SQL.raw("SELECT FROM").prepare(.duck).plain
+        var failedStatement: duckdb_prepared_statement?
+        #expect(duckdb_prepare(connected, invalidSQL, &failedStatement) == DuckDBError)
+        let preparedFailure = try #require(failedStatement)
+        #expect(!duck_internal_prepared_statement_is_read_only(preparedFailure))
+        duckdb_destroy_prepare(&failedStatement)
+
         var errorResult = duckdb_result()
         #expect(duckdb_query(connected, invalidSQL, &errorResult) == DuckDBError)
         #expect(!duck_internal_result_is_read_only(&errorResult))

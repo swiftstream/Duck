@@ -1,6 +1,8 @@
 import Cduckdb
 
 final class NativeDatabase: @unchecked Sendable {
+    private static let staticExtensionRegistrationState = duckdb_register_static_extensions()
+
     private let handle: duckdb_database
 
     convenience init() throws {
@@ -8,6 +10,13 @@ final class NativeDatabase: @unchecked Sendable {
     }
 
     init(path: String?) throws {
+        guard Self.staticExtensionRegistrationState == 0 else {
+            throw NativeDuckDBError(
+                operation: .databaseOpen,
+                message: "DuckDB failed to register statically linked extensions."
+            )
+        }
+
         var database: duckdb_database?
         var error: UnsafeMutablePointer<CChar>?
         let state = path.map { path in

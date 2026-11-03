@@ -3,11 +3,11 @@ import Foundation
 import SQL
 import Testing
 
-@Test("Reports the linked DuckDB v1.5.5 version")
+@Test("Reports the linked DuckDB v2.0.0 version")
 func reportsLinkedVersion() {
     let version = String(cString: duckdb_library_version())
 
-    #expect(version.hasPrefix("v1.5.5"))
+    #expect(version.hasPrefix("v2.0.0"))
 }
 
 @Test("Opens and closes an in-memory database connection")

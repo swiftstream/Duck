@@ -10,11 +10,17 @@
 #line 0 "extension/json/json_functions/json_create.cpp"
 #include "extension/json/json_functions/json_create.cpp"
 
+#line 0 "extension/json/json_functions/json_deep_merge.cpp"
+#include "extension/json/json_functions/json_deep_merge.cpp"
+
 #line 0 "extension/json/json_functions/json_exists.cpp"
 #include "extension/json/json_functions/json_exists.cpp"
 
 #line 0 "extension/json/json_functions/json_extract.cpp"
 #include "extension/json/json_functions/json_extract.cpp"
+
+#line 0 "extension/json/json_functions/json_geojson.cpp"
+#include "extension/json/json_functions/json_geojson.cpp"
 
 #line 0 "extension/json/json_functions/json_keys.cpp"
 #include "extension/json/json_functions/json_keys.cpp"
@@ -22,8 +28,26 @@
 #line 0 "extension/json/json_functions/json_merge_patch.cpp"
 #include "extension/json/json_functions/json_merge_patch.cpp"
 
+#line 0 "extension/json/json_functions/json_merge_patch_diff.cpp"
+#include "extension/json/json_functions/json_merge_patch_diff.cpp"
+
+#line 0 "extension/json/json_functions/json_modify.cpp"
+#include "extension/json/json_functions/json_modify.cpp"
+
+#line 0 "extension/json/json_functions/json_normalize.cpp"
+#include "extension/json/json_functions/json_normalize.cpp"
+
 #line 0 "extension/json/json_functions/json_pretty.cpp"
 #include "extension/json/json_functions/json_pretty.cpp"
+
+#line 0 "extension/json/json_functions/json_serialize_plan.cpp"
+#include "extension/json/json_functions/json_serialize_plan.cpp"
+
+#line 0 "extension/json/json_functions/json_serialize_sql.cpp"
+#include "extension/json/json_functions/json_serialize_sql.cpp"
+
+#line 0 "extension/json/json_functions/json_strip_nulls.cpp"
+#include "extension/json/json_functions/json_strip_nulls.cpp"
 
 #line 0 "extension/json/json_functions/json_structure.cpp"
 #include "extension/json/json_functions/json_structure.cpp"
@@ -43,15 +67,9 @@
 #line 0 "extension/json/json_functions/json_value.cpp"
 #include "extension/json/json_functions/json_value.cpp"
 
-#line 0 "extension/json/json_functions/json_serialize_plan.cpp"
-#include "extension/json/json_functions/json_serialize_plan.cpp"
-
-#line 0 "extension/json/json_functions/json_serialize_sql.cpp"
-#include "extension/json/json_functions/json_serialize_sql.cpp"
-
 #line 0 "extension/json/json_functions/read_json.cpp"
 #include "extension/json/json_functions/read_json.cpp"
 
-#line 0 "extension/json/json_functions/read_json_objects.cpp"
-#include "extension/json/json_functions/read_json_objects.cpp"
+#line 0 "extension/json/json_functions/read_single_json_file.cpp"
+#include "extension/json/json_functions/read_single_json_file.cpp"
 

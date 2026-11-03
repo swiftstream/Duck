@@ -1,8 +1,14 @@
 #line 0 "src/planner/operator/logical_aggregate.cpp"
 #include "src/planner/operator/logical_aggregate.cpp"
 
+#line 0 "src/planner/operator/logical_alter.cpp"
+#include "src/planner/operator/logical_alter.cpp"
+
 #line 0 "src/planner/operator/logical_any_join.cpp"
 #include "src/planner/operator/logical_any_join.cpp"
+
+#line 0 "src/planner/operator/logical_attach.cpp"
+#include "src/planner/operator/logical_attach.cpp"
 
 #line 0 "src/planner/operator/logical_column_data_get.cpp"
 #include "src/planner/operator/logical_column_data_get.cpp"
@@ -10,11 +16,14 @@
 #line 0 "src/planner/operator/logical_comparison_join.cpp"
 #include "src/planner/operator/logical_comparison_join.cpp"
 
-#line 0 "src/planner/operator/logical_copy_to_file.cpp"
-#include "src/planner/operator/logical_copy_to_file.cpp"
+#line 0 "src/planner/operator/logical_connect.cpp"
+#include "src/planner/operator/logical_connect.cpp"
 
 #line 0 "src/planner/operator/logical_copy_database.cpp"
 #include "src/planner/operator/logical_copy_database.cpp"
+
+#line 0 "src/planner/operator/logical_copy_to_file.cpp"
+#include "src/planner/operator/logical_copy_to_file.cpp"
 
 #line 0 "src/planner/operator/logical_create.cpp"
 #include "src/planner/operator/logical_create.cpp"
@@ -40,14 +49,26 @@
 #line 0 "src/planner/operator/logical_dependent_join.cpp"
 #include "src/planner/operator/logical_dependent_join.cpp"
 
+#line 0 "src/planner/operator/logical_detach.cpp"
+#include "src/planner/operator/logical_detach.cpp"
+
+#line 0 "src/planner/operator/logical_disconnect.cpp"
+#include "src/planner/operator/logical_disconnect.cpp"
+
 #line 0 "src/planner/operator/logical_distinct.cpp"
 #include "src/planner/operator/logical_distinct.cpp"
+
+#line 0 "src/planner/operator/logical_drop.cpp"
+#include "src/planner/operator/logical_drop.cpp"
 
 #line 0 "src/planner/operator/logical_dummy_scan.cpp"
 #include "src/planner/operator/logical_dummy_scan.cpp"
 
 #line 0 "src/planner/operator/logical_empty_result.cpp"
 #include "src/planner/operator/logical_empty_result.cpp"
+
+#line 0 "src/planner/operator/logical_explain.cpp"
+#include "src/planner/operator/logical_explain.cpp"
 
 #line 0 "src/planner/operator/logical_export.cpp"
 #include "src/planner/operator/logical_export.cpp"
@@ -57,6 +78,9 @@
 
 #line 0 "src/planner/operator/logical_extension_operator.cpp"
 #include "src/planner/operator/logical_extension_operator.cpp"
+
+#line 0 "src/planner/operator/logical_external_resource.cpp"
+#include "src/planner/operator/logical_external_resource.cpp"
 
 #line 0 "src/planner/operator/logical_filter.cpp"
 #include "src/planner/operator/logical_filter.cpp"
@@ -72,6 +96,12 @@
 
 #line 0 "src/planner/operator/logical_limit.cpp"
 #include "src/planner/operator/logical_limit.cpp"
+
+#line 0 "src/planner/operator/logical_load.cpp"
+#include "src/planner/operator/logical_load.cpp"
+
+#line 0 "src/planner/operator/logical_materialized_cte.cpp"
+#include "src/planner/operator/logical_materialized_cte.cpp"
 
 #line 0 "src/planner/operator/logical_merge_into.cpp"
 #include "src/planner/operator/logical_merge_into.cpp"
@@ -97,26 +127,29 @@
 #line 0 "src/planner/operator/logical_recursive_cte.cpp"
 #include "src/planner/operator/logical_recursive_cte.cpp"
 
-#line 0 "src/planner/operator/logical_materialized_cte.cpp"
-#include "src/planner/operator/logical_materialized_cte.cpp"
+#line 0 "src/planner/operator/logical_reset.cpp"
+#include "src/planner/operator/logical_reset.cpp"
 
 #line 0 "src/planner/operator/logical_sample.cpp"
 #include "src/planner/operator/logical_sample.cpp"
 
+#line 0 "src/planner/operator/logical_secure_view.cpp"
+#include "src/planner/operator/logical_secure_view.cpp"
+
 #line 0 "src/planner/operator/logical_set.cpp"
 #include "src/planner/operator/logical_set.cpp"
-
-#line 0 "src/planner/operator/logical_reset.cpp"
-#include "src/planner/operator/logical_reset.cpp"
 
 #line 0 "src/planner/operator/logical_set_operation.cpp"
 #include "src/planner/operator/logical_set_operation.cpp"
 
-#line 0 "src/planner/operator/logical_simple.cpp"
-#include "src/planner/operator/logical_simple.cpp"
-
 #line 0 "src/planner/operator/logical_top_n.cpp"
 #include "src/planner/operator/logical_top_n.cpp"
+
+#line 0 "src/planner/operator/logical_transaction.cpp"
+#include "src/planner/operator/logical_transaction.cpp"
+
+#line 0 "src/planner/operator/logical_trigger.cpp"
+#include "src/planner/operator/logical_trigger.cpp"
 
 #line 0 "src/planner/operator/logical_unconditional_join.cpp"
 #include "src/planner/operator/logical_unconditional_join.cpp"
@@ -126,6 +159,9 @@
 
 #line 0 "src/planner/operator/logical_update.cpp"
 #include "src/planner/operator/logical_update.cpp"
+
+#line 0 "src/planner/operator/logical_update_extensions.cpp"
+#include "src/planner/operator/logical_update_extensions.cpp"
 
 #line 0 "src/planner/operator/logical_vacuum.cpp"
 #include "src/planner/operator/logical_vacuum.cpp"

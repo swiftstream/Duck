@@ -1,8 +1,20 @@
-#line 0 "src/parser/query_node/recursive_cte_node.cpp"
-#include "src/parser/query_node/recursive_cte_node.cpp"
+#line 0 "src/parser/query_node/copy_query_node.cpp"
+#include "src/parser/query_node/copy_query_node.cpp"
 
 #line 0 "src/parser/query_node/cte_node.cpp"
 #include "src/parser/query_node/cte_node.cpp"
+
+#line 0 "src/parser/query_node/delete_query_node.cpp"
+#include "src/parser/query_node/delete_query_node.cpp"
+
+#line 0 "src/parser/query_node/insert_query_node.cpp"
+#include "src/parser/query_node/insert_query_node.cpp"
+
+#line 0 "src/parser/query_node/merge_query_node.cpp"
+#include "src/parser/query_node/merge_query_node.cpp"
+
+#line 0 "src/parser/query_node/recursive_cte_node.cpp"
+#include "src/parser/query_node/recursive_cte_node.cpp"
 
 #line 0 "src/parser/query_node/select_node.cpp"
 #include "src/parser/query_node/select_node.cpp"
@@ -12,4 +24,7 @@
 
 #line 0 "src/parser/query_node/statement_node.cpp"
 #include "src/parser/query_node/statement_node.cpp"
+
+#line 0 "src/parser/query_node/update_query_node.cpp"
+#include "src/parser/query_node/update_query_node.cpp"
 
