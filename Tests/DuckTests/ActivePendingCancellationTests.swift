@@ -100,14 +100,15 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
             physicalPlan.contains(functionNamePrefix)
                 && physicalPlan.contains("_\(gateId)()")
         )
+    let explainContainsProjection = physicalPlan.lowercased().contains("projection")
     #expect(explainContainsFunction)
-    #expect(physicalPlan.contains("PROJECTION"))
+    #expect(explainContainsProjection)
 
     var explainCallbackCount: UInt64 = 0
     let explainCallbackCountStatus = pending_execution_gate_callback_count(gateId, &explainCallbackCount)
     #expect(explainCallbackCountStatus == 1)
     #expect(explainCallbackCount == 0)
-    guard explainContainsFunction, physicalPlan.contains("PROJECTION"),
+    guard explainContainsFunction, explainContainsProjection,
           explainCallbackCountStatus == 1, explainCallbackCount == 0 else {
         return
     }
