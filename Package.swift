@@ -493,6 +493,7 @@ let package = Package(
         .define("DUCKDB_EXTENSION_ICU_LINKED"),
         .define("DUCKDB_EXTENSION_JSON_LINKED"),
         .define("DUCKDB_BUILD_LIBRARY"),
+        .define("NDEBUG", .when(configuration: .release)),
         // the generated loader hides duckdb_register_static_extensions by default; Database.swift calls it
         .define("DUCKDB_STATIC_EXTENSION_LOADER_API", to: ""),
         .disableWarning("shorten-64-to-32"),
