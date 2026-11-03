@@ -215,6 +215,43 @@ func explicitDecimalTargetMatrix() async throws {
     }
 }
 
+@Test("Decimal exact width matrix round-trips every W1 through W38")
+func decimalExactWidthMatrixRoundTripsEverySupportedWidth() async throws {
+    let connection = try Database().connect()
+
+    for width in 1...38 {
+        let integerText = String(repeating: "9", count: width)
+        let integerValue = try decimal(integerText)
+        let integerStatement = try await connection.prepare { parameters in
+            SQL.select(
+                Fn.cast(parameters.parameter(), .decimal(width, 0)) => "value"
+            )
+        }
+        let integerResult = try await integerStatement.query(integerValue)
+        try requireDecimalResult(
+            integerResult,
+            value: integerValue,
+            width: UInt8(width),
+            scale: 0
+        )
+
+        let fractionalText = "0." + String(repeating: "0", count: width - 1) + "1"
+        let fractionalValue = try decimal(fractionalText)
+        let fractionalStatement = try await connection.prepare { parameters in
+            SQL.select(
+                Fn.cast(parameters.parameter(), .decimal(width, width)) => "value"
+            )
+        }
+        let fractionalResult = try await fractionalStatement.query(fractionalValue)
+        try requireDecimalResult(
+            fractionalResult,
+            value: fractionalValue,
+            width: UInt8(width),
+            scale: UInt8(width)
+        )
+    }
+}
+
 @Test("Decimal binding rejects rounding, width overflow, and nonfinite values")
 func decimalRejectionMatrix() async throws {
     let connection = try Database().connect()
