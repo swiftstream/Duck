@@ -4,40 +4,32 @@ Unresolved choices that must not be treated as implemented architecture.
 
 ## Maintainer Priority Boundary
 
-The current durable product priority is to finish a locally release-ready Duck `v1.0.0` before another major feature layer:
+The current durable product priority is to finish a locally release-ready Duck v1.0.0 before another major feature layer. The accepted release candidate now consists of the DuckDB2 implementation, the SQL compatibility result, and Wave 06 validation.
 
-```text
-Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf` -> C8 CLOSED at `0b8baa756b523f00f309b2a007ead7d0570e6b28` -> C9 CLOSED at `6e99a95add3ba57e27f95c88e019666e9af8ec54`
--> SQL minimum correction CLOSED at `bc90ee75541519ba900d6139b706824aee66a577`; `V1-TRP-001` CLOSED; historical former SQL-2 floor `2.1.0`
--> technical release validation COMPLETE
--> independent release audit COMPLETE
--> release-readiness state checkpoint COMPLETE
--> real SwiftUI macOS consumer CLOSED / independently accepted
--> real UIKitPlus macOS consumer CLOSED / independently accepted
--> final public-doc polish/audit CLOSED / independently accepted
--> Bridges-like DatabaseIdentifier pre-v1 correction CLOSED / final whole-candidate audit CLEAN at 30/30
--> DuckDB 2.x adoption research CURRENT / AUTHORIZED
--> DuckDB 2.x adoption + mandatory separate SwiftStream/SQL PRIMARY compatibility handoff for SQL-owned impacts
--> fresh Duck validation/consumer gates
--> final release snapshot
--> local v1.0.0
--> separate v1.1.0 roadmap
-```
+    Foundation C6 complete -> C7/C8/C9 CLOSED
+    -> SQL 3.1.0 candidate floor and SQL3 surface synchronization COMPLETE
+    -> DuckDB v2.0.0 first-v1 engine selection and adoption COMPLETE
+    -> SQL compatibility matrix 13/13 PASS; no SQL change required
+    -> Wave 06 exact platform and consumer validation ACCEPTED
+    -> Wave 07 docs/governance synchronization + final independent DuckDB2 adoption audit CURRENT
+    -> after CLEAN: new final independent v1 release snapshot NEXT / NOT OPEN
+    -> local v1.0.0
+    -> separate v1.1.0 roadmap
 
-Advanced Appender expansion and nested/complex Value/result families remain unresolved future capabilities, but they are not pre-v1 implementation authorization and no inherited ordering between them is binding after v1.0.0. A future v1.1.0 roadmap must prioritize them from current evidence.
-
-Platform validation continues as release/assurance evidence when the required environment is available.
+Advanced Appender expansion and nested/complex Value/result families remain future capabilities, not pre-v1 implementation authorization. A future v1.1.0 roadmap will prioritize them from current evidence. Platform validation continues as release/assurance evidence when the required environment is available. Push, tag, remote release, and publication remain separate and unauthorized.
 
 This priority boundary is durable product direction, not permission to skip normal research/planning/validation/audit gates. Executable work is owned by `.agent/TASKS.md`.
 
 ## DuckDB Integration
 
-- **Current pre-v1 gate:** select and adopt a suitable DuckDB 2.x release for the first public Duck `v1.0.0`. On 2026-11-01, DuckDB `2.0.0` LTS is the only released 2.0.x patch; `2.0.1` is scheduled but not yet available. Exact patch choice remains evidence-driven.
-- Research must resolve storage compatibility for existing 1.5.x files, stable-C-API compatibility, generated Swift-package/vendor changes, extension/ICU packaging, and parser/runtime semantic changes before implementation authorization.
-- SwiftStream/SQL owns Duck-dialect grammar/rendering. A separate SQL PRIMARY compatibility handoff is mandatory; any SQL-owned release-blocking correction must land there rather than in Duck.
-- Migration long-history/rollup research is deferred tech debt and no longer precedes this DuckDB 2.x gate.
-- Long-term DuckDB upgrade/version policy beyond the first accepted DuckDB 2.x-backed public baseline remains a future decision.
-- Optional-extension and bundle-size strategy beyond the release-required generated set remains open and must be re-evaluated because DuckDB 2.x removes ICU from the core build.
+The first-v1 adoption decisions are closed: DuckDB v2.0.0 at upstream revision d54cbbe3df17e8e5ce68312f483b4155836112aa, the official C++17 Swift package generation flow, the required core_functions/parquet/icu/json static extension set and pre-open registration, the stable C API boundary, private Observation bridge adaptation, and the accepted storage compatibility policy. SQL 3.1.0 at revision b0c81191c3494d91b84b5382092e99c64d5c4647 passed the compatibility return matrix 13/13 with no required SQL change. See Project Memory and Master Plan for current implementation facts. The final independent DuckDB2 adoption audit is the current release gate; after CLEAN, the new final v1 snapshot follows.
+
+Still open for future work:
+
+- Long-term DuckDB upgrade/version policy beyond the first v2-backed baseline.
+- Optional-extension and bundle-size strategy beyond the release-required generated set.
+- Android DuckDB2 runtime closure; current runtime status remains UNPROVEN / NOT CLAIMED.
+- Windows DuckDB2 support closure; current support status remains UNPROVEN / NOT CLAIMED.
 
 ## Future Public Resource APIs
 
@@ -71,9 +63,9 @@ Observation / Reactive Queries core architecture is no longer an open decision. 
 
 ## Platform Packaging / Validation
 
-- Linux additional architectures/toolchains beyond the accepted Ubuntu 24.04 ARM64 Swift 6.3.3 S5 row.
-- Android runtime/integration closure after the maintainer's proper Swift 6.3.3 SwifDroid environment is ready; current ICU packaging research remains paused, not closed.
-- Windows architecture/toolchain/package closure.
+- Linux x86_64, musl, and other distro/libc/toolchain combinations beyond the accepted Ubuntu 24.04.4 ARM64/aarch64, glibc 2.39, Swift 6.3.3 row.
+- Android DuckDB2 runtime remains UNPROVEN / NOT CLAIMED. Runtime/integration closure may be revisited after the maintainer's proper Swift 6.3.3 SwifDroid environment is ready; separate ICU packaging research remains paused, not closed.
+- Windows DuckDB2 support remains UNPROVEN / NOT CLAIMED; architecture/toolchain/package closure remains future work.
 - iOS actual 15/16 runtime and eventual simulator S5 revalidation when a compatible compiler/Testing environment exists.
 
 None of these open decisions is implementation authorization. Promote a concrete capability through research and reviewed planning before source changes.

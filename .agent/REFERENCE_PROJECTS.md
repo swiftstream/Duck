@@ -6,7 +6,7 @@ Permanent Duck documentation must remain portable. Do not persist machine-local 
 
 DuckDB is the native database engine and C API dependency.
 
-Current implemented native foundation pins DuckDB v1.5.5 and vendors the official generated Swift-package source snapshot into internal target `Cduckdb`.
+Current implemented native foundation pins DuckDB v2.0.0 at upstream revision `d54cbbe3df17e8e5ce68312f483b4155836112aa` and vendors the official generated Swift-package source snapshot into internal target `Cduckdb`.
 
 When implementation work requires exact API, build, platform, or lifetime behavior, verify it from the pinned vendored source/current official contract. Do not duplicate large portions of DuckDB documentation into this repository.
 

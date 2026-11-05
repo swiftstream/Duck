@@ -17,7 +17,7 @@ The repository toolchain pin is Swift 6.3.3.
 
 The package currently declares SQL from `3.1.0` up to the next major version (`<4.0.0`).
 
-The current vendored/upstream DuckDB engine base is v1.5.5. Duck's package version and the DuckDB engine version are separate version lines.
+Duck embeds DuckDB 2.x, currently v2.0.0. Duck's own semantic version is independent of DuckDB's engine version. New databases use the native DuckDB 2.x storage format by default. Existing older DuckDB files remain supported and retain their older storage compatibility version by default. Files created in the DuckDB 2.x format are not readable by pre-2.0 DuckDB runtimes.
 
 ## Installation
 

@@ -19,11 +19,9 @@ Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf
 -> final public-doc polish/audit CLOSED / independently accepted
 -> SQL3/batch candidate synchronization CLOSED / accepted
 -> Bridges-like DatabaseIdentifier correction CLOSED / final audit CLEAN
--> DuckDB 2.x adoption research CURRENT / AUTHORIZED
--> independently audited DuckDB 2.x implementation plan
--> DuckDB 2.x adoption + mandatory separate SwiftStream/SQL PRIMARY compatibility result/landing for any required SQL-owned changes
--> fresh Duck validation / consumer gates
--> new final independent release snapshot
+-> DuckDB2 implementation + SQL compatibility disposition + accepted Wave 06 validation — completed candidate state
+-> Wave 07 final docs/governance closure + final independent DuckDB2 adoption audit — CURRENT
+-> after CLEAN adoption audit: new final independent v1 release snapshot — NEXT / NOT OPEN
 -> local v1.0.0
 -> separate v1.1.0 roadmap
 ```
@@ -45,10 +43,15 @@ Platform validation remains an assurance track and participates where required b
 
 ## Current Platform-Validation Boundary
 
-- macOS ARM64 Swift 6.3.3: accepted S5.
-- Ubuntu 24.04 ARM64 Swift 6.3.3: accepted S5.
-- iOS Simulator 17.5 / 18.2 / 26.2: accepted S4; actual iOS 15/16 runtime and simulator S5 remain unproven.
-- Android runtime validation is paused pending the maintainer's proper Swift 6.3.3 SwifDroid / Swift Stream IDE environment.
-- Windows remains unclosed.
+Accepted DuckDB2 Wave 06 evidence:
+
+- macOS arm64 / Swift 6.3.3 full package — PASS.
+- macOS arm64 / Xcode-27 Swift 6.4 full package — PASS.
+- Ubuntu 24.04.4 / ARM64-aarch64 / glibc 2.39 / Swift 6.3.3 — PASS.
+- SwiftUI iOS Simulator arm64 and x86_64 build/final-link — PASS.
+- UIKitPlus iOS Simulator arm64 and x86_64 build/final-link — PASS.
+- iOS runtime claim — NO.
+
+These rows do not establish Linux x86_64, musl, or generic all-Linux support. Android DuckDB2 runtime and Windows DuckDB2 support remain UNPROVEN / NOT CLAIMED.
 
 Items here are not implementation authorization unless explicitly promoted into the normal executable workflow.
