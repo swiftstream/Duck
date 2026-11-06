@@ -10,7 +10,7 @@ Foundation C6 is CLOSED at local commit `31973379133ed290a749d2e5f9dbc9b266b2ab0
 
 Foundation C7 is CLOSED at local commit `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf`. C8 semantic development-history leakage cleanup is CLOSED at local commit `0b8baa756b523f00f309b2a007ead7d0570e6b28`. C9 final Foundation closure is CLOSED at local commit `6e99a95add3ba57e27f95c88e019666e9af8ec54`. The SQL minimum correction is CLOSED at local commit `bc90ee75541519ba900d6139b706824aee66a577`; `V1-TRP-001` remains CLOSED as the historical SQL-2 floor gate. SQL 3.1.0 is the current candidate floor and `Package.swift` declares `>=3.1.0,<4.0.0`; the SQL3 `DB.Table` / `DB.Schema.Table` surface migration and stable synchronization are accepted candidate state. v1.0.0 technical validation, independent release audit, release-readiness checkpoint, DuckTransaction correction, and real macOS SwiftUI consumer gate are CLOSED. The corrected SwiftUI Attempt06 independent re-audit is CLEAN at 120/120 with zero findings. The real macOS UIKitPlus consumer is CLOSED / independently accepted after Validation-04 passed one XcodeGen, one exact dependency resolution, one cold Xcode 26.6 / Swift 6.3.3 macOS arm64 application build, and one real LaunchServices run with exact `DUCK-UIKITPLUS-RELEASE-OK\n`; the independent post-execution Sol audit passed 156/156 with zero findings. Final public-doc polish/audit is CLOSED / independently accepted after the exact applied README passed an independent final Sol audit at 182/182 with 60/60 direct questions and zero findings. Typed Table `batchInsert(on:)` implementation, Swift 6.3.3/6.4 validation, strict SwiftUI consumer validation, runtime smoke, external-Sol F01 correction, stable SQL3/batch public-surface synchronization, and its independent final audit are CLOSED / accepted. Production source/API behavior, the durable `__swiftduckdb.migrations` compatibility namespace, and the committed `.agent/STYLE_GUIDELINES.md` DocC policy are accepted current state.
 
-DuckDB2 implementation, SQL compatibility, Wave 06 validation, and adoption closure at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845` are accepted current state. The final independent v1 release snapshot is the current release gate (CURRENT / OPEN); local v1.0.0 follows only after snapshot CLEAN plus PRIMARY acceptance. The earlier v1.5.5-backed release evidence remains historical baseline evidence. The migration long-history/rollup work remains deferred non-blocking tech debt.
+DuckDB2 implementation, SQL compatibility, Wave 06 validation, and adoption closure at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845` are accepted current state. The final independent v1 release snapshot is CLOSED / CLEAN at local commit `1925c7164cade025babb6d4b53453f697e9cdbfc`; local `v1.0.0` is now CURRENT / AUTHORIZED as the only remaining local pre-v1 governance gate. The earlier v1.5.5-backed release evidence remains historical baseline evidence. The migration long-history/rollup work remains deferred non-blocking tech debt.
 
 No major Advanced Appender or nested/complex Value expansion is authorized before local v1.0.0 unless the smallest bounded correction is proven to be a release blocker. Post-v1 feature work requires a separate v1.1.0 roadmap.
 
@@ -18,11 +18,11 @@ Push/tag/remote release remains separately unauthorized.
 
 ## Current active release gate
 
-### Final independent v1 release snapshot — CURRENT / OPEN
+### Local v1.0.0 — CURRENT / AUTHORIZED
 
-DuckDB2 implementation, SQL 3.1.0 compatibility (13/13 PASS; no SQL change required), exact Wave 06 validation, and adoption closure at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845` are accepted current state. Wave 07 docs/governance synchronization and the final independent DuckDB2 adoption audit are closed history.
+DuckDB2 implementation, SQL 3.1.0 compatibility (13/13 PASS; no SQL change required), exact Wave 06 validation, adoption closure at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845`, and the final independent v1 release snapshot closed at local commit `1925c7164cade025babb6d4b53453f697e9cdbfc` are accepted current state. Wave 07 docs/governance synchronization and the final independent DuckDB2 adoption audit are closed history.
 
-Current executable gate: the final independent v1 release snapshot. It must close CLEAN and receive PRIMARY acceptance before local v1.0.0. Tag/push/remote release remains unauthorized, and performance benchmarking remains NOT_REQUIRED.
+Current local release-state gate: finalize local `v1.0.0` governance. `CURRENT / AUTHORIZED` does not create a Git tag or authorize push, remote release, or publication. Performance benchmarking remains NOT_REQUIRED.
 
 Push/tag/remote release remains unauthorized.
 

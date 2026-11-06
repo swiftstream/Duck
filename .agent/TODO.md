@@ -21,8 +21,8 @@ Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf
 -> Bridges-like DatabaseIdentifier correction CLOSED / final audit CLEAN
 -> DuckDB2 implementation + SQL compatibility disposition + accepted Wave 06 validation — completed candidate state
 -> DuckDB2 adoption closure — CLOSED / CLEAN at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845`
--> final independent v1 release snapshot — CURRENT / OPEN
--> local v1.0.0 — NEXT after snapshot CLEAN + PRIMARY acceptance
+-> final independent v1 release snapshot — CLOSED / CLEAN at local commit `1925c7164cade025babb6d4b53453f697e9cdbfc`
+-> local v1.0.0 — CURRENT / AUTHORIZED local governance state; no tag/push/remote publication authorized
 -> separate v1.1.0 roadmap
 ```
 
