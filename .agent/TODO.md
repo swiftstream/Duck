@@ -20,9 +20,9 @@ Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf
 -> SQL3/batch candidate synchronization CLOSED / accepted
 -> Bridges-like DatabaseIdentifier correction CLOSED / final audit CLEAN
 -> DuckDB2 implementation + SQL compatibility disposition + accepted Wave 06 validation — completed candidate state
--> Wave 07 final docs/governance closure + final independent DuckDB2 adoption audit — CURRENT
--> after CLEAN adoption audit: new final independent v1 release snapshot — NEXT / NOT OPEN
--> local v1.0.0
+-> DuckDB2 adoption closure — CLOSED / CLEAN at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845`
+-> final independent v1 release snapshot — CURRENT / OPEN
+-> local v1.0.0 — NEXT after snapshot CLEAN + PRIMARY acceptance
 -> separate v1.1.0 roadmap
 ```
 
@@ -32,11 +32,11 @@ Before local v1.0.0, **Advanced Appender APIs** and **nested/complex Value/resul
 
 After local v1.0.0, create a separate v1.1.0 roadmap and prioritize major feature families afresh. Initial candidates include Advanced Appender surfaces (per-cell `DEFAULT`, QueryAppender, public DataChunk/vector append, manual lifecycle controls) and nested/complex `LIST`, `ARRAY`, `MAP`, `STRUCT`, `UNION`, `ENUM` support.
 
-Platform validation remains an assurance track and participates where required by release evidence; it does not substitute for the release-readiness sequence.
+Platform validation remains an assurance track and participates where required by release evidence; it does not substitute for the release-readiness sequence. Tag/push/remote publication remains unauthorized, and performance benchmarking remains NOT_REQUIRED.
 
 ## Other Future Work
 
-- After the pre-v1 DuckDB 2.x adoption closes, define the long-term DuckDB upgrade/version policy beyond that first accepted 2.x-backed public baseline.
+- Now that pre-v1 DuckDB 2.x adoption is CLOSED / CLEAN, define the long-term DuckDB upgrade/version policy beyond that first accepted 2.x-backed public baseline.
 - Evaluate optional DuckDB extensions and bundle-size tradeoffs beyond the current generated extension set.
 - Decide when to request central `swiftstream/skills` onboarding for Duck after source-owned public packages are ready. Source preparation under the established `.agent/skills` root and `.agent/SKILL_INDEX.md` does not itself authorize central federation registration.
 - Continue real platform build/runtime validation for the intended iOS 15+, macOS 12+, Linux, Android, and Windows environments under supported Swift 6.3+ toolchains when the correct environment exists.

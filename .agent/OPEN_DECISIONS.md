@@ -11,9 +11,9 @@ The current durable product priority is to finish a locally release-ready Duck v
     -> DuckDB v2.0.0 first-v1 engine selection and adoption COMPLETE
     -> SQL compatibility matrix 13/13 PASS; no SQL change required
     -> Wave 06 exact platform and consumer validation ACCEPTED
-    -> Wave 07 docs/governance synchronization + final independent DuckDB2 adoption audit CURRENT
-    -> after CLEAN: new final independent v1 release snapshot NEXT / NOT OPEN
-    -> local v1.0.0
+    -> DuckDB2 adoption closure CLOSED / CLEAN at `3464caa32f6483ecb4f1f68f0997733b94aaf845`
+    -> final independent v1 release snapshot CURRENT / OPEN
+    -> local v1.0.0 NEXT after snapshot CLEAN + PRIMARY acceptance
     -> separate v1.1.0 roadmap
 
 Advanced Appender expansion and nested/complex Value/result families remain future capabilities, not pre-v1 implementation authorization. A future v1.1.0 roadmap will prioritize them from current evidence. Platform validation continues as release/assurance evidence when the required environment is available. Push, tag, remote release, and publication remain separate and unauthorized.
@@ -22,7 +22,7 @@ This priority boundary is durable product direction, not permission to skip norm
 
 ## DuckDB Integration
 
-The first-v1 adoption decisions are closed: DuckDB v2.0.0 at upstream revision d54cbbe3df17e8e5ce68312f483b4155836112aa, the official C++17 Swift package generation flow, the required core_functions/parquet/icu/json static extension set and pre-open registration, the stable C API boundary, private Observation bridge adaptation, and the accepted storage compatibility policy. SQL 3.1.0 at revision b0c81191c3494d91b84b5382092e99c64d5c4647 passed the compatibility return matrix 13/13 with no required SQL change. See Project Memory and Master Plan for current implementation facts. The final independent DuckDB2 adoption audit is the current release gate; after CLEAN, the new final v1 snapshot follows.
+The first-v1 adoption decisions are closed: DuckDB v2.0.0 at upstream revision d54cbbe3df17e8e5ce68312f483b4155836112aa, the official C++17 Swift package generation flow, the required core_functions/parquet/icu/json static extension set and pre-open registration, the stable C API boundary, private Observation bridge adaptation, and the accepted storage compatibility policy. SQL 3.1.0 at revision b0c81191c3494d91b84b5382092e99c64d5c4647 passed the compatibility return matrix 13/13 with no required SQL change. See Project Memory and Master Plan for current implementation facts. DuckDB2 adoption is CLOSED / CLEAN at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845`; the final independent v1 release snapshot is the current release gate, and local v1.0.0 follows only after snapshot CLEAN plus PRIMARY acceptance.
 
 Still open for future work:
 
