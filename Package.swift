@@ -2,33 +2,14 @@
 
 import PackageDescription
 
-let package = Package(
-    name: "Duck",
-    platforms: [
-        .iOS(.v15),
-        .macOS(.v12)
-    ],
-    products: [
-        .library(
-            name: "Duck",
-            targets: ["Duck"]
-        )
-    ],
-    dependencies: [
-        .package(
-            url: "https://github.com/SwiftStream/SQL",
-            from: "3.1.0"
-        )
-    ],
-    targets: [
-        .target(
-            name: "Duck",
-            dependencies: [
-                "Cduckdb",
-                .product(name: "SQL", package: "sql")
-            ]
-        ),
-    .target(
+#if os(macOS)
+let cduckdbTarget: Target = .binaryTarget(
+    name: "Cduckdb",
+    url: "https://github.com/SwiftStream/Duck/releases/download/cduckdb-v2.0.0-r1/Cduckdb-apple-v2.0.0-r1.xcframework.zip",
+    checksum: "b626ce714f0b693918ee8b504aa8c1136bd8e71312dc148abf5cff30ad1acf82"
+)
+#else
+let cduckdbTarget: Target = .target(
       name: "Cduckdb",
       sources: [
         "duckdb/ub_src_catalog.cpp",
@@ -499,7 +480,36 @@ let package = Package(
         .disableWarning("shorten-64-to-32"),
         .disableWarning("parentheses")
       ]
-    ),
+)
+#endif
+
+let package = Package(
+    name: "Duck",
+    platforms: [
+        .iOS(.v15),
+        .macOS(.v12)
+    ],
+    products: [
+        .library(
+            name: "Duck",
+            targets: ["Duck"]
+        )
+    ],
+    dependencies: [
+        .package(
+            url: "https://github.com/SwiftStream/SQL",
+            from: "3.1.0"
+        )
+    ],
+    targets: [
+        .target(
+            name: "Duck",
+            dependencies: [
+                "Cduckdb",
+                .product(name: "SQL", package: "sql")
+            ]
+        ),
+    cduckdbTarget,
     .target(
         name: "PendingExecutionGate",
         dependencies: ["Cduckdb"],
