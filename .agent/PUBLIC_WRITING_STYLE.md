@@ -94,6 +94,16 @@ Those concepts belong in governance/artifacts, not product documentation.
 
 Use only real published package versions/URLs. Keep installation snippets mechanically copyable.
 
+### Release-Candidate Installation Versions
+
+An exact local semantic-release candidate may contain the target installation version required for its future immutable tagged tree before that semantic tag is published, but only when the target version and release ordering have already been explicitly approved by the governing release plan.
+
+This narrow candidate state is not a claim that the version is already remotely published. Do not push the candidate, publish installation instructions from it, or otherwise present the target version as an available release before the semantic release gate is complete.
+
+The exception applies only to the exact audited local semantic-tag candidate whose README and other release-facing documentation must already match the future tagged tree. It does not authorize speculative future versions, unrelated unpublished-version examples, or public branch state that implies an unreleased version is available.
+
+After the exact semantic tag and release are published, the same installation snippet becomes ordinary published-version documentation and the normal published-version rule applies without the candidate exception.
+
 ## Migration Documentation
 
 When a later migration guide is justified, prefer concrete mechanical comparisons:
