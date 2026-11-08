@@ -1,6 +1,7 @@
 .build/
 /build/
 .swiftpm/
+.qoder/
 .DS_Store
 Package.resolved
 /.artifacts/
