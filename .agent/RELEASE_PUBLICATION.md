@@ -235,6 +235,53 @@ Read the published release back independently and verify:
 
 A GitHub Release-page failure never authorizes changing the immutable semantic tag.
 
+## Release announcements
+
+After the GitHub Release is successfully published and independently verified, prepare two immediate Swift Stream release announcements:
+
+- one English post for the relevant Discord channel;
+- one Russian post for the Swift Stream Telegram channel.
+
+Treat these as post-release communication, not as a substitute for the GitHub Release or full release notes.
+
+Both drafts must:
+
+- describe only shipped, verified user-visible behavior;
+- use the published release version and canonical GitHub Release URL;
+- follow the release-announcement rules in `PUBLIC_WRITING_STYLE.md`;
+- avoid internal planning, audit, execution, evidence, tooling, and implementation-history terminology;
+- avoid unsupported performance comparisons or platform claims;
+- be reviewed by the maintainer before external publication.
+
+The two posts are channel-native drafts, not literal translations of one another.
+
+## Broader launch communications
+
+After the verified GitHub Release, broader launch material may be prepared from accepted release truth and the durable source material in `FUTURE_PUBLICATIONS.md`.
+
+This may include:
+
+- a long-form technical launch article;
+- LinkedIn;
+- X / Threads;
+- Mastodon;
+- media or press outreach summaries and pitches;
+- later capability-focused technical articles.
+
+These materials must:
+
+- start from shipped, verified v1.0.0 behavior;
+- use the canonical GitHub Release as the release-status source of truth;
+- follow `PUBLIC_WRITING_STYLE.md`;
+- preserve sharp edges and non-goals when omission would mislead readers;
+- avoid internal audit/test statistics, prompt/tool history, artifact hashes, and coordinator terminology;
+- avoid unsupported benchmark or comparison claims;
+- be reviewed by the maintainer before each external publication.
+
+Broader communications do not delay the validity of an already verified GitHub Release unless the maintainer explicitly makes a specific publication part of a separate launch gate.
+
+A release is publication-complete when the GitHub Release is independently verified. The Discord and Telegram announcements are the required immediate follow-up communication step. Broader launch and media publication is separately maintainer-controlled.
+
 ## Release point
 
 Before any later post-publication governance commit:

@@ -229,6 +229,52 @@ Prefer one technically complete source package that can be adapted for a long-fo
 
 Posts may be prepared before external publication, but they must clearly distinguish implemented/validated API from planned work and must not imply a release, package version, platform guarantee, or publication event that has not happened.
 
+## Swift Stream Release Announcements
+
+After a verified GitHub Release, prepare two short release announcements:
+
+- English for the relevant Discord channel;
+- Russian for the Swift Stream Telegram channel.
+
+These are not shortened copies of the GitHub Release body and are not literal translations of one another. Each should sound native to its channel while preserving the same shipped release truth.
+
+Both posts should:
+
+- lead with the most important user-visible reason to care;
+- name the published release version;
+- mention only shipped and verified capabilities;
+- keep the feature list selective rather than reproducing the entire changelog;
+- include migration or sharp-edge guidance only when omitting it would mislead users;
+- end with the canonical GitHub Release URL as the single release link;
+- avoid internal validation/test counts, toolchain history, artifact hashes, coordinator language, or release-process narration;
+- avoid unsupported performance comparisons;
+- be reviewed by the maintainer before publication.
+
+For Discord, prefer concise English developer copy with direct technical nouns and small inline API names where useful.
+
+For Telegram, use natural Russian, slightly more conversational phrasing, and explain practical value rather than translating the English post sentence by sentence.
+
+## Launch Articles and Media Outreach
+
+Broader launch communication should be derived from the detailed source packages in `FUTURE_PUBLICATIONS.md` after the release is verified.
+
+A long-form launch article or media-facing source package should normally include:
+
+- what problem Duck solves for Swift developers;
+- the smallest compelling application example;
+- the strongest shipped v1.0.0 capabilities;
+- the relationship between Duck model/database APIs and SQL query authoring where that helps readers understand the stack;
+- concurrency, ownership, transaction, and observation semantics that materially affect correct use;
+- important non-goals and current boundaries, including composite-value limits where relevant;
+- evidence-backed performance context only when a public benchmark supports the exact claim;
+- the canonical GitHub Release and repository links.
+
+Channel adaptations for LinkedIn, X / Threads, Mastodon, technical communities, or media outreach may be shorter, but they must not widen claims beyond the durable source material.
+
+A media or press pitch should state only verifiable product facts. It must not turn internal validation effort into marketing evidence and must not imply third-party endorsement, benchmark superiority, adoption, or platform support that has not been independently established.
+
+Every external launch publication requires maintainer review before publication.
+
 ## No Internal Process Prose
 
 Normal README/public docs should not expose internal workflow language such as:
