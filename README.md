@@ -1358,10 +1358,10 @@ LIST v1 is intentionally one-dimensional. Nested LIST, STRUCT-in-LIST, fixed ARR
 
 ### Native STRUCT values
 
-One immediate keyed Codable property can stay a real DuckDB STRUCT:
+One immediate keyed Codable property can stay a real DuckDB STRUCT. In Swift 6 app targets that default declarations to `MainActor`, keep a pure nested persistence value `nonisolated` so its isolation matches its value semantics:
 
 ```swift
-struct AccountOptions: Codable, Equatable, Sendable {
+nonisolated struct AccountOptions: Codable, Equatable, Sendable {
     var twoFactorAuthEnabled: Bool
     var lastPasswordChangeDate: Date?
 
