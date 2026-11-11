@@ -137,8 +137,6 @@ struct Todo: Table {
 
 `Table` models are Codable, queryable through type-safe column key paths, and directly usable by Duck persistence helpers.
 
-Keep database models and schema declarations in separate source files from SwiftUI views. If a source file intentionally imports both `Duck` and `SwiftUI`, the name `Table` is ambiguous because both modules export one. Qualify the type you mean: use `Duck.Table` for Duck model conformance or `SwiftUI.Table` for the SwiftUI table view.
-
 Use a real file-backed database for the app:
 
 ```swift
