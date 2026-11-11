@@ -2769,6 +2769,7 @@ public actor Connection {
                  .unsupportedBindingType(let message),
                  .unsupportedResultType(let message),
                  .invalidResult(let message),
+                 .invalidQuery(let message),
                  .transactionBegin(let message),
                  .transactionCommit(let message),
                  .transactionRollback(let message),

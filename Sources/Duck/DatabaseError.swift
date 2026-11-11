@@ -7,6 +7,8 @@ public enum DatabaseError: Error, Sendable, Equatable {
     case unsupportedBindingType(String)
     case unsupportedResultType(String)
     case invalidResult(String)
+    /// The requested query operation does not support the accumulated query clauses.
+    case invalidQuery(String)
     case transactionAlreadyActive
     case transactionScopeViolation
     case transactionEnded

@@ -26,6 +26,24 @@ extension SQLable {
         return try await connection.execute(self)
     }
 
+    /// Executes this query on a fresh Connection for the supplied database identifier
+    /// and decodes every row.
+    public nonisolated(nonsending) func all<Model: Decodable>(
+        decoding type: Model.Type,
+        on database: DatabaseIdentifier
+    ) async throws -> [Model] {
+        try await query(on: database).all(decoding: type)
+    }
+
+    /// Executes this query on a fresh Connection for the supplied database identifier
+    /// and decodes the first row, or returns `nil` when the result has no rows.
+    public nonisolated(nonsending) func first<Model: Decodable>(
+        decoding type: Model.Type,
+        on database: DatabaseIdentifier
+    ) async throws -> Model? {
+        try await query(on: database).first(decoding: type)
+    }
+
     /// Creates an internal exact-runtime observation for regression coverage.
     func observe(on database: Database) throws -> QueryObservation {
         try database.observe(self)
@@ -42,6 +60,23 @@ extension SQLable {
         try await connection.execute(self)
     }
 
+    /// Executes this query on the supplied Connection and decodes every row.
+    public nonisolated(nonsending) func all<Model: Decodable>(
+        decoding type: Model.Type,
+        on connection: Connection
+    ) async throws -> [Model] {
+        try await query(on: connection).all(decoding: type)
+    }
+
+    /// Executes this query on the supplied Connection and decodes the first row,
+    /// or returns `nil` when the result has no rows.
+    public nonisolated(nonsending) func first<Model: Decodable>(
+        decoding type: Model.Type,
+        on connection: Connection
+    ) async throws -> Model? {
+        try await query(on: connection).first(decoding: type)
+    }
+
     /// Executes this query in the supplied transaction.
     public nonisolated(nonsending) func query(on transaction: DuckTransaction) async throws -> QueryResult {
         try await transaction.query(self)
@@ -51,5 +86,22 @@ extension SQLable {
     @discardableResult
     public nonisolated(nonsending) func execute(on transaction: DuckTransaction) async throws -> UInt64 {
         try await transaction.execute(self)
+    }
+
+    /// Executes this query in the supplied transaction and decodes every row.
+    public nonisolated(nonsending) func all<Model: Decodable>(
+        decoding type: Model.Type,
+        on transaction: DuckTransaction
+    ) async throws -> [Model] {
+        try await query(on: transaction).all(decoding: type)
+    }
+
+    /// Executes this query in the supplied transaction and decodes the first row,
+    /// or returns `nil` when the result has no rows.
+    public nonisolated(nonsending) func first<Model: Decodable>(
+        decoding type: Model.Type,
+        on transaction: DuckTransaction
+    ) async throws -> Model? {
+        try await query(on: transaction).first(decoding: type)
     }
 }
