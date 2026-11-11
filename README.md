@@ -287,7 +287,7 @@ And read typed rows without a separate result-decoding step:
 
 ```swift
 let todos = try await Todo
-    .select
+    .query
     .where(\Todo.$deletedAt == nil)
     .all(on: .app)
 ```
@@ -327,9 +327,7 @@ Constructing an identifier does not open DuckDB. The first operation resolves it
 Most app code can execute and decode directly on `.app`:
 
 ```swift
-let todos = try await Todo
-    .select
-    .all(on: .app)
+let todos = try await Todo.all(on: .app)
 ```
 
 Open an explicit `Connection` only when several operations should intentionally share one native connection or when statement, transaction, or appender lifetime matters:
@@ -356,7 +354,7 @@ For compact queries, chain clauses directly:
 
 ```swift
 let todos = try await Todo
-    .select
+    .query
     .where(Todo.$deletedAt == nil)
     .orderBy(.asc(Todo.$createdAt))
     .all(on: .app)
@@ -474,7 +472,7 @@ For normal app code, let the typed table terminal decode rows directly:
 
 ```swift
 let todos = try await Todo
-    .select
+    .query
     .where(Todo.$deletedAt == nil)
     .orderBy(.asc(Todo.$createdAt))
     .all(on: .app)
@@ -484,7 +482,7 @@ For one row:
 
 ```swift
 let todo = try await Todo
-    .select
+    .query
     .where(\Todo.$id == id)
     .first(on: .app)
 ```
@@ -1189,7 +1187,7 @@ Checkout is scoped:
 ```swift
 let todos = try await pool.connection { connection in
     try await Todo
-        .select
+        .query
         .where(\Todo.$deletedAt == nil)
         .all(on: connection)
 }
@@ -1337,7 +1335,7 @@ let user = User(id: 1, tags: ["swift", "duckdb"])
 let inserted = try await user.insert(on: .app)
 
 let loaded = try await User
-    .select
+    .query
     .where(\User.$id == inserted.id)
     .first(on: .app)
 ```
@@ -1417,7 +1415,7 @@ let inserted = try await Account(
 .insert(on: .app)
 
 let loaded = try await Account
-    .select
+    .query
     .where(\Account.$id == inserted.id)
     .first(on: .app)
 ```

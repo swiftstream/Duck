@@ -101,7 +101,7 @@ Duck 1.0.0 includes a deliberately focused model layer:
 
 - keyed Codable row/result decoding with native one-dimensional LIST properties and one immediate keyed STRUCT property level;
 - exact `ModelEncoder` values across the accepted scalar/LIST/STRUCT boundaries;
-- typed `Table` terminals such as `all(on:)`, `first(on:)`, and arbitrary matching `Decodable` projections;
+- typed whole-model `Table` and `TableQuery` terminals such as `all(on:)` and `first(on:)`, plus arbitrary matching `Decodable` projections from selected SQL;
 - typed `Table` insert, changed-field update, key-based delete, and UPSERT conveniences;
 - WHERE-only typed `TableQuery.delete(on:)`;
 - atomic typed collection batch insert.
