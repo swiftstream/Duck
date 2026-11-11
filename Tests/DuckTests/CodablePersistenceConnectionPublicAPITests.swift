@@ -183,4 +183,152 @@ func normalImportPublicAPICRUD() async throws {
         .query(on: connection)
         .first(decoding: PublicNote.self)
     #expect(after?.body == "via-nonreturning")
+
+    let deleteTarget = try #require(after)
+    let deleted: UInt64 = try await deleteTarget.delete(on: \.$id, on: connection)
+    #expect(deleted == 1)
+
+    let afterDelete = try await PublicNote
+        .select
+        .where(\PublicNote.$id == Int64(1))
+        .limit(1)
+        .query(on: connection)
+        .first(decoding: PublicNote.self)
+    #expect(afterDelete == nil)
+}
+
+// MARK: - Public UPSERT fixture
+
+private struct PublicUpsertNote: Table {
+    static let tableName = "codable_connection_persistence_public_upsert_notes"
+
+    @Column("id", default: .default(1))
+    var id: Int64?
+
+    @Column("email")
+    var email: String?
+
+    @Column("title")
+    var title: String
+
+    @Column("body")
+    var body: String?
+
+    @Column("score")
+    var score: Int
+
+    @Column("kind")
+    var kind: String?
+
+    init() {}
+
+    init(
+        email: String,
+        title: String,
+        score: Int,
+        id: Int64? = nil,
+        body: String? = nil,
+        kind: String? = nil
+    ) {
+        self._id = Column("id", default: .default(1))
+        self._email = Column("email")
+        self._title = Column("title")
+        self._body = Column("body")
+        self._score = Column("score")
+        self._kind = Column("kind")
+        if let id { self.id = id }
+        self.email = email
+        self.title = title
+        self.score = score
+        if let body { self.body = body }
+        if let kind { self.kind = kind }
+    }
+}
+
+private func createPublicUpsertTable(on connection: Connection) async throws {
+    try await CreateTableBuilder<PublicUpsertNote>()
+        .checkIfNotExists()
+        .column("id", .bigint, ColumnDefault.default(1 as Any))
+        .column("email", .text, .unique)
+        .column("title", .text, .notNull)
+        .column("body", .text)
+        .column("score", .bigint, .notNull)
+        .column("kind", .text)
+        .execute(on: connection)
+}
+
+@Test("Normal-import UPSERT proves zero/one/multiple typed exclusions on Connection")
+func normalImportPublicAPIUpsert() async throws {
+    let connection = try await DatabaseIdentifier.memory().connect()
+    try await createPublicUpsertTable(on: connection)
+
+    // Zero-exclusion call shape: compiles and runs the INSERT branch.
+    let zeroExclusion: PublicUpsertNote = try await PublicUpsertNote(
+        email: "zero@upsert.test",
+        title: "zero-title",
+        score: 10
+    ).upsert(conflictColumn: \.$email, on: connection)
+    #expect(zeroExclusion.email == "zero@upsert.test")
+    #expect(zeroExclusion.title == "zero-title")
+    #expect(zeroExclusion.score == 10)
+    #expect(zeroExclusion.id == 1) // DB default filled
+
+    // One-exclusion call shape: same email -> conflict update branch.
+    let conflictIncoming = PublicUpsertNote(
+        email: "zero@upsert.test",
+        title: "zero-title-updated",
+        score: 11
+    )
+    conflictIncoming.kind = "changed-kind"
+    let oneExclusion: PublicUpsertNote = try await conflictIncoming.upsert(
+        conflictColumn: \.$email,
+        excluding: \.$id,
+        on: connection
+    )
+    #expect(oneExclusion.email == "zero@upsert.test")
+    #expect(oneExclusion.title == "zero-title-updated")
+    #expect(oneExclusion.score == 11)
+    #expect(oneExclusion.kind == "changed-kind")
+
+    // Multiple-exclusion call shape: exclude id and kind.
+    // Existing row now has kind == "changed-kind" from the previous conflict update.
+    let multipleIncoming = PublicUpsertNote(
+        email: "zero@upsert.test",
+        title: "zero-title-multiple",
+        score: 12
+    )
+    multipleIncoming.kind = "must-stay-unchanged"
+    let multipleExclusion: PublicUpsertNote = try await multipleIncoming.upsert(
+        conflictColumn: \.$email,
+        excluding: \.$id, \.$kind,
+        on: connection
+    )
+    // Excluded kind was NOT written to SET, so DB continues to hold "changed-kind".
+    #expect(multipleExclusion.kind == "changed-kind")
+    #expect(multipleExclusion.title == "zero-title-multiple")
+    #expect(multipleExclusion.score == 12)
+
+    // Insert branch with multiple exclusions still persists the excluded initialized field.
+    let insertIncoming = PublicUpsertNote(
+        email: "insert-multi@upsert.test",
+        title: "insert-multi-title",
+        score: 20
+    )
+    insertIncoming.kind = "insert-kind"
+    let insertedWithMultiple = try await insertIncoming.upsert(
+        conflictColumn: \.$email,
+        excluding: \.$id, \.$kind,
+        on: connection
+    )
+    #expect(insertedWithMultiple.email == "insert-multi@upsert.test")
+    #expect(insertedWithMultiple.kind == "insert-kind")
+
+    let storedZero = try await PublicUpsertNote
+        .select
+        .where(\PublicUpsertNote.$email == "zero@upsert.test")
+        .limit(1)
+        .query(on: connection)
+        .first(decoding: PublicUpsertNote.self)
+    #expect(storedZero?.title == "zero-title-multiple")
+    #expect(storedZero?.kind == "changed-kind")
 }

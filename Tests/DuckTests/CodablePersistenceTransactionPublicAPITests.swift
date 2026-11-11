@@ -10,6 +10,10 @@ private enum PublicTransactionStatus: String, Codable, Equatable, Sendable {
     case published
 }
 
+private enum PublicTransactionPersistenceFailure: Error {
+    case rollback
+}
+
 private struct PublicTransactionNote: Table {
     static let tableName = "codable_transaction_persistence_public_notes"
 
@@ -194,4 +198,175 @@ func normalImportPublicTransactionAPICRUD() async throws {
 
     #expect(mutatedReturning?.title == "public-tx-updated")
     #expect(mutatedNonReturning?.body == "via-nonreturning-update")
+
+    let committedDeleteTarget = try #require(
+        try await PublicTransactionNote
+            .select
+            .where(\PublicTransactionNote.$id == Int64(2))
+            .limit(1)
+            .query(on: connection)
+            .first(decoding: PublicTransactionNote.self)
+    )
+    let committedDelete: UInt64 = try await connection.transaction { transaction in
+        try await committedDeleteTarget.delete(on: \.$id, on: transaction)
+    }
+    #expect(committedDelete == 1)
+
+    let afterCommittedDelete = try await PublicTransactionNote
+        .select
+        .where(\PublicTransactionNote.$id == Int64(2))
+        .limit(1)
+        .query(on: connection)
+        .first(decoding: PublicTransactionNote.self)
+    #expect(afterCommittedDelete == nil)
+
+    let rollbackSeed = try await makePublicTransactionNote(
+        id: 3,
+        title: "public-tx-rollback-seed",
+        score: 5
+    ).insert(on: connection)
+
+    do {
+        try await connection.transaction { transaction in
+            let deleted: UInt64 = try await rollbackSeed.delete(on: \.$id, on: transaction)
+            #expect(deleted == 1)
+            throw PublicTransactionPersistenceFailure.rollback
+        }
+        Issue.record("Expected intentional transaction body failure")
+    } catch PublicTransactionPersistenceFailure.rollback {
+        // The managed transaction should roll the DELETE back.
+    } catch {
+        Issue.record("Expected intentional rollback error, got \(error)")
+    }
+
+    let afterRollback = try await PublicTransactionNote
+        .select
+        .where(\PublicTransactionNote.$id == Int64(3))
+        .limit(1)
+        .query(on: connection)
+        .first(decoding: PublicTransactionNote.self)
+    #expect(afterRollback?.title == "public-tx-rollback-seed")
+}
+
+// MARK: - Public UPSERT fixture
+
+private struct PublicTransactionUpsertNote: Table {
+    static let tableName = "codable_transaction_persistence_public_upsert_notes"
+
+    @Column("id", default: .default(10))
+    var id: Int64?
+
+    @Column("email")
+    var email: String?
+
+    @Column("title")
+    var title: String
+
+    @Column("score")
+    var score: Int
+
+    init() {}
+
+    init(email: String, title: String, score: Int, id: Int64? = nil) {
+        self._id = Column("id", default: .default(10))
+        self._email = Column("email")
+        self._title = Column("title")
+        self._score = Column("score")
+        if let id { self.id = id }
+        self.email = email
+        self.title = title
+        self.score = score
+    }
+}
+
+private func createPublicTransactionUpsertTable(on connection: Connection) async throws {
+    try await CreateTableBuilder<PublicTransactionUpsertNote>()
+        .checkIfNotExists()
+        .column("id", .bigint, ColumnDefault.default(10 as Any))
+        .column("email", .text, .unique)
+        .column("title", .text, .notNull)
+        .column("score", .bigint, .notNull)
+        .execute(on: connection)
+}
+
+@Test("Normal-import UPSERT on Transaction proves commit and rollback of conflict UPDATE branch")
+func normalImportPublicTransactionAPIUpsert() async throws {
+    let connection = try await DatabaseIdentifier.memory().connect()
+    try await createPublicTransactionUpsertTable(on: connection)
+
+    // Commit branch: UPSERT insert then conflict update inside a managed transaction.
+    try await connection.transaction { transaction in
+        let inserted = try await PublicTransactionUpsertNote(
+            email: "tx@upsert.test",
+            title: "tx-insert",
+            score: 1
+        ).upsert(conflictColumn: \.$email, on: transaction)
+        #expect(inserted.email == "tx@upsert.test")
+        #expect(inserted.title == "tx-insert")
+
+        let incoming = PublicTransactionUpsertNote(
+            email: "tx@upsert.test",
+            title: "tx-conflict",
+            score: 2
+        )
+        let updated = try await incoming.upsert(
+            conflictColumn: \.$email,
+            excluding: \.$id,
+            on: transaction
+        )
+        #expect(updated.title == "tx-conflict")
+        #expect(updated.score == 2)
+    }
+
+    let committed = try await PublicTransactionUpsertNote
+        .select
+        .where(\PublicTransactionUpsertNote.$email == "tx@upsert.test")
+        .limit(1)
+        .query(on: connection)
+        .first(decoding: PublicTransactionUpsertNote.self)
+    #expect(committed?.title == "tx-conflict")
+    #expect(committed?.score == 2)
+
+    // Rollback branch: seed an original row outside the transaction,
+    // then attempt a conflict UPDATE inside a managed transaction that throws.
+    let rollbackSeed = try await PublicTransactionUpsertNote(
+        email: "rollback@upsert.test",
+        title: "original-title",
+        score: 100
+    ).upsert(conflictColumn: \.$email, on: connection)
+    #expect(rollbackSeed.title == "original-title")
+
+    let rollbackIncoming = PublicTransactionUpsertNote(
+        email: "rollback@upsert.test",
+        title: "should-not-survive",
+        score: 999
+    )
+
+    do {
+        try await connection.transaction { transaction in
+            let changed = try await rollbackIncoming.upsert(
+                conflictColumn: \.$email,
+                excluding: \.$id,
+                on: transaction
+            )
+            // Inside the transaction the UPDATE branch returns the changed row.
+            #expect(changed.title == "should-not-survive")
+            #expect(changed.score == 999)
+            throw PublicTransactionPersistenceFailure.rollback
+        }
+        Issue.record("Expected intentional transaction body failure")
+    } catch PublicTransactionPersistenceFailure.rollback {
+        // Managed transaction rolled back the UPSERT UPDATE branch.
+    } catch {
+        Issue.record("Expected intentional rollback error, got \(error)")
+    }
+
+    let afterRollback = try await PublicTransactionUpsertNote
+        .select
+        .where(\PublicTransactionUpsertNote.$email == "rollback@upsert.test")
+        .limit(1)
+        .query(on: connection)
+        .first(decoding: PublicTransactionUpsertNote.self)
+    #expect(afterRollback?.title == "original-title")
+    #expect(afterRollback?.score == 100)
 }

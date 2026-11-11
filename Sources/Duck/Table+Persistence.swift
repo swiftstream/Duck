@@ -157,6 +157,129 @@ extension Table {
 
         return returning ? query.returning.asterisk : query
     }
+
+    /// Resolves and encodes only the initialized, non-NULL column selected for DELETE equality.
+    func persistenceDeleteKey<C: ColumnRepresentable>(
+        on keyColumn: KeyPath<Self, C>
+    ) throws -> (name: String, value: Value) {
+        let keyName = Self.key(for: keyColumn)
+
+        guard let column = columns.first(where: { $0.name.label == keyName }),
+              column.property.inputValue != nil
+        else {
+            throw DatabaseError.invalidResult(
+                "DELETE key column '\(keyName)' is not initialized for model \(String(describing: Self.self)) table \(Self.tableName)"
+            )
+        }
+
+        let codingPath = [ModelCodingKey(keyName)]
+        let capture = ModelScalarEncoder(codingPath: codingPath)
+        try column.property.encode(to: capture)
+
+        guard let value = capture.capturedValue else {
+            throw DatabaseError.invalidResult(
+                "DELETE key column '\(keyName)' did not encode exactly one Value for model \(String(describing: Self.self)) table \(Self.tableName)"
+            )
+        }
+
+        guard value != .null else {
+            throw DatabaseError.invalidResult(
+                "DELETE key column '\(keyName)' is SQL NULL and cannot be used for equality delete for model \(String(describing: Self.self)) table \(Self.tableName)"
+            )
+        }
+
+        return (keyName, value)
+    }
+
+    /// Builds a schema-aware DELETE query with one prepared binding for its selected key.
+    func persistenceDeleteQuery<C: ColumnRepresentable>(
+        on keyColumn: KeyPath<Self, C>
+    ) throws -> any SQLable {
+        let key = try persistenceDeleteKey(on: keyColumn)
+
+        return SQL
+            .delete(from: Self.table)
+            .where(
+                DB.Column(key.name) == BoundModelValue(value: key.value)
+            )
+    }
+
+    /// Builds a schema-aware returning UPSERT using `Self.table`, prepared INSERT
+    /// bindings, and structural `EXCLUDED` references for the UPDATE SET.
+    ///
+    /// The conflict column is required to be initialized and non-NULL. Update fields
+    /// are changed non-conflict non-excluded fields only. An empty update set throws
+    /// `DatabaseError.invalidResult` before SQL.
+    func persistenceUpsertQuery<
+        ConflictColumn,
+        each ExcludedColumn
+    >(
+        conflictColumn: KeyPath<Self, ConflictColumn>,
+        excluding excludedColumns: repeat KeyPath<Self, each ExcludedColumn>
+    ) throws -> any SQLable
+    where
+        ConflictColumn: ColumnRepresentable,
+        repeat each ExcludedColumn: ColumnRepresentable
+    {
+        let fields = try persistenceFields()
+        let conflictName = Self.key(for: conflictColumn)
+
+        guard let conflictField = fields.first(where: { $0.name == conflictName }) else {
+            throw DatabaseError.invalidResult(
+                "UPSERT conflict column '\(conflictName)' is not initialized for model \(String(describing: Self.self)) table \(Self.tableName)"
+            )
+        }
+
+        guard conflictField.value != .null else {
+            throw DatabaseError.invalidResult(
+                "UPSERT conflict column '\(conflictName)' is SQL NULL and cannot be used for conflict identity for model \(String(describing: Self.self)) table \(Self.tableName)"
+            )
+        }
+
+        var excludedNames = Set<String>()
+        for excludedColumn in repeat each excludedColumns {
+            excludedNames.insert(Self.key(for: excludedColumn))
+        }
+
+        let updateFields = fields.filter {
+            $0.isChanged && $0.name != conflictName && !excludedNames.contains($0.name)
+        }
+
+        guard !updateFields.isEmpty else {
+            throw DatabaseError.invalidResult(
+                "UPSERT: no changed fields remain for DO UPDATE for model \(String(describing: Self.self)) table \(Self.tableName) conflict column '\(conflictName)'"
+            )
+        }
+
+        let excluded = DB.Table("EXCLUDED")
+
+        var assignments: SQLable = DB.Column(updateFields[0].name)
+            == excluded.column(updateFields[0].name)
+        if updateFields.count > 1 {
+            let separator = SQLableParts(
+                parts: [SQLPartOperator.comma, SQLPartOperator.space]
+            )
+            for field in updateFields.dropFirst() {
+                let assignment: SQLable = DB.Column(field.name) == excluded.column(field.name)
+                assignments = (assignments ~ separator) ~ assignment
+            }
+        }
+
+        return SQL
+            .insertInto(
+                Self.table,
+                fields: fields.map { DB.Column($0.name) }
+            )
+            .values
+            .values(fields.map { BoundModelValue(value: $0.value) })
+            .on
+            .conflict(DB.Column(conflictName))
+            .do
+            .update
+            .set(assignments)
+            .returning
+            .asterisk
+    }
 }
 
 // MARK: - Public DatabaseIdentifier-backed persistence conveniences
@@ -190,6 +313,38 @@ extension Table {
     ) async throws {
         let connection = try await database.connect()
         try await updateNonReturning(on: keyColumn, on: connection)
+    }
+
+    /// Deletes rows matching this model's selected key and returns the affected-row count.
+    @discardableResult
+    public func delete<C: ColumnRepresentable>(
+        on keyColumn: KeyPath<Self, C>,
+        on database: DatabaseIdentifier
+    ) async throws -> UInt64 {
+        let query = try persistenceDeleteQuery(on: keyColumn)
+        return try await query.execute(on: database)
+    }
+
+    /// Upserts this model through a fresh Connection for the supplied database identifier
+    /// and returns the database-decoded row from `RETURNING *`.
+    public func upsert<
+        ConflictColumn,
+        each ExcludedColumn
+    >(
+        conflictColumn: KeyPath<Self, ConflictColumn>,
+        excluding excludedColumns: repeat KeyPath<Self, each ExcludedColumn>,
+        on database: DatabaseIdentifier
+    ) async throws -> Self
+    where
+        ConflictColumn: ColumnRepresentable,
+        repeat each ExcludedColumn: ColumnRepresentable
+    {
+        let connection = try await database.connect()
+        return try await upsert(
+            conflictColumn: conflictColumn,
+            excluding: repeat each excludedColumns,
+            on: connection
+        )
     }
 }
 
@@ -251,6 +406,45 @@ extension Table {
         }
         _ = try await connection.execute(query)
     }
+
+    /// Deletes rows matching this model's selected key and returns the affected-row count.
+    @discardableResult
+    public func delete<C: ColumnRepresentable>(
+        on keyColumn: KeyPath<Self, C>,
+        on connection: Connection
+    ) async throws -> UInt64 {
+        let query = try persistenceDeleteQuery(on: keyColumn)
+        return try await query.execute(on: connection)
+    }
+
+    /// Upserts this model through the supplied connection and returns the
+    /// database-decoded row from `RETURNING *`.
+    ///
+    /// Insertion uses all initialized fields. The UPDATE branch changes only
+    /// changed non-conflict non-excluded fields, sourcing values from `EXCLUDED`.
+    public func upsert<
+        ConflictColumn,
+        each ExcludedColumn
+    >(
+        conflictColumn: KeyPath<Self, ConflictColumn>,
+        excluding excludedColumns: repeat KeyPath<Self, each ExcludedColumn>,
+        on connection: Connection
+    ) async throws -> Self
+    where
+        ConflictColumn: ColumnRepresentable,
+        repeat each ExcludedColumn: ColumnRepresentable
+    {
+        let query = try persistenceUpsertQuery(
+            conflictColumn: conflictColumn,
+            excluding: repeat each excludedColumns
+        )
+        guard let saved = try await query.first(decoding: Self.self, on: connection) else {
+            throw DatabaseError.invalidResult(
+                "UPSERT RETURNING produced no row for model \(String(describing: Self.self)) table \(Self.tableName)"
+            )
+        }
+        return saved
+    }
 }
 
 // MARK: - Public Transaction-backed persistence conveniences
@@ -310,6 +504,45 @@ extension Table {
             return
         }
         _ = try await transaction.execute(query)
+    }
+
+    /// Deletes rows matching this model's selected key and returns the affected-row count.
+    @discardableResult
+    public func delete<C: ColumnRepresentable>(
+        on keyColumn: KeyPath<Self, C>,
+        on transaction: DuckTransaction
+    ) async throws -> UInt64 {
+        let query = try persistenceDeleteQuery(on: keyColumn)
+        return try await query.execute(on: transaction)
+    }
+
+    /// Upserts this model through the supplied transaction and returns the
+    /// database-decoded row from `RETURNING *`.
+    ///
+    /// Insertion uses all initialized fields. The UPDATE branch changes only
+    /// changed non-conflict non-excluded fields, sourcing values from `EXCLUDED`.
+    public func upsert<
+        ConflictColumn,
+        each ExcludedColumn
+    >(
+        conflictColumn: KeyPath<Self, ConflictColumn>,
+        excluding excludedColumns: repeat KeyPath<Self, each ExcludedColumn>,
+        on transaction: DuckTransaction
+    ) async throws -> Self
+    where
+        ConflictColumn: ColumnRepresentable,
+        repeat each ExcludedColumn: ColumnRepresentable
+    {
+        let query = try persistenceUpsertQuery(
+            conflictColumn: conflictColumn,
+            excluding: repeat each excludedColumns
+        )
+        guard let saved = try await query.first(decoding: Self.self, on: transaction) else {
+            throw DatabaseError.invalidResult(
+                "UPSERT RETURNING produced no row for model \(String(describing: Self.self)) table \(Self.tableName)"
+            )
+        }
+        return saved
     }
 }
 

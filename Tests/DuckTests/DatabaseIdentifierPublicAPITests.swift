@@ -12,6 +12,30 @@ private struct IdentifierRecord: Table {
     init() {}
 }
 
+private struct IdentifierUpsertRecord: Table {
+    static let tableName = "database_identifier_public_upsert_records"
+
+    @Column("id", default: .default(50))
+    var id: Int64?
+
+    @Column("email")
+    var email: String?
+
+    @Column("name")
+    var name: String
+
+    init() {}
+
+    init(email: String, name: String, id: Int64? = nil) {
+        self._id = Column("id", default: .default(50))
+        self._email = Column("email")
+        self._name = Column("name")
+        if let id { self.id = id }
+        self.email = email
+        self.name = name
+    }
+}
+
 private func identifierRecord(
     id: Int64,
     name: String
@@ -40,6 +64,16 @@ struct DatabaseIdentifierPublicAPITests {
         inserted.name = "updated"
         let updated = try await inserted.update(on: \.$id, on: database)
         #expect(updated.name == "updated")
+
+        let deleted: UInt64 = try await updated.delete(on: \.$id, on: database)
+        #expect(deleted == 1)
+        let afterDelete = try await IdentifierRecord
+            .select
+            .where(\IdentifierRecord.$id == Int64(1))
+            .limit(1)
+            .query(on: database)
+            .first(decoding: IdentifierRecord.self)
+        #expect(afterDelete == nil)
 
         let nonReturning = identifierRecord(id: 2, name: "second")
         try await nonReturning.insertNonReturning(on: database)
@@ -76,7 +110,7 @@ struct DatabaseIdentifierPublicAPITests {
                 .rows
                 .count
         }
-        #expect(pooledCount == 5)
+        #expect(pooledCount == 4)
         try await pool.shutdown()
 
         let rows = try await IdentifierRecord
@@ -85,9 +119,8 @@ struct DatabaseIdentifierPublicAPITests {
             .query(on: database)
             .all(decoding: IdentifierRecord.self)
 
-        #expect(rows.map(\.id) == [1, 2, 3, 4, 5])
+        #expect(rows.map(\.id) == [2, 3, 4, 5])
         #expect(rows.map(\.name) == [
-            "updated",
             "second-updated",
             "third",
             "fourth",
@@ -143,5 +176,46 @@ struct DatabaseIdentifierPublicAPITests {
                 .map(\.name)
                 == ["identifier", "connection"]
         )
+    }
+
+    @Test("Identifier routes model UPSERT through a fresh Connection and returns decoded model")
+    func identifierRoutesModelUpsert() async throws {
+        let database = DatabaseIdentifier.memory()
+
+        try await CreateTableBuilder<IdentifierUpsertRecord>()
+            .column("id", .bigint, ColumnDefault.default(50 as Any))
+            .column("email", .text, .unique)
+            .column("name", .text, .notNull)
+            .execute(on: database)
+
+        // Insert branch through DatabaseIdentifier.
+        let inserted: IdentifierUpsertRecord = try await IdentifierUpsertRecord(
+            email: "id@upsert.test",
+            name: "identifier-insert"
+        ).upsert(conflictColumn: \.$email, on: database)
+        #expect(inserted.email == "id@upsert.test")
+        #expect(inserted.name == "identifier-insert")
+        #expect(inserted.id == 50) // DB default filled
+
+        // Conflict UPDATE branch through DatabaseIdentifier with one typed exclusion.
+        let updated = try await IdentifierUpsertRecord(
+            email: "id@upsert.test",
+            name: "identifier-updated"
+        ).upsert(
+            conflictColumn: \.$email,
+            excluding: \.$id,
+            on: database
+        )
+        #expect(updated.email == "id@upsert.test")
+        #expect(updated.name == "identifier-updated")
+        #expect(updated.id == 50) // conflict UPDATE left id unchanged
+
+        let stored = try await IdentifierUpsertRecord
+            .select
+            .where(\IdentifierUpsertRecord.$email == "id@upsert.test")
+            .limit(1)
+            .query(on: database)
+            .first(decoding: IdentifierUpsertRecord.self)
+        #expect(stored?.name == "identifier-updated")
     }
 }
