@@ -1,0 +1,28 @@
+name: test
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - "v*"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  swift_6_3_3:
+    name: Swift 6.3.3
+    runs-on: ubuntu-latest
+    container: swift:6.3.3
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Test
+        run: swift test -j 1 -c debug
