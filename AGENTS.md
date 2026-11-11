@@ -4,7 +4,7 @@
 
 Duck is a Swift-native embedded database library built around the DuckDB C API.
 
-The package includes the internal `Cduckdb` target generated from DuckDB `v1.5.5`, internal native resource owners, and an implemented public runtime API built around `Database`, actor-isolated `Connection`, scoped `Transaction`, reusable `Statement`, scoped `Appender`, `QueryResult`, `Row`, `Value`, `DatabaseError`, and SQL execution conveniences.
+The package integrates DuckDB `v2.0.0` at upstream revision `d54cbbe3df17e8e5ce68312f483b4155836112aa`. On macOS, `Cduckdb` is supplied as the precompiled v2.0.0 XCFramework binary target declared by `Package.swift`; on non-macOS platforms, `Cduckdb` is built from the official generated v2.0.0 source snapshot. Duck also includes internal native resource owners and an implemented public runtime API built around `Database`, actor-isolated `Connection`, scoped `Transaction`, reusable `Statement`, scoped `Appender`, `QueryResult`, `Row`, `Value`, `DatabaseError`, and SQL execution conveniences.
 
 Reviewed target direction: Swift 6.3+, iOS 15+, macOS 12+, Linux, Android, and Windows. A target is not considered validated merely because it is listed here; platform support claims require actual build/runtime evidence for the relevant toolchain.
 

@@ -480,7 +480,7 @@ DateTime
 Interval
 ```
 
-Optional `nil` becomes SQL NULL. Empty `Data()` is a valid empty BLOB. Current temporal, UUID, Date, Interval, and exact Decimal families are supported row values. Nested/complex families remain gated.
+Optional `nil` becomes SQL NULL. Empty `Data()` is a valid empty BLOB. Current temporal, UUID, Date, Interval, and exact Decimal families are supported row values. Native one-dimensional LIST and immediate keyed native STRUCT P0 are also supported through their accepted `Value` forms; only further recursive/composite expansion remains gated.
 
 A wrong row width or unsupported Swift value fails before native mutation, so it is a caller-local error rather than a poisoned Appender:
 
@@ -498,7 +498,7 @@ try await connection.appender(to: events) { appender in
 
 Decimal row values map only to DuckDB `DECIMAL(W,S)`. Exact width/scale fit is required, there is no rounding, and nonfinite values reject. Whole-row preflight performs deterministic Decimal conversion and constructs an owned typed value through `duckdb_create_decimal` before native row mutation; a later-column deterministic Decimal rejection mutates zero native columns and is recoverable. Native mutation appends via `duckdb_append_value`, Swift destroys the temporary `duckdb_value` after the native append copies/stores it, and native append/end-row/finalization failure remains terminal.
 
-The current slice still does not imply list/struct/map or other complex family support.
+The current slice includes the accepted native one-dimensional LIST and immediate keyed native STRUCT P0 Appender transport. It does not imply nested LIST, LIST-in-STRUCT, STRUCT-in-LIST, fixed ARRAY, MAP, UNION, or other recursive composite support.
 
 ### Native failures are different from caller-local validation
 
@@ -558,7 +558,7 @@ per-row DEFAULT append
 QueryAppender
 public DataChunk/vector append
 implicit ambient or nested Appender transaction
-nested/complex value families
+recursive/composite value families beyond the closed one-dimensional LIST and immediate keyed STRUCT P0 boundaries
 Appender pooling/cache
 ```
 

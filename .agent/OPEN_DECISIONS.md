@@ -13,21 +13,22 @@ The current durable product priority is to finish a locally release-ready Duck v
     -> Wave 06 exact platform and consumer validation ACCEPTED
     -> DuckDB2 adoption closure CLOSED / CLEAN at `3464caa32f6483ecb4f1f68f0997733b94aaf845`
     -> final independent v1 release snapshot CLOSED / CLEAN at `1925c7164cade025babb6d4b53453f697e9cdbfc`
-    -> local v1.0.0 CURRENT / AUTHORIZED as local governance/release-state only
+    -> Bridges pre-v1 parity amendment CLOSED / CLEAN; instance delete / UPSERT / LIST / STRUCT all CLOSED; blockers = 0
+    -> current local release sequence: stable-truth sync/audit -> final public docs -> commit composition -> D1/D2 -> U0 -> F0 -> semantic v1 authorization
     -> separate v1.1.0 roadmap
 
-Advanced Appender expansion and nested/complex Value/result families remain future capabilities, not pre-v1 implementation authorization. A future v1.1.0 roadmap will prioritize them from current evidence. Platform validation continues as release/assurance evidence when the required environment is available. Push, tag, remote release, and publication remain separate and unauthorized.
+Advanced Appender expansion and further recursive/composite Value/result families beyond the closed native LIST and immediate keyed native STRUCT P0 boundaries remain future capabilities, not pre-v1 implementation authorization. A future v1.1.0 roadmap will prioritize them from current evidence. Platform validation continues as release/assurance evidence when the required environment is available. Push, tag, remote release, and publication remain separate and unauthorized.
 
 This priority boundary is durable product direction, not permission to skip normal research/planning/validation/audit gates. Executable work is owned by `.agent/TASKS.md`.
 
 ## DuckDB Integration
 
-The first-v1 adoption decisions are closed: DuckDB v2.0.0 at upstream revision d54cbbe3df17e8e5ce68312f483b4155836112aa, the official C++17 Swift package generation flow, the required core_functions/parquet/icu/json static extension set and pre-open registration, the stable C API boundary, private Observation bridge adaptation, and the accepted storage compatibility policy. SQL 3.1.0 at revision b0c81191c3494d91b84b5382092e99c64d5c4647 passed the compatibility return matrix 13/13 with no required SQL change. See Project Memory and Master Plan for current implementation facts. DuckDB2 adoption is CLOSED / CLEAN at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845`; the final independent v1 release snapshot is CLOSED / CLEAN at local commit `1925c7164cade025babb6d4b53453f697e9cdbfc`; local `v1.0.0` is now CURRENT / AUTHORIZED as a local governance/release-state gate only. Tag/push/remote release/publication remain separately unauthorized.
+The first-v1 adoption decisions are closed: DuckDB v2.0.0 at upstream revision d54cbbe3df17e8e5ce68312f483b4155836112aa, the official Swift package generation flow, the platform-specific Cduckdb packaging split, the stable C API boundary, private Observation bridge adaptation, and the accepted storage compatibility policy. The generated non-macOS C++17 source configuration includes core_functions, parquet, icu, and json with static registration support, while the exact current macOS XCFramework runtime reports those extensions as NOT_INSTALLED and does not link loadable extensions; cross-platform extension parity is not a first-v1 requirement. SQL 3.1.0 at revision b0c81191c3494d91b84b5382092e99c64d5c4647 passed the compatibility return matrix 13/13 with no required SQL change. See Project Memory and Master Plan for current implementation facts. DuckDB2 adoption is CLOSED / CLEAN at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845`; the final independent v1 release snapshot is CLOSED / CLEAN at local commit `1925c7164cade025babb6d4b53453f697e9cdbfc`; the later pre-v1 Bridges parity amendment is CLOSED / CLEAN with `PRE_V1_PARITY_BLOCKERS_REMAINING=0`. Current local work follows the post-parity release sequence: stable-truth synchronization/audit, final public-document synchronization and public-writing audit, exact commit composition, D1/D2, U0, F0, and semantic v1 authorization. Tag/push/remote release/publication remain separately unauthorized.
 
 Still open for future work:
 
 - Long-term DuckDB upgrade/version policy beyond the first v2-backed baseline.
-- Optional-extension and bundle-size strategy beyond the release-required generated set.
+- Optional-extension, bundle-size, and cross-platform extension-parity strategy across the generated-source and precompiled-binary package artifacts.
 - Android DuckDB2 runtime closure; current runtime status remains UNPROVEN / NOT CLAIMED.
 - Windows DuckDB2 support closure; current support status remains UNPROVEN / NOT CLAIMED.
 
@@ -38,7 +39,7 @@ The current `DatabaseIdentifier` / `Connection` / `DuckTransaction` / `Statement
 Still unresolved for future separately reviewed capabilities:
 
 - **Advanced Connection Pooling extensions — only if later justified.** Accepted current state owns bounded lazy `ConnectionPool` ownership, scoped `pool.connection` / thin `pool.transaction` ergonomics, FIFO cancellation-safe checkout, exact full-token liveness, fail-closed retirement/replacement, graceful shutdown/drain, Observation × Pool integration, and public README/publication/Agent Skill closure. Future extensions that would require a new reviewed decision: manual lease/release, checkout timeout, idle lifetime policy, session reset, statement cache, pool metrics, global registry. Do not revive NIO/EventLoop ownership.
-- **Advanced Appender APIs — deferred major post-v1 capability family.** Fixed selected-column Appender scopes are accepted current state. Remaining separately reviewed choices are per-cell `DEFAULT`, QueryAppender, public DataChunk/vector append, manual lifecycle controls, and other justified batching/high-throughput surfaces. No implementation order relative to nested/complex Value work is established here; a separate post-v1 roadmap must prioritize these choices from then-current evidence.
+- **Advanced Appender APIs — deferred major post-v1 capability family.** Fixed selected-column Appender scopes are accepted current state. Remaining separately reviewed choices are per-cell `DEFAULT`, QueryAppender, public DataChunk/vector append, manual lifecycle controls, and other justified batching/high-throughput surfaces. No implementation order relative to remaining recursive/composite Value work beyond the closed LIST/STRUCT P0 boundaries is established here; a separate post-v1 roadmap must prioritize these choices from then-current evidence.
 
 ## Higher-Level Features
 
@@ -55,10 +56,11 @@ Codable / Model Layer architecture is accepted current state. The accepted surfa
 
 Observation / Reactive Queries core architecture is no longer an open decision. The accepted v1 contract is a same-identifier canonical-runtime, UI-neutral, latest-state `QueryObservation` model with native READ ONLY refresh, actual successful-result `IsReadOnly` truth, bounded/coalescing delivery, ordinary/reusable-Statement mutation invalidation, managed + flat manual DuckTransaction publication, and ordinary/Transaction Appender visibility integration. An already prepared reusable VIEW handle is not promised to rebind to later catalog changes. Preflight non-read-only rejection uses `observationRequiresReadOnlyQuery`, while an unexpected successful non-read-only native result remains `invalidResult`. Accepted executable evidence remains Swift 6.3.3 build + 557/557 tests in 11 suites with zero failures/skips, focused Swift 6.4 public Observation/manual-finalization coverage, and Swift 6.4 build PASS. Any future expansion beyond this accepted boundary requires a new reviewed decision rather than reopening the closed design implicitly.
 
-### Nested / Complex Value & Result Families — DEFERRED NICE-TO-HAVE
+### Remaining Recursive / Complex Value & Result Families — DEFERRED NICE-TO-HAVE
 
-- `LIST`, `ARRAY`, `MAP`, `STRUCT`, `UNION`, `ENUM` materialization/binding policy remains unresolved and separately gated.
-- This capability is deferred until after local v1.0.0 unless a proven release blocker requires the smallest bounded correction. Its post-v1 implementation order relative to Advanced Appender work is intentionally unresolved and belongs to the separate v1.1.0 roadmap.
+- Native one-dimensional `LIST` and immediate keyed native `STRUCT` P0 are CLOSED current state. `Value.Kind.list == 23` and `Value.Kind.structure == 24`; their accepted prepared/Appender/result/Codable/persistence boundaries remain governed by the closed parity authorities.
+- Only further recursive/composite expansion remains unresolved and separately gated: nested LIST, LIST-in-STRUCT, STRUCT-in-LIST, fixed ARRAY, MAP, UNION, and other recursive composite combinations.
+- This remaining capability is deferred until after local v1.0.0 unless a proven release blocker requires the smallest bounded correction. Its post-v1 implementation order relative to Advanced Appender work is intentionally unresolved and belongs to the separate v1.1.0 roadmap.
 - Foundation.Decimal is no longer an open design/integration question: the accepted DCT128-v1 exact codec and its production/query/Statement/Appender/result integration are current state.
 
 ## Platform Packaging / Validation

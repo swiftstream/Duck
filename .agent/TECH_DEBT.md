@@ -111,26 +111,27 @@ Entries here are **not verified defects**. They are intentionally deferred capab
 
 They remain subject to fresh research, planning, implementation, and audit before source changes.
 
-### Nested / Complex Value and Result Families
+### Remaining Recursive / Complex Value and Result Families
 
-**Priority:** deferred until after local v1.0.0 unless a proven release blocker requires the smallest bounded correction. No relative post-v1 ordering against Advanced Appender is established here; the separate v1.1.0 roadmap must prioritize both families from then-current evidence.
+**Priority:** deferred until after local v1.0.0 unless a proven release blocker requires the smallest bounded correction. Native one-dimensional LIST and immediate keyed native STRUCT P0 are already closed current state; this debt tracks only the remaining recursive/composite expansion. No relative post-v1 ordering against Advanced Appender is established here; the separate v1.1.0 roadmap must prioritize both families from then-current evidence.
 
 **Deferred capability:** first-class binding, result materialization, Row/Value convenience, logical metadata, Statement, Appender, NULL/Optional, and exact round-trip semantics for:
 
 ```text
-LIST
-ARRAY
+nested LIST
+LIST-in-STRUCT
+STRUCT-in-LIST
+fixed ARRAY
 MAP
-STRUCT
 UNION
-ENUM
+other recursive composite combinations
 ```
 
 **Why it matters:** these are significant DuckDB-native type families and will eventually improve model expressiveness and analytical workloads. They are not required for the current v1.0.0 release-readiness path and are intentionally deferred so release closure is not expanded by a new major feature family.
 
-**Current boundary:** scalar/exact Value/result work is complete for Bool, signed/unsigned integer widths, Float/Double, String/Data, UUID, Int128/UInt128 availability bridges, PureDate/PureTime/DateTime, Foundation.Date/TIMESTAMPTZ, Interval, and Foundation.Decimal. Nested/complex families remain separately gated.
+**Current boundary:** scalar/exact Value/result work is complete for Bool, signed/unsigned integer widths, Float/Double, String/Data, UUID, Int128/UInt128 availability bridges, PureDate/PureTime/DateTime, Foundation.Date/TIMESTAMPTZ, Interval, and Foundation.Decimal. Native one-dimensional LIST and immediate keyed native STRUCT are also closed P0 current state across prepared binding, Appender, result materialization, Codable model persistence, NULL semantics, and rollback. Recursive LIST/STRUCT nesting, fixed ARRAY, MAP, UNION, and other recursive composite families remain separately gated.
 
-**Closure condition:** promote a dedicated nested/complex Value/result capability and implement the existing universal value-vertical contract across query binding, reusable Statement, Appender, result materialization, NULL/Optional, logical metadata, boundaries, and exact rejection behavior.
+**Closure condition:** promote the remaining recursive/composite Value/result capability and implement the existing universal value-vertical contract for the newly selected families across query binding, reusable Statement, Appender, result materialization, NULL/Optional, logical metadata, boundaries, and exact rejection behavior without regressing the closed LIST/STRUCT P0 contracts.
 
 ### Client migration long-history DX / forward rollup compaction
 
