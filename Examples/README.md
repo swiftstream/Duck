@@ -2,8 +2,8 @@
 
 The repository includes two small iOS applications that demonstrate the same Duck-backed TODO flow with different UI frameworks:
 
-- [`SwiftUI/DuckDemo.xcodeproj`](SwiftUI/DuckDemo.xcodeproj) — SwiftUI
-- [`UIKit/DuckDemo.xcodeproj`](UIKit/DuckDemo.xcodeproj) — UIKit
+- [`SwiftUI/DuckDemo.xcodeproj`](SwiftUI/DuckDemo.xcodeproj) - SwiftUI
+- [`UIKit/DuckDemo.xcodeproj`](UIKit/DuckDemo.xcodeproj) - UIKit
 
 Both projects use the local Duck package from this repository, target iOS 15 or later, and build in Swift 6 mode with MainActor default isolation and strict memory safety.
 
