@@ -286,19 +286,19 @@ extension Table {
 
 extension Table {
     /// Inserts this model through a fresh Connection for the supplied database identifier.
-    public func insert(on database: DatabaseIdentifier) async throws -> Self {
+    public nonisolated(nonsending) func insert(on database: DatabaseIdentifier) async throws -> Self {
         let connection = try await database.connect()
         return try await insert(on: connection)
     }
 
     /// Inserts this model without decoding a row through the supplied database identifier.
-    public func insertNonReturning(on database: DatabaseIdentifier) async throws {
+    public nonisolated(nonsending) func insertNonReturning(on database: DatabaseIdentifier) async throws {
         let connection = try await database.connect()
         try await insertNonReturning(on: connection)
     }
 
     /// Updates changed non-key fields through the supplied database identifier.
-    public func update<C: ColumnRepresentable>(
+    public nonisolated(nonsending) func update<C: ColumnRepresentable>(
         on keyColumn: KeyPath<Self, C>,
         on database: DatabaseIdentifier
     ) async throws -> Self {
@@ -307,7 +307,7 @@ extension Table {
     }
 
     /// Updates changed non-key fields without decoding a row through the supplied database identifier.
-    public func updateNonReturning<C: ColumnRepresentable>(
+    public nonisolated(nonsending) func updateNonReturning<C: ColumnRepresentable>(
         on keyColumn: KeyPath<Self, C>,
         on database: DatabaseIdentifier
     ) async throws {
@@ -317,7 +317,7 @@ extension Table {
 
     /// Deletes rows matching this model's selected key and returns the affected-row count.
     @discardableResult
-    public func delete<C: ColumnRepresentable>(
+    public nonisolated(nonsending) func delete<C: ColumnRepresentable>(
         on keyColumn: KeyPath<Self, C>,
         on database: DatabaseIdentifier
     ) async throws -> UInt64 {
@@ -327,7 +327,7 @@ extension Table {
 
     /// Upserts this model through a fresh Connection for the supplied database identifier
     /// and returns the database-decoded row from `RETURNING *`.
-    public func upsert<
+    public nonisolated(nonsending) func upsert<
         ConflictColumn,
         each ExcludedColumn
     >(
@@ -356,7 +356,7 @@ extension Table {
     ///
     /// Uninitialized optional columns are omitted so database defaults remain
     /// eligible. Explicit `Optional.none` binds SQL `NULL`.
-    public func insert(on connection: Connection) async throws -> Self {
+    public nonisolated(nonsending) func insert(on connection: Connection) async throws -> Self {
         let query = try persistenceInsertQuery(returning: true)
         let result = try await connection.query(query)
         guard let decoded = try result.first(decoding: Self.self) else {
@@ -368,7 +368,7 @@ extension Table {
     }
 
     /// Inserts this model through the supplied connection without decoding a row.
-    public func insertNonReturning(on connection: Connection) async throws {
+    public nonisolated(nonsending) func insertNonReturning(on connection: Connection) async throws {
         let query = try persistenceInsertQuery(returning: false)
         _ = try await connection.execute(query)
     }
@@ -378,7 +378,7 @@ extension Table {
     ///
     /// A zero-changed model returns `self` without SQL execution. A missing key
     /// row after execution throws `DatabaseError.invalidResult`.
-    public func update<C: ColumnRepresentable>(
+    public nonisolated(nonsending) func update<C: ColumnRepresentable>(
         on keyColumn: KeyPath<Self, C>,
         on connection: Connection
     ) async throws -> Self {
@@ -397,7 +397,7 @@ extension Table {
 
     /// Updates changed non-key fields through the supplied connection without
     /// decoding a row. A zero-changed model returns successfully without SQL.
-    public func updateNonReturning<C: ColumnRepresentable>(
+    public nonisolated(nonsending) func updateNonReturning<C: ColumnRepresentable>(
         on keyColumn: KeyPath<Self, C>,
         on connection: Connection
     ) async throws {
@@ -409,7 +409,7 @@ extension Table {
 
     /// Deletes rows matching this model's selected key and returns the affected-row count.
     @discardableResult
-    public func delete<C: ColumnRepresentable>(
+    public nonisolated(nonsending) func delete<C: ColumnRepresentable>(
         on keyColumn: KeyPath<Self, C>,
         on connection: Connection
     ) async throws -> UInt64 {
@@ -422,7 +422,7 @@ extension Table {
     ///
     /// Insertion uses all initialized fields. The UPDATE branch changes only
     /// changed non-conflict non-excluded fields, sourcing values from `EXCLUDED`.
-    public func upsert<
+    public nonisolated(nonsending) func upsert<
         ConflictColumn,
         each ExcludedColumn
     >(
@@ -455,7 +455,7 @@ extension Table {
     ///
     /// Uninitialized optional columns are omitted so database defaults remain
     /// eligible. Explicit `Optional.none` binds SQL `NULL`.
-    public func insert(on transaction: DuckTransaction) async throws -> Self {
+    public nonisolated(nonsending) func insert(on transaction: DuckTransaction) async throws -> Self {
         let query = try persistenceInsertQuery(returning: true)
         let result = try await transaction.query(query)
         guard let decoded = try result.first(decoding: Self.self) else {
@@ -467,7 +467,7 @@ extension Table {
     }
 
     /// Inserts this model through the supplied transaction without decoding a row.
-    public func insertNonReturning(on transaction: DuckTransaction) async throws {
+    public nonisolated(nonsending) func insertNonReturning(on transaction: DuckTransaction) async throws {
         let query = try persistenceInsertQuery(returning: false)
         _ = try await transaction.execute(query)
     }
@@ -477,7 +477,7 @@ extension Table {
     ///
     /// A zero-changed model returns `self` without SQL execution. A missing key
     /// row after execution throws `DatabaseError.invalidResult`.
-    public func update<C: ColumnRepresentable>(
+    public nonisolated(nonsending) func update<C: ColumnRepresentable>(
         on keyColumn: KeyPath<Self, C>,
         on transaction: DuckTransaction
     ) async throws -> Self {
@@ -496,7 +496,7 @@ extension Table {
 
     /// Updates changed non-key fields through the supplied transaction without
     /// decoding a row. A zero-changed model returns successfully without SQL.
-    public func updateNonReturning<C: ColumnRepresentable>(
+    public nonisolated(nonsending) func updateNonReturning<C: ColumnRepresentable>(
         on keyColumn: KeyPath<Self, C>,
         on transaction: DuckTransaction
     ) async throws {
@@ -508,7 +508,7 @@ extension Table {
 
     /// Deletes rows matching this model's selected key and returns the affected-row count.
     @discardableResult
-    public func delete<C: ColumnRepresentable>(
+    public nonisolated(nonsending) func delete<C: ColumnRepresentable>(
         on keyColumn: KeyPath<Self, C>,
         on transaction: DuckTransaction
     ) async throws -> UInt64 {
@@ -521,7 +521,7 @@ extension Table {
     ///
     /// Insertion uses all initialized fields. The UPDATE branch changes only
     /// changed non-conflict non-excluded fields, sourcing values from `EXCLUDED`.
-    public func upsert<
+    public nonisolated(nonsending) func upsert<
         ConflictColumn,
         each ExcludedColumn
     >(
@@ -571,7 +571,7 @@ struct TableBatchRun: Sendable {
 
 extension Collection where Element: Table {
     /// Inserts every model atomically through a fresh Connection for the supplied identifier.
-    public func batchInsert(on database: DatabaseIdentifier) async throws {
+    public nonisolated(nonsending) func batchInsert(on database: DatabaseIdentifier) async throws {
         let connection = try await database.connect()
         try await batchInsert(on: connection)
     }
@@ -592,7 +592,7 @@ extension Collection where Element: Table {
     /// `DatabaseError.invalidResult` before any mutation. Observation invalidation is
     /// published once by the managed transaction at commit. `Element` need not be
     /// `Sendable`.
-    public func batchInsert(on connection: Connection) async throws {
+    public nonisolated(nonsending) func batchInsert(on connection: Connection) async throws {
         let runs = try preparedBatchRuns()
         guard !runs.isEmpty else {
             return
@@ -612,7 +612,7 @@ extension Collection where Element: Table {
     /// already-appended runs are rolled back with it. Input order is preserved and an
     /// empty collection is a successful no-op that opens no Appender. `Element` need not be
     /// `Sendable`.
-    public func batchInsert(on transaction: DuckTransaction) async throws {
+    public nonisolated(nonsending) func batchInsert(on transaction: DuckTransaction) async throws {
         let runs = try preparedBatchRuns()
         guard !runs.isEmpty else {
             return
@@ -675,7 +675,7 @@ extension Collection where Element: Table {
     ///
     /// `static` so no non-`Sendable` `Collection` self stays alive across suspension; only
     /// `TableBatchRun` data and the element metatype are used here.
-    private static func executeBatchRuns(
+    private nonisolated(nonsending) static func executeBatchRuns(
         _ runs: [TableBatchRun],
         on transaction: DuckTransaction
     ) async throws {
@@ -695,7 +695,7 @@ extension Collection where Element: Table {
     }
 
     /// Streams one run's prepared bindings through an open Appender in row order.
-    private static func appendPrepared(
+    private nonisolated(nonsending) static func appendPrepared(
         _ run: TableBatchRun,
         through appender: Appender
     ) async throws {
