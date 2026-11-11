@@ -10,6 +10,21 @@ import SQL
 /// extraction are availability-gated stdlib bridges; `UUID` is an
 /// availability-free distinct semantic case.
 public struct Value: Sendable, Equatable {
+    /// A named member of a native DuckDB STRUCT value.
+    public struct StructMember: Sendable, Equatable {
+        /// The exact, case-sensitive STRUCT member name.
+        public let name: String
+
+        /// The member's exact Duck value, including SQL NULL when appropriate.
+        public let value: Value
+
+        /// Creates a named STRUCT member while preserving its supplied name and value.
+        public init(name: String, value: Value) {
+            self.name = name
+            self.value = value
+        }
+    }
+
     internal enum Storage: Sendable, Equatable {
         case null
         case boolean(Bool)
@@ -34,6 +49,8 @@ public struct Value: Sendable, Equatable {
         case timestampTZ(Date)
         case interval(Interval)
         case decimal(Decimal)
+        case list([Value])
+        case structure([StructMember])
     }
 
     internal let storage: Storage
@@ -85,6 +102,9 @@ public struct Value: Sendable, Equatable {
         public static let timestampTZ = Self(rawValue: 20)
         public static let interval = Self(rawValue: 21)
         public static let decimal = Self(rawValue: 22)
+        public static let list = Self(rawValue: 23)
+        /// A keyed DuckDB STRUCT value.
+        public static let structure = Self(rawValue: 24)
 
         public static let allKnown: [Self] = [
             .null,
@@ -110,6 +130,8 @@ public struct Value: Sendable, Equatable {
             .timestampTZ,
             .interval,
             .decimal,
+            .list,
+            .structure,
         ]
     }
 
@@ -161,6 +183,10 @@ public struct Value: Sendable, Equatable {
             return .interval
         case .decimal:
             return .decimal
+        case .list:
+            return .list
+        case .structure:
+            return .structure
         }
     }
 
@@ -244,6 +270,22 @@ public struct Value: Sendable, Equatable {
 
     public static func decimal(_ value: Decimal) -> Value {
         Value(storage: .decimal(value))
+    }
+
+    /// A one-dimensional native DuckDB LIST.
+    ///
+    /// Child order is preserved and equality is exact. A SQL `NULL` child is
+    /// `Value.null` inside the list; a SQL `NULL` list is `Value.null`.
+    public static func list(_ values: [Value]) -> Value {
+        Value(storage: .list(values))
+    }
+
+    /// Creates one keyed DuckDB STRUCT value with the supplied member order.
+    ///
+    /// Names and member values are preserved exactly; duplicate names remain representable here
+    /// and are rejected when the value is converted to a native target.
+    public static func structure(_ members: [StructMember]) -> Value {
+        Value(storage: .structure(members))
     }
 
     @available(macOS 15.0, iOS 18.0, *)
@@ -405,6 +447,21 @@ public struct Value: Sendable, Equatable {
         return value
     }
 
+    public func get(_ type: [Value].Type) -> [Value]? {
+        guard case .list(let values) = storage else {
+            return nil
+        }
+        return values
+    }
+
+    /// Returns the exact ordered members when this value is a STRUCT.
+    public func get(_ type: [StructMember].Type) -> [StructMember]? {
+        guard case .structure(let members) = storage else {
+            return nil
+        }
+        return members
+    }
+
     @available(macOS 15.0, iOS 18.0, *)
     public func get(_ type: Int128.Type) -> Int128? {
         guard case .signed128Words(let upper, let lower) = storage else {
@@ -459,6 +516,15 @@ public struct Value: Sendable, Equatable {
 
     public var decimalValue: Decimal? {
         self.get(Decimal.self)
+    }
+
+    public var listValue: [Value]? {
+        self.get([Value].self)
+    }
+
+    /// The exact ordered members when this value is a STRUCT.
+    public var structureValue: [StructMember]? {
+        self.get([StructMember].self)
     }
 
     @available(macOS 15.0, iOS 18.0, *)

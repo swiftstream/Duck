@@ -265,7 +265,9 @@ final class NativeAppender {
             let planned = try plan(
                 value,
                 target: targetDescriptors[offset],
-                column: offset + 1
+                column: offset + 1,
+                nativeColumnIndex: offset,
+                appender: appender
             )
             plannedValues.append(planned.operation)
             ownedValues[offset] = planned.ownedValue
@@ -375,7 +377,9 @@ final class NativeAppender {
     private func plan(
         _ value: Value,
         target: LogicalType,
-        column: Int
+        column: Int,
+        nativeColumnIndex: Int,
+        appender: duckdb_appender
     ) throws -> (operation: PlannedAppend, ownedValue: duckdb_value?) {
         switch value.storage {
         case .null:
@@ -549,6 +553,20 @@ final class NativeAppender {
                     isPreflight: true
                 )
             }
+        case .list:
+            return try planList(
+                value,
+                column: column,
+                nativeColumnIndex: nativeColumnIndex,
+                appender: appender
+            )
+        case .structure:
+            return try planStruct(
+                value,
+                column: column,
+                nativeColumnIndex: nativeColumnIndex,
+                appender: appender
+            )
         }
     }
 
@@ -601,6 +619,79 @@ final class NativeAppender {
             return (.uhugeint(NativeScalarCodec.uhugeint(upper: 0, lower: value)), nil)
         default:
             throw preflightMismatch(column, target)
+        }
+    }
+
+    /// Plans one `Value.list` column against the Appender's own native column type.
+    ///
+    /// `duckdb_appender_column_type` returns an owned descriptor, so this scope — not the codec —
+    /// destroys it and it never outlives preflight. The created parent LIST value is transferred
+    /// into the caller's `ownedValues` lifetime, which is what destroys it after the append
+    /// attempt, exactly like every other typed Appender value.
+    private func planList(
+        _ value: Value,
+        column: Int,
+        nativeColumnIndex: Int,
+        appender: duckdb_appender
+    ) throws -> (operation: PlannedAppend, ownedValue: duckdb_value?) {
+        // C2: Appender native column indexes are 0-based, unlike prepared parameter indexes.
+        guard let rawParentTarget = duckdb_appender_column_type(appender, idx_t(nativeColumnIndex)) else {
+            throw NativeAppenderError(
+                stage: .appendColumn(column),
+                message: "DuckDB returned no LIST target for appender column \(column).",
+                isPreflight: true
+            )
+        }
+        var ownedParentTarget: duckdb_logical_type? = rawParentTarget
+        defer { duckdb_destroy_logical_type(&ownedParentTarget) }
+
+        do {
+            let nativeList = try NativeListValueCodec.createListValue(
+                from: value,
+                borrowingParentTarget: rawParentTarget
+            )
+            return (.typedValue, nativeList)
+        } catch let error as NativeListValueConversionError {
+            throw NativeAppenderError(
+                stage: .appendColumn(column),
+                message: error.message,
+                isPreflight: true
+            )
+        }
+    }
+
+    /// Plans one `Value.structure` column against the Appender's own native column type.
+    ///
+    /// The Appender owns the raw parent target. The created parent value transfers into the
+    /// existing `ownedValues` cleanup scope so it remains alive through append/end-row handling.
+    private func planStruct(
+        _ value: Value,
+        column: Int,
+        nativeColumnIndex: Int,
+        appender: duckdb_appender
+    ) throws -> (operation: PlannedAppend, ownedValue: duckdb_value?) {
+        guard let rawParentTarget = duckdb_appender_column_type(appender, idx_t(nativeColumnIndex)) else {
+            throw NativeAppenderError(
+                stage: .appendColumn(column),
+                message: "DuckDB returned no STRUCT target for appender column \(column).",
+                isPreflight: true
+            )
+        }
+        var ownedParentTarget: duckdb_logical_type? = rawParentTarget
+        defer { duckdb_destroy_logical_type(&ownedParentTarget) }
+
+        do {
+            let nativeStruct = try NativeStructValueCodec.createStructValue(
+                from: value,
+                borrowingParentTarget: rawParentTarget
+            )
+            return (.typedValue, nativeStruct)
+        } catch let error as NativeStructValueConversionError {
+            throw NativeAppenderError(
+                stage: .appendColumn(column),
+                message: error.message,
+                isPreflight: true
+            )
         }
     }
 

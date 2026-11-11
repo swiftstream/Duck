@@ -167,6 +167,10 @@ final class NativePreparedStatement {
             state = try bindInterval(value, at: index, parameterIndex: parameterIndex)
         case .decimal(let value):
             state = try bindDecimal(value, at: index, parameterIndex: parameterIndex)
+        case .list:
+            state = try bindList(value, at: index, parameterIndex: parameterIndex)
+        case .structure:
+            state = try bindStructure(value, at: index, parameterIndex: parameterIndex)
         }
 
         guard state == DuckDBSuccess else {
@@ -358,6 +362,86 @@ final class NativePreparedStatement {
                 parameterIndex: index
             )
         }
+    }
+
+    /// Binds one `Value.list` against the parameter's own native LIST target.
+    ///
+    /// `duckdb_param_logical_type` returns an owned descriptor, so this scope — not the codec —
+    /// destroys it. The codec only borrows it, which is why this path cannot reuse
+    /// `resolvedTargetDescriptor(at:)`: that helper destroys the raw descriptor before the child
+    /// element type could be derived from it.
+    private func bindList(
+        _ value: Value,
+        at index: Int,
+        parameterIndex: idx_t
+    ) throws -> duckdb_state {
+        guard let rawParentTarget = duckdb_param_logical_type(handle, parameterIndex) else {
+            throw NativeDuckDBError(
+                operation: .binding,
+                message: "DuckDB returned no LIST target for parameter \(index).",
+                parameterIndex: index
+            )
+        }
+        var ownedParentTarget: duckdb_logical_type? = rawParentTarget
+        defer { duckdb_destroy_logical_type(&ownedParentTarget) }
+
+        let nativeList: duckdb_value
+        do {
+            nativeList = try NativeListValueCodec.createListValue(
+                from: value,
+                borrowingParentTarget: rawParentTarget
+            )
+        } catch let error as NativeListValueConversionError {
+            throw NativeDuckDBError(
+                operation: .binding,
+                message: error.message,
+                parameterIndex: index
+            )
+        }
+
+        var ownedList: duckdb_value? = nativeList
+        defer { duckdb_destroy_value(&ownedList) }
+
+        return duckdb_bind_value(handle, parameterIndex, ownedList)
+    }
+
+    /// Binds one `Value.structure` against the parameter's own native STRUCT target.
+    ///
+    /// The prepared statement owns the raw target and returned parent value; the codec borrows
+    /// the target and owns only its temporary child resources.
+    private func bindStructure(
+        _ value: Value,
+        at index: Int,
+        parameterIndex: idx_t
+    ) throws -> duckdb_state {
+        guard let rawParentTarget = duckdb_param_logical_type(handle, parameterIndex) else {
+            throw NativeDuckDBError(
+                operation: .binding,
+                message: "DuckDB returned no STRUCT target for parameter \(index).",
+                parameterIndex: index
+            )
+        }
+        var ownedParentTarget: duckdb_logical_type? = rawParentTarget
+        defer { duckdb_destroy_logical_type(&ownedParentTarget) }
+
+        let nativeStruct: duckdb_value
+        do {
+            nativeStruct = try NativeStructValueCodec.createStructValue(
+                from: value,
+                borrowingParentTarget: rawParentTarget
+            )
+        } catch let error as NativeStructValueConversionError {
+            throw NativeDuckDBError(
+                operation: .binding,
+                message: error.message,
+                parameterIndex: index
+            )
+        }
+
+        var ownedStruct: duckdb_value? = nativeStruct
+        defer { duckdb_destroy_value(&ownedStruct) }
+
+        return duckdb_bind_value(handle, parameterIndex, ownedStruct)
     }
 
     private func bindOwnedValue(

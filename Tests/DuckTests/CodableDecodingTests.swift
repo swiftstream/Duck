@@ -91,6 +91,22 @@ private struct HasStringArray: Decodable, Sendable {
     let tags: [String]
 }
 
+private struct HasOptionalStringArray: Decodable, Equatable, Sendable {
+    let tags: [String?]
+}
+
+private struct HasStatusArray: Decodable, Equatable, Sendable {
+    let tags: [DecodeStatus]
+}
+
+private struct HasNestedStringArray: Decodable, Equatable, Sendable {
+    let tags: [[String]]
+}
+
+private struct HasAddressArray: Decodable, Equatable, Sendable {
+    let tags: [NestedAddress]
+}
+
 private struct BoolModel: Decodable, Equatable, Sendable {
     let flag: Bool
 }
@@ -834,6 +850,153 @@ func enumAndUnsupportedBoundaries() async throws {
         }
     } catch {
         Issue.record("Expected DecodingError for nested, got \(error)")
+    }
+}
+
+// MARK: - L20-L25: LIST decoding
+
+@Test("STRUCT Value decodes into a nested synthesized Codable property")
+func nestedStructDecodesIntoCodableProperty() throws {
+    let row = ResultRow(
+        columns: ["address"],
+        values: [.structure([
+            .init(name: "city", value: .string("city")),
+            .init(name: "zip", value: .string("10001"))
+        ])]
+    )
+
+    #expect(try row.decode(HasNested.self).address == NestedAddress(city: "city", zip: "10001"))
+}
+
+/// Seeds one LIST column through native prepared binding, never through SQL list text.
+private func listBackedRow(
+    on connection: Connection,
+    children: [Value]
+) async throws -> ResultRow {
+    let statement = try await connection.prepare { parameters in
+        SQL.select(Fn.cast(parameters.parameter(), .list(.varchar)) => "tags")
+    }
+    let result = try await statement.query(Value.list(children))
+    return try firstRow(result)
+}
+
+@Test("L20 Value.list decodes into [String]")
+func listDecodesIntoStringArray() async throws {
+    let connection = try Database().connect()
+    let row = try await listBackedRow(
+        on: connection,
+        children: [.string("a"), .string("b")]
+    )
+
+    let model = try row.decode(HasStringArray.self)
+    #expect(model.tags == ["a", "b"])
+
+    let empty = try await listBackedRow(on: connection, children: [])
+    #expect(try empty.decode(HasStringArray.self).tags == [])
+}
+
+@Test("L21 Value.list with a SQL NULL child decodes into [String?]")
+func listDecodesIntoOptionalStringArray() async throws {
+    let connection = try Database().connect()
+    let row = try await listBackedRow(
+        on: connection,
+        children: [.string("a"), .null, .string("c")]
+    )
+
+    let model = try row.decode(HasOptionalStringArray.self)
+    #expect(model.tags == ["a", nil, "c"])
+}
+
+@Test("L22 Value.list decodes raw-value enums through ordinary Codable")
+func listDecodesIntoEnumArray() async throws {
+    let connection = try Database().connect()
+    let row = try await listBackedRow(
+        on: connection,
+        children: [.string("active"), .string("paused")]
+    )
+
+    let model = try row.decode(HasStatusArray.self)
+    #expect(model.tags == [.active, .paused])
+}
+
+@Test("L23 an unknown enum label inside a LIST fails as DecodingError")
+func listWithUnknownEnumLabelFails() async throws {
+    let connection = try Database().connect()
+    let row = try await listBackedRow(
+        on: connection,
+        children: [.string("active"), .string("not-a-status")]
+    )
+
+    do {
+        _ = try row.decode(HasStatusArray.self)
+        Issue.record("Expected an unknown enum raw value to fail.")
+    } catch {
+        #expect(error is DecodingError)
+    }
+}
+
+@Test("L24 a non-LIST scalar still rejects when an Array is requested")
+func scalarRequestedAsArrayStillTypeMismatch() async throws {
+    let connection = try Database().connect()
+    let statement = try await connection.prepare { parameters in
+        SQL.select(Fn.cast(parameters.parameter(), .varchar) => "tags")
+    }
+    let result = try await statement.query(Value.string("tag"))
+    let row = try firstRow(result)
+
+    do {
+        _ = try row.decode(HasStringArray.self)
+        Issue.record("Expected a scalar-as-Array rejection")
+    } catch let error as DecodingError {
+        guard case .typeMismatch = error else {
+            Issue.record("Expected typeMismatch, got \(error)")
+            return
+        }
+    }
+}
+
+@Test("L25 nested array and keyed LIST children remain rejected")
+func nestedListChildrenRemainRejected() throws {
+    // A nested LIST backing cannot be produced by the runtime in P0, so the decoder
+    // boundary is proved directly against the Value tree it must refuse.
+    let nestedArrayRow = ResultRow(
+        columns: ["tags"],
+        values: [.list([.list([.string("inner")])])]
+    )
+    do {
+        _ = try nestedArrayRow.decode(HasNestedStringArray.self)
+        Issue.record("Expected a nested array child rejection")
+    } catch let error as DecodingError {
+        guard case .typeMismatch = error else {
+            Issue.record("Expected typeMismatch for a nested array child, got \(error)")
+            return
+        }
+    }
+
+    let keyedChildRow = ResultRow(
+        columns: ["tags"],
+        values: [.list([.string("city")])]
+    )
+    do {
+        _ = try keyedChildRow.decode(HasAddressArray.self)
+        Issue.record("Expected a keyed LIST child rejection")
+    } catch let error as DecodingError {
+        guard case .typeMismatch = error else {
+            Issue.record("Expected typeMismatch for a keyed child, got \(error)")
+            return
+        }
+    }
+
+    // The row-level keyed container is still unsupported for LIST-backed models.
+    let scalarRow = ResultRow(columns: ["tags"], values: [.string("tag")])
+    do {
+        _ = try scalarRow.decode(HasStringArray.self)
+        Issue.record("Expected a scalar-backed Array rejection")
+    } catch let error as DecodingError {
+        guard case .typeMismatch = error else {
+            Issue.record("Expected typeMismatch for a scalar-backed Array, got \(error)")
+            return
+        }
     }
 }
 

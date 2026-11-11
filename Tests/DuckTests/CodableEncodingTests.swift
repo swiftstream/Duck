@@ -106,6 +106,26 @@ private struct HasArrayProperty: Encodable, Sendable {
     let tags: [String]
 }
 
+private struct HasOptionalStringArrayProperty: Encodable, Sendable {
+    let tags: [String?]
+}
+
+private struct HasEnumArrayProperty: Encodable, Sendable {
+    let statuses: [EncodeStatus]
+}
+
+private struct HasNestedArrayElement: Encodable, Sendable {
+    let matrix: [[String]]
+}
+
+private struct HasNestedKeyedElement: Encodable, Sendable {
+    let addresses: [NestedAddress]
+}
+
+private struct HasInt64ArrayProperty: Encodable, Sendable {
+    let counts: [Int64]
+}
+
 private struct ModelWithEnum: Encodable, Equatable, Sendable {
     let status: EncodeStatus
     let name: String
@@ -499,37 +519,81 @@ func directScalarEngineRawValueEnum() throws {
 
 // MARK: - Unsupported shapes
 
-@Test("Nested keyed property is rejected with field codingPath")
-func nestedPropertyRejected() throws {
-    do {
-        _ = try ModelEncoder().encode(
-            HasNestedProperty(address: NestedAddress(city: "city", zip: "1"))
-        )
-        Issue.record("Expected nested property rejection")
-    } catch let error as EncodingError {
-        guard case .invalidValue = error else {
-            Issue.record("Expected invalidValue for nested property, got \(error)")
-            return
-        }
-        #expect(codingPathKeys(error).contains("address"))
-    } catch {
-        Issue.record("Expected EncodingError for nested property, got \(error)")
-    }
+@Test("Nested keyed property becomes one exact Value.structure field")
+func nestedPropertyProducesStructure() throws {
+    let encoded = try ModelEncoder().encode(
+        HasNestedProperty(address: NestedAddress(city: "city", zip: "1"))
+    )
+    #expect(encoded.fields.map(\.key) == ["address"])
+    #expect(try field(encoded, "address") == .structure([
+        .init(name: "city", value: .string("city")),
+        .init(name: "zip", value: .string("1"))
+    ]))
 }
 
-@Test("Array property is rejected with field codingPath")
-func arrayPropertyRejected() throws {
+@Test("L15 keyed Array property encodes as one Value.list field")
+func keyedArrayPropertyEncodesAsList() throws {
+    let encoded = try ModelEncoder().encode(HasArrayProperty(tags: ["a", "b"]))
+    #expect(encoded.fields.map(\.key) == ["tags"])
+    #expect(try field(encoded, "tags") == .list([.string("a"), .string("b")]))
+
+    let empty = try ModelEncoder().encode(HasArrayProperty(tags: []))
+    #expect(try field(empty, "tags") == .list([]))
+}
+
+@Test("L16 keyed optional-string Array preserves SQL NULL children")
+func keyedOptionalArrayPreservesNullElements() throws {
+    let encoded = try ModelEncoder().encode(
+        HasOptionalStringArrayProperty(tags: ["a", nil, "c"])
+    )
+    #expect(
+        try field(encoded, "tags") == .list([.string("a"), .null, .string("c")])
+    )
+}
+
+@Test("L17 keyed raw-value enum Array encodes each element as its raw String")
+func keyedEnumArrayEncodesRawStrings() throws {
+    let encoded = try ModelEncoder().encode(
+        HasEnumArrayProperty(statuses: [.active, .paused, .active])
+    )
+    #expect(
+        try field(encoded, "statuses")
+            == .list([.string("active"), .string("paused"), .string("active")])
+    )
+}
+
+@Test("L24 keyed numeric Array keeps native scalar children")
+func keyedNumericArrayKeepsNativeChildren() throws {
+    let encoded = try ModelEncoder().encode(HasInt64ArrayProperty(counts: [1, 2]))
+    #expect(try field(encoded, "counts") == .list([.int64(1), .int64(2)]))
+}
+
+@Test("L19 nested Array and nested keyed elements stay rejected with indexed codingPath")
+func nestedArrayElementsRemainRejected() throws {
     do {
-        _ = try ModelEncoder().encode(HasArrayProperty(tags: ["a", "b"]))
-        Issue.record("Expected array property rejection")
+        _ = try ModelEncoder().encode(HasNestedArrayElement(matrix: [["a", "b"]]))
+        Issue.record("Expected nested array element rejection")
     } catch let error as EncodingError {
         guard case .invalidValue = error else {
-            Issue.record("Expected invalidValue for array property, got \(error)")
+            Issue.record("Expected invalidValue for a nested array element, got \(error)")
             return
         }
-        #expect(codingPathKeys(error).contains("tags"))
-    } catch {
-        Issue.record("Expected EncodingError for array property, got \(error)")
+        #expect(codingPathKeys(error).contains("matrix"))
+        #expect(codingPathKeys(error).contains("0"))
+    }
+
+    do {
+        _ = try ModelEncoder().encode(
+            HasNestedKeyedElement(addresses: [NestedAddress(city: "c", zip: "1")])
+        )
+        Issue.record("Expected nested keyed element rejection")
+    } catch let error as EncodingError {
+        guard case .invalidValue = error else {
+            Issue.record("Expected invalidValue for a nested keyed element, got \(error)")
+            return
+        }
+        #expect(codingPathKeys(error).contains("addresses"))
+        #expect(codingPathKeys(error).contains("0"))
     }
 }
 

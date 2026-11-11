@@ -141,6 +141,27 @@ struct RowCodingKey: CodingKey, Hashable, Sendable {
     }
 }
 
+struct RowIndexCodingKey: CodingKey, Hashable, Sendable {
+    var stringValue: String
+    var intValue: Int?
+
+    init(_ index: Int) {
+        self.stringValue = String(index)
+        self.intValue = index
+    }
+
+    init?(stringValue: String) {
+        guard let index = Int(stringValue) else {
+            return nil
+        }
+        self.init(index)
+    }
+
+    init?(intValue: Int) {
+        self.init(intValue)
+    }
+}
+
 // MARK: - Checked model Int / UInt
 
 enum RowIntegerPolicy {
@@ -564,11 +585,52 @@ struct RowValueDecoder: Decoder {
     let value: Value
     let codingPath: [CodingKey]
     let requestedType: Any.Type
+    /// P0 decodes only one-dimensional LISTs, so only a column-level LIST may open an
+    /// unkeyed container; LIST element decoders keep nested collections rejected.
+    let permitsListContainer: Bool
+    /// P0 decodes one keyed STRUCT level; STRUCT member decoders disable this permission.
+    let permitsStructContainer: Bool
     var userInfo: [CodingUserInfoKey: Any] { [:] }
+
+    init(
+        value: Value,
+        codingPath: [CodingKey],
+        requestedType: Any.Type,
+        permitsListContainer: Bool = true,
+        permitsStructContainer: Bool = true
+    ) {
+        self.value = value
+        self.codingPath = codingPath
+        self.requestedType = requestedType
+        self.permitsListContainer = permitsListContainer
+        self.permitsStructContainer = permitsStructContainer
+    }
 
     func container<Key: CodingKey>(
         keyedBy type: Key.Type
     ) throws -> KeyedDecodingContainer<Key> {
+        if permitsStructContainer, case .structure(let members) = value.storage {
+            var seenNames: Set<String> = []
+            for member in members {
+                guard seenNames.insert(member.name).inserted else {
+                    throw DecodingError.dataCorrupted(
+                        DecodingError.Context(
+                            codingPath: codingPath + [RowCodingKey(member.name)],
+                            debugDescription:
+                                "Value.structure contains duplicate member name '\(member.name)'"
+                        )
+                    )
+                }
+            }
+            return KeyedDecodingContainer(
+                RowStructDecodingContainer<Key>(
+                    members: members,
+                    codingPath: codingPath,
+                    requestedType: requestedType
+                )
+            )
+        }
+
         throw DecodingError.typeMismatch(
             [String: Any].self,
             DecodingError.Context(
@@ -580,6 +642,14 @@ struct RowValueDecoder: Decoder {
     }
 
     func unkeyedContainer() throws -> UnkeyedDecodingContainer {
+        if permitsListContainer, case .list(let children) = value.storage {
+            return RowListDecodingContainer(
+                children: children,
+                codingPath: codingPath,
+                requestedType: requestedType
+            )
+        }
+
         throw DecodingError.typeMismatch(
             [Any].self,
             DecodingError.Context(
@@ -629,6 +699,293 @@ struct RowSingleValueDecodingContainer: SingleValueDecodingContainer {
                 codingPath: codingPath,
                 debugDescription:
                     "Incompatible database value for \(type): actual Value.Kind \(value.kind.rawValue)"
+            )
+        )
+    }
+}
+
+/// Decodes the named members of one `Value.structure` and rejects nested composites.
+struct RowStructDecodingContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
+    private let members: [Value.StructMember]
+    private let indicesByName: [String: Int]
+    let codingPath: [CodingKey]
+    private let requestedType: Any.Type
+
+    var allKeys: [Key] {
+        members.compactMap { Key(stringValue: $0.name) }
+    }
+
+    init(
+        members: [Value.StructMember],
+        codingPath: [CodingKey],
+        requestedType: Any.Type
+    ) {
+        self.members = members
+        self.codingPath = codingPath
+        self.requestedType = requestedType
+        var indices: [String: Int] = [:]
+        indices.reserveCapacity(members.count)
+        for (index, member) in members.enumerated() {
+            indices[member.name] = index
+        }
+        indicesByName = indices
+    }
+
+    func contains(_ key: Key) -> Bool {
+        indicesByName[key.stringValue] != nil
+    }
+
+    func decodeNil(forKey key: Key) throws -> Bool {
+        try value(for: key.stringValue).isNull
+    }
+
+    func decode(_ type: Bool.Type, forKey key: Key) throws -> Bool { try decodeValue(type, forKey: key) }
+    func decode(_ type: String.Type, forKey key: Key) throws -> String { try decodeValue(type, forKey: key) }
+    func decode(_ type: Double.Type, forKey key: Key) throws -> Double { try decodeValue(type, forKey: key) }
+    func decode(_ type: Float.Type, forKey key: Key) throws -> Float { try decodeValue(type, forKey: key) }
+    func decode(_ type: Int.Type, forKey key: Key) throws -> Int { try decodeValue(type, forKey: key) }
+    func decode(_ type: Int8.Type, forKey key: Key) throws -> Int8 { try decodeValue(type, forKey: key) }
+    func decode(_ type: Int16.Type, forKey key: Key) throws -> Int16 { try decodeValue(type, forKey: key) }
+    func decode(_ type: Int32.Type, forKey key: Key) throws -> Int32 { try decodeValue(type, forKey: key) }
+    func decode(_ type: Int64.Type, forKey key: Key) throws -> Int64 { try decodeValue(type, forKey: key) }
+    func decode(_ type: UInt.Type, forKey key: Key) throws -> UInt { try decodeValue(type, forKey: key) }
+    func decode(_ type: UInt8.Type, forKey key: Key) throws -> UInt8 { try decodeValue(type, forKey: key) }
+    func decode(_ type: UInt16.Type, forKey key: Key) throws -> UInt16 { try decodeValue(type, forKey: key) }
+    func decode(_ type: UInt32.Type, forKey key: Key) throws -> UInt32 { try decodeValue(type, forKey: key) }
+    func decode(_ type: UInt64.Type, forKey key: Key) throws -> UInt64 { try decodeValue(type, forKey: key) }
+
+    @available(macOS 15.0, iOS 18.0, *)
+    func decode(_ type: Int128.Type, forKey key: Key) throws -> Int128 { try decodeValue(type, forKey: key) }
+
+    @available(macOS 15.0, iOS 18.0, *)
+    func decode(_ type: UInt128.Type, forKey key: Key) throws -> UInt128 { try decodeValue(type, forKey: key) }
+
+    func decode<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> T {
+        try decodeValue(type, forKey: key)
+    }
+
+    func nestedContainer<NestedKey: CodingKey>(
+        keyedBy type: NestedKey.Type,
+        forKey key: Key
+    ) throws -> KeyedDecodingContainer<NestedKey> {
+        throw rejected(type: [String: Any].self, path: codingPath + [key], shape: "nested keyed containers")
+    }
+
+    func nestedUnkeyedContainer(forKey key: Key) throws -> UnkeyedDecodingContainer {
+        throw rejected(type: [Any].self, path: codingPath + [key], shape: "nested unkeyed containers")
+    }
+
+    func superDecoder() throws -> Decoder {
+        throw rejected(type: Any.self, path: codingPath, shape: "superDecoder")
+    }
+
+    func superDecoder(forKey key: Key) throws -> Decoder {
+        _ = try value(for: key.stringValue)
+        throw rejected(type: Any.self, path: codingPath + [key], shape: "superDecoder(forKey:)")
+    }
+
+    private func value(for name: String) throws -> Value {
+        guard let index = indicesByName[name], members.indices.contains(index) else {
+            throw DecodingError.keyNotFound(
+                RowCodingKey(name),
+                DecodingError.Context(
+                    codingPath: codingPath + [RowCodingKey(name)],
+                    debugDescription: "Missing required STRUCT member '\(name)'"
+                )
+            )
+        }
+        return members[index].value
+    }
+
+    private func decodeValue<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> T {
+        let memberValue = try value(for: key.stringValue)
+        let path = codingPath + [key]
+        guard !memberValue.isNull else {
+            throw DecodingError.valueNotFound(
+                type,
+                DecodingError.Context(
+                    codingPath: path,
+                    debugDescription:
+                        "SQL NULL for required STRUCT member '\(key.stringValue)' (kind=\(memberValue.kind.rawValue))"
+                )
+            )
+        }
+
+        if let native = RowNativeIntercept.decode(type, from: memberValue) {
+            return native
+        }
+        if RowNativeIntercept.isNativeFamily(T.self) {
+            throw DecodingError.typeMismatch(
+                type,
+                DecodingError.Context(
+                    codingPath: path,
+                    debugDescription:
+                        "Incompatible STRUCT member for \(type): actual Value.Kind \(memberValue.kind.rawValue)"
+                )
+            )
+        }
+
+        return try T(
+            from: RowValueDecoder(
+                value: memberValue,
+                codingPath: path,
+                requestedType: type,
+                permitsListContainer: false,
+                permitsStructContainer: false
+            )
+        )
+    }
+
+    private func rejected(type: Any.Type, path: [CodingKey], shape: String) -> DecodingError {
+        DecodingError.typeMismatch(
+            type,
+            DecodingError.Context(
+                codingPath: path,
+                debugDescription: "STRUCT decoding does not support \(shape) while decoding \(requestedType)"
+            )
+        )
+    }
+}
+
+// MARK: - LIST unkeyed container
+
+/// Decodes the children of one `Value.list`.
+///
+/// A reference type because `UnkeyedDecodingContainer.currentIndex` requires a
+/// `nonmutating set`. Element decoding reuses the exact scalar/native rules of
+/// keyed column decoding; nested keyed and nested unkeyed children stay rejected in P0.
+final class RowListDecodingContainer: UnkeyedDecodingContainer {
+    let codingPath: [CodingKey]
+    let requestedType: Any.Type
+    private let children: [Value]
+
+    var currentIndex: Int = 0
+
+    var count: Int? { children.count }
+
+    var isAtEnd: Bool { currentIndex >= children.count }
+
+    init(children: [Value], codingPath: [CodingKey], requestedType: Any.Type) {
+        self.children = children
+        self.codingPath = codingPath
+        self.requestedType = requestedType
+    }
+
+    /// Consumes the current child only when it is SQL NULL.
+    func decodeNil() -> Bool {
+        guard !isAtEnd, children[currentIndex].isNull else {
+            return false
+        }
+        currentIndex += 1
+        return true
+    }
+
+    func decode<T: Decodable>(_ type: T.Type) throws -> T {
+        try decodeElement(type)
+    }
+
+    func decode(_ type: Bool.Type) throws -> Bool { try decodeElement(Bool.self) }
+    func decode(_ type: String.Type) throws -> String { try decodeElement(String.self) }
+    func decode(_ type: Double.Type) throws -> Double { try decodeElement(Double.self) }
+    func decode(_ type: Float.Type) throws -> Float { try decodeElement(Float.self) }
+    func decode(_ type: Int.Type) throws -> Int { try decodeElement(Int.self) }
+    func decode(_ type: Int8.Type) throws -> Int8 { try decodeElement(Int8.self) }
+    func decode(_ type: Int16.Type) throws -> Int16 { try decodeElement(Int16.self) }
+    func decode(_ type: Int32.Type) throws -> Int32 { try decodeElement(Int32.self) }
+    func decode(_ type: Int64.Type) throws -> Int64 { try decodeElement(Int64.self) }
+    func decode(_ type: UInt.Type) throws -> UInt { try decodeElement(UInt.self) }
+    func decode(_ type: UInt8.Type) throws -> UInt8 { try decodeElement(UInt8.self) }
+    func decode(_ type: UInt16.Type) throws -> UInt16 { try decodeElement(UInt16.self) }
+    func decode(_ type: UInt32.Type) throws -> UInt32 { try decodeElement(UInt32.self) }
+    func decode(_ type: UInt64.Type) throws -> UInt64 { try decodeElement(UInt64.self) }
+
+    @available(macOS 15.0, iOS 18.0, *)
+    func decode(_ type: Int128.Type) throws -> Int128 { try decodeElement(Int128.self) }
+
+    @available(macOS 15.0, iOS 18.0, *)
+    func decode(_ type: UInt128.Type) throws -> UInt128 { try decodeElement(UInt128.self) }
+
+    func nestedContainer<NestedKey: CodingKey>(
+        keyedBy type: NestedKey.Type
+    ) throws -> KeyedDecodingContainer<NestedKey> {
+        throw rejected(type: [String: Any].self, description: "nested keyed containers")
+    }
+
+    func nestedUnkeyedContainer() throws -> UnkeyedDecodingContainer {
+        throw rejected(type: [Any].self, description: "nested unkeyed containers")
+    }
+
+    func superDecoder() throws -> Decoder {
+        throw rejected(type: Any.self, description: "superDecoder")
+    }
+
+    private func decodeElement<T: Decodable>(_ type: T.Type) throws -> T {
+        let child = try next(type)
+        let index = currentIndex - 1
+        let path = codingPath + [RowIndexCodingKey(index)]
+
+        // A SQL NULL child is resolved by the element type itself: an Optional element
+        // becomes `.none` through its single-value `decodeNil()`, while a required element
+        // still fails as `valueNotFound`, exactly like keyed column decoding.
+        if child.isNull {
+            return try T(
+                from: RowValueDecoder(
+                    value: child,
+                    codingPath: path,
+                    requestedType: type,
+                    permitsListContainer: false,
+                    permitsStructContainer: false
+                )
+            )
+        }
+
+        if let native = RowNativeIntercept.decode(type, from: child) {
+            return native
+        }
+
+        if RowNativeIntercept.isNativeFamily(type) {
+            throw DecodingError.typeMismatch(
+                type,
+                DecodingError.Context(
+                    codingPath: path,
+                    debugDescription:
+                        "Incompatible database value for \(type) at LIST element \(index): actual Value.Kind \(child.kind.rawValue)"
+                )
+            )
+        }
+
+        return try T(
+            from: RowValueDecoder(
+                value: child,
+                codingPath: path,
+                requestedType: type,
+                permitsListContainer: false,
+                permitsStructContainer: false
+            )
+        )
+    }
+
+    private func next(_ type: Any.Type) throws -> Value {
+        guard !isAtEnd else {
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(
+                    codingPath: codingPath + [RowIndexCodingKey(currentIndex)],
+                    debugDescription: "LIST container is at end while decoding \(type)"
+                )
+            )
+        }
+        let child = children[currentIndex]
+        currentIndex += 1
+        return child
+    }
+
+    private func rejected(type: Any.Type, description: String) -> DecodingError {
+        DecodingError.typeMismatch(
+            type,
+            DecodingError.Context(
+                codingPath: codingPath + [RowIndexCodingKey(currentIndex)],
+                debugDescription:
+                    "LIST decoding does not support \(description) in this wave while decoding \(requestedType)"
             )
         )
     }

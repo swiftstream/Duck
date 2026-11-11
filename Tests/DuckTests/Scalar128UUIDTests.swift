@@ -82,7 +82,7 @@ func valueKindIdentities() {
     #expect(Value.Kind.uint128.rawValue == 15)
     #expect(Value.Kind.uuid.rawValue == 16)
 
-    #expect(Value.Kind.allKnown.map(\.rawValue) == Array(0...22))
+    #expect(Value.Kind.allKnown.map(\.rawValue) == Array(0...24))
 
     #expect(Value.int32(1).kind == .int32)
     #expect(Value.string("x").kind == .string)

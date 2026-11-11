@@ -339,13 +339,13 @@ func lateMaterializationFailurePublishesAfterMutation() async throws {
                 .values
                 .values(Int32(1))
                 .returning[
-                    any: Fn.listValue(
-                        SQLableParts(parts: SQLPartSafeValue(Int32(1))),
-                        SQLableParts(parts: SQLPartSafeValue(Int32(2)))
+                    any: Fn.cast(
+                        SQLableParts(parts: SQLPartSafeValue("101")),
+                        .bit
                     ) => "unsupported"
                 ]
         )
-        Issue.record("Expected unsupported LIST result materialization to fail.")
+        Issue.record("Expected unsupported BIT result materialization to fail.")
     } catch let error as DatabaseError {
         guard case .unsupportedResultType = error else {
             Issue.record("Expected unsupportedResultType, got \(error).")

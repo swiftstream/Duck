@@ -34,7 +34,7 @@ func decimalValueFacadeAndRowConveniences() throws {
     )
 
     #expect(Value.Kind.decimal.rawValue == 22)
-    #expect(Value.Kind.allKnown.map(\.rawValue) == Array(0...22))
+    #expect(Value.Kind.allKnown.map(\.rawValue) == Array(0...24))
     #expect(value.kind == .decimal)
     #expect(value.get(Decimal.self) == finite)
     #expect(value.decimalValue == finite)
