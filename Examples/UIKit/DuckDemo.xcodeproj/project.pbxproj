@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		EC32E747308B6A6400DEA7CA /* Duck in Frameworks */ = {isa = PBXBuildFile; productRef = EC32E749308B6A6400DEA7CA /* Duck */; };
+		EC0C8ED730A65EC600173CEB /* Duck in Frameworks */ = {isa = PBXBuildFile; productRef = EC0C8ED630A65EC600173CEB /* Duck */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -40,7 +40,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EC32E747308B6A6400DEA7CA /* Duck in Frameworks */,
+				EC0C8ED730A65EC600173CEB /* Duck in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -83,7 +83,7 @@
 			);
 			name = DuckDemo;
 			packageProductDependencies = (
-				EC32E749308B6A6400DEA7CA /* Duck */,
+				EC0C8ED630A65EC600173CEB /* Duck */,
 			);
 			productName = DuckDemo;
 			productReference = EC32E72F308B6A6100DEA7CA /* DuckDemo.app */;
@@ -114,7 +114,7 @@
 			mainGroup = EC32E726308B6A6100DEA7CA;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				EC32E748308B6A6400DEA7CA /* XCLocalSwiftPackageReference "../../../Duck" */,
+				EC0C8ED530A65EC600173CEB /* XCRemoteSwiftPackageReference "Duck" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = EC32E730308B6A6100DEA7CA /* Products */;
@@ -355,16 +355,21 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		EC32E748308B6A6400DEA7CA /* XCLocalSwiftPackageReference "../../../Duck" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../../../Duck;
+/* Begin XCRemoteSwiftPackageReference section */
+		EC0C8ED530A65EC600173CEB /* XCRemoteSwiftPackageReference "Duck" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/SwiftStream/Duck";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
 		};
-/* End XCLocalSwiftPackageReference section */
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		EC32E749308B6A6400DEA7CA /* Duck */ = {
+		EC0C8ED630A65EC600173CEB /* Duck */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = EC0C8ED530A65EC600173CEB /* XCRemoteSwiftPackageReference "Duck" */;
 			productName = Duck;
 		};
 /* End XCSwiftPackageProductDependency section */
