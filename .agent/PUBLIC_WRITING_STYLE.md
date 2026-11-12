@@ -119,6 +119,35 @@ These rules apply to README files, release notes, changelogs, guides, articles, 
 
 Code snippets follow the source language's normal syntax. String contents shown as user-facing output should follow the same typography rules unless a literal value specifically requires otherwise.
 
+## Human Authorship and AI-Pattern Avoidance
+
+Public prose must read like it was written by a real maintainer or developer with a concrete point of view, not like generic assistant-generated marketing copy.
+
+The goal is not artificial informality. The goal is natural authorship: factual, specific, channel-aware writing with normal human rhythm and without the recurring stylistic fingerprints of generated prose.
+
+Required rules:
+
+- preserve the maintainer's natural first-person voice when the message is genuinely personal; `I`, `we`, `I'm`, and `we're` are preferable to impersonal corporate phrasing when they are truthful;
+- use ordinary contractions in English when they sound natural;
+- vary sentence length naturally; a short standalone sentence after a longer technical sentence is often better than one over-engineered compound sentence;
+- prefer concrete technical nouns and concrete developer payoff over generic marketing adjectives;
+- preserve intentional channel-native syntax such as Discord emoji codes, mentions, hashtags, or a compact channel-specific opener;
+- allow one small code example when it immediately demonstrates why the product feels simple or native;
+- preserve harmless human phrasing and rhythm instead of rewriting clear maintainer-authored copy into smoother but more generic prose;
+- keep punctuation mechanically plain: no em dash, en dash, smart quotes, Unicode ellipsis, decorative separators, or other ornamental typography unless a literal value or intentional emoji requires it.
+
+Avoid recurring generated-copy patterns such as:
+
+- generic scene-setting openers like `In today's fast-paced world`, `Let's dive in`, or equivalent filler;
+- repeated contrast formulas such as `not just X, but Y`, `it's not X, it's Y`, `whether you're X or Y`, or `from X to Y`; one natural contrast may be useful, but repeated template symmetry is not;
+- generic hype such as `game-changing`, `revolutionary`, `seamless`, `supercharge`, `unlock`, or similar words when a concrete capability can say more;
+- overly symmetrical three-part slogans or paragraphs written mainly to sound balanced;
+- excessive headings, bolding, colons, rhetorical questions, or sentence fragments used as marketing decoration;
+- repeating the same claim in several differently worded paragraphs;
+- generic motivational closers such as `ready to take X to the next level?` when a direct developer-facing call to action is more natural.
+
+A human-written draft does not need to be made stylistically perfect if it is already clear, truthful, grammatical, and recognizably written in the maintainer's voice. Correct facts, grammar, ambiguity, and misleading claims first. Do not erase authorship merely to make prose more polished.
+
 ## Example First
 
 Developer-facing prose should lead with the smallest concrete example that establishes the concept, then explain only the non-obvious behavior.
@@ -193,6 +222,22 @@ Do not advertise:
 - advanced Appender surfaces or recursive/composite Value families beyond the closed LIST/STRUCT P0 boundaries that have not completed their own public documentation closure;
 - platform support not actually validated;
 - unpublished package versions.
+
+## PostgreSQL Positioning
+
+PostgreSQL is a useful public reference point for explaining why DuckDB feels materially different from SQLite-shaped embedded database expectations, but the comparison must stay technically precise.
+
+For DuckDB 2.0 public copy:
+
+- it is accurate to say that DuckDB's SQL dialect closely follows PostgreSQL conventions or that much of its SQL syntax feels familiar to PostgreSQL users;
+- it is reasonable to describe the developer experience as PostgreSQL-like in SQL expressiveness when the wording is clearly about the SQL surface, not engine identity;
+- do not say that DuckDB 2.0 is PostgreSQL, contains PostgreSQL, or is currently based on the PostgreSQL parser;
+- do not imply full PostgreSQL compatibility, PostgreSQL server behavior, or availability of every PostgreSQL feature;
+- avoid phrases such as `Postgres inside your app` when they can be read as an engine-identity claim;
+- prefer wording such as `a SQL dialect that closely follows PostgreSQL conventions`, `PostgreSQL-like SQL`, or `SQL that feels familiar to PostgreSQL users`;
+- when the product story needs a stronger contrast, explain that Duck brings a serious relational and analytical SQL engine into the application rather than claiming that PostgreSQL itself has been embedded.
+
+DuckDB 2.0 uses its own PEG parser. Historical PostgreSQL-derived parser lineage may be discussed in technical history when relevant, but it must not be turned into a current architectural claim.
 
 ## Performance Claims
 
@@ -306,9 +351,11 @@ Both posts should:
 - avoid unsupported performance comparisons;
 - be reviewed by the maintainer before publication.
 
-For Discord, prefer concise English developer copy with direct technical nouns and small inline API names where useful.
+For Discord, prefer concise English developer copy with direct technical nouns and small inline API names where useful. A personal first-launch post may naturally use first-person singular (`I'm introducing`) when the maintainer is speaking as the creator. Channel-native markers such as an intentional channel mention or emoji code may stay in the published copy. A compact Swift example is encouraged when it proves the product idea faster than another paragraph would. After a dense technical sentence, prefer a short direct sentence such as `No database server.` over turning every point into one polished compound sentence.
 
-For Telegram, use natural Russian, slightly more conversational phrasing, and explain practical value rather than translating the English post sentence by sentence.
+For Telegram, use natural Russian, slightly more conversational phrasing, and explain practical value rather than translating the English post sentence by sentence. Preserve the maintainer's personal voice when the announcement is genuinely personal. Russian technical vocabulary may mix established English terms such as `prepared statements`, `bulk ingest`, or `connection pool` when that is how the intended developer audience naturally speaks; do not force awkward literal translations merely for stylistic uniformity.
+
+For both channels, the launch structure should normally be product-first: identify the new product, explain the developer-level difference, show the simplest proof when useful, then use one selective feature paragraph as evidence. A direct closing aimed at the actual developer audience is better than a generic marketing slogan. Do not force Discord and Telegram into the same sentence structure or paragraph count.
 
 ## Launch Articles and Media Outreach
 

@@ -290,12 +290,15 @@ Both drafts must:
 
 - describe only shipped, verified user-visible behavior;
 - use the published release version and canonical GitHub Release URL;
-- follow the release-announcement rules in `PUBLIC_WRITING_STYLE.md`;
+- follow the release-announcement rules in `PUBLIC_WRITING_STYLE.md`, including its Human Authorship and AI-Pattern Avoidance rules;
+- preserve natural maintainer voice and channel-specific conventions instead of smoothing both posts into one generic marketing template;
 - avoid internal planning, audit, execution, evidence, tooling, and implementation-history terminology;
 - avoid unsupported performance comparisons or platform claims;
 - be reviewed by the maintainer before external publication.
 
 The two posts are channel-native drafts, not literal translations of one another.
+
+After an announcement is actually published, preserve the exact published copy, destination, and known publication state under `.artifacts/**` as campaign evidence. Do not rewrite the published wording after the fact to match a later draft, and do not copy one campaign's exact prose into stable governance. Stable governance should retain the reusable writing rule; `.artifacts/**` should retain the concrete publication.
 
 ## Broader launch communications
 
