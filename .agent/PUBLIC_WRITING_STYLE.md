@@ -360,6 +360,23 @@ For Telegram, use natural Russian, slightly more conversational phrasing, and ex
 
 For both channels, the launch structure should normally be product-first: identify the new product, explain the developer-level difference, show the simplest proof when useful, then use one selective feature paragraph as evidence. A direct closing aimed at the actual developer audience is better than a generic marketing slogan. Do not force Discord and Telegram into the same sentence structure or paragraph count.
 
+## X / Threads Launch Posts
+
+For X / Threads, prefer a compact, high-signal launch shape rather than compressing a longer announcement sentence by sentence.
+
+A strong maintainer-native pattern is:
+
+- one short product hook that names Duck and the release;
+- one dense technical-value paragraph with the strongest concrete product facts;
+- one or two short standalone authorial lines that carry personality or product contrast;
+- one bare canonical link at the end.
+
+The short standalone lines may be warmer or more slogan-like than the technical paragraph, for example a personal craft line in the spirit of `Made for Swift with love.` or a direct product-positioning closer. They must remain truthful and should complement, not repeat, the technical paragraph.
+
+Prefer direct declarative writing over engagement bait. Do not add hashtags, rhetorical questions, `What do you think?`, `Thoughts?`, generic calls to action, or emoji clutter merely because the channel supports them. One intentional leading emoji is enough when it is part of Duck's launch identity.
+
+Do not force this four-beat rhythm onto LinkedIn, Discord, Telegram, Mastodon, or long-form posts. Preserve the same product truth, but let each channel use its own natural pacing.
+
 ## Launch Articles and Media Outreach
 
 Broader launch communication should be derived from the detailed source packages in `FUTURE_PUBLICATIONS.md` after the release is verified.
