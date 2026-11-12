@@ -127,14 +127,56 @@ READY_FOR_RELEASE_GATE=YES
 
 The pre-release run does not prove remote package publication. The later remote exact SwiftPM/Xcode consumer gate still validates the real published semantic version.
 
-If the first-time-user run finds a documentation or product defect:
+### Proportional revalidation after an accepted full U0
+
+A successful full first-time-user U0 remains the baseline release integration proof.
+
+After that baseline is accepted, a later bounded documentation-only correction does NOT automatically require repeating the entire expensive U0 flow when all of the following remain unchanged:
+
+- package identity and installation transport semantics;
+- public product/module/import;
+- Package.swift and dependency graph;
+- product source and tests;
+- first-working model abstraction;
+- database setup/migration sequence;
+- query/persistence/concurrency/runtime semantics already exercised by U0;
+- platform/runtime claims already exercised by U0.
+
+For such a bounded documentation-only correction, use proportional revalidation against the exact new candidate:
+
+- inspect the exact changed public-doc paths and prove no unrelated public/product byte changed;
+- validate changed links/paths and the public files they land on;
+- validate every newly added or materially changed executable snippet against the public API;
+- validate any newly documented setup instruction against the real project/package wiring it describes;
+- run a focused compiler/build/runtime check only for behavior newly introduced or materially changed by the documentation correction;
+- record an independent exact-candidate release-doc rebind before branch publication.
+
+Navigation wording, link-target cleanup, typo/clarity improvements, or beginner-facing example instructions do not by themselves require recreating the full disposable Xcode consumer when they leave the previously validated installation/tutorial/runtime path intact.
+
+A full fresh U0 IS required again when a correction materially changes any previously validated integration surface, including:
+
+- installation steps or package selection;
+- required imports/product/module identity;
+- first runnable tutorial flow;
+- database setup/migration lifecycle;
+- public API shape or semantics used by the tutorial;
+- concurrency/ownership requirements;
+- executable examples whose behavior replaces or materially changes a previously exercised path;
+- representative runtime/reactivity claims;
+- any prior U0 finding whose correction cannot be isolated confidently by focused validation.
+
+The maintainer may also explicitly require a fresh full U0 for a specific correction.
+
+If focused revalidation cannot prove that the change is isolated from the previously accepted U0 surface, keep the release gate closed and rerun the full first-time-user flow.
+
+If the first-time-user run or a proportional revalidation finds a documentation or product defect:
 
 1. stop release progression;
 2. correct the README or product;
 3. review and commit the correction normally;
-4. rerun the first-time-user flow from a fresh disposable consumer with no retained project knowledge.
+4. choose full or proportional revalidation according to the scope rules above.
 
-Do not accept a run that succeeds only because the executor inspected implementation details and filled gaps the README did not explain.
+Do not accept a run that succeeds only because the executor inspected implementation details and filled gaps the public documentation did not explain.
 
 ## Branch publication
 
