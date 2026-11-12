@@ -264,7 +264,7 @@ For v1.0.0:
 - use the verified semantic tag;
 - publish as a stable release, not draft or prerelease;
 - use an independently reviewed user-facing release body derived from `RELEASE_NOTES.md`;
-- follow `PUBLIC_WRITING_STYLE.md`;
+- follow `PUBLIC_WRITING_STYLE.md`, including the GitHub Release body-opening rule: the title owns the release name/version identity, so the body must begin with new information instead of repeating the title as an H1 or mechanically restating the same name/version in its first sentence;
 - do not include internal audit/test statistics, prompt/tool history, artifact hashes, or coordinator terminology.
 
 Read the published release back independently and verify:

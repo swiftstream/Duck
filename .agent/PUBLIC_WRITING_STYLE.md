@@ -251,6 +251,40 @@ Examples:
 
 The emoji belongs in the GitHub Release title, not in the semantic Git tag. Tags remain ordinary semantic versions such as `v1.0.0`.
 
+## GitHub Release Body Opening
+
+The GitHub Release title already owns the release name, version, and title emoji. Do not mechanically repeat that same identity again as an H1 or as the first prose sentence of the release body.
+
+Avoid openings such as:
+
+```text
+Title: 🦆 Duck 1.0.0
+
+# Duck 1.0.0
+
+Duck 1.0.0 is the first stable release...
+```
+
+This wastes the highest-value opening lines by saying the same thing three times.
+
+Instead, let the title carry the release identity and make the body begin immediately with new information:
+
+```text
+Title: 🦆 Duck 1.0.0
+
+First stable release of **DuckDB for Swift**.
+
+It brings DuckDB 2.0.0 directly into iOS and macOS apps...
+```
+
+Required policy:
+
+- do not repeat the GitHub Release title as a body H1;
+- do not begin the body by mechanically restating the same product name and version already visible in the title;
+- use the first body sentence for the release's strongest new meaning, positioning, or developer value;
+- mentioning the version later is fine when the version is materially relevant to installation, compatibility, migration, or scope;
+- keep title and body complementary rather than redundant.
+
 ## Swift Stream Release Announcements
 
 After a verified GitHub Release, prepare two short release announcements:
