@@ -40,10 +40,15 @@ For the exact candidate tree require:
 - release-facing docs contain no temporary pre-tag wording such as `unreleased`, `release candidate`, or `until the tag is published`;
 - release-facing docs contain no unsupported platform/API claims;
 - stable release-state owners under `.agent/**` are already synchronized for the release mechanics they own;
+- every checked-in runnable example under `Examples/**` uses the intended public Duck package source and the target stable release version rule for that release, not a stale prior version, branch preview, local checkout, or relative self-reference;
+- Xcode example projects contain one coherent Duck package reference/product dependency path, with no stale duplicate local and remote package objects left behind;
+- the release review explicitly inspects example dependency metadata such as `project.pbxproj`, `Package.swift`, and committed resolution files when present, rather than assuming README installation wording covers the examples;
 - wording may omit remote facts that cannot exist yet, such as a GitHub Release ID or publication timestamp, but MUST NOT substitute temporary preview wording for them;
-- a bounded release-doc review is recorded against exact `RELEASE_SHA`.
+- a bounded release-doc/example review is recorded against exact `RELEASE_SHA`.
 
-If a release-facing or stable-state document still requires a post-tag wording correction, the candidate is NOT tag-ready. Stop before branch publication or tag creation and fix/review/commit the documentation first.
+For an exact pre-tag release candidate, checked-in examples may already declare the target semantic version even though that tag does not exist remotely yet. Pre-release validation may use an explicitly documented transport-only substitution when necessary, but the tree intended for the immutable semantic tag must already contain the final public package URL and target release version metadata. Do not ship example projects that still depend on `../../../Duck`, another local path, a branch, or an older release version merely because local development used that transport.
+
+If a release-facing document, stable-state document, or checked-in example dependency still requires a post-tag version/source correction, the candidate is NOT tag-ready. Stop before branch publication or tag creation and fix/review/commit the documentation first.
 
 Post-publication governance may record facts that only become knowable after publication. It MUST NOT be used to repair README installation, changelog, release notes, license text, or current-stable wording that belonged inside the immutable release tag.
 
