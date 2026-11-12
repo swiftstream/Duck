@@ -229,6 +229,28 @@ Prefer one technically complete source package that can be adapted for a long-fo
 
 Posts may be prepared before external publication, but they must clearly distinguish implemented/validated API from planned work and must not imply a release, package version, platform guarantee, or publication event that has not happened.
 
+## GitHub Release Titles
+
+Duck release titles use an emoji as part of the public release identity.
+
+Required policy:
+
+- every new MAJOR Duck release title MUST use the duck emoji `🦆`;
+- MINOR Duck release titles MUST use a different emoji, not `🦆`;
+- PATCH Duck release titles MUST use a different emoji, not `🦆`;
+- minor and patch emoji choice may vary by release, but the duck emoji remains reserved as the major-release marker.
+
+Examples:
+
+```text
+🦆 Duck 1.0.0
+✨ Duck 1.1.0
+🛠️ Duck 1.1.1
+🦆 Duck 2.0.0
+```
+
+The emoji belongs in the GitHub Release title, not in the semantic Git tag. Tags remain ordinary semantic versions such as `v1.0.0`.
+
 ## Swift Stream Release Announcements
 
 After a verified GitHub Release, prepare two short release announcements:
