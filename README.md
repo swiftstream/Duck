@@ -100,7 +100,7 @@ Then add the product to your target:
 
 Want to run the complete app first?
 
-[SwiftUI example project](Examples/SwiftUI/DuckDemo.xcodeproj) | [UIKit example project](Examples/UIKit/DuckDemo.xcodeproj)
+[SwiftUI example](Examples/SwiftUI/) | [UIKit example](Examples/UIKit/)
 
 Both are ready-to-run Xcode projects built around the same Todo model and database flow.
 
@@ -336,9 +336,10 @@ Open an explicit `Connection` only when several operations should intentionally 
 
 ```swift
 let connection = try await DatabaseIdentifier.app.connect()
+let todos = try await Todo.all(on: connection)
 ```
 
-Each `Connection` is an actor that owns one native DuckDB connection and serializes work submitted to that connection.
+Operations passed the same `Connection` intentionally share that native connection. Each `Connection` is an actor that owns one native DuckDB connection and serializes work submitted to it.
 
 For tests, previews, and genuinely temporary data, an in-memory database is one line:
 
