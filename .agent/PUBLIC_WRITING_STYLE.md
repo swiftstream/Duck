@@ -377,6 +377,25 @@ Prefer direct declarative writing over engagement bait. Do not add hashtags, rhe
 
 Do not force this four-beat rhythm onto LinkedIn, Discord, Telegram, Mastodon, or long-form posts. Preserve the same product truth, but let each channel use its own natural pacing.
 
+## LinkedIn Launch Posts
+
+For LinkedIn from the maintainer's personal account, prefer a first-person developer story over either a corporate announcement or a stretched X post.
+
+A strong maintainer-native shape is:
+
+- open with what was built and that the maintainer has been working on it personally;
+- explain the product motivation through a concrete developer frustration or missing capability;
+- state the product difference in plain technical language;
+- use short declarative fragments for the core Swift-facing experience when that improves rhythm;
+- show one tiny API example when it proves simplicity faster than prose;
+- use one selective feature paragraph as evidence rather than a changelog dump;
+- state that the first stable release is the foundation when future surface area materially matters;
+- close with a direct audience-fit statement and the canonical repository or release link.
+
+Personal craft language such as `Made for Swift with love.` is appropriate when it reflects the maintainer's voice and follows concrete technical substance. Mildly opinionated language about the developer problem is also appropriate when it is truthful and sounds like the author rather than a company marketing team.
+
+Do not turn the post into a press release. Avoid corporate framing, fake community language, engagement bait, excessive hashtags, artificial gratitude paragraphs, or generic motivational endings. Preserve short, slightly informal developer phrasing when it is grammatically sound and recognizably the maintainer's voice.
+
 ## Launch Articles and Media Outreach
 
 Broader launch communication should be derived from the detailed source packages in `FUTURE_PUBLICATIONS.md` after the release is verified.
