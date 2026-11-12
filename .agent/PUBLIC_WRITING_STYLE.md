@@ -396,6 +396,20 @@ Personal craft language such as `Made for Swift with love.` is appropriate when 
 
 Do not turn the post into a press release. Avoid corporate framing, fake community language, engagement bait, excessive hashtags, artificial gratitude paragraphs, or generic motivational endings. Preserve short, slightly informal developer phrasing when it is grammatically sound and recognizably the maintainer's voice.
 
+## Hacker News Publication Gate
+
+Hacker News has channel-specific authorship rules that override the normal drafting and polishing workflow. Re-check the official Hacker News and Show HN guidelines immediately before every HN publication because these rules can change.
+
+When the current Hacker News rules prohibit generated or AI-edited submission text or comments:
+
+- PRIMARY must not write a final HN title, submission body, first comment, reply, or other copy intended to be pasted into Hacker News;
+- PRIMARY must not grammar-polish, rewrite, translate, or otherwise AI-edit maintainer-written HN copy;
+- PRIMARY may prepare a factual source sheet, product claims, technical points, omissions, risks, and a non-copyable structural outline for the maintainer to use while writing the text personally;
+- PRIMARY may verify repository facts and flag factual contradictions without rewriting the maintainer's wording;
+- preserve the maintainer's handwritten HN text as the publication artifact after publication, without retroactive editing.
+
+For Show HN eligibility and presentation, follow the current official Show HN rules. Prefer factual, direct presentation of a substantial project the maintainer personally built and is available to discuss. Avoid marketing adjectives, promotional calls to action, vote/comment solicitation, decorative title tricks, or release-announcement framing when the actual value is the project itself.
+
 ## Launch Articles and Media Outreach
 
 Broader launch communication should be derived from the detailed source packages in `FUTURE_PUBLICATIONS.md` after the release is verified.
