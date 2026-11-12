@@ -396,19 +396,28 @@ Personal craft language such as `Made for Swift with love.` is appropriate when 
 
 Do not turn the post into a press release. Avoid corporate framing, fake community language, engagement bait, excessive hashtags, artificial gratitude paragraphs, or generic motivational endings. Preserve short, slightly informal developer phrasing when it is grammatically sound and recognizably the maintainer's voice.
 
-## Hacker News Publication Gate
+## Hacker News / Show HN Posts
 
-Hacker News has channel-specific authorship rules that override the normal drafting and polishing workflow. Re-check the official Hacker News and Show HN guidelines immediately before every HN publication because these rules can change.
+Treat Show HN as a personal engineering showcase rather than a press release or a compressed product announcement.
 
-When the current Hacker News rules prohibit generated or AI-edited submission text or comments:
+The maintainer's preferred Show HN voice is deliberately conversational and first-person. Preserve the real path that led to the project: the problem he was trying to solve in his own applications, tools he previously used, what he liked or disliked about them, how he discovered the underlying technology, and why he decided to build his own Swift-facing layer.
 
-- PRIMARY must not write a final HN title, submission body, first comment, reply, or other copy intended to be pasted into Hacker News;
-- PRIMARY must not grammar-polish, rewrite, translate, or otherwise AI-edit maintainer-written HN copy;
-- PRIMARY may prepare a factual source sheet, product claims, technical points, omissions, risks, and a non-copyable structural outline for the maintainer to use while writing the text personally;
-- PRIMARY may verify repository facts and flag factual contradictions without rewriting the maintainer's wording;
-- preserve the maintainer's handwritten HN text as the publication artifact after publication, without retroactive editing.
+For Show HN:
 
-For Show HN eligibility and presentation, follow the current official Show HN rules. Prefer factual, direct presentation of a substantial project the maintainer personally built and is available to discuss. Avoid marketing adjectives, promotional calls to action, vote/comment solicitation, decorative title tricks, or release-announcement framing when the actual value is the project itself.
+- lead with the real engineering problem and personal motivation before the feature inventory;
+- preserve direct opinions about developer tools and APIs when they genuinely reflect the maintainer's experience;
+- keep natural contractions, informal transitions, playful wording, stretched emphasis such as `looooooot`, and light humor when they sound like the maintainer;
+- show one compact code example early when it proves the developer experience;
+- explain shipped capabilities only after the reader understands why the project exists;
+- state platform boundaries, incomplete surface area, and unresolved design problems plainly;
+- when a genuine open engineering problem exists, use it as an invitation for technical discussion rather than ending with generic engagement bait;
+- avoid rewriting the post into corporate launch copy, formal documentation prose, or generic assistant-style English.
+
+A concise Show HN title should normally name the project and communicate the interesting engineering idea rather than merely announce a version number.
+
+The maintainer owns publication authority and accepts platform-specific publication risk. When he explicitly asks for help with Hacker News, PRIMARY may assist fully with title ideation, English grammar, structure, rewriting, polishing, factual review, first comments, and follow-up replies. Current Hacker News authorship or AI-use rules may be surfaced as information when relevant, but they do not block local drafting or editing when the maintainer explicitly directs PRIMARY to proceed.
+
+After publication, preserve the exact maintainer-reported title and body as campaign evidence without silently correcting the historical copy.
 
 ## Launch Articles and Media Outreach
 
