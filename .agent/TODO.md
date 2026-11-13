@@ -31,9 +31,13 @@ The two previously verified transaction-adjacent research items are already reso
 
 Before local v1.0.0, **Advanced Appender APIs** and further **recursive/composite Value/result expansion beyond the closed native LIST and immediate keyed native STRUCT P0 boundaries** are explicitly deferred unless a proven release blocker requires the smallest bounded correction. Preserve the ideas, but do not promote them merely because they appeared next in an older roadmap.
 
-After local v1.0.0, create a separate v1.1.0 roadmap and prioritize major feature families afresh. Initial candidates include Advanced Appender surfaces (per-cell `DEFAULT`, QueryAppender, public DataChunk/vector append, manual lifecycle controls) and remaining composite work such as nested LIST, LIST-in-STRUCT, STRUCT-in-LIST, fixed ARRAY, MAP, UNION, and other recursive combinations.
+For v1.1.0, the first maintainer-prioritized objective is now `OBSERVATION-SCALABILITY-V1_1`: make reactive observation scale under million-row/high-write client workloads. The short authoritative debt entry is in `.agent/TECH_DEBT.md`; detailed research/benchmark requirements are in `.agent/tech-debt/REACTIVE_OBSERVATION_SCALABILITY_V1_1.md`.
 
-Platform validation remains an assurance track and participates where required by release evidence; it does not substitute for the release-readiness sequence. Tag/push/remote publication remains unauthorized, and performance benchmarking remains NOT_REQUIRED.
+Do not start v1.1 by automatically selecting Advanced Appender or recursive/composite Value work. Those remain preserved candidates after the observation-scalability objective unless the maintainer explicitly reprioritizes.
+
+For `OBSERVATION-SCALABILITY-V1_1`, performance benchmarking is **MANDATORY** for closure. Required evidence includes deterministic synthetic million-row datasets, multiple simultaneous observations, sustained INSERT/UPDATE/DELETE traffic, unrelated-table writes, same-table predicate-irrelevant and relevant writes, transactions/Appender, and a direct comparison against the v1 Database-wide invalidation baseline.
+
+Platform validation remains an assurance track and participates where required by release evidence; it does not substitute for the release-readiness sequence. Tag/push/remote publication remains unauthorized. Performance benchmarking remains optional for unrelated work unless its governing plan requires it; it is specifically required for the v1.1 observation-scalability objective.
 
 ## Other Future Work
 

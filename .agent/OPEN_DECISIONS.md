@@ -15,9 +15,9 @@ The current durable product priority is to finish a locally release-ready Duck v
     -> final independent v1 release snapshot CLOSED / CLEAN at `1925c7164cade025babb6d4b53453f697e9cdbfc`
     -> Bridges pre-v1 parity amendment CLOSED / CLEAN; instance delete / UPSERT / LIST / STRUCT all CLOSED; blockers = 0
     -> current local release sequence: stable-truth sync/audit -> final public docs -> commit composition -> D1/D2 -> U0 -> F0 -> semantic v1 authorization
-    -> separate v1.1.0 roadmap
+    -> v1.1.0 first priority: OBSERVATION-SCALABILITY-V1_1
 
-Advanced Appender expansion and further recursive/composite Value/result families beyond the closed native LIST and immediate keyed native STRUCT P0 boundaries remain future capabilities, not pre-v1 implementation authorization. A future v1.1.0 roadmap will prioritize them from current evidence. Platform validation continues as release/assurance evidence when the required environment is available. Push, tag, remote release, and publication remain separate and unauthorized.
+The first maintainer-prioritized v1.1.0 objective is reactive Observation scalability under million-row/high-write client workloads. Advanced Appender expansion and further recursive/composite Value/result families beyond the closed native LIST and immediate keyed native STRUCT P0 boundaries remain future capabilities and do not outrank `OBSERVATION-SCALABILITY-V1_1` without explicit maintainer reprioritization. Platform validation continues as release/assurance evidence when the required environment is available. Push, tag, remote release, and publication remain separate and unauthorized.
 
 This priority boundary is durable product direction, not permission to skip normal research/planning/validation/audit gates. Executable work is owned by `.agent/TASKS.md`.
 
@@ -60,7 +60,7 @@ Observation / Reactive Queries core architecture is no longer an open decision. 
 
 - Native one-dimensional `LIST` and immediate keyed native `STRUCT` P0 are CLOSED current state. `Value.Kind.list == 23` and `Value.Kind.structure == 24`; their accepted prepared/Appender/result/Codable/persistence boundaries remain governed by the closed parity authorities.
 - Only further recursive/composite expansion remains unresolved and separately gated: nested LIST, LIST-in-STRUCT, STRUCT-in-LIST, fixed ARRAY, MAP, UNION, and other recursive composite combinations.
-- This remaining capability is deferred until after local v1.0.0 unless a proven release blocker requires the smallest bounded correction. Its post-v1 implementation order relative to Advanced Appender work is intentionally unresolved and belongs to the separate v1.1.0 roadmap.
+- This remaining capability is deferred until after local v1.0.0 unless a proven release blocker requires the smallest bounded correction. Its post-v1 implementation order relative to Advanced Appender work remains unresolved, but both are currently lower priority than the maintainer-directed v1.1 `OBSERVATION-SCALABILITY-V1_1` objective.
 - Foundation.Decimal is no longer an open design/integration question: the accepted DCT128-v1 exact codec and its production/query/Statement/Appender/result integration are current state.
 
 ## Platform Packaging / Validation

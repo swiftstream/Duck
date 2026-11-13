@@ -46,6 +46,8 @@ The accepted v1 surface is a UI-neutral reusable latest-state `QueryObservation`
 
 The current boundary explicitly does not promise event-log delivery, reusable prepared-handle VIEW rebind, cross-identifier/cross-process invalidation, cross-process/file watching, or framework-specific publishers. Accepted executable evidence remains Swift 6.3.3 build + 557/557 tests in 11 suites with zero failures/skips, focused Swift 6.4 public Observation/manual-finalization coverage, and Swift 6.4 build PASS.
 
+The capability is functionally complete for v1, but a verified performance debt is now recorded for v1.1: ordinary non-read-only query/Statement execution currently publishes Database-wide invalidation, so unrelated observations may rerun before equal-result suppression. `OBSERVATION-SCALABILITY-V1_1` is the first maintainer-prioritized v1.1 objective and requires million-row/high-write benchmark evidence. It is not an active implementation task until promoted through the normal reviewed planning workflow.
+
 ### Connection Pooling — COMPLETE
 
 The public surface is `DatabaseIdentifier.pool(maximumConnections:)`, actor `ConnectionPool` with `maximumConnections`, scoped `pool.connection`, thin `pool.transaction`, and `shutdown()`.

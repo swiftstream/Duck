@@ -171,7 +171,13 @@ Duck attempts table-scoped dependency tracking for safe query identities.
 
 Successful analysis with no table dependency is a real empty dependency, not automatically a Database-wide fallback. Such queries can still match conservative Database-wide invalidation when necessary.
 
-If dependency extraction or identity normalization is unsafe or cannot be trusted, Duck falls back to Database-wide invalidation rather than risking a missed refresh.
+Important v1.0 performance boundary: ordinary successful non-read-only query/Statement execution currently publishes Database-wide invalidation. Therefore a table-scoped observed query may still rerun after an ordinary write to an unrelated table. Equal-result suppression happens only after that refresh has executed and materialized its new `QueryResult`.
+
+v1.0 also does not promise column-, predicate-, or changed-row-aware invalidation. A selective `WHERE` does not by itself prove that a same-table write can skip refresh.
+
+This behavior is correctness-conservative, not a stale-state defect. The explicit v1.1 priority `OBSERVATION-SCALABILITY-V1_1` tracks finer-grained table-aware mutation publication plus benchmark-justified hot-table relevance fast paths.
+
+If dependency extraction, mutation-impact extraction, or identity normalization is unsafe or cannot be trusted, Duck falls back to Database-wide invalidation rather than risking a missed refresh.
 
 Do not build application logic around internal dependency-representation details.
 

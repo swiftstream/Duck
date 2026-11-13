@@ -1,0 +1,724 @@
+# Reactive Observation Scalability v1.1 Research Dossier
+
+**Debt ID:** OBSERVATION-SCALABILITY-V1_1
+**Status:** ACTIVE HIGH-PRIORITY VERIFIED TECH DEBT / v1.1 RELEASE OBJECTIVE / NOT IMPLEMENTATION AUTHORIZATION
+**Created:** 2026-11-13
+
+## Context-budget rule
+
+This file is the detailed stable technical dossier for the v1.1 reactive-observation scalability objective.
+
+Normal project startup should load only the short pointer in `.agent/TECH_DEBT.md` and the accepted current behavior in `.agent/skills/duck-observation/SKILL.md`.
+
+Load this dossier when planning, auditing, implementing, or benchmarking the v1.1 observation-scalability work, or when a task explicitly asks about observation invalidation performance.
+
+The dossier is intentionally self-contained so future work does not depend on transient `.artifacts/**` research.
+
+## Mandatory lifecycle
+
+This file records an active high-priority debt, but it is still not production-source implementation authorization.
+
+When the v1.1 objective is fully implemented and independently accepted:
+
+1. move accepted permanent architecture rules into the correct source docs, tests, README/public docs, `.agent/PROJECT_MEMORY.md`, `.agent/SOURCE_MAP.md`, and `.agent/skills/duck-observation/SKILL.md`;
+2. preserve benchmark methodology/results in the durable benchmark owner selected by the reviewed plan;
+3. close or remove the corresponding entry in `.agent/TECH_DEBT.md`;
+4. update `.agent/MASTER_PLAN.md` and `.agent/TODO.md`;
+5. delete this dossier only after no active/stable documentation depends on it.
+
+The debt is not closed merely because table-aware invalidation exists. Closure requires the accepted scalability target and benchmark gate below.
+
+---
+
+# 1. Why this debt exists
+
+Duck v1.0.0 Observation is correct but intentionally conservative.
+
+The accepted latest-state Observation pipeline already provides:
+
+- reusable `QueryObservation` as an `AsyncSequence<QueryResult>`;
+- one private Connection/worker per iterator;
+- native READ ONLY refresh transactions;
+- same-identifier canonical-runtime invalidation;
+- bounded/latest-only invalidation delivery;
+- equal-`QueryResult` suppression;
+- cancellation-safe iterator teardown;
+- definitive transaction publication;
+- Appender participation.
+
+The performance debt is the mutation invalidation granularity.
+
+The current ordinary successful non-read-only query/statement path publishes:
+
+```text
+ObservationInvalidation.database
+```
+
+Therefore a normal write can wake observations that do not depend on the written table.
+
+Observation refresh itself already analyzes its read dependency through DuckDB's public table-name analysis and stores either:
+
+```text
+.database
+.tables(Set<ObservationTableName>)
+```
+
+The coordinator can already match table-scoped invalidations against table-scoped query dependencies.
+
+The missing part is that ordinary mutation paths usually do not yet publish sufficiently precise mutation impact.
+
+This means current equal-result suppression happens too late to remove all wasted work:
+
+```text
+unrelated ordinary write
+-> Database-wide invalidation
+-> observed SQL executes again
+-> full QueryResult materializes
+-> QueryResult equality check
+-> identical result is suppressed
+```
+
+Correctness is preserved, but unnecessary query execution/materialization can become unacceptable in a high-write local application.
+
+---
+
+# 2. Product workload that v1.1 must support
+
+The maintainer intends to use Duck in a heavily loaded client application with characteristics closer to a local collaboration/AI harness than a small CRUD demo.
+
+The v1.1 design must therefore be evaluated against workloads containing:
+
+- tables with millions of rows;
+- many simultaneously active observed queries;
+- continuous single-row and batch INSERT/UPDATE/DELETE traffic;
+- hot tables receiving a very high event rate;
+- selective observations over hot tables;
+- joins and derived views across multiple hot/cold tables;
+- frequent small application-state changes where most mutations are irrelevant to most observations;
+- long-lived application sessions;
+- SwiftUI/UIKit consumers where unnecessary re-materialization and decoding can become visible CPU/energy cost.
+
+Do not optimize only for Todo-sized databases.
+
+Do not treat a fast analytical scan in DuckDB as sufficient evidence that an observation architecture is efficient under thousands or millions of mutation notifications.
+
+---
+
+# 3. v1.1 product objective
+
+The v1.1 objective is:
+
+> Make Duck reactive observation extremely efficient under high-frequency local mutation workloads while preserving the v1 correctness rule that no relevant committed change may be missed.
+
+This is primarily an invalidation/relevance problem, not a UI-framework feature.
+
+The intended direction is progressively precise invalidation with conservative fallback.
+
+Conceptually:
+
+```text
+Database-wide
+    -> table-aware
+        -> column-aware where proven
+            -> predicate/row-aware fast paths where proven
+                -> conservative fallback for everything else
+```
+
+The implementation must never trade correctness for fewer reruns.
+
+If Duck cannot prove that a mutation is irrelevant to an observation, the observation must refresh.
+
+---
+
+# 4. Mandatory v1.1 minimum: table-aware ordinary mutations
+
+The first mandatory closure layer is complete table-aware mutation invalidation for normal Duck mutation paths.
+
+A write to `users` should not wake an observation proven to depend only on `todo`.
+
+This must cover, where the mutation target/dependency can be safely determined:
+
+- ordinary `Connection.query` / `execute`;
+- query-centered execution through `DatabaseIdentifier`;
+- reusable Statement execution;
+- managed transactions;
+- flat/manual `DuckTransaction`;
+- model persistence helpers;
+- Appender;
+- UPSERT and other accepted mutation surfaces;
+- future accepted mutation surfaces added before v1.1 closure.
+
+The current Appender target-aware machinery is evidence that table-scoped publication is already a supported internal concept. It is not proof that the general solution is complete.
+
+Safe ambiguity must fail closed to Database-wide invalidation.
+
+Table-aware invalidation alone is necessary but is not sufficient to close this debt.
+
+---
+
+# 5. Predicate/row-aware objective
+
+The performance target goes beyond table-level routing because a single hot table can receive huge write volume while an observation reads only a narrow subset.
+
+Example observation:
+
+```sql
+SELECT *
+FROM todo
+WHERE color = 'green'
+  AND deleted_at IS NOT NULL;
+```
+
+A high-quality v1.1 design should avoid rerunning this query for mutations that can be proven unable to change its result.
+
+However, general SQL predicate relevance is not a trivial string-comparison problem.
+
+Correctness must account for, among other things:
+
+- INSERT rows entering a predicate;
+- DELETE rows leaving a predicate;
+- UPDATE rows moving into or out of a predicate;
+- updates to projected columns while predicate membership is unchanged;
+- ORDER BY and LIMIT/OFFSET membership changes;
+- DISTINCT;
+- JOIN membership;
+- GROUP BY / aggregates;
+- HAVING;
+- subqueries;
+- CTEs;
+- views;
+- functions, including volatile or session-sensitive functions;
+- NULL three-valued logic;
+- collations;
+- casts and type coercions;
+- non-deterministic expressions;
+- schema/catalog changes.
+
+Do not claim universal predicate-aware invalidation until these semantics are either handled or conservatively classified into a fallback path.
+
+---
+
+# 6. Preferred architecture principle: compile relevance once, keep writes cheap
+
+The design should prefer moving expensive analysis to observation registration/refresh time rather than repeating it for every mutation.
+
+The expected high-level shape to research is:
+
+```text
+Observation creation/refresh
+-> compile immutable ObservationDependencyPlan
+
+Mutation execution
+-> derive compact MutationImpact
+
+Coordinator
+-> fast relevance test
+-> rerun only matching observations
+```
+
+A future `ObservationDependencyPlan` may include only what can be proven safely, for example:
+
+- table identities;
+- referenced columns;
+- query-shape classification;
+- normalized simple predicates;
+- ordering/limit sensitivity;
+- join/aggregate flags;
+- a conservative fallback marker.
+
+A future `MutationImpact` may include, when safely available:
+
+- affected table identities;
+- changed columns;
+- mutation kind;
+- structurally known mutation predicate;
+- affected key/range information;
+- optional old/new row information or another compact change summary;
+- transaction aggregation.
+
+These are research shapes, not approved type names or public API.
+
+No public API should be added merely because an internal dependency representation becomes richer.
+
+---
+
+# 7. Fast-path ladder
+
+Research should prefer a monotonic fast-path ladder rather than one all-or-nothing predicate solver.
+
+## Level 0: Database-wide fallback
+
+Always correct.
+
+Use when analysis fails, statement semantics are unknown, a dangerous edge is detected, or a future mutation surface is not yet understood.
+
+## Level 1: Table-aware
+
+Skip observations whose table dependency set is disjoint from the mutation's affected-table set.
+
+This is the mandatory v1.1 minimum.
+
+## Level 2: Column-aware
+
+For UPDATE-like operations, skip an observation when the changed column set is proven disjoint from every column that can influence that observation's result.
+
+Relevant columns can include:
+
+- projected columns;
+- predicate columns;
+- join keys;
+- grouping/aggregate inputs;
+- ordering columns.
+
+This must remain conservative when column analysis is incomplete.
+
+## Level 3: Predicate-disjointness proof
+
+For supported simple predicate families, prove that the mutation and observation cannot overlap.
+
+Example classes worth researching:
+
+- equality on the same column with different constant values;
+- non-overlapping numeric/date ranges;
+- IN sets with known disjoint values;
+- IS NULL / IS NOT NULL relationships;
+- conjunctions of supported predicates.
+
+This optimization should answer only:
+
+```text
+definitely irrelevant
+possibly relevant
+```
+
+It must not need a universal SQL theorem prover.
+
+Anything not proven irrelevant falls through.
+
+## Level 4: Changed-row relevance
+
+For mutation paths where affected row identity or old/new values can be obtained cheaply and correctly, evaluate whether the changed rows can alter an observation.
+
+This may be valuable for hot-table workloads where table-level invalidation is still too broad.
+
+The exact capture mechanism is unresolved and must be benchmarked before adoption.
+
+Do not add a per-row bookkeeping system whose mutation overhead is worse than the reruns it avoids.
+
+## Level 5: Incremental result maintenance
+
+Incrementally patching the current QueryResult instead of rerunning SQL is explicitly research-only and is not required for v1.1.
+
+It may become attractive for narrow simple-query classes, but it expands the correctness surface dramatically.
+
+Do not turn the v1.1 objective into a general incremental-view-maintenance project unless benchmark evidence proves the preceding levels insufficient.
+
+---
+
+# 8. DuckDB facilities to research, without prematurely coupling architecture
+
+As of the DuckDB 2.0.0 baseline used by Duck:
+
+- the stable C API exposes `duckdb_get_table_names` for table-name analysis;
+- query results expose `duckdb_rows_changed`;
+- DuckDB 2.0 provides SQL triggers;
+- statement-level triggers can expose OLD/NEW transition tables for mutations;
+- the C API v2 exists but is explicitly unstable.
+
+These facts create useful research options but do not decide the implementation.
+
+## Table-name analysis
+
+A strong first candidate is to determine whether DuckDB table-name analysis over ordinary DML can safely produce a conservative affected-table superset.
+
+If a statement touches `users` and reads `permissions`, invalidating both may still be far better than invalidating the whole database.
+
+This must be proven against all supported statement families and schema qualification rules.
+
+## Duck-owned SQL structure
+
+Because Duck uses SwiftStream/SQL as the mandatory construction layer, future work should investigate whether SQL structural metadata can cheaply expose mutation target, changed columns, and supported predicates without reparsing rendered SQL.
+
+Do not assume the current SQL package exposes enough semantic metadata; verify it.
+
+`SQL.raw(...)` and other escape hatches still require safe fallback behavior.
+
+## DuckDB 2.0 triggers / transition tables
+
+Statement-level OLD/NEW transition tables are potentially powerful for row-aware invalidation.
+
+They are not automatically the preferred solution because a trigger-based design may introduce:
+
+- schema/catalog state owned by Duck;
+- per-write trigger execution overhead;
+- interaction with user-defined triggers;
+- limitations around MERGE/ON CONFLICT or other statement families;
+- lifecycle/migration complexity;
+- extra materialization/copying of changed rows.
+
+No trigger-based architecture may be adopted without benchmark and semantic evidence that its overhead is acceptable and its compatibility surface is understood.
+
+## C API v2
+
+Do not make the v1.1 release depend on unstable C API v2 merely for theoretical performance.
+
+It may be researched if it exposes a uniquely valuable capability, but the stability cost must be explicit and independently reviewed.
+
+---
+
+# 9. Transaction semantics
+
+Transaction-aware observation must preserve the accepted v1 rule: publish only at definitive transaction finalization.
+
+The v1.1 implementation should accumulate precise mutation impact inside a transaction rather than degrading every transaction to Database-wide impact.
+
+Research a mergeable transaction impact representation such as:
+
+```text
+table set
++ changed column sets
++ optional predicate/key summaries
++ conservative escalation marker
+```
+
+Merge rules must be monotonic:
+
+- merging more mutations may broaden relevance;
+- any ambiguous impact can escalate to a safer coarser level;
+- no merge may accidentally narrow the true committed impact.
+
+ROLLBACK must not publish committed-data changes.
+
+Ambiguous post-scheduling COMMIT failure retains the existing conservative safety behavior unless separately solved.
+
+---
+
+# 10. Event-storm and coalescing requirements
+
+The existing one-element latest-only invalidation channel is valuable and should remain unless evidence proves a better design.
+
+The v1.1 system must avoid turning a high-frequency write burst into an unbounded queue of refresh work.
+
+Research/validation must cover:
+
+- a second invalidation arriving while refresh is running;
+- hundreds/thousands of writes during one refresh;
+- transaction commits containing many mutations;
+- multiple hot tables;
+- many observations with overlapping dependencies;
+- slow consumers;
+- cancellation during a refresh storm.
+
+Desired behavior is bounded catch-up to latest committed state, not replay of every mutation event.
+
+Observation remains a latest-state abstraction, not an event log.
+
+---
+
+# 11. Benchmark suite is mandatory for closure
+
+This debt cannot close from unit tests alone.
+
+v1.1 must add a reproducible benchmark harness designed specifically for reactive observation.
+
+Synthetic data generation is required so the benchmark can scale deterministically without checked-in giant database fixtures.
+
+## Required database scales
+
+At minimum include representative runs at:
+
+```text
+100k rows
+1M rows
+5M rows
+10M rows
+```
+
+The million-row lanes are mandatory.
+
+If 10M is impractical on a required CI/host lane, keep it as an explicit heavy/manual benchmark rather than silently deleting it.
+
+Use multiple tables so cross-table invalidation can be measured.
+
+## Required observation counts
+
+Representative lanes should include:
+
+```text
+1
+10
+50
+100
+```
+
+active observations where hardware permits.
+
+Do not benchmark only one subscriber.
+
+## Required query classes
+
+Include at least:
+
+1. broad single-table SELECT;
+2. narrow selective WHERE on a hot table;
+3. projection of a small column subset;
+4. ordered/limited query;
+5. selective query where most writes are irrelevant;
+6. two-table JOIN;
+7. aggregate/GROUP BY query;
+8. a deliberately complex query that is expected to fall back conservatively.
+
+The benchmark report must identify which invalidation level each query class receives.
+
+## Required mutation classes
+
+Include:
+
+- single-row INSERT;
+- single-row UPDATE;
+- single-row DELETE;
+- batch INSERT;
+- batch UPDATE where supported by the benchmark model;
+- transaction containing mixed mutations;
+- Appender ingestion;
+- unrelated-table writes;
+- same-table but predicate-irrelevant writes;
+- same-table predicate-relevant writes.
+
+Include both sparse and bursty traffic.
+
+## Required metrics
+
+Measure at least:
+
+- mutation throughput;
+- p50/p95/p99 mutation latency;
+- observation refresh latency;
+- p50/p95/p99 time from committed relevant mutation to emitted latest state;
+- number of invalidations generated;
+- number of observations matched;
+- number of SQL reruns;
+- number of reruns avoided;
+- number of equal QueryResults suppressed after rerun;
+- rows/materialized bytes where practical;
+- CPU time/utilization;
+- peak/resident memory where practical;
+- overhead with zero active observations;
+- overhead with many observations that are irrelevant to the write stream.
+
+The critical metric is not merely raw DuckDB SELECT speed.
+
+The benchmark must show how much work Duck's observation layer causes or avoids.
+
+---
+
+# 12. Baselines and acceptance philosophy
+
+Every benchmark family must compare at least:
+
+```text
+A. v1-style Database-wide invalidation baseline
+B. table-aware candidate
+C. final v1.1 candidate
+```
+
+Where a predicate/row-aware fast path exists, include a lane with that fast path disabled so its benefit and overhead are visible.
+
+Do not invent a marketing-friendly absolute threshold before measurements exist.
+
+Acceptance should instead require all of the following:
+
+- zero missed relevant committed updates in correctness oracles;
+- no unbounded invalidation queue/memory growth;
+- table-unrelated writes do not rerun unrelated table-scoped observations;
+- supported predicate-aware cases measurably avoid same-table irrelevant reruns;
+- the observation machinery adds low overhead to writes when no active observation is relevant;
+- the candidate materially improves high-write/high-observation workloads over the v1 baseline;
+- no benchmark lane shows a severe regression hidden by an average;
+- results are reproducible enough for independent audit.
+
+After real numbers exist, the maintainer may freeze concrete performance budgets for release gating.
+
+---
+
+# 13. Benchmark methodology
+
+The benchmark harness must be reproducible and resistant to accidental self-deception.
+
+Require:
+
+- deterministic seeded synthetic data;
+- recorded schema and generator parameters;
+- Release/optimized build;
+- recorded Swift/Xcode/DuckDB version;
+- recorded host CPU/RAM/OS;
+- separate setup/generation time from measured steady-state time;
+- warm-up where appropriate;
+- multiple measured repetitions;
+- median plus tail metrics, not one best run;
+- explicit cold/warm cache labeling;
+- no debug logging in timed loops;
+- no UI rendering in database-core benchmark lanes;
+- validation that the expected number of relevant state changes actually occurred.
+
+The primary heavy benchmark should run on the maintainer's Apple Silicon environment used for the target client workload.
+
+Cross-platform benchmark evidence is useful but is not a substitute for the primary client workload lane.
+
+---
+
+# 14. Correctness oracle
+
+Performance optimization is subordinate to observation correctness.
+
+The benchmark/test system should maintain an independent expected-state oracle for generated mutations.
+
+At synchronization checkpoints, compare:
+
+- current database truth;
+- expected observation result;
+- latest emitted observation state.
+
+Include adversarial transitions:
+
+- row enters predicate;
+- row leaves predicate;
+- projected value changes while membership remains;
+- irrelevant column changes;
+- DELETE of matching/non-matching rows;
+- transaction commit/rollback;
+- repeated writes that coalesce;
+- cancellation/restart;
+- NULL predicate transitions;
+- join-key changes.
+
+A fast path that misses one relevant state is rejected even if benchmark numbers are excellent.
+
+---
+
+# 15. Public API boundary
+
+The preferred outcome is a much faster existing `.observe(on:)` API, not a new family of tuning knobs.
+
+Do not require callers to manually specify tables or predicates that Duck can derive safely.
+
+Do not expose internal invalidation tiers merely to make the implementation easier.
+
+Public configuration may be considered only if benchmark evidence proves there is a real consumer choice that cannot be inferred automatically.
+
+Observation should remain easy:
+
+```swift
+for try await result in try query.observe(on: .app) {
+    // latest state
+}
+```
+
+The complexity belongs under the API.
+
+---
+
+# 16. Current architectural non-goals for v1.1
+
+The scalability objective does not automatically authorize:
+
+- cross-process file watching;
+- remote database change feeds;
+- event-log delivery;
+- Combine publishers;
+- SwiftUI-specific public wrappers;
+- public invalidation configuration;
+- a general materialized-view subsystem;
+- arbitrary user-defined dependency declarations;
+- unstable C API v2 adoption;
+- persistent trigger/audit infrastructure;
+- general incremental view maintenance.
+
+Any of these require their own evidence and review if they become necessary.
+
+---
+
+# 17. Required research questions before implementation plan freeze
+
+The v1.1 plan must answer, with source/runtime evidence:
+
+1. Can `duckdb_get_table_names` safely provide a conservative affected-table superset for every supported ordinary DML family?
+2. Can SwiftStream/SQL expose mutation target, changed-column, and predicate structure without adding fragile rendered-SQL parsing?
+3. What mutation metadata can be known before execution versus only after successful execution?
+4. Can row/key impact be captured cheaply enough to beat rerunning selective observations?
+5. Are DuckDB 2.0 statement-level OLD/NEW transition-table triggers viable without unacceptable write overhead or feature incompatibility?
+6. Can a common-case predicate-disjointness solver cover useful Swift app workloads while remaining trivially conservative outside its supported grammar?
+7. How should ORDER BY/LIMIT, JOIN, aggregates, subqueries, views, volatile functions, and schema changes be classified?
+8. What transaction impact representation preserves precision without growing unbounded during large transactions?
+9. What is the overhead of dependency matching itself at 100 active observations? At larger counts if practical?
+10. Does a centralized coordinator remain the correct data structure, or does v1.1 need table-indexed subscription buckets or another indexing strategy?
+11. What data structures avoid O(number of all observations) work for every mutation?
+12. At what point does result materialization dominate invalidation overhead for million-row tables?
+13. Which benchmark results justify predicate/row-aware complexity beyond table/column-aware routing?
+
+No implementation plan is complete until these questions are explicitly dispositioned.
+
+---
+
+# 18. Coordinator scalability
+
+The v1 coordinator currently iterates active subscriptions and checks whether each dependency matches an invalidation.
+
+For heavy workloads, v1.1 must benchmark this independently from query execution.
+
+A likely research direction is indexed subscription routing:
+
+```text
+table identity -> active subscription IDs
+```
+
+with a separate conservative/global bucket.
+
+If column/predicate tiers are added, indexing may become hierarchical.
+
+Do not assume an O(N observations) scan is harmless merely because N is small in demos.
+
+Measure matching cost with realistic active-observation counts.
+
+---
+
+# 19. Memory and lifecycle requirements
+
+Optimization must not create hidden retained state proportional to historical mutation count.
+
+Any cached dependency/predicate plan should be bounded by active observation lifetime.
+
+Cancellation must release:
+
+- coordinator registration;
+- dependency indexes;
+- private Connection/worker;
+- predicate/key caches owned by that observation.
+
+Transaction impact accumulation must be bounded by a compact summary where possible rather than retaining every mutation event.
+
+Benchmark memory during sustained write storms, not only after idle cleanup.
+
+---
+
+# 20. Closure condition
+
+`OBSERVATION-SCALABILITY-V1_1` closes only when all of the following are true:
+
+1. an independently reviewed implementation plan freezes the selected architecture;
+2. ordinary mutation paths are table-aware wherever safe;
+3. the accepted finer-grained strategy for hot-table workloads is implemented to the extent required by benchmark evidence;
+4. all unsupported/ambiguous cases conservatively fall back without missed updates;
+5. transaction/Appender/Statement/model mutation paths share coherent invalidation semantics;
+6. deterministic correctness coverage proves relevant updates are not lost;
+7. the million-row benchmark harness exists and is reproducible;
+8. high-write/high-observation benchmark results materially beat the v1 Database-wide baseline;
+9. zero-observation and irrelevant-observation write overhead are measured and accepted;
+10. memory/coalescing/cancellation behavior remains bounded under stress;
+11. Swift 6.3+ supported package validation passes;
+12. a fresh independent implementation/evidence audit is CLEAN;
+13. README/observation skill/public technical material is synchronized with the final truthful semantics.
+
+The maintainer explicitly targets this work for v1.1.0.
+
+Do not demote it behind unrelated post-v1 feature expansion without explicit maintainer authorization.

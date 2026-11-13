@@ -105,6 +105,26 @@ Do not weaken the reviewed fail-close policy merely to preserve Connection reuse
 
 **Reassessment:** re-check on every relevant SQL 3.x update that expands transaction-mode support.
 
+### OBSERVATION-SCALABILITY-V1_1 — Database-wide invalidation under high-write reactive workloads
+
+**Status:** OPEN verified technical debt / HIGH PRIORITY / explicit v1.1.0 release objective. This entry is not implementation authorization.
+
+**Current limitation:** `QueryObservation` already analyzes its read dependency into Database-wide or table-scoped form, and the coordinator can match table-scoped invalidations. However, ordinary successful non-read-only query/statement execution currently publishes conservative Database-wide invalidation. As a result, a write to one table can rerun observations that depend only on unrelated tables. For same-table observations, v1.0.0 also has no general column-, predicate-, or changed-row-aware relevance filter before rerun.
+
+**Correctness boundary:** this is a scalability/performance debt, not a known stale-data correctness defect. The conservative v1 behavior is designed to avoid missed updates. Invalidations are bounded/latest-only, and equal `QueryResult` values are suppressed after rerun, but those mechanisms do not remove the cost of an unnecessary SQL execution/materialization that has already happened.
+
+**Why it matters:** the maintainer intends to use Duck in a heavily loaded client database with million-row tables, many long-lived observations, and very high INSERT/UPDATE/DELETE event rates. Database-wide invalidation can become unacceptable CPU/energy/query-work amplification even when most writes are irrelevant to most observations.
+
+**v1.1 mandatory minimum:** make ordinary mutation publication table-aware wherever target impact can be proven safely, across query/execute, reusable Statement, transaction, model persistence, UPSERT, Appender, and other accepted mutation paths. Unknown/unsafe cases must retain conservative Database-wide fallback.
+
+**v1.1 higher-order objective:** research and implement finer-grained relevance sufficient for hot-table workloads, including column-aware and predicate/changed-row-aware fast paths where correctness can be proven. Do not require a universal SQL theorem prover. Unsupported query/mutation shapes may conservatively fall back to coarser invalidation.
+
+**Performance gate:** closure requires a reproducible synthetic benchmark harness with mandatory million-row lanes, multiple concurrent observations, sustained INSERT/UPDATE/DELETE traffic, unrelated-table writes, same-table predicate-irrelevant writes, same-table relevant writes, transactions, Appender, joins, aggregates, and complex fallback cases. Measure reruns avoided, mutation throughput/latency, observation refresh/tail latency, CPU, memory, and zero/relevant/irrelevant-observation overhead against the v1 Database-wide baseline.
+
+**Detailed stable dossier:** `.agent/tech-debt/REACTIVE_OBSERVATION_SCALABILITY_V1_1.md`.
+
+**Closure condition:** independently reviewed architecture + implementation, no missed relevant committed updates, complete table-aware mutation routing, accepted finer-grained hot-table strategy justified by benchmark evidence, bounded event-storm/coalescing behavior, reproducible million-row benchmark results materially better than the v1 baseline, full validation, and fresh independent implementation/evidence audit. Do not demote this objective behind unrelated post-v1 feature expansion without explicit maintainer authorization.
+
 ## Category B — Maintainer-Directed Deferred Capability Debt
 
 Entries here are **not verified defects**. They are intentionally deferred capabilities that the maintainer wants durably tracked so they cannot disappear from the roadmap.
