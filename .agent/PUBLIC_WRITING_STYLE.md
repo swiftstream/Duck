@@ -151,6 +151,55 @@ Avoid recurring generated-copy patterns such as:
 
 A human-written draft does not need to be made stylistically perfect if it is already clear, truthful, grammatical, and recognizably written in the maintainer's voice. Correct facts, grammar, ambiguity, and misleading claims first. Do not erase authorship merely to make prose more polished.
 
+## Habr Articles: Published Russian Maintainer Voice
+
+This section is specific to long-form technical Habr articles. Do not apply its pace mechanically to the README, Discord, Telegram, short release announcements, or English social posts.
+
+Primary published reference: https://habr.com/ru/articles/1107762/
+Grounding: the maintainer supplied the complete final Markdown of this article, including its edited prose, Swift snippets, links, and closing call to action, on 2026-11-14. These rules reflect that final author-approved text, not a reconstruction of assistant drafts. The article is a reference for authorship, not a template whose exact structure or phrases must be copied into every future post.
+
+### Authorial story and cause-and-effect
+
+- Open in the maintainer's own voice with relevant, *true* previous work. The published Duck article connects CodyFire, SwifQL/SwiftStream/SQL, Bridges, server-side Swift, and PostgreSQL to an actual reason for building Duck. Do not invent a long absence from Habr or rewrite the author's history into a launch narrative.
+- Develop engineering motivation across connected paragraphs. In the published article the desired portability of the author's Swift model/query style leads to the search for an embedded database; PostgreSQL's server architecture clarifies the constraint; DuckDB's in-process engine and PostgreSQL-familiar SQL explain the choice; only then does the article introduce Duck's own Swift layer.
+- Distinguish the goal, the alternatives, the engine, and the library. Do not imply that PostgreSQL ports universally failed, that DuckDB embeds PostgreSQL, or that Core Data/SwiftData/Realm/SQLite/GRDB lack ordinary SQL or transaction capabilities without verified evidence.
+- The official DuckDB Swift client is discussed for a concrete reason: it exposes basic engine interaction, while the author wanted richer modern-Swift modeling, declaration, and everyday ergonomics. Do not insert unexplained detours about C wrappers or low-level architecture.
+- Personal enthusiasm is appropriate when attached to a demonstrated technical choice, e.g. preference for result-builder composition and familiar SQL authoring. The author's history and motivation, not a generic marketing hero paragraph, earn that enthusiasm.
+
+### Real Russian prose rather than artificial copywriting
+
+- Prefer cohesive, reasonably developed Russian sentences and paragraphs. Sentence length follows the thought. Short sentences are allowed where they naturally answer a question or close a point; do not manufacture a sequence of dramatic one-line slogans such as `Я люблю SQL.` or `Так появился Duck.`
+- Never turn capability lists into isolated sentence fragments such as `Codable. async/await. Транзакции.` The final article integrates the main features into explanatory sentences and shows specifics in code.
+- Transitions must advance the actual thought or example. Avoid filler promises such as `А теперь самое интересное` and unexplained `Для этого подошел DuckDB`. Natural `Но`, `При этом`, `Поэтому`, `Например`, and `Именно` are all acceptable when their logic is clear; do not ban ordinary conjunctions.
+- Avoid saying the same thing twice. The publication says `первая стабильная версия` with a link to the exact GitHub release rather than padding the phrase with another redundant version number. Use numeric versions when needed for installation, a technical boundary, or an explicit comparison.
+- Use fluent natural Russian while freely retaining relevant everyday developer vocabulary (`Swift API`, `type-safe key paths`, `result builders`, `SQL dialect`, `connection`, `query`, `prepared bindings`, `model APIs`, `observation`). These are not forbidden English words; avoid invented marketing calques like `database experience` when a normal Russian explanation is clearer.
+- Preserve a direct, thoughtful, occasionally colloquial first-person voice. Do not either over-formalize the author's text or imitate catchphrases and punctuation from his 2018 CodyFire article literally. Correct real mistakes without replacing the author's phrasing merely to sound polished.
+- Maintain the global typography rule of simple punctuation without em/en dashes or smart quotes in authored Markdown. Preserve exact API spelling, links, and code.
+
+### Technical narrative and concrete examples
+
+- Structure the article as a story that leads into a practical tutorial, not as an advertising list. The final Duck article proceeds from the engine choice to a typed Todo model, ordinary CRUD, fluent and declarative SQL, reusable SQL fragments, Codable projections, migrations/transactions, native types/Appender, observation, connection pooling, an honest SQLite comparison, installation, and a personal closing. This is evidence of useful pacing, not a mandatory future section order.
+- Show an actual Swift model and working code promptly after establishing the motivation. Use one shared example model where it helps the reader retain context; explain non-obvious API behavior near the snippet rather than after a distant feature inventory.
+- Show the two complementary query styles: concise fluent typed queries and `SQL { Select { ... }; From(...); Where { ... } }` for visual declarative construction. Demonstrate ordinary Swift `if` inside a builder when it adds real value.
+- Composition is a particularly important differentiator in the final article. Show `struct TodoFilter: SQLQuery` with a result-builder `var query: Query { Where { ... } }`; use `TodoFilter(...)` directly inside more than one `SQL { ... }`, then show a complete `TodosQuery: SQLQuery` that reuses the filter. No invented `.clause` adapter: `SQLQuery` already conforms to `SQLable`. Check examples against the actual published dependency/API.
+- Show that Codable projections are not limited to full `Table` models: the final text includes both selected columns decoded as `TodoSummary` and aggregate output decoded as `TodoCount`. Prefer this developer value over long generic descriptions of Codable.
+- The author's article uses actual Markdown links to relevant past posts, libraries, the release, examples, and communities. Prefer a contextual link at the point of mention rather than a long bare reference list.
+- Examples may be concise excerpts within an evolving tutorial. Make implicit prerequisites explicit when necessary for an independent copy-paste flow. Do not claim compiler/runtime validation of newly written snippets unless it actually happened.
+
+### Claims, limits, and future work
+
+- Keep non-goals and limitations where they inform decisions, but proportionate to the article. The final `Эффективность работы observation` subsection states the conservative database-wide invalidation, equal-result suppression, why unnecessary SQL reruns matter, and the intended v1.1 direction in only a few paragraphs; do not expand a modest caveat into speculative implementation design, benchmark matrices, or sweeping promises.
+- Compare Duck to SQLite/GRDB respectfully and specifically. The final article explicitly says Duck is not meant to replace SQLite in every app and distinguishes DuckDB's analytical strengths from unknown behavior under many tiny writes. Do not imply one system is universally faster or more capable without comparable evidence.
+- Measurements must retain their **actual values and scope**. The author's final published draft uses approximately **2 MB** for the minimal SwiftUI build and **42 MB** for the build with Duck, explicitly local build sizes rather than App Store downloads; earlier assistant drafts used an incorrect 1 MB baseline. It also reports author-observed cold build timing with prebuilt XCFramework; never upgrade such observations into platform-wide guarantees without reproducible methodology.
+- Platform claims must separate validated targets from the author's expectations. The article names iOS 15+ and macOS 12+ and expresses optimism about other environments rather than reporting them all as tested. Public technical docs must remain stricter than informal speculation when explicit support is claimed.
+- Do not copy unreleased-roadmap language into the present tense. Future predicate-aware invalidation, benchmark work, extra native types, and additional-platform verification are plans, not shipped guarantees.
+
+### Opening, closing, and review
+
+- `Привет, Хабр!` is a natural article greeting for this author's Habr posts, not a mandatory universal heading. An optional matching Duck mascot illustration can support the greeting, but the article's written argument and code remain primary.
+- The final publication closes personally: what the author values in the finished design, who may find the project useful, invitation for feedback, open-source/MIT status, GitHub star/share invitation, Discord/Telegram links, and a named sign-off. A concrete, sincere community invitation is acceptable here; do not flatten it into a generic corporate call to action or prohibit it as `engagement bait`.
+- Before submission, compare the entire draft against the actual engineering history, current public API, supported platforms, measured claims, paragraph-level causality, and the maintainer's previous published writing. Do not replace the maintainer's final edits with assistant-generated wording. Preserve the final published article as immutable evidence; revise stable rules only when a repeatable lesson is truly supported.
+
 ## Example First
 
 Developer-facing prose should lead with the smallest concrete example that establishes the concept, then explain only the non-obvious behavior.
