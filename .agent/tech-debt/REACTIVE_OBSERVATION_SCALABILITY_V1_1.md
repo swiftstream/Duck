@@ -387,7 +387,24 @@ Merge rules must be monotonic:
 - any ambiguous impact can escalate to a safer coarser level;
 - no merge may accidentally narrow the true committed impact.
 
-ROLLBACK must not publish committed-data changes.
+ROLLBACK must not publish committed transactional row changes. A rollback may conservatively publish accumulated impact so observations re-read authoritative post-rollback state, and non-transactional database effects such as sequence advancement may still produce a real changed result. However, an observer must never emit an intermediate row state that existed only inside the rolled-back transaction.
+
+Cancellation follows the same visibility rule: if cancellation causes transaction rollback, no transactional intermediate state may escape through `QueryObservation`.
+
+Transaction-finalization correctness must also cover the cross-Connection race explicitly. If an observation refresh on one Connection reads the old committed state while another Connection is still inside a transaction, and that transaction commits during or immediately after the refresh, the commit invalidation must not be lost or consumed by the stale refresh. At least one subsequent refresh must remain pending/coalesced so the observation converges to the final committed state.
+
+For successful COMMIT, accumulated transaction impact must be published only after native commit succeeds and before the public commit operation returns. Multiple mutations inside one transaction should remain one finalization-level observation event rather than leaking per-statement invalidations.
+
+Required transaction integration coverage must include:
+- one writer Connection and one independent observer Connection;
+- the equivalent path through `ConnectionPool` leases;
+- multiple INSERT/UPDATE/DELETE operations inside one transaction;
+- observer refresh completing against the pre-COMMIT state;
+- COMMIT racing with an in-flight refresh;
+- definitive final state delivery after COMMIT;
+- ROLLBACK after observed pre-finalization activity;
+- Task cancellation that causes rollback;
+- batch/Appender work performed inside the transaction.
 
 Ambiguous post-scheduling COMMIT failure retains the existing conservative safety behavior unless separately solved.
 
@@ -402,6 +419,7 @@ The v1.1 system must avoid turning a high-frequency write burst into an unbounde
 Research/validation must cover:
 
 - a second invalidation arriving while refresh is running;
+- a transaction COMMIT invalidation arriving while the observer's private Connection is still refreshing the previous committed state, proving the stale refresh cannot consume or lose the final COMMIT signal;
 - hundreds/thousands of writes during one refresh;
 - transaction commits containing many mutations;
 - multiple hot tables;
@@ -587,8 +605,14 @@ Include adversarial transitions:
 - irrelevant column changes;
 - DELETE of matching/non-matching rows;
 - transaction commit/rollback;
+- multiple mutations inside one transaction remain invisible to an independent Connection before COMMIT;
+- an observer refresh reads the old committed state, COMMIT happens before that refresh cycle fully settles, and the observer still emits the final committed state afterward;
+- COMMIT racing with an already-running refresh does not lose the pending invalidation;
+- ROLLBACK may trigger a conservative re-read but never emits transactional intermediate row state;
+- Task cancellation followed by rollback never emits transactional intermediate row state;
+- transactional batch/Appender commit produces the final committed state once the observation converges;
 - repeated writes that coalesce;
-- cancellation/restart;
+- cancellation/restart of the observation iterator itself;
 - NULL predicate transitions;
 - join-key changes.
 
@@ -710,14 +734,15 @@ Benchmark memory during sustained write storms, not only after idle cleanup.
 3. the accepted finer-grained strategy for hot-table workloads is implemented to the extent required by benchmark evidence;
 4. all unsupported/ambiguous cases conservatively fall back without missed updates;
 5. transaction/Appender/Statement/model mutation paths share coherent invalidation semantics;
-6. deterministic correctness coverage proves relevant updates are not lost;
-7. the million-row benchmark harness exists and is reproducible;
-8. high-write/high-observation benchmark results materially beat the v1 Database-wide baseline;
-9. zero-observation and irrelevant-observation write overhead are measured and accepted;
-10. memory/coalescing/cancellation behavior remains bounded under stress;
-11. Swift 6.3+ supported package validation passes;
-12. a fresh independent implementation/evidence audit is CLEAN;
-13. README/observation skill/public technical material is synchronized with the final truthful semantics.
+6. deterministic correctness coverage proves relevant updates are not lost, including the explicit cross-Connection COMMIT-during-refresh race and rollback/cancellation non-leakage cases;
+7. transaction/batch/pool integration coverage proves uncommitted intermediate row states never reach observers and every successful relevant COMMIT converges to the final state even when a stale refresh raced with finalization;
+8. the million-row benchmark harness exists and is reproducible;
+9. high-write/high-observation benchmark results materially beat the v1 Database-wide baseline;
+10. zero-observation and irrelevant-observation write overhead are measured and accepted;
+11. memory/coalescing/cancellation behavior remains bounded under stress;
+12. Swift 6.3+ supported package validation passes;
+13. a fresh independent implementation/evidence audit is CLEAN;
+14. README/observation skill/public technical material is synchronized with the final truthful semantics.
 
 The maintainer explicitly targets this work for v1.1.0.
 

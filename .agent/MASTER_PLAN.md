@@ -68,6 +68,7 @@ v1.1.0 must therefore:
 - research and implement column-/predicate-/changed-row-aware fast paths sufficient for hot-table workloads where benchmark evidence justifies them;
 - keep conservative fallback for every unproven query/mutation shape;
 - preserve no-missed-update correctness and latest-state bounded/coalescing semantics;
+- preserve definitive transaction visibility across independent Connections and pool leases, including the race where a stale observation refresh overlaps COMMIT: the final committed state must still be delivered, while rollback/cancellation must never expose transactional intermediate row state;
 - benchmark the observation layer itself under million-row tables, multiple active observations, and sustained INSERT/UPDATE/DELETE traffic;
 - compare the final candidate against the v1 Database-wide invalidation baseline;
 - measure reruns avoided, mutation and refresh latency, throughput, CPU, memory, and irrelevant-observation overhead;

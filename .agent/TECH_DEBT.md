@@ -121,9 +121,11 @@ Do not weaken the reviewed fail-close policy merely to preserve Connection reuse
 
 **Performance gate:** closure requires a reproducible synthetic benchmark harness with mandatory million-row lanes, multiple concurrent observations, sustained INSERT/UPDATE/DELETE traffic, unrelated-table writes, same-table predicate-irrelevant writes, same-table relevant writes, transactions, Appender, joins, aggregates, and complex fallback cases. Measure reruns avoided, mutation throughput/latency, observation refresh/tail latency, CPU, memory, and zero/relevant/irrelevant-observation overhead against the v1 Database-wide baseline.
 
+**Transaction/observation correctness gate:** add explicit multi-Connection and pool coverage proving that uncommitted transaction state never reaches an observer, a successful COMMIT always converges to the final committed result even when it races with an in-flight stale refresh, and rollback/cancellation may conservatively cause a re-read but never emit transactional intermediate row state. Batch/Appender transaction paths must satisfy the same boundary.
+
 **Detailed stable dossier:** `.agent/tech-debt/REACTIVE_OBSERVATION_SCALABILITY_V1_1.md`.
 
-**Closure condition:** independently reviewed architecture + implementation, no missed relevant committed updates, complete table-aware mutation routing, accepted finer-grained hot-table strategy justified by benchmark evidence, bounded event-storm/coalescing behavior, reproducible million-row benchmark results materially better than the v1 baseline, full validation, and fresh independent implementation/evidence audit. Do not demote this objective behind unrelated post-v1 feature expansion without explicit maintainer authorization.
+**Closure condition:** independently reviewed architecture + implementation, no missed relevant committed updates, complete table-aware mutation routing, accepted finer-grained hot-table strategy justified by benchmark evidence, explicit COMMIT-during-refresh / rollback / cancellation transaction-race coverage, bounded event-storm/coalescing behavior, reproducible million-row benchmark results materially better than the v1 baseline, full validation, and fresh independent implementation/evidence audit. Do not demote this objective behind unrelated post-v1 feature expansion without explicit maintainer authorization.
 
 ## Category B — Maintainer-Directed Deferred Capability Debt
 
