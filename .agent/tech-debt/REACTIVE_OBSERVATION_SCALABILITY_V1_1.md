@@ -46,7 +46,9 @@ The accepted latest-state Observation pipeline already provides:
 - definitive transaction publication;
 - Appender participation.
 
-The performance debt is the mutation invalidation granularity.
+The performance debt is not only mutation invalidation granularity. v1 Observation also owns one private native Connection for the full lifetime of every iterator. The maintainer has separately promoted `DATABASE-POOL-ARCHITECTURE-V1_1`: v1.1 Observation planning must use the accepted canonical bounded-pool architecture and should prefer refresh-scoped Connection checkout so idle observations do not pin one Connection each.
+
+The mutation-side performance debt is the invalidation granularity.
 
 The current ordinary successful non-read-only query/statement path publishes:
 
@@ -418,6 +420,8 @@ The v1.1 system must avoid turning a high-frequency write burst into an unbounde
 
 Research/validation must cover:
 
+- many registered idle observations without one permanently held native Connection per iterator under the accepted v1.1 pool architecture;
+- pool-capacity contention when many observations need refresh simultaneously, with bounded/latest-state catch-up while waiting for a lease;
 - a second invalidation arriving while refresh is running;
 - a transaction COMMIT invalidation arriving while the observer's private Connection is still refreshing the previous committed state, proving the stale refresh cannot consume or lose the final COMMIT signal;
 - hundreds/thousands of writes during one refresh;

@@ -54,16 +54,27 @@ C5, the technical/public package rename to `Duck`, is complete at local commit `
 
 Until local v1.0.0, do not start Advanced Appender expansion, per-cell `DEFAULT`, QueryAppender, public DataChunk/vector writing, manual Appender lifecycle expansion, or further recursive/composite Value expansion beyond the closed native LIST and immediate keyed native STRUCT P0 boundaries unless a newly proven release blocker requires the smallest bounded correction. Deferred complex-value work includes nested LIST, LIST-in-STRUCT, STRUCT-in-LIST, fixed ARRAY, MAP, UNION, and other recursive composite combinations. Those future families remain preserved for separate post-v1.0 prioritization rather than inheriting old TODO order automatically.
 
-## v1.1.0 First Priority — Reactive Observation Scalability
+## v1.1.0 First Priority — Canonical Pool Architecture + Reactive Observation Scalability
 
-The first mandatory v1.1.0 engineering objective is `OBSERVATION-SCALABILITY-V1_1`, tracked in `.agent/TECH_DEBT.md` with the detailed dossier at `.agent/tech-debt/REACTIVE_OBSERVATION_SCALABILITY_V1_1.md`.
+The first mandatory v1.1.0 engineering program now contains two coupled objectives:
+
+1. `DATABASE-POOL-ARCHITECTURE-V1_1` — redesign ordinary database execution around one canonical bounded reusable pool per logical database runtime, tracked in `.agent/TECH_DEBT.md` with the detailed dossier at `.agent/tech-debt/DATABASE_POOL_ARCHITECTURE_V1_1.md`;
+2. `OBSERVATION-SCALABILITY-V1_1` — make reactive observation scale under high-write/million-row workloads, tracked in `.agent/TECH_DEBT.md` with the detailed dossier at `.agent/tech-debt/REACTIVE_OBSERVATION_SCALABILITY_V1_1.md`.
+
+The pool architecture must be researched/planned before or together with the Observation implementation because v1 currently opens a fresh native Connection for ordinary identifier-backed convenience operations and gives every live Observation iterator its own private Connection for the iterator lifetime. Optimizing invalidation while preserving that unbounded resource model would solve only part of the scalability problem.
 
 This priority supersedes the previous assumption that Advanced Appender or recursive/composite Value expansion would necessarily be selected first after v1.0.0.
 
-The v1.0.0 Observation semantics remain correct and accepted: latest-state delivery, bounded/coalesced invalidations, equal-result suppression, same-identifier runtime scope, READ ONLY refreshes, and transaction/Appender publication boundaries. The v1.1 debt is performance scalability: ordinary non-read-only execution currently publishes Database-wide invalidation even though observed-query table dependencies are already tracked.
+The intended v1.1 resource model follows the architectural principle already used by the maintainer in Bridges/PostgresBridge: one logical database identity owns a lazily created bounded reusable connection resource, ordinary operations transparently borrow/return Connections, and explicit ownership APIs exist only when the caller actually needs them. Duck must implement this with Swift Concurrency rather than reviving NIO/EventLoop ownership.
 
 v1.1.0 must therefore:
 
+- route ordinary database-backed query/execute/model persistence and other suitable convenience operations through a canonical bounded reusable pool instead of opening a fresh native Connection per operation;
+- make managed database transactions hold one exact pooled Connection lease through definitive COMMIT/ROLLBACK and return it only after finalization;
+- redesign Observation refresh ownership so idle observations do not pin one native Connection each; preferred direction is refresh-scoped checkout -> READ ONLY refresh -> return lease, subject to reviewed correctness/benchmark evidence;
+- keep one connection-resource model: ordinary operations, explicit scoped Connection access, and managed transactions all acquire Connections from the same canonical pool; if a manual/longer-lived Connection API remains, it must still represent a pool lease rather than create an independent out-of-pool native Connection;
+- resolve the role of the existing explicit `pool(maximumConnections:)` API once a canonical pool exists, including configuration, lifetime/shutdown, conflicting equivalent-identity configuration, and whether secondary/custom pools remain justified;
+- rename the public lightweight identity from `DatabaseIdentifier` to `Database`, preserving the current real identity semantics: file-backed databases remain identified by canonical paths and memory databases retain explicit memory identity. The preferred application-owned shape is `extension Database { static let app: Database = .init(path: /* app .duckdb path */) }`; `.app` itself must not be hard-coded by Duck. Because the current internal live-runtime class already occupies `Database`, the preferred refactor is to make `Database` the public value identity and move live-resource ownership behind an internal nested/runtime implementation such as `Database.Runtime`, without requiring a new top-level `DatabaseRuntime` name. Provide a soft source-compatible deprecation path for `DatabaseIdentifier`, with a deprecated typealias as the leading candidate to verify;
 - make ordinary mutation publication table-aware wherever safe;
 - research and implement column-/predicate-/changed-row-aware fast paths sufficient for hot-table workloads where benchmark evidence justifies them;
 - keep conservative fallback for every unproven query/mutation shape;
@@ -74,7 +85,7 @@ v1.1.0 must therefore:
 - measure reruns avoided, mutation and refresh latency, throughput, CPU, memory, and irrelevant-observation overhead;
 - require independent implementation/evidence audit before closure.
 
-The objective is a blazing-fast existing `.observe(on:)` experience rather than a new public configuration surface. Exact internal architecture is not frozen by this priority; it must be selected through research, planning, benchmark evidence, and independent review.
+The objective is a blazing-fast ordinary database experience and existing `.observe(on:)` experience rather than forcing callers to manage pools manually. Exact pool capacity/configuration/lifetime, the compatibility form of the `DatabaseIdentifier` deprecation, and the final public `Database` facade shape are not frozen by this priority; they must be selected through research, planning, benchmark evidence, source-compatibility review, and independent audit.
 
 Do not demote this v1.1 objective behind unrelated feature expansion without explicit maintainer authorization.
 

@@ -105,6 +105,26 @@ Do not weaken the reviewed fail-close policy merely to preserve Connection reuse
 
 **Reassessment:** re-check on every relevant SQL 3.x update that expands transaction-mode support.
 
+### DATABASE-POOL-ARCHITECTURE-V1_1 — Ordinary execution bypasses bounded reusable pooling
+
+**Status:** OPEN verified architectural debt / HIGH PRIORITY / explicit v1.1.0 release objective. This entry is not implementation authorization.
+
+**Current limitation:** the canonical `DatabaseIdentifier` registry shares one internal live database runtime, but ordinary identifier-backed conveniences currently call `connect()` and open a fresh independent native Connection for each operation. The separately exposed `ConnectionPool` is lazy/bounded/reusable, but it is used only when the caller explicitly creates and uses that pool. `QueryObservation` additionally owns one private Connection for the full lifetime of every iterator.
+
+**Maintainer intent:** this does not match the intended Bridges/PostgresBridge-style architecture. Ordinary database work should transparently borrow the first available Connection from one canonical bounded reusable pool associated with the logical database runtime, then return it automatically. Explicit resource APIs should expose ownership/control, not switch ordinary work from reusable pooling to fresh connection creation.
+
+**v1.1 mandatory direction:** make the canonical runtime own/resolve the default bounded pool; route ordinary identifier/database-backed operations through scoped checkout; keep managed transactions on one exact pooled lease through finalization; redesign Observation so idle iterators do not permanently pin one Connection each, with refresh-scoped pooled checkout as the preferred research direction; and keep explicit Connection access inside the same canonical pool model. If v1.1 retains a manual/longer-lived Connection API, it must acquire a pool lease and return/release that lease explicitly rather than create an independent out-of-pool native Connection.
+
+**Pool API decision gate:** the existing `pool(maximumConnections:)` and `connect()` APIs must be reconsidered once the canonical pool exists. The reviewed plan must decide default capacity, configuration ownership, equivalent-identity conflicts, canonical pool lifetime/shutdown, the exact scoped/manual pooled-Connection surface, and whether any secondary/custom pool use case remains justified. No normal or advanced transaction path should require opening a separate native Connection outside the canonical pool.
+
+**v1.1 API/DX direction:** rename the normal public identity type from `DatabaseIdentifier` to `Database` while preserving the current identity semantics. A file-backed `Database` remains constructed from its canonical filesystem path, so the preferred consumer-owned shape is `extension Database { static let app: Database = .init(path: /* app .duckdb path */) }`; `.app` remains application-defined rather than hard-coded by Duck. The current internal live-runtime class already occupies the name `Database`; the preferred refactor is to make `Database` the public value identity and move live native/runtime ownership behind an internal nested implementation such as `Database.Runtime`, rather than requiring a new top-level `DatabaseRuntime` type. Existing `DatabaseIdentifier` source must receive a soft deprecation/source-compatibility path rather than an abrupt break. A deprecated typealias is the leading candidate and must be compiler-verified, including existing extensions; exact fallback wrapper mechanics remain a reviewed design decision.
+
+**Observation coupling:** `OBSERVATION-SCALABILITY-V1_1` must use the accepted canonical-pool architecture. Its high-observation benchmark must measure live native Connection count, pool contention, refresh wait latency, coalescing while waiting for capacity, cancellation, and COMMIT-during-refresh correctness.
+
+**Detailed stable dossier:** `.agent/tech-debt/DATABASE_POOL_ARCHITECTURE_V1_1.md`.
+
+**Closure condition:** independently reviewed architecture + implementation, bounded reusable ordinary execution, deterministic pool configuration/lifetime, exact pooled transaction lease ownership, accepted pooled Observation refresh model, coherent scoped/manual pooled-Connection semantics, coherent replacement/disposition of the old explicit-pool creation surface, no ordinary transaction requirement for out-of-pool Connections, implemented `Database.app` direction with soft `DatabaseIdentifier` migration, benchmark evidence against v1 fresh-Connection behavior, full validation, synchronized docs/examples/skills, and fresh independent implementation/evidence audit.
+
 ### OBSERVATION-SCALABILITY-V1_1 — Database-wide invalidation under high-write reactive workloads
 
 **Status:** OPEN verified technical debt / HIGH PRIORITY / explicit v1.1.0 release objective. This entry is not implementation authorization.
@@ -113,7 +133,7 @@ Do not weaken the reviewed fail-close policy merely to preserve Connection reuse
 
 **Correctness boundary:** this is a scalability/performance debt, not a known stale-data correctness defect. The conservative v1 behavior is designed to avoid missed updates. Invalidations are bounded/latest-only, and equal `QueryResult` values are suppressed after rerun, but those mechanisms do not remove the cost of an unnecessary SQL execution/materialization that has already happened.
 
-**Why it matters:** the maintainer intends to use Duck in a heavily loaded client database with million-row tables, many long-lived observations, and very high INSERT/UPDATE/DELETE event rates. Database-wide invalidation can become unacceptable CPU/energy/query-work amplification even when most writes are irrelevant to most observations.
+**Why it matters:** the maintainer intends to use Duck in a heavily loaded client database with million-row tables, many long-lived observations, and very high INSERT/UPDATE/DELETE event rates. Database-wide invalidation can become unacceptable CPU/energy/query-work amplification even when most writes are irrelevant to most observations. This objective is coupled to `DATABASE-POOL-ARCHITECTURE-V1_1`: many idle observations must also stop implying one permanently held native Connection per iterator.
 
 **v1.1 mandatory minimum:** make ordinary mutation publication table-aware wherever target impact can be proven safely, across query/execute, reusable Statement, transaction, model persistence, UPSERT, Appender, and other accepted mutation paths. Unknown/unsafe cases must retain conservative Database-wide fallback.
 
