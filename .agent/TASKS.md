@@ -18,31 +18,40 @@ Push/tag/remote release remains separately unauthorized.
 
 ## Current active v1.1 gate
 
-### v1.1 R0 architecture/reality research — CURRENT / AUTHORIZED
+### v1.1 Wave 00 baseline benchmark harness/evidence — CURRENT / AUTHORIZED
 
-The maintainer has explicitly promoted the coupled v1.1 program:
+The coupled v1.1 architecture is now independently accepted through:
 
-- `DATABASE-POOL-ARCHITECTURE-V1_1`;
-- `OBSERVATION-SCALABILITY-V1_1`.
+`V1_1_CANONICAL_POOL_OBSERVATION_ARCHITECTURE_IMPLEMENTATION_PLAN_01_CORRECTION_02.md`
 
-Current authorization is for stable-truth synchronization, source/runtime/research census, benchmark-baseline design, source-compatibility/compiler probes, and production implementation planning.
+Plan SHA-256:
 
-Production implementation is NOT yet authorized until the v1.1 architecture/implementation plan is frozen and independently audited.
+`34b84b233e582d6e5ae58dcb22265331344990fdf2c53ccdfa6657f3354b335e`
 
-The R0 research must disposition at least:
+Fresh external GPT-5.6 Sol re-audit:
 
-- public `DatabaseIdentifier -> Database` migration and source-compatibility mechanics;
-- current internal live `Database` runtime refactor shape;
-- canonical pool ownership/configuration/lifetime/default-capacity policy;
-- ordinary query/execute/model persistence routing through canonical pooled checkout;
-- exact scoped/manual pooled Connection ownership and the disposition of v1 `connect()`;
-- exact role/disposition of v1 `pool(maximumConnections:)`;
-- managed and flat/manual transaction lease ownership;
-- Statement/Appender/migration interaction with pooled leases;
-- Observation refresh-scoped pooled checkout and contention/cancellation/coalescing semantics;
-- COMMIT-during-refresh / rollback / cancellation correctness;
-- table/column/predicate/changed-row mutation impact research;
-- benchmark baselines and required million-row/high-observation metrics.
+`DUCK_V1_1_CANONICAL_POOL_OBSERVATION_PLAN_01_CORRECTION_02_REAUDIT=CLEAN`
+
+`FINDING_COUNT=0`
+
+`IMPLEMENTATION_AUTHORIZED=YES`
+
+R0 architecture/reality research and plan correction/audit are CLOSED.
+
+Current executable authority is Wave 00 only:
+
+- create a reproducible benchmark harness/evidence path before canonical-pool Product semantics change;
+- freeze historical A = ordinary DatabaseIdentifier fresh-Connection-per-operation behavior;
+- freeze historical B = current explicit ConnectionPool behavior;
+- capture resource/latency/throughput evidence required by the accepted plan;
+- preserve exact benchmark environment/toolchain/host/setup/warmup/repetition identities;
+- independently audit the benchmark harness/evidence before relying on the numbers.
+
+**MAC MUST BE IDLE BEFORE RUNNING PERFORMANCE BENCHMARKS.**
+
+Wave 00 must not implement the canonical pool architecture itself.
+
+Wave 01+ are architecturally authorized by the accepted plan but remain sequentially gated by their exact predecessor/evidence/audit requirements.
 
 Deferred Advanced Appender and recursive/composite Value work remain out of scope.
 
@@ -68,7 +77,7 @@ The accepted v1 surface is a UI-neutral reusable latest-state `QueryObservation`
 
 The current boundary explicitly does not promise event-log delivery, reusable prepared-handle VIEW rebind, cross-identifier/cross-process invalidation, cross-process/file watching, or framework-specific publishers. Accepted executable evidence remains Swift 6.3.3 build + 557/557 tests in 11 suites with zero failures/skips, focused Swift 6.4 public Observation/manual-finalization coverage, and Swift 6.4 build PASS.
 
-The capability is functionally complete for v1, but v1.1 has an active coupled architecture/performance program: `DATABASE-POOL-ARCHITECTURE-V1_1` + `OBSERVATION-SCALABILITY-V1_1`. Ordinary non-read-only query/Statement execution currently publishes Database-wide invalidation, and each live Observation iterator currently owns a private Connection for its lifetime. R0 research/planning is authorized; production implementation waits for the independently audited v1.1 plan.
+The capability is functionally complete for v1, but v1.1 has an active coupled architecture/performance program: `DATABASE-POOL-ARCHITECTURE-V1_1` + `OBSERVATION-SCALABILITY-V1_1`. Ordinary non-read-only query/Statement execution currently publishes Database-wide invalidation, and each live Observation iterator currently owns a private Connection for its lifetime. Plan 01 Correction 02 is independently CLEAN and implementation-authorized. Wave 00 historical benchmark harness/evidence is current; later Product waves remain gated by the accepted sequential plan.
 
 ### Connection Pooling — COMPLETE
 
