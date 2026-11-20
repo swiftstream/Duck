@@ -4,7 +4,7 @@ Unresolved choices that must not be treated as implemented architecture.
 
 ## Maintainer Priority Boundary
 
-The current durable product priority is to finish a locally release-ready Duck v1.0.0 before another major feature layer. The accepted release candidate now consists of the DuckDB2 implementation, the SQL compatibility result, and Wave 06 validation.
+Duck v1.0.0 is a closed historical release baseline, tagged at `f4dd6b06cab76624f10faa374f0da10601d73743`. The current durable product priority is the main v1.1 program: canonical database pooling/runtime architecture together with reactive Observation scalability.
 
     Foundation C6 complete -> C7/C8/C9 CLOSED
     -> SQL 3.1.0 candidate floor and SQL3 surface synchronization COMPLETE
@@ -14,16 +14,16 @@ The current durable product priority is to finish a locally release-ready Duck v
     -> DuckDB2 adoption closure CLOSED / CLEAN at `3464caa32f6483ecb4f1f68f0997733b94aaf845`
     -> final independent v1 release snapshot CLOSED / CLEAN at `1925c7164cade025babb6d4b53453f697e9cdbfc`
     -> Bridges pre-v1 parity amendment CLOSED / CLEAN; instance delete / UPSERT / LIST / STRUCT all CLOSED; blockers = 0
-    -> current local release sequence: stable-truth sync/audit -> final public docs -> commit composition -> D1/D2 -> U0 -> F0 -> semantic v1 authorization
-    -> v1.1.0 first priority: OBSERVATION-SCALABILITY-V1_1
+    -> v1.0.0 release baseline CLOSED / TAGGED at `f4dd6b06cab76624f10faa374f0da10601d73743`
+    -> v1.1.0 active program: DATABASE-POOL-ARCHITECTURE-V1_1 + OBSERVATION-SCALABILITY-V1_1
 
-The first maintainer-prioritized v1.1.0 objective is reactive Observation scalability under million-row/high-write client workloads. Advanced Appender expansion and further recursive/composite Value/result families beyond the closed native LIST and immediate keyed native STRUCT P0 boundaries remain future capabilities and do not outrank `OBSERVATION-SCALABILITY-V1_1` without explicit maintainer reprioritization. Platform validation continues as release/assurance evidence when the required environment is available. Push, tag, remote release, and publication remain separate and unauthorized.
+The first maintainer-prioritized v1.1.0 program has two coupled objectives: `DATABASE-POOL-ARCHITECTURE-V1_1` and `OBSERVATION-SCALABILITY-V1_1`. The pool/runtime model must be researched and planned before or together with Observation implementation because ordinary work and Observation refresh ownership share the same Connection-resource architecture. Advanced Appender expansion and further recursive/composite Value/result families remain deferred and do not outrank this coupled program without explicit maintainer reprioritization. Platform validation remains an assurance track only when required by the active plan. New push, tag, remote release, and publication remain separately unauthorized.
 
 This priority boundary is durable product direction, not permission to skip normal research/planning/validation/audit gates. Executable work is owned by `.agent/TASKS.md`.
 
 ## DuckDB Integration
 
-The first-v1 adoption decisions are closed: DuckDB v2.0.0 at upstream revision d54cbbe3df17e8e5ce68312f483b4155836112aa, the official Swift package generation flow, the platform-specific Cduckdb packaging split, the stable C API boundary, private Observation bridge adaptation, and the accepted storage compatibility policy. The generated non-macOS C++17 source configuration includes core_functions, parquet, icu, and json with static registration support, while the exact current macOS XCFramework runtime reports those extensions as NOT_INSTALLED and does not link loadable extensions; cross-platform extension parity is not a first-v1 requirement. SQL 3.1.0 at revision b0c81191c3494d91b84b5382092e99c64d5c4647 passed the compatibility return matrix 13/13 with no required SQL change. See Project Memory and Master Plan for current implementation facts. DuckDB2 adoption is CLOSED / CLEAN at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845`; the final independent v1 release snapshot is CLOSED / CLEAN at local commit `1925c7164cade025babb6d4b53453f697e9cdbfc`; the later pre-v1 Bridges parity amendment is CLOSED / CLEAN with `PRE_V1_PARITY_BLOCKERS_REMAINING=0`. Current local work follows the post-parity release sequence: stable-truth synchronization/audit, final public-document synchronization and public-writing audit, exact commit composition, D1/D2, U0, F0, and semantic v1 authorization. Tag/push/remote release/publication remain separately unauthorized.
+The first-v1 adoption decisions are closed: DuckDB v2.0.0 at upstream revision d54cbbe3df17e8e5ce68312f483b4155836112aa, the official Swift package generation flow, the platform-specific Cduckdb packaging split, the stable C API boundary, private Observation bridge adaptation, and the accepted storage compatibility policy. The generated non-macOS C++17 source configuration includes core_functions, parquet, icu, and json with static registration support, while the exact current macOS XCFramework runtime reports those extensions as NOT_INSTALLED and does not link loadable extensions; cross-platform extension parity is not a first-v1 requirement. SQL 3.1.0 at revision b0c81191c3494d91b84b5382092e99c64d5c4647 passed the compatibility return matrix 13/13 with no required SQL change. See Project Memory and Master Plan for current implementation facts. DuckDB2 adoption is CLOSED / CLEAN at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845`; the final independent v1 release snapshot is CLOSED / CLEAN at local commit `1925c7164cade025babb6d4b53453f697e9cdbfc`; the later pre-v1 Bridges parity amendment is CLOSED / CLEAN with `PRE_V1_PARITY_BLOCKERS_REMAINING=0`. The v1.0.0 release sequence is historical and closed. Current work is v1.1 research/planning and subsequent independently reviewed implementation of the canonical pool/runtime + Observation-scalability program. New push/tag/remote release/publication remain separately unauthorized.
 
 Still open for future work:
 
@@ -61,7 +61,7 @@ Observation / Reactive Queries core architecture is no longer an open decision. 
 
 - Native one-dimensional `LIST` and immediate keyed native `STRUCT` P0 are CLOSED current state. `Value.Kind.list == 23` and `Value.Kind.structure == 24`; their accepted prepared/Appender/result/Codable/persistence boundaries remain governed by the closed parity authorities.
 - Only further recursive/composite expansion remains unresolved and separately gated: nested LIST, LIST-in-STRUCT, STRUCT-in-LIST, fixed ARRAY, MAP, UNION, and other recursive composite combinations.
-- This remaining capability is deferred until after local v1.0.0 unless a proven release blocker requires the smallest bounded correction. Its post-v1 implementation order relative to Advanced Appender work remains unresolved, but both are currently lower priority than the maintainer-directed v1.1 `OBSERVATION-SCALABILITY-V1_1` objective.
+- This remaining capability stays deferred behind the active v1.1 canonical-pool + Observation program. Its later implementation order relative to Advanced Appender work remains unresolved; neither may displace the current coupled v1.1 objectives without explicit maintainer reprioritization.
 - Foundation.Decimal is no longer an open design/integration question: the accepted DCT128-v1 exact codec and its production/query/Statement/Appender/result integration are current state.
 
 ## Platform Packaging / Validation

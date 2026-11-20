@@ -1,8 +1,8 @@
 # Active Tasks
 
-Only active approved executable implementation/closure work belongs here. Detailed completed execution/audit lineage belongs in `.artifacts/**`.
+Only active approved executable research/planning/implementation/closure work belongs here. Detailed completed execution/audit lineage belongs in `.artifacts/**`.
 
-## Active Foundation / v1.0 work
+## Historical v1.0 closure / active v1.1 work
 
 Foundation C5 is CLOSED at local commit `0dc702c5bcf53647c35e8177d35360c299a0e63b`, subject **🪚 Rename package surface to `Duck`**, after full Swift 6.3.3/6.4 validation, external one-import/dual-import consumers, a CLEAN independent whole-candidate audit, exact staging, and post-commit verification.
 
@@ -10,21 +10,43 @@ Foundation C6 is CLOSED at local commit `31973379133ed290a749d2e5f9dbc9b266b2ab0
 
 Foundation C7 is CLOSED at local commit `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf`. C8 semantic development-history leakage cleanup is CLOSED at local commit `0b8baa756b523f00f309b2a007ead7d0570e6b28`. C9 final Foundation closure is CLOSED at local commit `6e99a95add3ba57e27f95c88e019666e9af8ec54`. The SQL minimum correction is CLOSED at local commit `bc90ee75541519ba900d6139b706824aee66a577`; `V1-TRP-001` remains CLOSED as the historical SQL-2 floor gate. SQL 3.1.0 is the current candidate floor and `Package.swift` declares `>=3.1.0,<4.0.0`; the SQL3 `DB.Table` / `DB.Schema.Table` surface migration and stable synchronization are accepted candidate state. v1.0.0 technical validation, independent release audit, release-readiness checkpoint, DuckTransaction correction, and real macOS SwiftUI consumer gate are CLOSED. The corrected SwiftUI Attempt06 independent re-audit is CLEAN at 120/120 with zero findings. The real macOS UIKitPlus consumer is CLOSED / independently accepted after Validation-04 passed one XcodeGen, one exact dependency resolution, one cold Xcode 26.6 / Swift 6.3.3 macOS arm64 application build, and one real LaunchServices run with exact `DUCK-UIKITPLUS-RELEASE-OK\n`; the independent post-execution Sol audit passed 156/156 with zero findings. Final public-doc polish/audit is CLOSED / independently accepted after the exact applied README passed an independent final Sol audit at 182/182 with 60/60 direct questions and zero findings. Typed Table `batchInsert(on:)` implementation, Swift 6.3.3/6.4 validation, strict SwiftUI consumer validation, runtime smoke, external-Sol F01 correction, stable SQL3/batch public-surface synchronization, and its independent final audit are CLOSED / accepted. Production source/API behavior, the durable `__swiftduckdb.migrations` compatibility namespace, and the committed `.agent/STYLE_GUIDELINES.md` DocC policy are accepted current state.
 
-DuckDB2 implementation, SQL compatibility, Wave 06 validation, and adoption closure at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845` are accepted current state. The independent v1 release snapshot at local commit `1925c7164cade025babb6d4b53453f697e9cdbfc` remains closed historical baseline evidence. The later pre-v1 Bridges parity amendment is CLOSED / CLEAN: instance delete, UPSERT, native LIST, and native STRUCT are all closed and `PRE_V1_PARITY_BLOCKERS_REMAINING=0`. The active local release sequence is stable-truth synchronization/audit -> final public docs/public-writing audit -> exact source/docs commit composition -> D1/D2 -> U0 -> F0 -> semantic v1 authorization. The earlier v1.5.5-backed release evidence remains historical baseline evidence. The migration long-history/rollup work remains deferred non-blocking tech debt.
+DuckDB2 implementation, SQL compatibility, Wave 06 validation, and adoption closure at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845` are accepted current state. The independent v1 release snapshot at local commit `1925c7164cade025babb6d4b53453f697e9cdbfc` remains closed historical baseline evidence. The later pre-v1 Bridges parity amendment is CLOSED / CLEAN: instance delete, UPSERT, native LIST, and native STRUCT are all closed and `PRE_V1_PARITY_BLOCKERS_REMAINING=0`. `v1.0.0` is a closed historical release baseline tagged at `f4dd6b06cab76624f10faa374f0da10601d73743`. Current work is the v1.1 canonical-pool/runtime + Observation-scalability program. The earlier v1.5.5-backed release evidence remains historical baseline evidence. The migration long-history/rollup work remains deferred non-blocking tech debt.
 
-No major Advanced Appender expansion or further recursive/composite Value expansion beyond the closed native LIST and immediate keyed native STRUCT P0 boundaries is authorized before local v1.0.0 unless the smallest bounded correction is proven to be a release blocker. Post-v1 feature work requires a separate v1.1.0 roadmap.
+Advanced Appender expansion and further recursive/composite Value expansion beyond the closed native LIST and immediate keyed native STRUCT P0 boundaries remain deferred behind the active v1.1 canonical-pool/runtime + Observation-scalability program. They are not active implementation tasks unless the maintainer explicitly reprioritizes them.
 
 Push/tag/remote release remains separately unauthorized.
 
-## Current active release gate
+## Current active v1.1 gate
 
-### Post-parity v1.0.0 release synchronization — CURRENT / AUTHORIZED
+### v1.1 R0 architecture/reality research — CURRENT / AUTHORIZED
 
-DuckDB2 implementation, SQL 3.1.0 compatibility (13/13 PASS; no SQL change required), exact Wave 06 validation, adoption closure at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845`, DatabaseIdentifier closure, and the completed Bridges parity amendment are accepted current candidate history. Instance delete, UPSERT, native LIST, and native STRUCT are all CLOSED with zero remaining parity blockers. Earlier Wave 07 docs/governance synchronization and the DuckDB2 adoption audit remain closed history.
+The maintainer has explicitly promoted the coupled v1.1 program:
 
-Current local release-state work: complete stable-truth synchronization/audit, then final public-document synchronization and public-writing audit, exact source/docs commit composition, D1/D2, U0, F0, and semantic v1 authorization. `CURRENT / AUTHORIZED` applies only to this local release workflow; it does not create a Git tag or authorize push, remote release, or publication. Performance benchmarking remains NOT_REQUIRED.
+- `DATABASE-POOL-ARCHITECTURE-V1_1`;
+- `OBSERVATION-SCALABILITY-V1_1`.
 
-Push/tag/remote release remains unauthorized.
+Current authorization is for stable-truth synchronization, source/runtime/research census, benchmark-baseline design, source-compatibility/compiler probes, and production implementation planning.
+
+Production implementation is NOT yet authorized until the v1.1 architecture/implementation plan is frozen and independently audited.
+
+The R0 research must disposition at least:
+
+- public `DatabaseIdentifier -> Database` migration and source-compatibility mechanics;
+- current internal live `Database` runtime refactor shape;
+- canonical pool ownership/configuration/lifetime/default-capacity policy;
+- ordinary query/execute/model persistence routing through canonical pooled checkout;
+- exact scoped/manual pooled Connection ownership and the disposition of v1 `connect()`;
+- exact role/disposition of v1 `pool(maximumConnections:)`;
+- managed and flat/manual transaction lease ownership;
+- Statement/Appender/migration interaction with pooled leases;
+- Observation refresh-scoped pooled checkout and contention/cancellation/coalescing semantics;
+- COMMIT-during-refresh / rollback / cancellation correctness;
+- table/column/predicate/changed-row mutation impact research;
+- benchmark baselines and required million-row/high-observation metrics.
+
+Deferred Advanced Appender and recursive/composite Value work remain out of scope.
+
+New push/tag/release/publication remains separately unauthorized.
 
 ## Current capability state
 
@@ -46,7 +68,7 @@ The accepted v1 surface is a UI-neutral reusable latest-state `QueryObservation`
 
 The current boundary explicitly does not promise event-log delivery, reusable prepared-handle VIEW rebind, cross-identifier/cross-process invalidation, cross-process/file watching, or framework-specific publishers. Accepted executable evidence remains Swift 6.3.3 build + 557/557 tests in 11 suites with zero failures/skips, focused Swift 6.4 public Observation/manual-finalization coverage, and Swift 6.4 build PASS.
 
-The capability is functionally complete for v1, but a verified performance debt is now recorded for v1.1: ordinary non-read-only query/Statement execution currently publishes Database-wide invalidation, so unrelated observations may rerun before equal-result suppression. `OBSERVATION-SCALABILITY-V1_1` is the first maintainer-prioritized v1.1 objective and requires million-row/high-write benchmark evidence. It is not an active implementation task until promoted through the normal reviewed planning workflow.
+The capability is functionally complete for v1, but v1.1 has an active coupled architecture/performance program: `DATABASE-POOL-ARCHITECTURE-V1_1` + `OBSERVATION-SCALABILITY-V1_1`. Ordinary non-read-only query/Statement execution currently publishes Database-wide invalidation, and each live Observation iterator currently owns a private Connection for its lifetime. R0 research/planning is authorized; production implementation waits for the independently audited v1.1 plan.
 
 ### Connection Pooling — COMPLETE
 
@@ -56,7 +78,7 @@ The accepted implementation preserves FIFO cancellation-safe checkout, full-toke
 
 The fixed selected-column Appender slice is also accepted current state with Swift 6.3.3 build and 647 tests in 20 suites passing.
 
-Unrelated future integrations remain separately gated. Android follow-up, additional platform assurance, push/tag/release, advanced Appender surfaces, and further recursive/composite Value families beyond the closed LIST/STRUCT P0 boundaries remain unauthorized until separately promoted.
+The v1 explicit ConnectionPool remains accepted v1 behavior, but its role is explicitly reopened by `DATABASE-POOL-ARCHITECTURE-V1_1`: ordinary work, explicit scoped/manual Connection access, transactions, and Observation refresh must be reconciled into one canonical bounded resource model through reviewed v1.1 work. Android follow-up, unrelated platform assurance, Advanced Appender surfaces, and further recursive/composite Value families remain separately gated.
 
 ### Public capability closure contract
 

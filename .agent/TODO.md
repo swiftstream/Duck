@@ -6,7 +6,7 @@ Ideas and maintainer-prioritized capabilities that are not yet active approved i
 
 ## Maintainer-Prioritized Release Order
 
-The current priority is release readiness, not another feature layer:
+Duck v1.0.0 is a closed release baseline. The current maintainer priority is the main v1.1 program, not unrelated feature expansion:
 
 ```text
 Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf` -> C8 CLOSED at `0b8baa756b523f00f309b2a007ead7d0570e6b28` -> C9 CLOSED at `6e99a95add3ba57e27f95c88e019666e9af8ec54`
@@ -23,13 +23,13 @@ Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf
 -> DuckDB2 adoption closure — CLOSED / CLEAN at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845`
 -> final independent v1 release snapshot — CLOSED / CLEAN at local commit `1925c7164cade025babb6d4b53453f697e9cdbfc`
 -> Bridges pre-v1 parity amendment CLOSED / CLEAN; instance delete / UPSERT / LIST / STRUCT all CLOSED; blockers = 0
--> current post-parity release sequence — stable-truth sync/audit -> final public docs/public-writing audit -> exact source/docs commit composition -> D1/D2 -> U0 -> F0 -> semantic v1 authorization; no tag/push/remote publication authorized
--> separate v1.1.0 roadmap
+-> v1.0.0 tagged at `f4dd6b06cab76624f10faa374f0da10601d73743` and treated as CLOSED historical release baseline
+-> v1.1.0 active program — canonical pool/runtime architecture + reactive Observation scalability
 ```
 
 The two previously verified transaction-adjacent research items are already resolved to their current boundary: deterministic active-pending cancellation integration coverage is DONE, and post-COMMIT recovery research found no safe public recovery contract so fail-close remains the reviewed limitation.
 
-Before local v1.0.0, **Advanced Appender APIs** and further **recursive/composite Value/result expansion beyond the closed native LIST and immediate keyed native STRUCT P0 boundaries** are explicitly deferred unless a proven release blocker requires the smallest bounded correction. Preserve the ideas, but do not promote them merely because they appeared next in an older roadmap.
+**Advanced Appender APIs** and further **recursive/composite Value/result expansion beyond the closed native LIST and immediate keyed native STRUCT P0 boundaries** remain explicitly deferred behind the active v1.1 canonical-pool + Observation program. Preserve the ideas, but do not promote them merely because they appeared next in an older roadmap.
 
 For v1.1.0, the first maintainer-prioritized program now has two coupled objectives:
 
@@ -44,7 +44,7 @@ Do not start v1.1 by automatically selecting Advanced Appender or recursive/comp
 
 For `OBSERVATION-SCALABILITY-V1_1`, performance benchmarking is **MANDATORY** for closure. Required evidence includes deterministic synthetic million-row datasets, multiple simultaneous observations, sustained INSERT/UPDATE/DELETE traffic, unrelated-table writes, same-table predicate-irrelevant and relevant writes, transactions/Appender, and a direct comparison against the v1 Database-wide invalidation baseline.
 
-Platform validation remains an assurance track and participates where required by release evidence; it does not substitute for the release-readiness sequence. Tag/push/remote publication remains unauthorized. Performance benchmarking remains optional for unrelated work unless its governing plan requires it; it is specifically required for the v1.1 observation-scalability objective.
+Platform validation remains an assurance track and participates only where required by the active v1.1 plan or release evidence; it does not justify broad platform work by itself. New push/tag/remote publication remains separately unauthorized without explicit maintainer approval. Performance benchmarking remains optional for unrelated work but is mandatory for the v1.1 canonical-pool/Observation closure where required by the governing dossiers.
 
 ## Other Future Work
 
