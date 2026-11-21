@@ -1,0 +1,15 @@
+{
+  "originHash" : "1609b906682f3106da5fdd1bb197378bc5c229727f5cf3a8c2640503e48a54ad",
+  "pins" : [
+    {
+      "identity" : "sql",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SwiftStream/SQL",
+      "state" : {
+        "revision" : "b0c81191c3494d91b84b5382092e99c64d5c4647",
+        "version" : "3.1.0"
+      }
+    }
+  ],
+  "version" : 3
+}
