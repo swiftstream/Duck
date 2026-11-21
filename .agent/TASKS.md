@@ -40,18 +40,24 @@ R0 architecture/reality research and plan correction/audit are CLOSED.
 
 Wave 00 is CLOSED. The final external GPT-5.6 Sol B0 acceptance audit returned `CLEAN`, `FINDING_COUNT=0`, `WAVE00_B0_ACCEPTED=YES`, and `WAVE01_AUTHORIZED=YES`. The accepted benchmark harness is committed at `c56a3ca953380a2d97676e67ad1ceb43b84e5924`; the external B0 report SHA-256 is `b73a40d48baf1681369026ea565b340834cae4506174c1f8c1ad39ff89f3041c`.
 
-### v1.1 Wave 01 Database public identity migration — CURRENT / AUTHORIZED
+### Database public identity migration — CLOSED / EXTERNALLY ACCEPTED
 
-Current executable authority is Wave 01 only:
+The public `Database` value, internal `Database.Runtime`, deprecated `DatabaseIdentifier` alias, and primary API spelling migration are committed at `6801ceda14e9a2308e1adb112ce28f146a3b8751`. Fresh-Connection and explicit-pool routing remain unchanged. The final external GPT-5.6 Sol report SHA-256 is `64ca5c70025f864895b7e7aa3e683347e54cd2ca3f97c7d0aa32716153892e41` and accepted progression to the next proof gate. The local C02 pass-count prose discrepancy remains preserved historical evidence; the external audit independently recounted 17 pass / 2 fail / 3 assertion issues and classified the discrepancy non-material.
 
-- introduce public lightweight value `Database`;
-- move the current live runtime behind internal `Database.Runtime`;
-- introduce deprecated `DatabaseIdentifier` typealias for source compatibility;
-- preserve canonical path identity, named/unique memory identity, Registry behavior, and equivalent-identity runtime sharing;
-- add source-compatibility validation under Swift 6.3.3 and Swift 6.4;
-- make no canonical-pool routing change yet unless mechanically required by the identity/runtime rename.
+### Manual Connection lifetime / thin-handle proof — CURRENT / AUTHORIZED
 
-Wave 01 must be independently audited before its logical commit. Wave 02A+ remain sequentially gated by their exact predecessor/evidence/audit requirements.
+Current executable authority is the isolated proof only:
+
+- use no Product source mutation;
+- prove the selected thin public actor-like handle shape under both Swift 6.3.3 and Swift 6.4;
+- prove legal `deinit` -> asynchronous cleanup handoff under strict concurrency;
+- prove no capture/use-after-deinit of the deinitializing handle;
+- prove one exactly-once release claim shared by explicit close and fallback deinit;
+- prove explicit-close/deinit racing cannot double-return;
+- prove stale old authority after synthetic core reuse cannot affect the new authority;
+- use no unsafe `@unchecked Sendable` workaround.
+
+The proof requires fresh independent audit before any Product handle/core split is authorized.
 
 **MAC MUST BE IDLE BEFORE RUNNING PERFORMANCE BENCHMARKS.**
 
@@ -79,7 +85,7 @@ The accepted v1 surface is a UI-neutral reusable latest-state `QueryObservation`
 
 The current boundary explicitly does not promise event-log delivery, reusable prepared-handle VIEW rebind, cross-identifier/cross-process invalidation, cross-process/file watching, or framework-specific publishers. Accepted executable evidence remains Swift 6.3.3 build + 557/557 tests in 11 suites with zero failures/skips, focused Swift 6.4 public Observation/manual-finalization coverage, and Swift 6.4 build PASS.
 
-The capability is functionally complete for v1, but v1.1 has an active coupled architecture/performance program: `DATABASE-POOL-ARCHITECTURE-V1_1` + `OBSERVATION-SCALABILITY-V1_1`. Ordinary non-read-only query/Statement execution currently publishes Database-wide invalidation, and each live Observation iterator currently owns a private Connection for its lifetime. Plan 01 Correction 02 is independently CLEAN and implementation-authorized. Wave 00 historical benchmark harness/evidence is CLOSED / externally B0-accepted; Wave 01 Database public identity migration is current.
+The capability is functionally complete for v1, but v1.1 has an active coupled architecture/performance program: `DATABASE-POOL-ARCHITECTURE-V1_1` + `OBSERVATION-SCALABILITY-V1_1`. Ordinary non-read-only query/Statement execution currently publishes Database-wide invalidation, and each live Observation iterator currently owns a private Connection for its lifetime. Plan 01 Correction 02 is independently CLEAN and implementation-authorized. Wave 00 historical benchmark evidence and the Database public identity migration are CLOSED / externally accepted; the isolated manual Connection lifetime / thin-handle proof is current and must not mutate Product source.
 
 ### Connection Pooling — COMPLETE
 
