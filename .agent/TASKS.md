@@ -18,7 +18,7 @@ Push/tag/remote release remains separately unauthorized.
 
 ## Current active v1.1 gate
 
-### v1.1 Wave 00 baseline benchmark harness/evidence — CURRENT / AUTHORIZED
+### v1.1 Wave 00 baseline benchmark harness/evidence — CLOSED / B0 ACCEPTED
 
 The coupled v1.1 architecture is now independently accepted through:
 
@@ -38,20 +38,22 @@ Fresh external GPT-5.6 Sol re-audit:
 
 R0 architecture/reality research and plan correction/audit are CLOSED.
 
-Current executable authority is Wave 00 only:
+Wave 00 is CLOSED. The final external GPT-5.6 Sol B0 acceptance audit returned `CLEAN`, `FINDING_COUNT=0`, `WAVE00_B0_ACCEPTED=YES`, and `WAVE01_AUTHORIZED=YES`. The accepted benchmark harness is committed at `c56a3ca953380a2d97676e67ad1ceb43b84e5924`; the external B0 report SHA-256 is `b73a40d48baf1681369026ea565b340834cae4506174c1f8c1ad39ff89f3041c`.
 
-- create a reproducible benchmark harness/evidence path before canonical-pool Product semantics change;
-- freeze historical A = ordinary DatabaseIdentifier fresh-Connection-per-operation behavior;
-- freeze historical B = current explicit ConnectionPool behavior;
-- capture resource/latency/throughput evidence required by the accepted plan;
-- preserve exact benchmark environment/toolchain/host/setup/warmup/repetition identities;
-- independently audit the benchmark harness/evidence before relying on the numbers.
+### v1.1 Wave 01 Database public identity migration — CURRENT / AUTHORIZED
+
+Current executable authority is Wave 01 only:
+
+- introduce public lightweight value `Database`;
+- move the current live runtime behind internal `Database.Runtime`;
+- introduce deprecated `DatabaseIdentifier` typealias for source compatibility;
+- preserve canonical path identity, named/unique memory identity, Registry behavior, and equivalent-identity runtime sharing;
+- add source-compatibility validation under Swift 6.3.3 and Swift 6.4;
+- make no canonical-pool routing change yet unless mechanically required by the identity/runtime rename.
+
+Wave 01 must be independently audited before its logical commit. Wave 02A+ remain sequentially gated by their exact predecessor/evidence/audit requirements.
 
 **MAC MUST BE IDLE BEFORE RUNNING PERFORMANCE BENCHMARKS.**
-
-Wave 00 must not implement the canonical pool architecture itself.
-
-Wave 01+ are architecturally authorized by the accepted plan but remain sequentially gated by their exact predecessor/evidence/audit requirements.
 
 Deferred Advanced Appender and recursive/composite Value work remain out of scope.
 
@@ -77,7 +79,7 @@ The accepted v1 surface is a UI-neutral reusable latest-state `QueryObservation`
 
 The current boundary explicitly does not promise event-log delivery, reusable prepared-handle VIEW rebind, cross-identifier/cross-process invalidation, cross-process/file watching, or framework-specific publishers. Accepted executable evidence remains Swift 6.3.3 build + 557/557 tests in 11 suites with zero failures/skips, focused Swift 6.4 public Observation/manual-finalization coverage, and Swift 6.4 build PASS.
 
-The capability is functionally complete for v1, but v1.1 has an active coupled architecture/performance program: `DATABASE-POOL-ARCHITECTURE-V1_1` + `OBSERVATION-SCALABILITY-V1_1`. Ordinary non-read-only query/Statement execution currently publishes Database-wide invalidation, and each live Observation iterator currently owns a private Connection for its lifetime. Plan 01 Correction 02 is independently CLEAN and implementation-authorized. Wave 00 historical benchmark harness/evidence is current; later Product waves remain gated by the accepted sequential plan.
+The capability is functionally complete for v1, but v1.1 has an active coupled architecture/performance program: `DATABASE-POOL-ARCHITECTURE-V1_1` + `OBSERVATION-SCALABILITY-V1_1`. Ordinary non-read-only query/Statement execution currently publishes Database-wide invalidation, and each live Observation iterator currently owns a private Connection for its lifetime. Plan 01 Correction 02 is independently CLEAN and implementation-authorized. Wave 00 historical benchmark harness/evidence is CLOSED / externally B0-accepted; Wave 01 Database public identity migration is current.
 
 ### Connection Pooling — COMPLETE
 
