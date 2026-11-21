@@ -199,7 +199,7 @@ private func fetchConnectionPersistenceUser(id: Int64, on connection: Connection
 
 @Test("INSERT returning applies omitted DB defaults and exact native round-trip")
 func insertReturningOmittedDefaults() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createConnectionPersistenceTable(on: connection)
 
     let model = makeUser(
@@ -227,7 +227,7 @@ func insertReturningOmittedDefaults() async throws {
 
 @Test("INSERT returning preserves explicit optional nil as SQL NULL over DB default")
 func insertReturningExplicitNullOverridesDefault() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createConnectionPersistenceTable(on: connection)
 
     let model = makeUser(name: "null-nickname")
@@ -242,7 +242,7 @@ func insertReturningExplicitNullOverridesDefault() async throws {
 
 @Test("INSERT non-returning writes the row without RETURNING decode")
 func insertNonReturningWritesRow() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createConnectionPersistenceTable(on: connection)
 
     let model = makeUser(
@@ -269,7 +269,7 @@ func insertNonReturningWritesRow() async throws {
 
 @Test("INSERT with no initialized fields rejects structurally before SQL")
 func insertNoInitializedFieldsStructural() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     // Intentionally do not create the table: structural failure must win.
     let model = ConnectionPersistenceUser()
 
@@ -290,7 +290,7 @@ func insertNoInitializedFieldsStructural() async throws {
 
 @Test("UPDATE returning changes one field and preserves other values")
 func updateReturningOneField() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createConnectionPersistenceTable(on: connection)
 
     let inserted = try await makeUser(name: "before", age: 10).insert(on: connection)
@@ -313,7 +313,7 @@ func updateReturningOneField() async throws {
 
 @Test("UPDATE returning changes multiple fields including explicit NULL")
 func updateReturningMultipleFields() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createConnectionPersistenceTable(on: connection)
 
     let inserted = try await makeUser(name: "multi", nickname: "keep-me", age: 1).insert(on: connection)
@@ -335,7 +335,7 @@ func updateReturningMultipleFields() async throws {
 
 @Test("UPDATE non-returning persists changed fields")
 func updateNonReturningPersists() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createConnectionPersistenceTable(on: connection)
 
     let inserted = try await makeUser(name: "nr-origin").insert(on: connection)
@@ -353,7 +353,7 @@ func updateNonReturningPersists() async throws {
 
 @Test("Prepared UPDATE snapshot excludes unchanged fields, key, and payload literals")
 func preparedUpdateSnapshotExcludesUnchangedAndKey() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createConnectionPersistenceTable(on: connection)
 
     let decoded = try await makeUser(
@@ -395,7 +395,7 @@ func preparedUpdateSnapshotExcludesUnchangedAndKey() async throws {
 
 @Test("Prepared DELETE snapshot binds only the selected key")
 func preparedDeleteSnapshotBindsOnlySelectedKey() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createConnectionPersistenceTable(on: connection)
 
     let decoded = try await makeUser(name: "delete-snapshot-base").insert(on: connection)
@@ -422,7 +422,7 @@ func preparedDeleteSnapshotBindsOnlySelectedKey() async throws {
 
 @Test("Zero-changed UPDATE performs no SQL-visible access after table drop")
 func zeroChangedUpdateNoSQLAfterDrop() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createConnectionPersistenceTable(on: connection)
 
     let decoded = try await makeUser(name: "noop").insert(on: connection)
@@ -444,7 +444,7 @@ func zeroChangedUpdateNoSQLAfterDrop() async throws {
 
 @Test("UPDATE with uninitialized key rejects before SQL")
 func updateUninitializedKeyStructural() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     // Nonexistent table: key validation must still win.
     let model = makeUser(name: "keyless")
     model.name = "keyless-changed"
@@ -466,7 +466,7 @@ func updateUninitializedKeyStructural() async throws {
 
 @Test("UPDATE with SQL NULL key rejects structurally")
 func updateNullKeyStructural() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let model = makeUser(name: "null-key")
     model.id = nil  // explicit null
     model.name = "null-key-changed"
@@ -486,7 +486,7 @@ func updateNullKeyStructural() async throws {
 
 @Test("DELETE with uninitialized key rejects before SQL")
 func deleteUninitializedKeyStructural() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let model = makeUser(name: "delete-keyless")
 
     do {
@@ -507,7 +507,7 @@ func deleteUninitializedKeyStructural() async throws {
 
 @Test("DELETE with SQL NULL key rejects before SQL")
 func deleteNullKeyStructural() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let model = makeUser(name: "delete-null-key")
     model.id = nil
 
@@ -530,7 +530,7 @@ func deleteNullKeyStructural() async throws {
 
 @Test("Connection DELETE returns one then zero and removes the row")
 func connectionDeleteAffectedRows() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createConnectionPersistenceTable(on: connection)
 
     let inserted = try await makeUser(name: "delete-runtime").insert(on: connection)
@@ -548,7 +548,7 @@ func connectionDeleteAffectedRows() async throws {
 
 @Test("UPDATE returning throws invalidResult when key row was deleted")
 func updateReturningZeroRowsAfterDelete() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createConnectionPersistenceTable(on: connection)
 
     let decoded = try await makeUser(name: "to-delete").insert(on: connection)
@@ -575,7 +575,7 @@ func updateReturningZeroRowsAfterDelete() async throws {
 
 @Test("Schema-qualified Table insert/update/delete target the schema table only")
 func schemaQualifiedInsertAndUpdate() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     try await CreateSchemaBuilder<ConnectionPersistenceSchemaUser>()
         .checkIfNotExists()
@@ -758,7 +758,7 @@ private func setClause(from sql: String) throws -> String {
 
 @Test("UPSERT U01: no conflict row inserts with omitted DB-default field receiving default")
 func upsertInsertBranchUsesDBDefault() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createPersistenceUpsertTable(on: connection)
 
     let model = PersistenceUpsertUser(email: "u01@upsert.test", name: "u01-name", score: 7)
@@ -786,7 +786,7 @@ func upsertInsertBranchUsesDBDefault() async throws {
 
 @Test("UPSERT U02: conflict row updates changed fields with unique email preserved")
 func upsertConflictUpdateBranch() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createPersistenceUpsertTable(on: connection)
 
     _ = try await PersistenceUpsertUser(
@@ -822,7 +822,7 @@ func upsertConflictUpdateBranch() async throws {
 
 @Test("UPSERT U03: excluded field is not updated on conflict but remains an INSERT field")
 func upsertExclusionAffectsUpdateOnly() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createPersistenceUpsertTable(on: connection)
 
     _ = try await PersistenceUpsertUser(
@@ -885,7 +885,7 @@ func upsertExclusionAffectsUpdateOnly() async throws {
 
 @Test("UPSERT U04: decoded model with only one changed field yields SET for only that field")
 func upsertChangedOnlySemantics() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createPersistenceUpsertTable(on: connection)
 
     _ = try await PersistenceUpsertUser(
@@ -925,7 +925,7 @@ func upsertChangedOnlySemantics() async throws {
 
 @Test("UPSERT U05: explicit nil non-conflict field becomes SQL NULL via EXCLUDED")
 func upsertExplicitNullUpdate() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createPersistenceUpsertTable(on: connection)
 
     _ = try await PersistenceUpsertUser(
@@ -971,7 +971,7 @@ func upsertExplicitNullUpdate() async throws {
 
 @Test("UPSERT U06: uninitialized conflict key rejects with invalidResult before SQL")
 func upsertUninitializedConflictKeyRejectsBeforeSQL() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     // Intentionally do NOT create the table: any SQL execution would fail on missing table.
     let model = PersistenceUpsertUser()
     model.name = "u06-name"
@@ -997,7 +997,7 @@ func upsertUninitializedConflictKeyRejectsBeforeSQL() async throws {
 
 @Test("UPSERT U07: SQL NULL conflict key rejects with invalidResult before SQL")
 func upsertNullConflictKeyRejectsBeforeSQL() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     // Intentionally do NOT create the table.
     let model = PersistenceUpsertUser()
     model.email = nil      // explicit nil -> Value.null
@@ -1024,7 +1024,7 @@ func upsertNullConflictKeyRejectsBeforeSQL() async throws {
 
 @Test("UPSERT U08: exclusions that leave no changed field reject with invalidResult before SQL")
 func upsertEmptyUpdateSetRejectsBeforeSQL() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     // Intentionally do NOT create the table.
     let model = PersistenceUpsertUser(
         email: "u08@upsert.test",
@@ -1054,7 +1054,7 @@ func upsertEmptyUpdateSetRejectsBeforeSQL() async throws {
 
 @Test("UPSERT U08b: decoded fixture row with no mutations rejects empty update set after drop")
 func upsertEmptyUpdateSetRejectsDecodedNoChange() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createPersistenceUpsertTable(on: connection)
 
     _ = try await PersistenceUpsertUser(
@@ -1090,7 +1090,7 @@ func upsertEmptyUpdateSetRejectsDecodedNoChange() async throws {
 
 @Test("UPSERT U09: schema-qualified Self.table targets schema table; unqualified sentinel untouched")
 func upsertSchemaQualifiedTarget() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     try await CreateSchemaBuilder<PersistenceUpsertSchemaUser>()
         .checkIfNotExists()

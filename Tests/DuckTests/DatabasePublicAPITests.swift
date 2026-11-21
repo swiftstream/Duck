@@ -3,8 +3,12 @@ import Duck
 import SQL
 import Testing
 
-private struct IdentifierRecord: Table {
-    static let tableName = "database_identifier_public_records"
+extension Database {
+    static let wave01Application = Database(memory: "duck-wave01-application-static")
+}
+
+private struct DatabaseRecord: Table {
+    static let tableName = "database_public_records"
 
     @Column("id") var id: Int64
     @Column("name") var name: String
@@ -12,8 +16,8 @@ private struct IdentifierRecord: Table {
     init() {}
 }
 
-private struct IdentifierUpsertRecord: Table {
-    static let tableName = "database_identifier_public_upsert_records"
+private struct DatabaseUpsertRecord: Table {
+    static let tableName = "database_public_upsert_records"
 
     @Column("id", default: .default(50))
     var id: Int64?
@@ -36,28 +40,30 @@ private struct IdentifierUpsertRecord: Table {
     }
 }
 
-private func identifierRecord(
+private func databaseRecord(
     id: Int64,
     name: String
-) -> IdentifierRecord {
-    let record = IdentifierRecord()
+) -> DatabaseRecord {
+    let record = DatabaseRecord()
     record.id = id
     record.name = name
     return record
 }
 
-@Suite("DatabaseIdentifier public API")
-struct DatabaseIdentifierPublicAPITests {
-    @Test("Identifier routes query, persistence, transaction, Appender, and Pool")
-    func identifierRoutesPublicDatabaseWork() async throws {
-        let database = DatabaseIdentifier.memory()
+@Suite("Database public API")
+struct DatabasePublicAPITests {
+    @Test("Database routes query, persistence, transaction, Appender, and Pool")
+    func databaseRoutesPublicDatabaseWork() async throws {
+        let database = Database.memory()
 
-        try await CreateTableBuilder<IdentifierRecord>()
+        try await CreateTableBuilder<DatabaseRecord>()
             .column("id", .bigint, .notNull)
             .column("name", .text, .notNull)
             .execute(on: database)
 
-        let inserted = try await identifierRecord(id: 1, name: "first").insert(on: database)
+        #expect(try await DatabaseRecord.all(on: database).isEmpty)
+
+        let inserted = try await databaseRecord(id: 1, name: "first").insert(on: database)
         #expect(inserted.id == 1)
         #expect(inserted.name == "first")
 
@@ -67,31 +73,31 @@ struct DatabaseIdentifierPublicAPITests {
 
         let deleted: UInt64 = try await updated.delete(on: \.$id, on: database)
         #expect(deleted == 1)
-        let afterDelete = try await IdentifierRecord
+        let afterDelete = try await DatabaseRecord
             .select
-            .where(\IdentifierRecord.$id == Int64(1))
+            .where(\DatabaseRecord.$id == Int64(1))
             .limit(1)
             .query(on: database)
-            .first(decoding: IdentifierRecord.self)
+            .first(decoding: DatabaseRecord.self)
         #expect(afterDelete == nil)
 
-        let nonReturning = identifierRecord(id: 2, name: "second")
+        let nonReturning = databaseRecord(id: 2, name: "second")
         try await nonReturning.insertNonReturning(on: database)
 
         nonReturning.name = "second-updated"
         try await nonReturning.updateNonReturning(on: \.$id, on: database)
 
         try await [
-            identifierRecord(id: 3, name: "third"),
-            identifierRecord(id: 4, name: "fourth")
+            databaseRecord(id: 3, name: "third"),
+            databaseRecord(id: 4, name: "fourth")
         ].batchInsert(on: database)
 
         try await database.transaction { transaction in
-            try await identifierRecord(id: 5, name: "transaction")
+            try await databaseRecord(id: 5, name: "transaction")
                 .insertNonReturning(on: transaction)
         }
 
-        let appenderTable = DB.Table("database_identifier_public_appender")
+        let appenderTable = DB.Table("database_public_appender")
         try await SQL
             .create
             .table[any: appenderTable]
@@ -104,7 +110,7 @@ struct DatabaseIdentifierPublicAPITests {
 
         let pool = try await database.pool(maximumConnections: 2)
         let pooledCount = try await pool.connection { connection in
-            try await IdentifierRecord
+            try await DatabaseRecord
                 .select
                 .query(on: connection)
                 .rows
@@ -113,11 +119,11 @@ struct DatabaseIdentifierPublicAPITests {
         #expect(pooledCount == 4)
         try await pool.shutdown()
 
-        let rows = try await IdentifierRecord
+        let rows = try await DatabaseRecord
             .select
-            .orderBy(.asc(\IdentifierRecord.$id))
+            .orderBy(.asc(\DatabaseRecord.$id))
             .query(on: database)
-            .all(decoding: IdentifierRecord.self)
+            .all(decoding: DatabaseRecord.self)
 
         #expect(rows.map(\.id) == [2, 3, 4, 5])
         #expect(rows.map(\.name) == [
@@ -134,88 +140,97 @@ struct DatabaseIdentifierPublicAPITests {
         #expect(appended.rows.first?["id"] == .int32(7))
     }
 
-    @Test("Equivalent identifiers share one observation runtime")
-    func equivalentIdentifiersShareObservationRuntime() async throws {
-        let name = "database-identifier-observation-\(UUID().uuidString)"
-        let first = DatabaseIdentifier(memory: name)
-        let second = DatabaseIdentifier(memory: name)
+    @Test("Equivalent databases share one observation runtime")
+    func equivalentDatabasesShareObservationRuntime() async throws {
+        let name = "database-database-observation-\(UUID().uuidString)"
+        let first = Database(memory: name)
+        let second = Database(memory: name)
 
-        try await CreateTableBuilder<IdentifierRecord>()
+        try await CreateTableBuilder<DatabaseRecord>()
             .column("id", .bigint, .notNull)
             .column("name", .text, .notNull)
             .execute(on: first)
 
-        let observation = try IdentifierRecord
+        let observation = try DatabaseRecord
             .select
-            .orderBy(.asc(\IdentifierRecord.$id))
+            .orderBy(.asc(\DatabaseRecord.$id))
             .observe(on: first)
         var iterator = observation.makeAsyncIterator()
 
         let initial = try #require(try await iterator.next())
         #expect(initial.rows.isEmpty)
 
-        try await identifierRecord(id: 1, name: "identifier")
+        try await databaseRecord(id: 1, name: "database")
             .insertNonReturning(on: second)
 
-        let afterIdentifierMutation = try #require(try await iterator.next())
+        let afterDatabaseMutation = try #require(try await iterator.next())
         #expect(
-            try afterIdentifierMutation
-                .all(decoding: IdentifierRecord.self)
+            try afterDatabaseMutation
+                .all(decoding: DatabaseRecord.self)
                 .map(\.name)
-                == ["identifier"]
+                == ["database"]
         )
 
         let connection = try await second.connect()
-        try await identifierRecord(id: 2, name: "connection")
+        try await databaseRecord(id: 2, name: "connection")
             .insertNonReturning(on: connection)
 
         let afterConnectionMutation = try #require(try await iterator.next())
         #expect(
             try afterConnectionMutation
-                .all(decoding: IdentifierRecord.self)
+                .all(decoding: DatabaseRecord.self)
                 .map(\.name)
-                == ["identifier", "connection"]
+                == ["database", "connection"]
         )
     }
 
-    @Test("Identifier routes model UPSERT through a fresh Connection and returns decoded model")
-    func identifierRoutesModelUpsert() async throws {
-        let database = DatabaseIdentifier.memory()
+    @Test("Database routes model UPSERT through a fresh Connection and returns decoded model")
+    func databaseRoutesModelUpsert() async throws {
+        let database = Database.memory()
 
-        try await CreateTableBuilder<IdentifierUpsertRecord>()
+        try await CreateTableBuilder<DatabaseUpsertRecord>()
             .column("id", .bigint, ColumnDefault.default(50 as Any))
             .column("email", .text, .unique)
             .column("name", .text, .notNull)
             .execute(on: database)
 
-        // Insert branch through DatabaseIdentifier.
-        let inserted: IdentifierUpsertRecord = try await IdentifierUpsertRecord(
+        // Insert branch through Database.
+        let inserted: DatabaseUpsertRecord = try await DatabaseUpsertRecord(
             email: "id@upsert.test",
-            name: "identifier-insert"
+            name: "database-insert"
         ).upsert(conflictColumn: \.$email, on: database)
         #expect(inserted.email == "id@upsert.test")
-        #expect(inserted.name == "identifier-insert")
+        #expect(inserted.name == "database-insert")
         #expect(inserted.id == 50) // DB default filled
 
-        // Conflict UPDATE branch through DatabaseIdentifier with one typed exclusion.
-        let updated = try await IdentifierUpsertRecord(
+        // Conflict UPDATE branch through Database with one typed exclusion.
+        let updated = try await DatabaseUpsertRecord(
             email: "id@upsert.test",
-            name: "identifier-updated"
+            name: "database-updated"
         ).upsert(
             conflictColumn: \.$email,
             excluding: \.$id,
             on: database
         )
         #expect(updated.email == "id@upsert.test")
-        #expect(updated.name == "identifier-updated")
+        #expect(updated.name == "database-updated")
         #expect(updated.id == 50) // conflict UPDATE left id unchanged
 
-        let stored = try await IdentifierUpsertRecord
+        let stored = try await DatabaseUpsertRecord
             .select
-            .where(\IdentifierUpsertRecord.$email == "id@upsert.test")
+            .where(\DatabaseUpsertRecord.$email == "id@upsert.test")
             .limit(1)
             .query(on: database)
-            .first(decoding: IdentifierUpsertRecord.self)
-        #expect(stored?.name == "identifier-updated")
+            .first(decoding: DatabaseUpsertRecord.self)
+        #expect(stored?.name == "database-updated")
+    }
+
+    @Test("Application-owned static Database extension is a normal API target")
+    func applicationOwnedStaticDatabaseWorks() async throws {
+        let result = try await SQL
+            .select(Int32(7) => "value")
+            .query(on: .wave01Application)
+
+        #expect(result.rows.first?["value"] == .int32(7))
     }
 }

@@ -69,7 +69,7 @@ func intervalValueFacadeAndRowConveniences() throws {
 
 @Test("Ordinary SQL Interval binding uses natural INTERVAL and Optional NULL")
 func ordinaryIntervalUsesTargetlessNaturalIntervalAndOptionalNull() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let finite = Interval(months: -2, days: 40, microseconds: -123_456)
     let some: Interval? = finite
     let none: Interval? = nil
@@ -88,7 +88,7 @@ func ordinaryIntervalUsesTargetlessNaturalIntervalAndOptionalNull() async throws
 
 @Test("Reusable Interval Statements preserve target matrix and Value transport")
 func reusableIntervalStatementTargetMatrixAndReuse() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let finite = Interval(months: -2, days: 40, microseconds: -123_456)
     let targetless = try await connection.prepare { parameters in
         SQL.select(parameters.parameter() => "value")
@@ -124,7 +124,7 @@ func reusableIntervalStatementTargetMatrixAndReuse() async throws {
 
 @Test("Reusable Interval Statement rejects every non-native case with binding and remains reusable")
 func intervalStatementRejectsInfinityAndOutOfRangeAndRemainsReusable() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(parameters.parameter() => "value")
     }
@@ -161,7 +161,7 @@ func intervalStatementRejectsInfinityAndOutOfRangeAndRemainsReusable() async thr
 
 @Test("Interval Statement binding failure preserves transaction rollback-only first reason")
 func intervalStatementTransactionFailureParticipatesInRollbackOnly() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("interval_statement_transaction")
     try await connection.execute(
         SQL.create.table[any: table].tableDefinitions(NewColumn("id", .integer))
@@ -214,7 +214,7 @@ func intervalStatementTransactionFailureParticipatesInRollbackOnly() async throw
 
 @Test("Interval Appender round-trip preserves extrema and logical metadata")
 func intervalAppenderRoundTripAndExtrema() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeIntervalTable(
         on: connection,
         named: "interval_appender_round_trip"
@@ -247,7 +247,7 @@ func intervalAppenderRoundTripAndExtrema() async throws {
 
 @Test("Interval Appender preflight failures make zero row mutation and remain reusable")
 func intervalAppenderPhaseOneFailureIsZeroMutationAndReusable() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeIntervalTable(
         on: connection,
         named: "interval_appender_phase_one"
@@ -285,7 +285,7 @@ func intervalAppenderPhaseOneFailureIsZeroMutationAndReusable() async throws {
 
 @Test("Interval results materialize extrema, all-minimum data, and NULL by validity")
 func intervalResultMaterializesExtremaAllMinimumAndNullValidity() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeIntervalTable(
         on: connection,
         named: "interval_result_extrema"
@@ -321,7 +321,7 @@ func intervalResultMaterializesExtremaAllMinimumAndNullValidity() async throws {
 
 @Test("Interval results preserve non-normalized structural basis")
 func intervalResultPreservesStructuralBasisWithoutNormalization() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let value = Interval(months: 1, days: 40, microseconds: 2)
     let result = try await connection.query(SQL.select(value => "value"))
 

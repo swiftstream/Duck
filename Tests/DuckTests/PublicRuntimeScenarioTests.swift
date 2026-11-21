@@ -39,7 +39,7 @@ struct PublicRuntimeScenarioTests {
 
 @Test("Public CRUD covers quoted identifiers aliases typed selection mutations and NULL")
 func publicCrudScenarioMatrix() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = RuntimeScenarioUser.table
 
@@ -119,7 +119,7 @@ func publicCrudScenarioMatrix() async throws {
 
 @Test("Public query materializes the complete first primitive result slice")
 func publicPrimitiveResultMatrix() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let shortText = "short"
     let longText = "this string is deliberately longer than twelve bytes"
@@ -168,7 +168,7 @@ func publicPrimitiveResultMatrix() async throws {
 
 @Test("Public errors are explicit and the Connection remains reusable")
 func publicErrorAndReuseScenarios() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
 
     do {
@@ -200,7 +200,7 @@ func publicErrorAndReuseScenarios() async throws {
 
 @Test("Same Connection survives bounded structured concurrency and pre-native cancellation")
 func sameConnectionConcurrencyAndCancellation() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
 
     let values = try await withThrowingTaskGroup(of: Int64.self, returning: [Int64].self) { group in
@@ -254,7 +254,7 @@ func sameConnectionConcurrencyAndCancellation() async throws {
 
 @Test("Multiple Connections from one Database execute independently under structured concurrency")
 func multipleConnectionsConcurrency() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connections = try (0..<4).map { _ in try database.connect() }
 
     let values = try await withThrowingTaskGroup(of: Int64.self, returning: [Int64].self) { group in

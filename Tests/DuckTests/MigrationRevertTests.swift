@@ -7,7 +7,7 @@ import Testing
 struct MigrationRevertTests {
     @Test("revert latest batch returns the resulting current batch")
     func revertLatestBatchReturnsResultingCurrentBatch() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let first = RevertMigration(name: "first")
         let second = RevertMigration(name: "second")
 
@@ -21,7 +21,7 @@ struct MigrationRevertTests {
 
     @Test("revert at zero and batch one are safe no-ops")
     func revertAtZeroAndBatchOneAreSafeNoOps() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let migrator = database.migrator([])
 
         #expect(try await migrator.revert() == 0)
@@ -36,7 +36,7 @@ struct MigrationRevertTests {
 
     @Test("revert last uses count semantics")
     func revertLastUsesCountSemantics() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let first = RevertMigration(name: "first")
         let second = RevertMigration(name: "second")
         let third = RevertMigration(name: "third")
@@ -52,7 +52,7 @@ struct MigrationRevertTests {
 
     @Test("revert last UInt.max clamps safely to all batches")
     func revertLastUIntMaxClampsSafelyToAllBatches() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let first = RevertMigration(name: "first")
         let second = RevertMigration(name: "second")
 
@@ -66,7 +66,7 @@ struct MigrationRevertTests {
 
     @Test("revert to current is a no-op and intermediate target is exact")
     func revertToCurrentIsNoOpAndIntermediateTargetIsExact() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let first = RevertMigration(name: "first")
         let second = RevertMigration(name: "second")
         let downCount = RevertCount()
@@ -94,7 +94,7 @@ struct MigrationRevertTests {
 
     @Test("revert to zero removes all batches")
     func revertToZeroRemovesAllBatches() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let first = RevertMigration(name: "first")
         let second = RevertMigration(name: "second")
 
@@ -105,7 +105,7 @@ struct MigrationRevertTests {
 
     @Test("revert above current throws before down or history mutation")
     func revertAboveCurrentThrowsBeforeDownOrHistoryMutation() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let downCount = RevertCount()
         let migration = RevertMigration(name: "one", down: { _ in
             await downCount.increment()
@@ -124,7 +124,7 @@ struct MigrationRevertTests {
 
     @Test("revertAll processes newest to oldest and returns zero")
     func revertAllProcessesNewestToOldestAndReturnsZero() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let order = RevertOrder()
         let first = RevertMigration(name: "first", down: { _ in await order.append("first") })
         let second = RevertMigration(name: "second", down: { _ in await order.append("second") })
@@ -139,7 +139,7 @@ struct MigrationRevertTests {
 
     @Test("within one batch down runs in descending factual id order")
     func withinOneBatchDownRunsInDescendingFactualIDOrder() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let order = RevertOrder()
         let first = revertTableMigration(name: "A", order: order)
         let second = revertTableMigration(name: "B", order: order)
@@ -156,7 +156,7 @@ struct MigrationRevertTests {
 
     @Test("down failure rolls back earlier down effects and history deletes")
     func downFailureRollsBackEarlierDownEffectsAndHistoryDeletes() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let order = RevertOrder()
         let first = revertTableMigration(name: "A", order: order)
         let second = revertTableMigration(name: "B", order: order, down: { transaction in
@@ -178,7 +178,7 @@ struct MigrationRevertTests {
 
     @Test("missing source fails before down or delete for its target batch")
     func missingSourceFailsBeforeDownOrDeleteForItsTargetBatch() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let downCount = RevertCount()
         let first = RevertMigration(name: "first", down: { _ in await downCount.increment() })
         let second = RevertMigration(name: "second", down: { _ in await downCount.increment() })
@@ -195,7 +195,7 @@ struct MigrationRevertTests {
 
     @Test("newer committed reverts remain durable when an older batch fails")
     func newerCommittedRevertsRemainDurableWhenAnOlderBatchFails() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let order = RevertOrder()
         let first = RevertMigration(name: "first", down: { _ in await order.append("first") })
         let second = RevertMigration(name: "second", down: { _ in
@@ -219,7 +219,7 @@ struct MigrationRevertTests {
 
     @Test("cancellation during active down preserves newer reverts and releases coordination")
     func cancellationDuringActiveDownPreservesNewerRevertsAndReleasesCoordination() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let entered = RevertSignal()
         let gate = RevertGate()
         let first = RevertMigration(name: "first", down: { _ in
@@ -250,7 +250,7 @@ struct MigrationRevertTests {
 
     @Test("reverting a deleted maximum id reuses batch and id for a new migration")
     func revertingDeletedMaximumIDReusesBatchAndIDForNewMigration() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let first = revertTableMigration(name: "A")
         let second = revertTableMigration(name: "B")
         let third = revertTableMigration(name: "C")
@@ -293,7 +293,7 @@ struct MigrationRevertTests {
 
     @Test("down observes its history row before successful deletion")
     func downObservesItsHistoryRowBeforeSuccessfulDeletion() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let observed = RevertObservation()
         let migration = RevertMigration(name: "observed", down: { transaction in
             let table = DB.Schema("__swiftduckdb").table("migrations")

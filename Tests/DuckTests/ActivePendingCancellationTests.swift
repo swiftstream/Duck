@@ -55,7 +55,7 @@ func activePendingPublicQueryCancellationLeavesConnectionReusable() async throws
 }
 
 private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let nativeDatabase = try NativeDatabase()
     let registrationConnection = try nativeDatabase.connect()
     let functionNamePrefix = "duck_pending_execution_gate"

@@ -519,7 +519,7 @@ public actor ConnectionPool {
     /// Maximum number of live or creation-reserved Connections owned by this Pool.
     public nonisolated let maximumConnections: Int
 
-    private let database: Database
+    private let database: Database.Runtime
     private let poolID: ConnectionPoolID
     private var state: ConnectionPoolStateMachine
     /// When non-nil, the next pooled Connection open throws this exact error and consumes the value.
@@ -531,9 +531,9 @@ public actor ConnectionPool {
     private var shutdownContinuations:
         [UUID: CheckedContinuation<Void, Never>] = [:]
 
-    /// Creates a lazy Pool owned by one exact Database.
+    /// Creates a lazy Pool owned by one exact Database.Runtime.
     init(
-        database: Database,
+        database: Database.Runtime,
         maximumConnections: Int
     ) throws {
         guard maximumConnections > 0 else {

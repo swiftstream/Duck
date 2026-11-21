@@ -74,7 +74,7 @@ private func insertConnectionPoolObservationRow(
 }
 
 private func connectionPoolObservationInvalidationEvidence<Value>(
-    on database: Database,
+    on database: Database.Runtime,
     operation: () async throws -> Value
 ) async -> (count: Int, outcome: Result<Value, Error>) {
     let registration = await database.observationCoordinator.register(initial: .database)
@@ -109,7 +109,7 @@ private func connectionPoolObservationBufferedInvalidationCount(
 struct ConnectionPoolObservationTests {
     @Test("OP01 Database observation survives pooled lease return and Connection reuse")
     func databaseObservationSurvivesPoolLeaseReuse() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let pool = try database.pool(maximumConnections: 1)
         let table = DB.Table(connectionPoolObservationName("pool_observation_lease"))
 
@@ -144,7 +144,7 @@ struct ConnectionPoolObservationTests {
 
     @Test("OP02 pooled observation refresh requires the active exact lease")
     func pooledObservationRefreshRequiresActiveLease() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let pool = try database.pool(maximumConnections: 1)
         let table = DB.Table(connectionPoolObservationName("pool_observation_refresh"))
         let pooledConnection = try await pool.connection { connection in
@@ -184,7 +184,7 @@ struct ConnectionPoolObservationTests {
 
     @Test("OP03 pool.transaction publishes definitive mutation finalization only")
     func poolTransactionPublishesCommitAndRollbackImpact() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let pool = try database.pool(maximumConnections: 1)
         let table = DB.Table(connectionPoolObservationName("pool_observation_transaction"))
         let sequenceName = connectionPoolObservationName("pool_observation_sequence")
@@ -264,7 +264,7 @@ struct ConnectionPoolObservationTests {
 
     @Test("OP04 pooled Appender publishes after native finalization and refreshes")
     func pooledAppenderPublishesAfterFinalization() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let pool = try database.pool(maximumConnections: 1)
         let table = DB.Table(connectionPoolObservationName("pool_observation_appender"))
         try await pool.connection { connection in
@@ -294,7 +294,7 @@ struct ConnectionPoolObservationTests {
 
     @Test("OP05 fail-close and failed replacement open publish nothing before a real mutation")
     func retirementAndReplacementPreserveObservationTruth() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let pool = try database.pool(maximumConnections: 1)
         let table = DB.Table(connectionPoolObservationName("pool_observation_retirement"))
         try await pool.connection { connection in
@@ -359,8 +359,8 @@ struct ConnectionPoolObservationTests {
 
     @Test("OP06 Pool invalidation remains local to its owning Database")
     func poolInvalidationRemainsDatabaseLocal() async throws {
-        let database = try Database()
-        let otherDatabase = try Database()
+        let database = try Database.Runtime()
+        let otherDatabase = try Database.Runtime()
         let pool = try database.pool(maximumConnections: 1)
         let table = DB.Table(connectionPoolObservationName("pool_observation_locality"))
         try await pool.connection { connection in

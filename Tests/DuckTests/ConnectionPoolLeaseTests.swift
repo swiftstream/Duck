@@ -26,7 +26,7 @@ private actor PoolLeaseSignal {
 }
 
 private struct PoolLeaseFixture: Sendable {
-    let database: Database
+    let database: Database.Runtime
     let poolID: ConnectionPoolID
     let connection: Connection
 
@@ -40,7 +40,7 @@ private struct PoolLeaseFixture: Sendable {
 }
 
 private func makePoolLeaseFixture() throws -> PoolLeaseFixture {
-    let database = try Database()
+    let database = try Database.Runtime()
     let poolID = ConnectionPoolID()
     return PoolLeaseFixture(
         database: database,
@@ -143,7 +143,7 @@ func poolLeaseStateMachineRequiresExactToken() throws {
 
 @Test("Standalone Connection remains usable without Pool lease context")
 func standaloneConnectionRemainsUnchanged() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let result = try await connection.query(
         SQL.select(Int32(7) => "value")
     )

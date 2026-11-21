@@ -210,7 +210,7 @@ func valueListFacade() throws {
 
 @Test("L03 prepared LIST(VARCHAR) round-trips a non-empty list")
 func preparedListVarcharRoundTrip() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let children: [Value] = [.string("a"), .string("b")]
 
     let payload = try await queryListPayload(
@@ -223,7 +223,7 @@ func preparedListVarcharRoundTrip() async throws {
 
 @Test("L04 prepared empty LIST obeys C3 and round-trips")
 func preparedEmptyList() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     // C3/C1: value_count == 0 still needs a live values pointer and the element type only
     // exists once the target resolves to a LIST, so an empty LIST cannot travel untyped.
@@ -238,7 +238,7 @@ func preparedEmptyList() async throws {
 
 @Test("L05 prepared LIST(VARCHAR) preserves a SQL NULL child")
 func preparedListWithNullChild() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let children: [Value] = [.string("a"), .null, .string("c")]
 
     let payload = try await queryListPayload(
@@ -251,7 +251,7 @@ func preparedListWithNullChild() async throws {
 
 @Test("L06 LIST against a non-LIST target fails before execution")
 func preparedListTargetMismatchFailsBeforeMutation() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = DB.Table("list_value_scalar_target")
     try await connection.execute(
@@ -286,7 +286,7 @@ func preparedListTargetMismatchFailsBeforeMutation() async throws {
 
 @Test("L07 native LIST(ENUM) dictionary mapping round-trips through prepared binding")
 func preparedListEnumRoundTrip() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await connection.execute(
         SQL
             .create
@@ -305,7 +305,7 @@ func preparedListEnumRoundTrip() async throws {
 
 @Test("L08 unknown ENUM label fails before mutation and leaves rows unchanged")
 func preparedListUnknownEnumLabelFailsBeforeMutation() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = DB.Table("list_value_enum_target")
     try await connection.execute(
@@ -355,7 +355,7 @@ func preparedListUnknownEnumLabelFailsBeforeMutation() async throws {
 
 @Test("L24 scalar LIST children convert exactly and cross-family children stay rejected")
 func preparedListScalarChildFamilies() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     let epoch = Date(timeIntervalSince1970: 1_700_000_000)
     let day = try #require(PureDate(year: 2026, month: 2, day: 3))
@@ -439,7 +439,7 @@ func preparedListScalarChildFamilies() async throws {
 
 @Test("L14 nested LIST children are rejected before mutation")
 func nestedListChildIsRejected() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = DB.Table("list_value_nested_target")
     try await connection.execute(
@@ -471,7 +471,7 @@ func nestedListChildIsRejected() async throws {
 
 @Test("L14 STRUCT/MAP/UNION/fixed ARRAY LIST children stay unsupported")
 func compositeListChildTargetsAreRejected() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     let compositeTargets: [(String, Type)] = [
         ("fixed ARRAY", .array(.varchar, length: 2)),
@@ -737,7 +737,7 @@ private func enumDictionarySize(
 
 @Test("R01 repeated LIST prepared bind and Appender success/failure loops stay stable")
 func ownershipStressLoops() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = DB.Table("list_value_ownership")
     try await connection.execute(
@@ -881,7 +881,7 @@ private func createListUserSchema(on connection: Connection) async throws {
 
 @Test("L26 Connection insert returning exact arrays")
 func connectionInsertReturningExactArrays() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createListUserSchema(on: connection)
 
     let inserted = try await ListUser(
@@ -909,7 +909,7 @@ func connectionInsertReturningExactArrays() async throws {
 
 @Test("L26 Connection insert preserves NULL LIST elements")
 func connectionInsertPreservesNullListElements() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await connection.execute(
         SQL
             .create
@@ -936,7 +936,7 @@ func connectionInsertPreservesNullListElements() async throws {
 
 @Test("L27 Connection update carries exact arrays")
 func connectionUpdateCarriesExactArrays() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createListUserSchema(on: connection)
 
     let inserted = try await ListUser(
@@ -963,7 +963,7 @@ func connectionUpdateCarriesExactArrays() async throws {
 
 @Test("L28 Connection upsert carries exact arrays through the existing UPSERT path")
 func connectionUpsertCarriesExactArrays() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createListUserSchema(on: connection)
 
     _ = try await ListUser(id: 1, tags: ["first"], permissions: [.create]).insert(on: connection)
@@ -985,7 +985,7 @@ func connectionUpsertCarriesExactArrays() async throws {
 
 @Test("L29 Collection batchInsert through Appender carries exact arrays")
 func batchInsertCarriesExactArrays() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createListUserSchema(on: connection)
 
     try await [
@@ -1010,9 +1010,9 @@ func batchInsertCarriesExactArrays() async throws {
     #expect(batched[2].permissions == [])
 }
 
-@Test("L30 DatabaseIdentifier public target inserts and reads LIST properties")
+@Test("L30 Database public target inserts and reads LIST properties")
 func databaseIdentifierTarget() async throws {
-    let identifier = DatabaseIdentifier.memory()
+    let identifier = Database.memory()
 
     try await SQL
         .create
@@ -1063,7 +1063,7 @@ func databaseIdentifierTarget() async throws {
 
 @Test("L31 DuckTransaction insert/update/read then rollback proves no committed row")
 func transactionRollbackLeavesNoCommittedList() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     try await createListUserSchema(on: connection)
 
@@ -1113,7 +1113,7 @@ func transactionRollbackLeavesNoCommittedList() async throws {
 
 @Test("L31 LIST writes survive a committed transaction and stay visible")
 func listValueReadsInsideTransactionRollbackAreConsistent() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     try await createListUserSchema(on: connection)
 
@@ -1148,7 +1148,7 @@ func listValueReadsInsideTransactionRollbackAreConsistent() async throws {
 
 @Test("L32-L34 schema target, DEFAULT-vs-NULL and changed-field selection stay preserved")
 func persistenceSemanticsRemainUnchanged() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     try await createListUserSchema(on: connection)
 

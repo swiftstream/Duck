@@ -6,7 +6,7 @@ import Testing
 struct AppenderTransactionPublicAPITests {
     @Test("Public Transaction Appender commits rows through a table target")
     func publicTransactionAppenderCommitsTableRows() async throws {
-        let connection = try await DatabaseIdentifier.memory().connect()
+        let connection = try await Database.memory().connect()
         let table = DB.Table("public_transaction_appender_rows")
 
         try await connection.execute(
@@ -41,7 +41,7 @@ struct AppenderTransactionPublicAPITests {
 
     @Test("Public Transaction Appender commits through a schema-qualified target")
     func publicTransactionAppenderCommitsSchemaTarget() async throws {
-        let connection = try await DatabaseIdentifier.memory().connect()
+        let connection = try await Database.memory().connect()
         let schema = DB.Schema("public_transaction_schema")
         let table = schema.table("events")
 
@@ -70,7 +70,7 @@ struct AppenderTransactionPublicAPITests {
 
     @Test("Public Transaction Appender commits through a catalog-qualified target")
     func publicTransactionAppenderCommitsCatalogTarget() async throws {
-        let connection = try await DatabaseIdentifier.memory().connect()
+        let connection = try await Database.memory().connect()
         let catalogResult = try await connection.query(
             SQL.select(Fn.build(.custom("current_database"), body: []) => "catalog")
         )

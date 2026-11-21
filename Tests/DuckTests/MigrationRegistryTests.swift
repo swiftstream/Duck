@@ -82,7 +82,7 @@ struct MigrationRegistryTests {
     @Test("migration names are snapshotted once and never re-read")
     func migrationNamesAreSnapshottedOnce() async throws {
         try await confirmation("migration name getter", expectedCount: 1) { nameRead in
-            let database = try Database()
+            let database = try Database.Runtime()
             let migrator = database.migrator([
                 ConfirmingMigration(nameValue: "users.create", nameRead: nameRead)
             ])

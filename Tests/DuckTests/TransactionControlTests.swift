@@ -25,7 +25,7 @@ func preparedStatementsClassifyTransactionControl() throws {
 
 @Test("Connection rejects user transaction control before execution and remains reusable")
 func connectionRejectsUserTransactionControl() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
 
     do {

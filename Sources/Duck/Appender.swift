@@ -113,7 +113,7 @@ public final class Appender: Sendable {
     }
 }
 
-extension DatabaseIdentifier {
+extension Database {
     /// Creates a scoped Appender on a fresh Connection using the selected column order.
     public nonisolated(nonsending) func appender<Result>(
         to table: DB.Table,

@@ -43,7 +43,7 @@ private func expectStatementUnusable(
 struct ConnectionPoolStatementTests {
     @Test("ST01 prepare and reuse inside one active Pool lease")
     func prepareAndReuseInsideActiveLease() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
 
         try await pool.connection { connection in
             let statement = try await connection.prepare { parameters in
@@ -69,7 +69,7 @@ struct ConnectionPoolStatementTests {
 
     @Test("ST02 escaped pooled Statement expires outside its lease")
     func escapedStatementExpiresOutsideItsLease() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let statement = try await pool.connection { connection in
             let statement = try await connection.prepare { parameters in
                 SQL.select(
@@ -94,7 +94,7 @@ struct ConnectionPoolStatementTests {
 
     @Test("ST03 L1 Statement is unusable under later L2")
     func statementFromFirstLeaseIsUnusableUnderLaterLease() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let firstLease = try await pool.connection { connection in
             let statement = try await connection.prepare { parameters in
                 SQL.select(
@@ -133,7 +133,7 @@ struct ConnectionPoolStatementTests {
 
     @Test("ST04 standalone Statement remains reusable")
     func standaloneStatementRemainsReusable() async throws {
-        let connection = try Database().connect()
+        let connection = try Database.Runtime().connect()
         let statement = try await connection.prepare { parameters in
             SQL.select(
                 Fn.cast(parameters.parameter(), .integer) => "value"
@@ -158,7 +158,7 @@ struct ConnectionPoolStatementTests {
 
     @Test("ST05 Statement deinit after invalidation is harmless")
     func statementDeinitAfterInvalidationIsHarmless() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         var retainedStatement: Statement? = try await pool.connection { connection in
             let statement = try await connection.prepare { parameters in
                 SQL.select(

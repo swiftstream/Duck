@@ -143,7 +143,7 @@ private func startTransactionAttempt(
 }
 
 private func makeTransactionTestConnection() async throws -> (Connection, DB.Table) {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = DB.Table(TransactionTestItem.tableName)
 
@@ -204,7 +204,7 @@ func transactionCommitsAndPreservesBodyResult() async throws {
 
 @Test("Transaction preserves non-Sendable caller capture and generic result identity")
 func transactionPreservesNonSendableCallerState() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let box = TransactionCallerBox()
 
@@ -421,7 +421,7 @@ func transactionRejectsUserTransactionControl() async throws {
 
 @Test("Transaction body guards same Connection while allowing another Connection")
 func transactionBodyScopeGuardsConnectionIdentity() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connectionA = try database.connect()
     let connectionB = try database.connect()
 
@@ -470,7 +470,7 @@ func transactionBodyScopeGuardsConnectionIdentity() async throws {
 
 @Test("Second overlapping transaction is rejected while first body is live")
 func overlappingTransactionIsRejected() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let entered = TransactionTestSignal()
     let release = TransactionTestSignal()
@@ -499,7 +499,7 @@ func overlappingTransactionIsRejected() async throws {
 
 @Test("Second transaction is rejected while first reservation is pending behind ordinary work")
 func pendingTransactionIsRejected() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let bodyRan = TransactionBoolBox()
     let channel = TransactionAttemptChannel()
@@ -543,7 +543,7 @@ func pendingTransactionIsRejected() async throws {
 
 @Test("Escaped Transaction fails before later caller-local preparation")
 func escapedTransactionFailsBeforePreparation() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     var escaped: DuckTransaction?
 
@@ -568,7 +568,7 @@ func escapedTransactionFailsBeforePreparation() async throws {
 
 @Test("Stale inherited TaskLocal scope does not block later ordinary work")
 func staleInheritedTransactionScopeIsIgnored() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let release = TransactionTestSignal()
     var inheritedTask: Task<QueryResult, Error>?
@@ -626,7 +626,7 @@ func structuredChildrenShareTransaction() async throws {
 
 @Test("Unrelated ordinary work queues behind transaction outer lease")
 func ordinaryWorkQueuesBehindTransaction() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let entered = TransactionTestSignal()
     let release = TransactionTestSignal()
@@ -657,7 +657,7 @@ func ordinaryWorkQueuesBehindTransaction() async throws {
 
 @Test("Already-cancelled transaction performs no body work and leaves Connection reusable")
 func alreadyCancelledTransactionDoesNotBeginBody() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let bodyRan = TransactionBoolBox()
     let start = TransactionTestSignal()
@@ -772,7 +772,7 @@ func cancellationBeforeCommitRollsBack() async throws {
 
 @Test("Cancelled transaction waiter keeps FIFO place then exits before BEGIN body")
 func cancelledTransactionWaiterExitsAtBeginPreflight() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let bodyRan = TransactionBoolBox()
     let channel = TransactionAttemptChannel()
@@ -825,7 +825,7 @@ func cancelledTransactionWaiterExitsAtBeginPreflight() async throws {
 
 @Test("Terminal fail-close drains a proven pending transaction reservation")
 func failCloseDrainsPendingTransactionReservation() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let otherConnection = try database.connect()
     let bodyRan = TransactionBoolBox()

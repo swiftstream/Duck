@@ -1,17 +1,17 @@
 /// Runtime source retained by one migrator.
 private enum MigratorDatabaseSource: Sendable {
-    /// A public logical identifier resolved lazily when migration work begins.
-    case identifier(DatabaseIdentifier)
+    /// A public logical database value resolved lazily when migration work begins.
+    case identifier(Database)
     /// An internal exact runtime retained for regression coverage.
-    case database(Database)
+    case database(Database.Runtime)
 
     /// Resolves the live runtime used by this migration operation.
-    func resolve() async throws -> Database {
+    func resolve() async throws -> Database.Runtime {
         switch self {
         case .identifier(let identifier):
-            try await identifier.resolveDatabase()
-        case .database(let database):
-            database
+            try await identifier.resolveRuntime()
+        case .database(let runtime):
+            runtime
         }
     }
 }
@@ -21,14 +21,14 @@ public struct Migrator: Sendable {
     private let source: MigratorDatabaseSource
     private let migrations: [RegisteredMigration]
 
-    /// Creates the immutable identifier and migration snapshot used by the public factory.
-    init(identifier: DatabaseIdentifier, migrations: [any Migration]) {
+    /// Creates the immutable Database value and migration snapshot used by the public factory.
+    init(identifier: Database, migrations: [any Migration]) {
         source = .identifier(identifier)
         self.migrations = snapshotMigrations(migrations)
     }
 
     /// Creates an internal exact-runtime migration snapshot for regression coverage.
-    init(database: Database, migrations: [any Migration]) {
+    init(database: Database.Runtime, migrations: [any Migration]) {
         source = .database(database)
         self.migrations = snapshotMigrations(migrations)
     }

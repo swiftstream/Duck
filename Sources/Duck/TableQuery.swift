@@ -71,12 +71,12 @@ extension TableQuery {
 
 extension TableQuery {
     /// Executes this query on a fresh connection and decodes every row as `T`.
-    public nonisolated(nonsending) func all(on database: DatabaseIdentifier) async throws -> [T] {
+    public nonisolated(nonsending) func all(on database: Database) async throws -> [T] {
         try await selectStatement().all(decoding: T.self, on: database)
     }
 
     /// Executes this query on a fresh connection and decodes the first row as `T`, if present.
-    public nonisolated(nonsending) func first(on database: DatabaseIdentifier) async throws -> T? {
+    public nonisolated(nonsending) func first(on database: Database) async throws -> T? {
         try await selectStatement().first(decoding: T.self, on: database)
     }
 
@@ -103,7 +103,7 @@ extension TableQuery {
     /// Executes this query on a fresh connection and decodes every row as `Decoded`.
     public nonisolated(nonsending) func all<Decoded: Decodable>(
         decoding type: Decoded.Type,
-        on database: DatabaseIdentifier
+        on database: Database
     ) async throws -> [Decoded] {
         try await selectStatement().all(decoding: type, on: database)
     }
@@ -111,7 +111,7 @@ extension TableQuery {
     /// Executes this query on a fresh connection and decodes the first row as `Decoded`, if present.
     public nonisolated(nonsending) func first<Decoded: Decodable>(
         decoding type: Decoded.Type,
-        on database: DatabaseIdentifier
+        on database: Database
     ) async throws -> Decoded? {
         try await selectStatement().first(decoding: type, on: database)
     }
@@ -149,7 +149,7 @@ extension TableQuery {
     }
 
     /// Returns the cardinality of the rowset represented by this query.
-    public nonisolated(nonsending) func count(on database: DatabaseIdentifier) async throws -> Int64 {
+    public nonisolated(nonsending) func count(on database: Database) async throws -> Int64 {
         let result = try await countStatement().first(decoding: TableQueryCountResult.self, on: database)
         guard let result else {
             throw DatabaseError.invalidResult("TableQuery.count(on:) produced no aggregate result row.")
@@ -177,7 +177,7 @@ extension TableQuery {
 
     /// Deletes rows matching WHERE clauses, or all table rows when the query has no WHERE clause.
     @discardableResult
-    public nonisolated(nonsending) func delete(on database: DatabaseIdentifier) async throws -> UInt64 {
+    public nonisolated(nonsending) func delete(on database: Database) async throws -> UInt64 {
         try await deleteStatement().execute(on: database)
     }
 
@@ -200,13 +200,13 @@ extension Table {
         TableQuery()
     }
 
-    /// Returns all rows from this table using a fresh connection for the database identifier.
-    public static func all(on database: DatabaseIdentifier) async throws -> [Self] {
+    /// Returns all rows from this table using a fresh connection for the supplied database.
+    public static func all(on database: Database) async throws -> [Self] {
         try await Self.select.all(decoding: Self.self, on: database)
     }
 
     /// Returns the first row from this table using a fresh connection, or `nil` when it is empty.
-    public static func first(on database: DatabaseIdentifier) async throws -> Self? {
+    public static func first(on database: Database) async throws -> Self? {
         try await Self.select.first(decoding: Self.self, on: database)
     }
 

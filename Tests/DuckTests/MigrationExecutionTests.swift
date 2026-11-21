@@ -7,7 +7,7 @@ import Testing
 struct MigrationExecutionTests {
     @Test("fresh pending migrations return batch one and share it in caller order")
     func freshPendingMigrationsReturnBatchOneAndShareItInCallerOrder() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let order = ExecutionOrder()
         let migrations = [
             executionMigration(name: "third", order: order),
@@ -28,7 +28,7 @@ struct MigrationExecutionTests {
 
     @Test("representative DDL and DML commit with exact history")
     func representativeDDLAndDMLCommitWithExactHistory() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let migration = tableMigration(name: "values") { transaction in
             try await createValuesTable(on: transaction)
             try await insertValue("seven", on: transaction)
@@ -48,7 +48,7 @@ struct MigrationExecutionTests {
 
     @Test("a later up failure rolls back the complete pending batch")
     func laterUpFailureRollsBackTheCompletePendingBatch() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let first = tableMigration(name: "first") { transaction in
             try await createValuesTable(on: transaction)
             try await insertValue("first", on: transaction)
@@ -69,7 +69,7 @@ struct MigrationExecutionTests {
 
     @Test("custom up error identity is preserved after successful rollback")
     func customUpErrorIdentityIsPreservedAfterSuccessfulRollback() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let expected = ExecutionError.failed(code: 202)
         let migration = tableMigration(name: "custom failure") { transaction in
             try await createValuesTable(on: transaction)
@@ -88,7 +88,7 @@ struct MigrationExecutionTests {
 
     @Test("framework history insert failure rolls back the whole batch")
     func frameworkHistoryInsertFailureRollsBackTheWholeBatch() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let migration = ExecutionMigration(name: "history conflict", up: { transaction in
             try await createValuesTable(on: transaction)
             try await insertValue("body", on: transaction)
@@ -112,7 +112,7 @@ struct MigrationExecutionTests {
 
     @Test("a no-pending rerun does no body work and creates no batch")
     func noPendingRerunDoesNoBodyWorkAndCreatesNoBatch() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let count = ExecutionCount()
         let migration = ExecutionMigration(name: "once", up: { _ in
             await count.increment()
@@ -130,7 +130,7 @@ struct MigrationExecutionTests {
 
     @Test("inserted and reordered names use name-only pending semantics")
     func insertedAndReorderedNamesUseNameOnlyPendingSemantics() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let runs = ExecutionOrder()
         let first = executionMigration(name: "first", order: runs)
         let last = executionMigration(name: "last", order: runs)
@@ -149,7 +149,7 @@ struct MigrationExecutionTests {
 
     @Test("an applied historical source missing from the registry does not block forward work")
     func appliedHistoricalSourceMissingFromRegistryDoesNotBlockForwardWork() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let historical = ExecutionMigration(name: "retired")
         let current = ExecutionMigration(name: "current")
 
@@ -162,7 +162,7 @@ struct MigrationExecutionTests {
 
     @Test("a later explicit run proceeds after an ordinary up failure")
     func laterExplicitRunProceedsAfterOrdinaryUpFailure() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let failing = ExecutionMigration(name: "recover", up: { _ in
             throw ExecutionError.failed(code: 203)
         })
@@ -180,7 +180,7 @@ struct MigrationExecutionTests {
 
     @Test("cancellation during up rolls back and releases migration coordination")
     func cancellationDuringUpRollsBackAndReleasesMigrationCoordination() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let entered = ExecutionSignal()
         let gate = ExecutionGate()
         let migration = ExecutionMigration(name: "cancellable", up: { transaction in
@@ -210,7 +210,7 @@ struct MigrationExecutionTests {
 
     @Test("public migration applied_at is non-NULL and codec-exact")
     func publicMigrationAppliedAtIsNonNullAndCodecExact() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         #expect(try await database.migrator([ExecutionMigration(name: "timestamp")]).migrate() == 1)
 
         let connection = try database.connect()
@@ -221,7 +221,7 @@ struct MigrationExecutionTests {
 
     @Test("history id overflow is preflighted before up body mutation")
     func historyIDOverflowIsPreflightedBeforeUpBodyMutation() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         try await MigrationHistory.bootstrap(on: connection)
         try await connection.transaction { transaction in

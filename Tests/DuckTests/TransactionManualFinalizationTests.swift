@@ -4,7 +4,7 @@ import SQL
 import Testing
 
 private struct ManualTransactionContext {
-    let database: Database
+    let database: Database.Runtime
     let connection: Connection
     let table: DB.Table
 }
@@ -72,7 +72,7 @@ private actor ManualTransactionTaskRunner {
 #endif
 
 private func makeManualTransactionContext() async throws -> ManualTransactionContext {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let name = "manual_transaction_" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
     let table = DB.Table(name)
@@ -134,7 +134,7 @@ private func expectEnded(
 }
 
 private func drainObservationSignals(
-    _ database: Database,
+    _ database: Database.Runtime,
     operation: () async throws -> Void
 ) async throws -> Int {
     let registration = await database.observationCoordinator.register(initial: .tables([]))

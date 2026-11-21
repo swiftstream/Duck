@@ -286,7 +286,7 @@ private func captureEncodingError<T: Encodable>(for value: T) -> EncodingError? 
 
 @Test("ST03-ST06 prepared STRUCT uses parent target, exact names, order and NULL members")
 func preparedStructNameAuthoritativeRoundTrip() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let date = Date(timeIntervalSince1970: 1_700_000_000)
     let reversed = Value.structure([
         .init(name: "last_password_change_date", value: .timestampTZ(date)),
@@ -310,7 +310,7 @@ func preparedStructNameAuthoritativeRoundTrip() async throws {
 
 @Test("ST07-ST10 prepared STRUCT rejects duplicate, missing, unknown and wrong members")
 func preparedStructRejectsInvalidMembers() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let badValues: [Value] = [
         .structure([
             .init(name: "two_factor_auth_enabled", value: .boolean(true)),
@@ -453,7 +453,7 @@ func appenderStructPreflightAndRetry() throws {
 
 @Test("ST15 scalar STRUCT member census covers native families, widths, DECIMAL and ENUM")
 func structScalarMemberCensus() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await connection.execute(
         SQL.create.type[any: DB.Object(structuredEnumName)].as.enum(["read", "write"])
     )
@@ -500,7 +500,7 @@ func structScalarMemberCensus() async throws {
 
 @Test("ST16 unsupported composite STRUCT child targets reject before scalar construction")
 func nestedStructChildTargetsReject() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let targets: [(String, Type)] = [
         ("nested", .struct(("value", .varchar))),
         ("list", .list(.varchar)),
@@ -618,7 +618,7 @@ private struct HasStructuredAccountOptions: Decodable, Sendable {
 
 @Test("ST31-ST34 Connection persistence covers insert, update, upsert and batch Appender")
 func connectionStructPersistenceSurfaces() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createStructuredAccountSchema(on: connection)
 
     let original = try await StructuredAccount(id: 1, options: accountOptions(true, nil)).insert(on: connection)
@@ -649,9 +649,9 @@ func connectionStructPersistenceSurfaces() async throws {
     ])
 }
 
-@Test("ST35 DatabaseIdentifier target stores and reads an AccountOptions STRUCT")
+@Test("ST35 Database target stores and reads an AccountOptions STRUCT")
 func databaseIdentifierStructPersistence() async throws {
-    let identifier = DatabaseIdentifier.memory()
+    let identifier = Database.memory()
     try await SQL
         .create
         .table[any: structuredAccountTable]
@@ -674,7 +674,7 @@ func databaseIdentifierStructPersistence() async throws {
 
 @Test("ST36 STRUCT mutation rolls back with DuckTransaction")
 func structTransactionRollback() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createStructuredAccountSchema(on: connection)
 
     do {
@@ -699,7 +699,7 @@ func structTransactionRollback() async throws {
 
 @Test("ST37-ST38 schema target, DEFAULT-vs-NULL and unrelated changed fields stay exact")
 func structSchemaDefaultNullAndChangedFields() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createStructuredAccountSchema(on: connection)
 
     _ = try await StructuredAccount(id: 10, options: accountOptions(true, nil)).insert(on: connection)

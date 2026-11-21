@@ -36,7 +36,7 @@ private func observationPublicNextValueThenUnresolvedQuery(
 
 private func expectObservationReadOnlyRejection(
     _ query: any SQLable,
-    on database: DatabaseIdentifier
+    on database: Database
 ) async throws {
     let observation = try database.observe(query)
     var iterator = observation.makeAsyncIterator()
@@ -52,7 +52,7 @@ private func expectObservationReadOnlyRejection(
 struct ObservationPublicAPITests {
     @Test("Public observation API is nameable, reusable, and iterable")
     func publicObservationAPI() async throws {
-        let database = DatabaseIdentifier.memory()
+        let database = Database.memory()
         let query = SQL.select(Int32(42) => "value")
         let first: QueryObservation = try database.observe(query)
         let second: QueryObservation = try query.observe(on: database)
@@ -70,7 +70,7 @@ struct ObservationPublicAPITests {
 
     @Test("Public direct nextval observation reports the semantic error without advancing")
     func publicNextvalRejection() async throws {
-        let database = DatabaseIdentifier.memory()
+        let database = Database.memory()
         let connection = try await database.connect()
         try await connection.execute(
             SQL
@@ -95,7 +95,7 @@ struct ObservationPublicAPITests {
 
     @Test("Unresolved parameters never hide later nextval side effects")
     func unresolvedParameterOrderingRejectsBeforeExecution() async throws {
-        let database = DatabaseIdentifier.memory()
+        let database = Database.memory()
         let connection = try await database.connect()
         let sequenceName = "observation_public_unresolved_sequence"
         try await connection.execute(

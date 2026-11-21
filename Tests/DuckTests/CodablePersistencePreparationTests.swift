@@ -207,7 +207,7 @@ func nativeExactValueCapture() throws {
 
 @Test("Decoded fields extract exact Values, NULL, and isChanged false")
 func decodedStateExtraction() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = PersistenceUser.table
 
     try await SQL

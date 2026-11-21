@@ -120,7 +120,7 @@ private func makePublicTransactionNote(
 
 @Test("Normal-import public API proves all four Transaction persistence overloads")
 func normalImportPublicTransactionAPICRUD() async throws {
-    let connection = try await DatabaseIdentifier.memory().connect()
+    let connection = try await Database.memory().connect()
 
     try await CreateTableBuilder<PublicTransactionNote>()
         .checkIfNotExists()
@@ -291,7 +291,7 @@ private func createPublicTransactionUpsertTable(on connection: Connection) async
 
 @Test("Normal-import UPSERT on Transaction proves commit and rollback of conflict UPDATE branch")
 func normalImportPublicTransactionAPIUpsert() async throws {
-    let connection = try await DatabaseIdentifier.memory().connect()
+    let connection = try await Database.memory().connect()
     try await createPublicTransactionUpsertTable(on: connection)
 
     // Commit branch: UPSERT insert then conflict update inside a managed transaction.

@@ -1,6 +1,6 @@
 /// A reusable latest successful state observation for one query and logical database.
 ///
-/// This is not an event log. Identifier-backed observations resolve the canonical
+/// This is not an event log. Database-backed observations resolve the canonical
 /// registered runtime lazily when an iterator starts, suppress equal `QueryResult`
 /// values, and may coalesce or drop intermediate states. Each iterator owns an
 /// independent private `Connection`. An iterator failure terminates only that
@@ -11,15 +11,15 @@ public struct QueryObservation: AsyncSequence, Sendable {
     public typealias Element = QueryResult
 
     fileprivate enum Source: Sendable {
-        case identifier(DatabaseIdentifier)
-        case database(Database)
+        case identifier(Database)
+        case database(Database.Runtime)
 
-        func resolve() async throws -> Database {
+        func resolve() async throws -> Database.Runtime {
             switch self {
             case .identifier(let identifier):
-                try await identifier.resolveDatabase()
-            case .database(let database):
-                database
+                try await identifier.resolveRuntime()
+            case .database(let runtime):
+                runtime
             }
         }
     }
@@ -27,14 +27,14 @@ public struct QueryObservation: AsyncSequence, Sendable {
     private let source: Source
     private let snapshot: PreparedQuerySnapshot
 
-    /// Binds a public reusable observation to one logical identifier and immutable snapshot.
-    init(identifier: DatabaseIdentifier, snapshot: PreparedQuerySnapshot) {
+    /// Binds a public reusable observation to one logical Database value and immutable snapshot.
+    init(identifier: Database, snapshot: PreparedQuerySnapshot) {
         source = .identifier(identifier)
         self.snapshot = snapshot
     }
 
     /// Binds an internal reusable observation to one exact runtime and immutable snapshot.
-    init(database: Database, snapshot: PreparedQuerySnapshot) {
+    init(database: Database.Runtime, snapshot: PreparedQuerySnapshot) {
         source = .database(database)
         self.snapshot = snapshot
     }
@@ -79,7 +79,7 @@ public struct QueryObservation: AsyncSequence, Sendable {
             snapshot: PreparedQuerySnapshot,
             continuation: AsyncThrowingStream<QueryResult, Error>.Continuation
         ) async {
-            var database: Database?
+            var database: Database.Runtime?
             var registration: ObservationRegistration?
             var lastEmitted: QueryResult?
 

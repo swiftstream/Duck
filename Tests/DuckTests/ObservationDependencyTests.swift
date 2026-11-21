@@ -157,8 +157,8 @@ struct ObservationDependencyTests {
 
     @Test("Coordinator registrations update, coalesce, finish, and remain database-local")
     func coordinatorRegistrationsUpdateCoalesceFinishAndRemainDatabaseLocal() async throws {
-        let firstDatabase = try Database()
-        let secondDatabase = try Database()
+        let firstDatabase = try Database.Runtime()
+        let secondDatabase = try Database.Runtime()
         let users = try #require(ObservationTableName(binderName: "main.users"))
         let logs = try #require(ObservationTableName(binderName: "main.logs"))
 

@@ -60,7 +60,7 @@ private func makeStatementTransactionTable(
 
 @Test("Reusable Statements execute repeatedly inside one Transaction and remain reusable after commit")
 func reusableStatementsExecuteInsideTransactionAndAfterCommit() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeStatementTransactionTable(
         on: connection,
         named: "statement transaction commit"
@@ -95,7 +95,7 @@ func reusableStatementsExecuteInsideTransactionAndAfterCommit() async throws {
 
 @Test("Statement and Transaction owner mismatch rejects without poisoning unrelated Transaction")
 func statementTransactionOwnerMismatchDoesNotPoisonTransaction() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connectionA = try database.connect()
     let connectionB = try database.connect()
     let statementA = try await connectionA.prepare { parameters in
@@ -121,7 +121,7 @@ func statementTransactionOwnerMismatchDoesNotPoisonTransaction() async throws {
 
 @Test("Statement wrong argument count registers first and makes Transaction rollback-only")
 func statementWrongArgumentCountMakesTransactionRollbackOnly() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -153,7 +153,7 @@ func statementWrongArgumentCountMakesTransactionRollbackOnly() async throws {
 
 @Test("Unsupported Statement Transaction argument registers first and becomes rollback-only")
 func unsupportedStatementTransactionArgumentMakesRollbackOnly() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -194,7 +194,7 @@ func unsupportedStatementTransactionArgumentMakesRollbackOnly() async throws {
 
 @Test("Caught native Statement failure prevents false commit and preserves first rollback-only reason")
 func caughtNativeStatementFailurePreventsFalseCommit() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeStatementTransactionTable(
         on: connection,
         named: "statement transaction rollback"
@@ -249,7 +249,7 @@ func caughtNativeStatementFailurePreventsFalseCommit() async throws {
 
 @Test("Concurrent calls to one Statement inside Transaction preserve isolated bindings")
 func concurrentStatementTransactionCallsPreserveBindings() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -280,7 +280,7 @@ func concurrentStatementTransactionCallsPreserveBindings() async throws {
 
 @Test("Statement Transaction variants accept naked nil and stay reusable")
 func statementTransactionVariantsAcceptNakedNil() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -322,7 +322,7 @@ func statementTransactionVariantsAcceptNakedNil() async throws {
 
 @Test("Finalized Transaction rejects later reusable Statement execution")
 func finalizedTransactionRejectsReusableStatement() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -345,7 +345,7 @@ func finalizedTransactionRejectsReusableStatement() async throws {
 
 @Test("Cancelled Statement Transaction operation records cancellation rollback-only")
 func cancelledStatementTransactionOperationMakesRollbackOnly() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -382,7 +382,7 @@ func cancelledStatementTransactionOperationMakesRollbackOnly() async throws {
 
 @Test("Another Connection remains independent during reusable Statement Transaction work")
 func separateConnectionRemainsIndependentDuringStatementTransaction() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connectionA = try database.connect()
     let connectionB = try database.connect()
     let statementA = try await connectionA.prepare { parameters in

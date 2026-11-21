@@ -243,7 +243,7 @@ private struct AppenderFinalizationSuccess: Sendable {
 public actor Connection {
     nonisolated let id: ConnectionId
 
-    private let database: Database
+    private let database: Database.Runtime
     private let nativeConnection: NativeConnection
     private var usability: ConnectionUsability = .usable
     private var poolLeaseState: ConnectionPoolLeaseStateMachine
@@ -260,7 +260,7 @@ public actor Connection {
 
     /// Creates a standalone Connection or one idle Connection owned by the supplied Pool identity.
     init(
-        database: Database,
+        database: Database.Runtime,
         nativeDatabase: NativeDatabase,
         poolID: ConnectionPoolID? = nil
     ) throws {

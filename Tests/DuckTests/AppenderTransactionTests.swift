@@ -64,7 +64,7 @@ private func rowCount(
 
 @Test("Connection Appender remains excluded from a live Transaction")
 func ordinaryConnectionAppenderRemainsExcludedInsideTransaction() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeAppenderTransactionTable(
         on: connection,
         named: "transaction_appender_ordinary_exclusion",
@@ -87,7 +87,7 @@ func ordinaryConnectionAppenderRemainsExcludedInsideTransaction() async throws {
 
 @Test("Transaction Appender recovers from all deterministic preflight row failures")
 func transactionAppenderRecoversPhaseOneRowFailures() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeAppenderTransactionTable(
         on: connection,
         named: "transaction_appender_phase_one",
@@ -143,7 +143,7 @@ func transactionAppenderRecoversPhaseOneRowFailures() async throws {
 
 @Test("Uncaught Transaction Appender body error rolls back and preserves its identity")
 func uncaughtTransactionAppenderBodyErrorRollsBack() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeAppenderTransactionTable(
         on: connection,
         named: "transaction_appender_uncaught_body",
@@ -174,7 +174,7 @@ func uncaughtTransactionAppenderBodyErrorRollsBack() async throws {
 
 @Test("Caught arbitrary Transaction Appender error prevents false COMMIT")
 func caughtArbitraryTransactionAppenderErrorPreventsFalseCommit() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeAppenderTransactionTable(
         on: connection,
         named: "transaction_appender_caught_body",
@@ -212,7 +212,7 @@ func caughtArbitraryTransactionAppenderErrorPreventsFalseCommit() async throws {
 
 @Test("Caught typed Transaction Appender failure preserves its first reason")
 func caughtTypedTransactionAppenderFailurePreservesFirstReason() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeAppenderTransactionTable(
         on: connection,
         named: "transaction_appender_caught_typed",
@@ -244,7 +244,7 @@ func caughtTypedTransactionAppenderFailurePreservesFirstReason() async throws {
 
 @Test("Transaction Appender finalization failure remains rollback-only")
 func transactionAppenderFinalizationFailureRollsBack() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeAppenderTransactionTable(
         on: connection,
         named: "transaction_appender_finalization",
@@ -287,7 +287,7 @@ func transactionAppenderFinalizationFailureRollsBack() async throws {
 
 @Test("Transaction Appender isolates uncommitted rows across Connections")
 func transactionAppenderIsolatesAcrossConnections() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connectionA = try database.connect()
     let connectionB = try database.connect()
     let table = try await makeAppenderTransactionTable(
@@ -325,7 +325,7 @@ func transactionAppenderIsolatesAcrossConnections() async throws {
 
 @Test("Inherited Transaction query and execute are rejected without poisoning")
 func inheritedTransactionQueryAndExecuteAreRejectedWithoutPoisoning() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeAppenderTransactionTable(
         on: connection,
         named: "transaction_appender_query_guards",
@@ -361,7 +361,7 @@ func inheritedTransactionQueryAndExecuteAreRejectedWithoutPoisoning() async thro
 
 @Test("Inherited transaction-bound Statements are rejected without poisoning")
 func inheritedTransactionBoundStatementsAreRejectedWithoutPoisoning() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeAppenderTransactionTable(
         on: connection,
         named: "transaction_appender_statement_guards",
@@ -405,7 +405,7 @@ func inheritedTransactionBoundStatementsAreRejectedWithoutPoisoning() async thro
 
 @Test("Nested Transaction Appender is rejected without poisoning the outer scope")
 func nestedTransactionAppenderIsRejectedWithoutPoisoning() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeAppenderTransactionTable(
         on: connection,
         named: "transaction_appender_nested",
@@ -431,7 +431,7 @@ func nestedTransactionAppenderIsRejectedWithoutPoisoning() async throws {
 
 @Test("Pre-created external sibling succeeds after Transaction Appender scope")
 func precreatedExternalSiblingSucceedsAfterTransactionAppenderScope() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeAppenderTransactionTable(
         on: connection,
         named: "transaction_appender_external_sibling",
@@ -463,7 +463,7 @@ func precreatedExternalSiblingSucceedsAfterTransactionAppenderScope() async thro
 
 @Test("Structured concurrent Transaction Appender rows preserve correlation")
 func structuredConcurrentTransactionAppenderRowsPreserveCorrelation() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeAppenderTransactionTable(
         on: connection,
         named: "transaction_appender_correlated_rows",
@@ -506,7 +506,7 @@ func structuredConcurrentTransactionAppenderRowsPreserveCorrelation() async thro
 
 @Test("Escaped Transaction Appender rejects use after scope end")
 func escapedTransactionAppenderRejectsAfterScopeEnd() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeAppenderTransactionTable(
         on: connection,
         named: "transaction_appender_escaped",
@@ -532,7 +532,7 @@ func escapedTransactionAppenderRejectsAfterScopeEnd() async throws {
 
 @Test("Separate Connection remains independent during live Transaction Appender")
 func separateConnectionRemainsIndependentDuringLiveTransactionAppender() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connectionA = try database.connect()
     let connectionB = try database.connect()
     let table = try await makeAppenderTransactionTable(
@@ -574,7 +574,7 @@ func separateConnectionRemainsIndependentDuringLiveTransactionAppender() async t
 
 @Test("Finalized Transaction rejects later Transaction Appender")
 func finalizedTransactionRejectsLaterTransactionAppender() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeAppenderTransactionTable(
         on: connection,
         named: "transaction_appender_finalized_transaction",
@@ -600,7 +600,7 @@ func finalizedTransactionRejectsLaterTransactionAppender() async throws {
 
 @Test("Caught fail-closed Transaction Appender failure still rolls back and ends reservation")
 func caughtFailClosedTransactionAppenderFailureForcesRollback() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connectionA = try database.connect()
     let connectionB = try database.connect()
     let table = try await makeAppenderTransactionTable(
@@ -645,7 +645,7 @@ func caughtFailClosedTransactionAppenderFailureForcesRollback() async throws {
 
 @Test("Stored rollback-only Appender reason outranks later fail-close")
 func storedRollbackOnlyAppenderReasonOutranksLaterFailClose() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connectionA = try database.connect()
     let connectionB = try database.connect()
     let table = try await makeAppenderTransactionTable(
@@ -695,7 +695,7 @@ func storedRollbackOnlyAppenderReasonOutranksLaterFailClose() async throws {
 
 @Test("Terminal Transaction Appender native failure remains the first truth")
 func terminalTransactionAppenderNativeFailureRemainsFirstTruth() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("transaction_appender_terminal_failure")
     _ = try await connection.execute(
         SQL
@@ -773,7 +773,7 @@ func terminalTransactionAppenderNativeFailureRemainsFirstTruth() async throws {
 
 @Test("205000 Transaction Appender rows roll back after a caught body error")
 func transactionAppenderAutoFlushRowsRollbackAfterCaughtBodyError() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeAppenderTransactionTable(
         on: connection,
         named: "transaction_appender_auto_flush_rollback",
@@ -816,7 +816,7 @@ func transactionAppenderAutoFlushRowsRollbackAfterCaughtBodyError() async throws
 
 @Test("Transaction Appender self-cancellation remains rollback-only")
 func transactionAppenderCancellationRemainsRollbackOnly() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = try await makeAppenderTransactionTable(
         on: connection,
         named: "transaction_appender_cancellation",

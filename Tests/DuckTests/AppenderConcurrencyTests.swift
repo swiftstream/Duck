@@ -5,7 +5,7 @@ import Testing
 
 @Test("Appender persists many complete rows across native chunks")
 func appenderPersistsManyCompleteRows() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("appender_many_rows")
     try await connection.execute(
         SQL
@@ -39,7 +39,7 @@ func appenderPersistsManyCompleteRows() async throws {
 
 @Test("Public Appender preserves the complete current value family")
 func publicAppenderPreservesCompleteValueFamily() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("appender_value_family")
     _ = try await connection.execute(
         SQL
@@ -165,7 +165,7 @@ func publicAppenderPreservesCompleteValueFamily() async throws {
 
 @Test("Appender end-row auto-flush failure is terminal without a fake column")
 func appenderRowCompletionFailureIsTerminal() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("appender_row_completion")
     _ = try await connection.execute(
         SQL
@@ -228,7 +228,7 @@ func appenderRowCompletionFailureIsTerminal() async throws {
 
 @Test("Actor-side cancellation before Appender row mutation leaves the row untouched")
 func actorSideAppenderCancellationLeavesRowUntouched() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("appender_actor_cancel")
     try await connection.execute(
         SQL
@@ -271,7 +271,7 @@ func actorSideAppenderCancellationLeavesRowUntouched() async throws {
 
 @Test("Cancellation before Appender close aborts buffered data and releases the Connection")
 func appenderCancellationBeforeCloseAbortsBufferedData() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("appender_close_cancel")
     try await connection.execute(
         SQL
@@ -308,7 +308,7 @@ func appenderCancellationBeforeCloseAbortsBufferedData() async throws {
 
 @Test("Concurrent Appender calls preserve complete-row atomicity")
 func concurrentAppenderCallsPreserveRowAtomicity() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("appender_concurrent_rows")
     try await connection.execute(
         SQL
@@ -356,7 +356,7 @@ func concurrentAppenderCallsPreserveRowAtomicity() async throws {
 
 @Test("Fail-closed Connection dominates live Appender actor entry")
 func failClosedConnectionDominatesLiveAppender() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("appender_fail_closed")
     try await connection.execute(
         SQL

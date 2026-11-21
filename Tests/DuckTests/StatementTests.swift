@@ -90,7 +90,7 @@ func directStatementTemplateRejectsEscapedBoundParameter() throws {
 func statementSendabilityAndSingleParameter() async throws {
     requireSendable(Statement.self)
 
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters -> any SQLable in
         let value = parameters.parameter()
         return SQL.select(Fn.cast(value, .integer) => "value")
@@ -103,7 +103,7 @@ func statementSendabilityAndSingleParameter() async throws {
 
 @Test("Statement parameter creation order is independent from SQL occurrence order")
 func statementParameterCreationOrderIsIndependentFromOccurrenceOrder() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         let first = parameters.parameter()
         let second = parameters.parameter()
@@ -122,7 +122,7 @@ func statementParameterCreationOrderIsIndependentFromOccurrenceOrder() async thr
 
 @Test("Repeated logical parameter maps every SQL slot to one dynamic argument")
 func repeatedStatementParameterUsesOneDynamicArgument() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         let value = parameters.parameter()
         return SQL.select(
@@ -140,7 +140,7 @@ func repeatedStatementParameterUsesOneDynamicArgument() async throws {
 
 @Test("Fixed and dynamic bindings preserve exact native slot order")
 func fixedAndDynamicStatementBindingOrder() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         let value = parameters.parameter()
         return SQL.select(
@@ -158,7 +158,7 @@ func fixedAndDynamicStatementBindingOrder() async throws {
 
 @Test("Direct prepare installs a zero-dynamic fixed template")
 func directStatementPrepareHasZeroDynamicArguments() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare(
         SQL.select(Fn.cast(Int32(42), .integer) => "value")
     )
@@ -173,7 +173,7 @@ func directStatementPrepareHasZeroDynamicArguments() async throws {
 
 @Test("Unused Statement.Parameter is rejected")
 func unusedStatementParameterIsRejected() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     do {
         _ = try await connection.prepare { parameters in
@@ -191,7 +191,7 @@ func unusedStatementParameterIsRejected() async throws {
 
 @Test("Foreign Statement.Parameter is rejected")
 func foreignStatementParameterIsRejected() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     var foreignParameter: Statement.Parameter?
 
     do {
@@ -223,7 +223,7 @@ func foreignStatementParameterIsRejected() async throws {
 
 @Test("Foreign inline Statement.Parameter is rejected before Duck rendering hides it")
 func foreignInlineStatementParameterIsRejected() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     var foreignParameter: Statement.Parameter?
 
     do {
@@ -265,7 +265,7 @@ func foreignInlineStatementParameterIsRejected() async throws {
 
 @Test("Star-pattern inline Statement.Parameter is rejected")
 func starPatternStatementParameterIsRejected() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     do {
         _ = try await connection.prepare { parameters in
@@ -283,7 +283,7 @@ func starPatternStatementParameterIsRejected() async throws {
 
 @Test("Sampling inline Statement.Parameter is rejected")
 func samplingStatementParameterIsRejected() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     do {
         _ = try await connection.prepare { parameters in
@@ -308,7 +308,7 @@ func samplingStatementParameterIsRejected() async throws {
 
 @Test("Mixed bound and inline occurrences of one Statement.Parameter are rejected")
 func mixedBoundAndInlineStatementParameterIsRejected() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     do {
         _ = try await connection.prepare { parameters in
@@ -329,7 +329,7 @@ func mixedBoundAndInlineStatementParameterIsRejected() async throws {
 
 @Test("Unsupported fixed template value is rejected before installation")
 func unsupportedFixedStatementValueIsRejected() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     do {
         _ = try await connection.prepare(
@@ -346,7 +346,7 @@ func unsupportedFixedStatementValueIsRejected() async throws {
 
 @Test("User transaction-control statement cannot be prepared for reuse")
 func transactionControlStatementCannotBePreparedForReuse() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     do {
         _ = try await connection.prepare(SQL.begin)
@@ -358,7 +358,7 @@ func transactionControlStatementCannotBePreparedForReuse() async throws {
 
 @Test("Prepare inside live transaction scope rejects before builder side effects")
 func statementPrepareRejectsTransactionScopeBeforeBuilderRuns() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     var builderRan = false
 
     try await connection.transaction { _ in
@@ -378,7 +378,7 @@ func statementPrepareRejectsTransactionScopeBeforeBuilderRuns() async throws {
 
 @Test("Manual placeholder mismatch is rejected as an adapter invariant")
 func reusableStatementParameterCountMismatchIsRejected() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     do {
         _ = try await connection.prepare(SQL.select(SQL.raw("$1")))
@@ -393,7 +393,7 @@ func reusableStatementParameterCountMismatchIsRejected() async throws {
 
 @Test("Statement operation lifetime helper survives suspension")
 func statementOperationLifetimeHelperSurvivesSuspension() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare(
         SQL.select(Fn.cast(Int32(1), .integer) => "value")
     )
@@ -410,7 +410,7 @@ func statementOperationLifetimeHelperSurvivesSuspension() async throws {
 
 @Test("Statement strongly retains its originating Connection and Database")
 func statementRetainsOriginatingConnectionAndDatabase() async throws {
-    var database: Database? = try Database()
+    var database: Database.Runtime? = try Database.Runtime()
     weak let weakDatabase = database
     var connection: Connection? = try database?.connect()
     weak let weakConnection = connection

@@ -12,7 +12,7 @@ private enum ObservationAppenderBodyError: Error, Equatable, Sendable {
 }
 
 private struct ObservationAppenderContext {
-    let database: Database
+    let database: Database.Runtime
     let connection: Connection
     let table: DB.Table
 }
@@ -25,7 +25,7 @@ private func makeAppenderContext(
     prefix: String,
     columns: [NewColumn] = [NewColumn("id", .integer)]
 ) async throws -> ObservationAppenderContext {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = DB.Table(uniqueTableName(prefix))
     try await connection.execute(
@@ -75,7 +75,7 @@ private func appendRows(
 }
 
 private func drainSignals(
-    _ database: Database,
+    _ database: Database.Runtime,
     operation: () async throws -> Void
 ) async throws -> Int {
     let registration = await database.observationCoordinator.register(initial: .database)
@@ -99,7 +99,7 @@ private func drainSignals(
 
 /// Unregisters first so a zero-signal assertion never blocks on a live stream.
 private func drainAfterUnregister(
-    _ database: Database,
+    _ database: Database.Runtime,
     registrationID: ObservationSubscriptionID,
     iterator: inout AsyncStream<Void>.Iterator
 ) async -> Int {
@@ -396,7 +396,7 @@ struct ObservationAppenderTests {
 
     @Test("OA08 fully-qualified target selectivity across two tables")
     func oa08ExactTargetSelectivityAcrossTwoTables() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let catalog = try await currentCatalog(on: connection)
         let nameA = uniqueTableName("oa08_a")
@@ -452,7 +452,7 @@ struct ObservationAppenderTests {
 
     @Test("OA09 real QueryObservation mixed-case bare/schema/catalog qualification closure")
     func oa09QueryObservationQualificationClosure() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let catalog = "memory"
         let tableName = "Oa09_MiXeD_Table"
@@ -542,7 +542,7 @@ struct ObservationAppenderTests {
 
     @Test("OA10 unsafe fully-qualified Appender target falls back Database-wide")
     func oa10UnsafeTargetFallsBackDatabaseWide() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let catalog = try await currentCatalog(on: connection)
         let unsafeName = "oa10 unsafe target table"
@@ -634,7 +634,7 @@ struct ObservationAppenderTests {
 
     @Test("OA12 ordinary non-preflight threshold row failure publishes conservatively")
     func oa12OrdinaryThresholdRowFailurePublishesConservatively() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let table = DB.Table(uniqueTableName("oa12"))
         _ = try await connection.execute(
@@ -709,7 +709,7 @@ struct ObservationAppenderTests {
 
     @Test("OA13 ordinary finalization failure publishes conservatively")
     func oa13OrdinaryFinalizationFailurePublishesConservatively() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let table = DB.Table(uniqueTableName("oa13"))
         try await connection.execute(
@@ -999,7 +999,7 @@ struct ObservationAppenderTests {
     }
     @Test("OA20 transaction fully-qualified target selectivity on COMMIT")
     func oa20TransactionExactTargetSelectivityOnCommit() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let catalog = try await currentCatalog(on: connection)
         let nameA = uniqueTableName("oa20_a")
@@ -1055,7 +1055,7 @@ struct ObservationAppenderTests {
 
     @Test("OA21 multiple fully-qualified Transaction Appender targets merge")
     func oa21MultipleTransactionAppenderTargetsMerge() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let catalog = try await currentCatalog(on: connection)
         let nameA = uniqueTableName("oa21_a")
@@ -1119,7 +1119,7 @@ struct ObservationAppenderTests {
 
     @Test("OA22 unsafe fully-qualified Transaction Appender target falls back Database-wide")
     func oa22UnsafeTransactionAppenderTargetFallsBackDatabaseWide() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let catalog = try await currentCatalog(on: connection)
         let unsafeName = "oa22 unsafe target table"
@@ -1245,7 +1245,7 @@ struct ObservationAppenderTests {
     @Test("OA24 Appender publication remains Database-local")
     func oa24AppenderPublicationRemainsDatabaseLocal() async throws {
         let first = try await makeAppenderContext(prefix: "oa24_first")
-        let secondDatabase = try Database()
+        let secondDatabase = try Database.Runtime()
         let firstRegistration = await first.database.observationCoordinator.register(
             initial: .database
         )

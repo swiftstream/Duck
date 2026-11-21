@@ -110,7 +110,7 @@ private func poolTaskOutcome(
 struct ConnectionPoolTests {
     @Test("SM01 Pool rejects non-positive maximum Connections")
     func invalidMaximumConnections() throws {
-        let database = try Database()
+        let database = try Database.Runtime()
 
         for maximum in [0, -1] {
             do {
@@ -127,7 +127,7 @@ struct ConnectionPoolTests {
 
     @Test("Pool exposes its frozen maximum and starts lazily")
     func maximumAndLazyConstruction() throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let pool = try database.pool(maximumConnections: 3)
 
         #expect(pool.maximumConnections == 3)
@@ -142,7 +142,7 @@ struct ConnectionPoolTests {
 
     @Test("Sequential max-one scopes reuse the same Connection actor")
     func sequentialScopesReuseConnection() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
 
         let first = try await pool.connection { connection in
             connection.id
@@ -157,7 +157,7 @@ struct ConnectionPoolTests {
 
     @Test("Scoped generic result passes through unchanged")
     func genericResultPassesThrough() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
 
         let result: [Int] = try await pool.connection { _ in
             [1, 2, 3, 5, 8]
@@ -169,7 +169,7 @@ struct ConnectionPoolTests {
 
     @Test("Scoped body error passes through after healthy return")
     func bodyErrorPassesThrough() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
 
         do {
             _ = try await pool.connection { _ -> Int in
@@ -187,7 +187,7 @@ struct ConnectionPoolTests {
 
     @Test("Max-one concurrent scopes never overlap")
     func maxOneNeverOverlaps() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let firstEntered = PoolSignal()
         let releaseFirst = PoolSignal()
         let secondAboutToRequest = PoolSignal()
@@ -229,7 +229,7 @@ struct ConnectionPoolTests {
 
     @Test("Max-two held scopes use distinct Connections and no third simultaneous body")
     func maxTwoBoundedConcurrency() async throws {
-        let pool = try Database().pool(maximumConnections: 2)
+        let pool = try Database.Runtime().pool(maximumConnections: 2)
         let enteredOne = PoolSignal()
         let enteredTwo = PoolSignal()
         let release = PoolSignal()
@@ -283,7 +283,7 @@ struct ConnectionPoolTests {
 
     @Test("Nested same-Pool checkout is rejected while exact lease is live")
     func activeNestedCheckoutRejected() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
 
         try await pool.connection { _ in
             do {
@@ -299,7 +299,7 @@ struct ConnectionPoolTests {
 
     @Test("Connection transaction remains canonical inside pooled Connection scope")
     func connectionTransactionInsidePoolScope() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
 
         try await pool.connection { connection in
             try await connection.transaction { transaction in
@@ -315,7 +315,7 @@ struct ConnectionPoolTests {
 
     @Test("Shutdown from own live lease is rejected before lifecycle mutation")
     func selfShutdownRejected() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
 
         try await pool.connection { _ in
             do {
@@ -333,7 +333,7 @@ struct ConnectionPoolTests {
 
     @Test("Escaped pooled Connection rejects use after scope return")
     func escapedConnectionRejectedAfterReturn() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let escaped = try await pool.connection { connection in
             connection
         }
@@ -348,7 +348,7 @@ struct ConnectionPoolTests {
 
     @Test("Detached child has no lease authority")
     func detachedChildRejected() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
 
         try await pool.connection { connection in
             let outcome = await Task.detached {
@@ -367,7 +367,7 @@ struct ConnectionPoolTests {
 
     @Test("Structured child inherits active lease authority")
     func structuredChildSucceeds() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
 
         try await pool.connection { connection in
             try await withThrowingTaskGroup(of: QueryResult.self) { group in
@@ -388,7 +388,7 @@ struct ConnectionPoolTests {
 
     @Test("L04 inherited child resumed after full return cannot use escaped Connection")
     func inheritedChildAfterReturnCannotUseConnection() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let releaseChild = PoolSignal()
 
         let child: Task<PoolTaskOutcome, Never> = try await pool.connection { connection in
@@ -409,7 +409,7 @@ struct ConnectionPoolTests {
 
     @Test("L08 Pool A token cannot authorize active Pool B Connection")
     func poolATokenCannotAuthorizePoolBConnection() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let poolA = try database.pool(maximumConnections: 1)
         let poolB = try database.pool(maximumConnections: 1)
         let connectionB = PoolConnectionBox()
@@ -441,7 +441,7 @@ struct ConnectionPoolTests {
 
     @Test("L09 same-Pool Connection A token cannot authorize active Connection B")
     func connectionATokenCannotAuthorizeConnectionB() async throws {
-        let pool = try Database().pool(maximumConnections: 2)
+        let pool = try Database.Runtime().pool(maximumConnections: 2)
         let connectionB = PoolConnectionBox()
         let releaseB = PoolSignal()
 
@@ -472,7 +472,7 @@ struct ConnectionPoolTests {
 
     @Test("Stale inherited L1 token can perform fresh checkout after full revoke")
     func staleInheritedTokenAllowsFreshCheckout() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let releaseChild = PoolSignal()
 
         let child: Task<PoolTaskOutcome, Never> = try await pool.connection { _ in
@@ -492,7 +492,7 @@ struct ConnectionPoolTests {
 
     @Test("Stale inherited L1 cannot authorize Connection active under L2")
     func staleL1CannotAuthorizeL2() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let releaseChild = PoolSignal()
 
         let pair: (
@@ -526,7 +526,7 @@ struct ConnectionPoolTests {
 
     @Test("Stale inherited token does not block normal shutdown")
     func staleTokenAllowsShutdown() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let releaseChild = PoolSignal()
 
         let child: Task<PoolTaskOutcome, Never> = try await pool.connection { _ in
@@ -549,7 +549,7 @@ struct ConnectionPoolTests {
 
     @Test("Queued cancellation leaves Pool capacity reusable")
     func cancelledCheckoutDoesNotLeakSlot() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let activeEntered = PoolSignal()
         let releaseActive = PoolSignal()
         let waiterAboutToRequest = PoolSignal()
@@ -585,7 +585,7 @@ struct ConnectionPoolTests {
 
     @Test("Shutdown fails queued-or-racing checkout with poolClosed and drains active lease")
     func shutdownDrainsActiveAndClosesCheckout() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let activeEntered = PoolSignal()
         let releaseActive = PoolSignal()
         let waiterAboutToRequest = PoolSignal()
@@ -631,7 +631,7 @@ struct ConnectionPoolTests {
 
     @Test("Shutdown is idempotent after Pool closes")
     func shutdownIsIdempotent() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
 
         _ = try await pool.connection { _ in 1 }
         try await pool.shutdown()
@@ -646,7 +646,7 @@ struct ConnectionPoolTests {
 
     @Test("H01 fail-closed pooled Connection is retired and never returned idle")
     func h01FailClosedConnectionIsRetired() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let message = "H01 pooled Connection fail-closed"
 
         let retired = try await pool.connection { connection in
@@ -679,7 +679,7 @@ struct ConnectionPoolTests {
 
     @Test("H02 retired pooled Connection is replaced by a usable fresh Connection")
     func h02RetiredConnectionGetsUsableReplacement() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let message = "H02 pooled Connection fail-closed"
 
         let retired = try await pool.connection { connection in
@@ -708,7 +708,7 @@ struct ConnectionPoolTests {
 
     @Test("H03 replacement open failure is exact, one-shot, and leaves capacity reusable")
     func h03ReplacementOpenFailureIsOneShot() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let message = "H03 forced pooled Connection open failure"
 
         let retired = try await pool.connection { connection in

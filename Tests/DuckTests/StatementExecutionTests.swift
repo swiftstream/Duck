@@ -17,7 +17,7 @@ private func statementResultValue(
 
 @Test("Reusable Statement SELECT accepts different values on repeated execution")
 func reusableStatementSelectsDifferentValues() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -31,7 +31,7 @@ func reusableStatementSelectsDifferentValues() async throws {
 
 @Test("Reusable Statement INSERT accepts different values on repeated execution")
 func reusableStatementInsertsDifferentValues() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("statement_insert_events")
     try await connection.execute(
         SQL
@@ -73,7 +73,7 @@ func reusableStatementInsertsDifferentValues() async throws {
 
 @Test("Reusable Statement UPDATE accepts different values on repeated execution")
 func reusableStatementUpdatesDifferentValues() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("statement_update_events")
     try await connection.execute(
         SQL
@@ -107,7 +107,7 @@ func reusableStatementUpdatesDifferentValues() async throws {
 
 @Test("Repeated logical Parameter binds every native slot on each execution")
 func reusableStatementExecutesRepeatedParameterOccurrence() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         let value = parameters.parameter()
         return SQL.select(
@@ -123,7 +123,7 @@ func reusableStatementExecutesRepeatedParameterOccurrence() async throws {
 
 @Test("Fixed and dynamic bindings are rebound in native slot order")
 func reusableStatementExecutesFixedAndDynamicBindings() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(
             Fn.cast(Int32(7), .integer) => "fixed",
@@ -138,7 +138,7 @@ func reusableStatementExecutesFixedAndDynamicBindings() async throws {
 
 @Test("Wrong Statement argument count fails before execution and remains reusable")
 func reusableStatementRecoversAfterWrongArgumentCount() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -159,7 +159,7 @@ func reusableStatementRecoversAfterWrongArgumentCount() async throws {
 
 @Test("Unsupported Statement argument type fails before execution and remains reusable")
 func reusableStatementRecoversAfterUnsupportedArgumentType() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -183,7 +183,7 @@ func reusableStatementRecoversAfterUnsupportedArgumentType() async throws {
 
 @Test("Typed Optional nil and some values reuse one Statement")
 func reusableStatementSupportsTypedOptionalValues() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -199,7 +199,7 @@ func reusableStatementSupportsTypedOptionalValues() async throws {
 
 @Test("Direct Value null and primitive values reuse one Statement")
 func reusableStatementSupportsDirectValueArguments() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -213,7 +213,7 @@ func reusableStatementSupportsDirectValueArguments() async throws {
 
 @Test("Data and empty Data reuse one Statement")
 func reusableStatementSupportsBlobArguments() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .blob) => "value")
     }
@@ -228,7 +228,7 @@ func reusableStatementSupportsBlobArguments() async throws {
 
 @Test("Native execution failure does not terminally poison reusable Statement")
 func reusableStatementRecoversAfterNativeExecutionFailure() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -252,7 +252,7 @@ func reusableStatementRecoversAfterNativeExecutionFailure() async throws {
 
 @Test("Reusable Statement accepts naked nil and Optional values on query and execute")
 func reusableStatementAcceptsNakedNilValues() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let queryStatement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -311,7 +311,7 @@ func reusableStatementAcceptsNakedNilValues() async throws {
 
 @Test("Live same-Connection transaction scope rejects Statement before normalization")
 func reusableStatementRejectsLiveTransactionBeforeNormalization() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -328,7 +328,7 @@ func reusableStatementRejectsLiveTransactionBeforeNormalization() async throws {
 
 @Test("Concurrent calls to one Statement keep bindings isolated")
 func concurrentReusableStatementCallsKeepBindingsIsolated() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -343,7 +343,7 @@ func concurrentReusableStatementCallsKeepBindingsIsolated() async throws {
 
 @Test("Many concurrent calls to one Statement preserve every binding without sleeps")
 func manyConcurrentReusableStatementCallsPreserveBindings() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -377,7 +377,7 @@ func manyConcurrentReusableStatementCallsPreserveBindings() async throws {
 
 @Test("Different Statements on one Connection execute safely through one scheduler")
 func differentReusableStatementsShareConnectionSchedulerSafely() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let firstStatement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -395,7 +395,7 @@ func differentReusableStatementsShareConnectionSchedulerSafely() async throws {
 
 @Test("Reusable Statements on separate Connections execute independently")
 func reusableStatementsOnSeparateConnectionsExecuteIndependently() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let firstConnection = try database.connect()
     let secondConnection = try database.connect()
     let firstStatement = try await firstConnection.prepare { parameters in
@@ -417,7 +417,7 @@ func reusableStatementsOnSeparateConnectionsExecuteIndependently() async throws 
 func reusableStatementExecutesAfterExternalOwnersAreDropped() async throws {
     let statement: Statement
     do {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         statement = try await connection.prepare { parameters in
             SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
@@ -430,7 +430,7 @@ func reusableStatementExecutesAfterExternalOwnersAreDropped() async throws {
 
 @Test("Already-cancelled Statement call leaves Statement reusable")
 func alreadyCancelledReusableStatementCallLeavesStatementReusable() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -456,7 +456,7 @@ func alreadyCancelledReusableStatementCallLeavesStatementReusable() async throws
 
 @Test("Fail-closed Connection dominates reusable Statement execution")
 func failClosedConnectionDominatesReusableStatement() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }

@@ -163,7 +163,7 @@ private func batchNoteCount(on connection: Connection) async throws -> Int64 {
 }
 
 private func drainBatchInvalidations(
-    _ database: Database,
+    _ database: Database.Runtime,
     operation: () async throws -> Void
 ) async throws -> Int {
     let registration = await database.observationCoordinator.register(initial: .database)
@@ -188,7 +188,7 @@ private func drainBatchInvalidations(
 
 @Test("B01 empty Connection batch needs no table, opens no Appender and publishes nothing")
 func emptyConnectionBatchIsNoOp() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let none: [BatchNote] = []
 
@@ -206,7 +206,7 @@ func emptyConnectionBatchIsNoOp() async throws {
 
 @Test("B02 empty Transaction batch needs no table, opens no Appender and publishes nothing")
 func emptyTransactionBatchIsNoOp() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let none: [BatchNote] = []
 
@@ -224,7 +224,7 @@ func emptyTransactionBatchIsNoOp() async throws {
 
 @Test("B03 homogeneous Connection batch inserts every row with exact values")
 func homogeneousConnectionBatchInsertsExactValues() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createBatchNotesTable(on: connection)
 
     try await [
@@ -244,7 +244,7 @@ func homogeneousConnectionBatchInsertsExactValues() async throws {
 
 @Test("B04 batch keeps DEFAULT, explicit NULL and value per row in input order")
 func batchPreservesDefaultNullAndValuePerRow() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createBatchNotesTable(on: connection)
 
     try await [
@@ -266,7 +266,7 @@ func batchPreservesDefaultNullAndValuePerRow() async throws {
 
 @Test("B05 zero-initialized batch row reports the single-row invalidResult and mutates nothing")
 func zeroInitializedBatchRowReportsInvalidResult() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createBatchNotesTable(on: connection)
 
     var singleRowMessage: String?
@@ -299,7 +299,7 @@ func zeroInitializedBatchRowReportsInvalidResult() async throws {
 
 @Test("B06 later-row preflight failure persists nothing and leaves the caller's transaction committable")
 func laterRowPreflightFailureKeepsTransactionCommittable() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createBatchNotesTable(on: connection)
 
     try await connection.transaction { transaction in
@@ -331,7 +331,7 @@ func laterRowPreflightFailureKeepsTransactionCommittable() async throws {
 
 @Test("B07 Connection batch commits zero rows when a later run violates the primary key")
 func connectionBatchIsAtomicOnConstraintFailure() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     try await createBatchNotesTable(on: connection)
 
@@ -362,7 +362,7 @@ func connectionBatchIsAtomicOnConstraintFailure() async throws {
 
 @Test("B08 batch rows stay invisible to another Connection until the caller commits")
 func transactionBatchIsInvisibleUntilCommit() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let observer = try database.connect()
     try await createBatchNotesTable(on: connection)
@@ -383,7 +383,7 @@ func transactionBatchIsInvisibleUntilCommit() async throws {
 
 @Test("B09 rolled-back Transaction batch leaves no rows and exposes no committed mutation")
 func transactionBatchRollbackExposesNoCommittedMutation() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let observer = try database.connect()
     try await createBatchNotesTable(on: connection)
@@ -422,7 +422,7 @@ func transactionBatchRollbackExposesNoCommittedMutation() async throws {
 
 @Test("B10 alternating signatures execute as contiguous runs in exact input order")
 func alternatingSignaturesPreserveInputExecutionOrder() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createBatchOrderedTable(on: connection)
 
     // A/B/A/B/B/A: a global regroup would run every short-signature row first and
@@ -460,7 +460,7 @@ func alternatingSignaturesPreserveInputExecutionOrder() async throws {
 
 @Test("B11 committed Connection batch refreshes an Observation through transaction machinery")
 func connectionBatchRefreshesObservation() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     try await createBatchNotesTable(on: connection)
 
@@ -488,7 +488,7 @@ func connectionBatchRefreshesObservation() async throws {
 
 @Test("B12 cancelled batch surfaces CancellationError and commits nothing")
 func cancelledBatchSurfacesCancellationError() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createBatchNotesTable(on: connection)
 
     // Cancelling from inside the body sets the sticky flag before `batchInsert` is entered,
@@ -527,7 +527,7 @@ func cancelledBatchSurfacesCancellationError() async throws {
 
 @Test("B12 caught batch Appender failure keeps the transaction rollback-only and its first error")
 func caughtBatchFailureKeepsRollbackOnlyTruth() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let observer = try database.connect()
     try await createBatchNotesTable(on: connection)
@@ -559,7 +559,7 @@ func caughtBatchFailureKeepsRollbackOnlyTruth() async throws {
 @Test("B13 MainActor caller batches a non-Sendable Table element without Sendable constraints")
 @MainActor
 func mainActorCallerBatchesNonSendableElement() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createBatchNotesTable(on: connection)
 
     // `BatchNote` holds non-Sendable `Column` reference storage, and neither the element
@@ -586,7 +586,7 @@ func mainActorCallerBatchesNonSendableElement() async throws {
 /// because it routes through a Transaction Appender inside a managed transaction.
 @Test("Connection batch crossing the 204800 auto-flush threshold still commits nothing on failure")
 func connectionBatchPastAutoFlushThresholdIsAtomic() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createBatchNotesTable(on: connection)
 
     var rows: [BatchNote] = []
@@ -612,7 +612,7 @@ func connectionBatchPastAutoFlushThresholdIsAtomic() async throws {
 
 @Test("B14 cancelled prepared row on an ended Appender scope reports appenderEnded")
 func endedAppenderOutranksCallerCancellationInPreparedHelper() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createBatchNotesTable(on: connection)
 
     var escaped: Appender?
@@ -644,7 +644,7 @@ func endedAppenderOutranksCallerCancellationInPreparedHelper() async throws {
 
 @Test("B15 prepared helper validates row width before any native append")
 func preparedHelperValidatesWidthBeforeNativeAppend() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createBatchNotesTable(on: connection)
 
     try await connection.appender(to: batchNotesTable, columns: ["id", "name"]) { appender in

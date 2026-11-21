@@ -14,14 +14,14 @@ actor MigrationRunCoordinator {
     static let shared = MigrationRunCoordinator()
 
     private struct FileOwnerReference {
-        weak var owner: Database?
+        weak var owner: Database.Runtime?
     }
 
     private var activeKeys: Set<MigrationCoordinationKey> = []
     private var fileOwners: [String: FileOwnerReference] = [:]
 
     /// Acquires migration-run authority for one live database runtime.
-    func acquire(for database: Database) throws {
+    func acquire(for database: Database.Runtime) throws {
         let key = database.migrationCoordinationKey
 
         if case .file(let path) = key {
@@ -42,7 +42,7 @@ actor MigrationRunCoordinator {
     }
 
     /// Releases migration-run authority for one live database runtime.
-    func release(for database: Database) {
+    func release(for database: Database.Runtime) {
         activeKeys.remove(database.migrationCoordinationKey)
     }
 }

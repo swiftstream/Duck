@@ -26,7 +26,7 @@ private func observationMutationNextValueQuery(_ sequenceName: String) -> any SQ
 }
 
 private func drainInvalidations(
-    _ database: Database,
+    _ database: Database.Runtime,
     operation: () async throws -> Void
 ) async throws -> Int {
     let registration = await database.observationCoordinator.register(initial: .tables([]))
@@ -50,7 +50,7 @@ private func drainInvalidations(
 
 @Test("M01 Connection.execute INSERT refreshes an observation")
 func connectionExecuteInsertRefreshesObservation() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = DB.Table("observation_mutation_insert")
     try await createObservationTable(table, on: connection)
@@ -68,7 +68,7 @@ func connectionExecuteInsertRefreshesObservation() async throws {
 
 @Test("M02 Connection.execute UPDATE refreshes an observation")
 func connectionExecuteUpdateRefreshesObservation() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = DB.Table("observation_mutation_update")
     try await createObservationTable(table, on: connection)
@@ -92,7 +92,7 @@ func connectionExecuteUpdateRefreshesObservation() async throws {
 
 @Test("M03 Connection.execute DELETE refreshes an observation")
 func connectionExecuteDeleteRefreshesObservation() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = DB.Table("observation_mutation_delete")
     try await createObservationTable(table, on: connection)
@@ -113,7 +113,7 @@ func connectionExecuteDeleteRefreshesObservation() async throws {
 
 @Test("M04 DDL publishes a Database-wide invalidation")
 func ddlPublishesDatabaseInvalidation() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let count = try await drainInvalidations(database) {
         let table = DB.Table("observation_mutation_ddl")
@@ -129,7 +129,7 @@ func ddlPublishesDatabaseInvalidation() async throws {
 
 @Test("M05 Connection.query INSERT RETURNING refreshes an observation")
 func connectionQueryInsertReturningRefreshesObservation() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = DB.Table("observation_mutation_returning")
     try await createObservationTable(table, on: connection)
@@ -152,7 +152,7 @@ func connectionQueryInsertReturningRefreshesObservation() async throws {
 
 @Test("M06 ordinary read-only SELECT publishes nothing")
 func ordinarySelectPublishesNothing() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let count = try await drainInvalidations(database) {
         let result = try await connection.query(
@@ -165,7 +165,7 @@ func ordinarySelectPublishesNothing() async throws {
 
 @Test("M07 SELECT nextval publishes once and advances once")
 func directNextvalPublishesOnce() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     try await connection.execute(
         SQL
@@ -191,7 +191,7 @@ func directNextvalPublishesOnce() async throws {
 
 @Test("M08 reusable Statement.execute refreshes an observation")
 func reusableStatementExecuteRefreshesObservation() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = DB.Table("observation_mutation_statement_execute")
     try await createObservationTable(table, on: connection)
@@ -212,7 +212,7 @@ func reusableStatementExecuteRefreshesObservation() async throws {
 
 @Test("M09 reusable Statement.query RETURNING refreshes an observation")
 func reusableStatementQueryReturningRefreshesObservation() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = DB.Table("observation_mutation_statement_query")
     try await createObservationTable(table, on: connection)
@@ -236,7 +236,7 @@ func reusableStatementQueryReturningRefreshesObservation() async throws {
 
 @Test("M10 reusable read-only Statement.query publishes nothing")
 func reusableReadOnlyStatementPublishesNothing() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let statement = try await connection.prepare(
         SQL.select(Fn.cast(Int32(42), .integer) => "value")
@@ -250,7 +250,7 @@ func reusableReadOnlyStatementPublishesNothing() async throws {
 
 @Test("M11 reusable side-effecting SELECT Statement.query publishes once")
 func reusableSideEffectingSelectStatementPublishesOnce() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     try await connection.execute(
         SQL
@@ -277,7 +277,7 @@ func reusableSideEffectingSelectStatementPublishesOnce() async throws {
 
 @Test("M12 preparation failure before pending publishes nothing")
 func preparationFailurePublishesNothing() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     var caught: DatabaseError?
     let count = try await drainInvalidations(database) {
@@ -297,7 +297,7 @@ func preparationFailurePublishesNothing() async throws {
 
 @Test("M13 pending-attempt invalid cast publishes conservative ambiguity")
 func pendingAttemptFailurePublishesAmbiguity() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     var caught: DatabaseError?
     let count = try await drainInvalidations(database) {
@@ -319,7 +319,7 @@ func pendingAttemptFailurePublishesAmbiguity() async throws {
 
 @Test("M14 non-read-only result publishes before unsupported materialization failure")
 func lateMaterializationFailurePublishesAfterMutation() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = DB.Table("observation_mutation_late_failure")
     try await connection.execute(
@@ -361,7 +361,7 @@ func lateMaterializationFailurePublishesAfterMutation() async throws {
 
 @Test("M15 Transaction mutation publishes nothing before finalization")
 func transactionMutationPublishesNothingBeforeFinalization() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = DB.Table("observation_mutation_transaction")
     try await createObservationTable(table, on: connection)

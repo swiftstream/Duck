@@ -284,7 +284,7 @@ func preservesDecimalWidthAndScale() async throws {
 
 @Test("Copies recursive logical metadata on the production result path")
 func copiesRecursiveLogicalMetadata() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
 
     try await connection.execute(
@@ -367,7 +367,7 @@ func copiesRecursiveLogicalMetadata() async throws {
 
 @Test("Copies and inspects metadata across multiple recursive families")
 func copiesAndInspectsDeepRecursiveMetadata() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
 
     try await connection.execute(
@@ -516,7 +516,7 @@ func keepsDuplicateResultNamesPositionallyAligned() async throws {
 
 @Test("Stabilizes repeated recursive metadata capture")
 func stabilizesRepeatedRecursiveMetadataCapture() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     try await connection.execute(
         SQL
@@ -549,13 +549,13 @@ func stabilizesRepeatedRecursiveMetadataCapture() async throws {
 }
 
 private func query(_ query: any SQLable) async throws -> QueryResult {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     return try await connection.query(query)
 }
 
 private func captureRecursiveMetadata() async throws -> [ResultColumn] {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     try await connection.execute(
         SQL

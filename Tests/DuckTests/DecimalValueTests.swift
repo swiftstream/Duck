@@ -68,7 +68,7 @@ func decimalBindingNormalization() throws {
 
 @Test("Targetless Decimal binding derives the exact natural W/S matrix")
 func decimalTargetlessNaturalMatrix() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let fixtures: [(String, UInt8, UInt8)] = [
         ("0", 1, 0),
         ("1.23", 3, 2),
@@ -88,7 +88,7 @@ func decimalTargetlessNaturalMatrix() async throws {
 
 @Test("Reusable targetless Decimal Statement recomputes current W/S")
 func reusableTargetlessDecimalStatementRecomputesCurrentTarget() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(parameters.parameter() => "value")
     }
@@ -107,7 +107,7 @@ func reusableTargetlessDecimalStatementRecomputesCurrentTarget() async throws {
 
 @Test("Reusable Decimal Statement executes dynamic Value.decimal exactly")
 func reusableDecimalStatementExecutesDynamicValue() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let value = try decimal("12.34")
     let statement = try await connection.prepare { parameters in
         SQL.select(
@@ -121,7 +121,7 @@ func reusableDecimalStatementExecutesDynamicValue() async throws {
 
 @Test("Reusable Decimal Statement executes Optional some and nil with concrete metadata")
 func reusableDecimalStatementExecutesOptionalValues() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let value = try decimal("7.50")
     let some: Decimal? = value
     let none: Decimal? = nil
@@ -143,7 +143,7 @@ func reusableDecimalStatementExecutesOptionalValues() async throws {
 
 @Test("Reusable Decimal Statement preserves fixed and dynamic Decimal bindings")
 func reusableDecimalStatementExecutesFixedAndDynamicValues() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let fixed = try decimal("8.25")
     let dynamic = try decimal("1.75")
     let statement = try await connection.prepare { parameters in
@@ -163,7 +163,7 @@ func reusableDecimalStatementExecutesFixedAndDynamicValues() async throws {
 
 @Test("Transaction-local reusable Decimal Statement executes on the transaction")
 func reusableDecimalStatementExecutesInTransaction() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let value = try decimal("-12.34")
     let statement = try await connection.prepare { parameters in
         SQL.select(
@@ -179,7 +179,7 @@ func reusableDecimalStatementExecutesInTransaction() async throws {
 
 @Test("Explicit Decimal targets preserve metadata across physical widths")
 func explicitDecimalTargetMatrix() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let fixtures: [(String, Int, Int)] = [
         ("0", 1, 0),
         ("12", 4, 0),
@@ -217,7 +217,7 @@ func explicitDecimalTargetMatrix() async throws {
 
 @Test("Decimal exact width matrix round-trips every W1 through W38")
 func decimalExactWidthMatrixRoundTripsEverySupportedWidth() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     for width in 1...38 {
         let integerText = String(repeating: "9", count: width)
@@ -254,7 +254,7 @@ func decimalExactWidthMatrixRoundTripsEverySupportedWidth() async throws {
 
 @Test("Decimal binding rejects rounding, width overflow, and nonfinite values")
 func decimalRejectionMatrix() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let fixtures: [(Decimal, Int, Int, String)] = [
         (try decimal("1.23"), 3, 1, "rounding"),
         (try decimal("1.23"), 2, 2, "width"),
@@ -303,7 +303,7 @@ func decimalRejectionMatrix() async throws {
 
 @Test("Decimal rejects a concrete non-DECIMAL target")
 func decimalRejectsWrongConcreteTarget() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .integer) => "value")
     }
@@ -323,7 +323,7 @@ func decimalRejectsWrongConcreteTarget() async throws {
 
 @Test("Decimal Statement failure does not poison later valid reuse")
 func decimalStatementFailureThenValidReuse() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .decimal(3, 1)) => "value")
     }
@@ -345,7 +345,7 @@ func decimalStatementFailureThenValidReuse() async throws {
 
 @Test("Decimal Appender covers narrow and hugeint physical carriers")
 func decimalAppenderPhysicalCoverage() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("decimal_appender_physical")
     try await connection.execute(
         SQL.create.table[any: table].tableDefinitions(
@@ -411,7 +411,7 @@ func decimalAppenderPhysicalCoverage() async throws {
 
 @Test("Decimal Appender recovers after rounding, width, and nonfinite later-column failures")
 func decimalAppenderLaterColumnFailuresAreAtomicAndReusable() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("decimal_appender_preflight")
     try await connection.execute(
         SQL.create.table[any: table].tableDefinitions(
@@ -470,7 +470,7 @@ func decimalAppenderLaterColumnFailuresAreAtomicAndReusable() async throws {
 
 @Test("Decimal Appender rejects a wrong logical family before native row mutation")
 func decimalAppenderRejectsWrongLogicalFamilyAndRecovers() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("decimal_appender_wrong_family")
     try await connection.execute(
         SQL.create.table[any: table].tableDefinitions(
@@ -505,7 +505,7 @@ func decimalAppenderRejectsWrongLogicalFamilyAndRecovers() async throws {
 
 @Test("Decimal numeric identity is independent from result W/S metadata")
 func decimalResultMetadataDoesNotChangeValueIdentity() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let first = try decimal("1.20")
     let second = try decimal("1.2")
     let result = try await connection.query(
@@ -524,7 +524,7 @@ func decimalResultMetadataDoesNotChangeValueIdentity() async throws {
 
 @Test("Decimal SQL NULL uses validity before physical materialization")
 func decimalNullMaterializesByValidity() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let result = try await connection.query(
         SQL.select(Fn.cast(SQL.null, .decimal(5, 2)) => "value")
     )

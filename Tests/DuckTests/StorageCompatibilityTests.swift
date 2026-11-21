@@ -180,7 +180,7 @@ private func sqlStringLiteral(_ value: String) throws -> String {
 }
 
 private func storageTag(for path: String) async throws -> String {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let attach = "ATTACH \(try sqlStringLiteral(path)) AS storage_probe (READ_ONLY)"
     try await SQL.raw(attach).execute(on: connection)
@@ -341,7 +341,7 @@ private struct Wave05FollowupMigration: Migration {
 }
 
 private func mutateOldCopyAndCheckpoint(at path: String) async throws -> OldCopySnapshot {
-    let database = try Database(path: path)
+    let database = try Database.Runtime(path: path)
     let connection = try database.connect()
 
     let beforeRecords = try await readLegacyRecords(on: connection)
@@ -386,13 +386,13 @@ private func mutateOldCopyAndCheckpoint(at path: String) async throws -> OldCopy
 }
 
 private func reopenOldCopy(at path: String) async throws -> OldCopySnapshot {
-    let database = try Database(path: path)
+    let database = try Database.Runtime(path: path)
     let connection = try database.connect()
     return try await readOldCopySnapshot(on: connection)
 }
 
 private func createNewV2FileAndCheckpoint(at path: String) async throws -> NewV2Snapshot {
-    let database = try Database(path: path)
+    let database = try Database.Runtime(path: path)
     let connection = try database.connect()
     let table = newV2Records
 
@@ -427,7 +427,7 @@ private func createNewV2FileAndCheckpoint(at path: String) async throws -> NewV2
 }
 
 private func reopenNewV2File(at path: String) async throws -> NewV2Snapshot {
-    let database = try Database(path: path)
+    let database = try Database.Runtime(path: path)
     let connection = try database.connect()
     let table = newV2Records
     let result = try await SQL

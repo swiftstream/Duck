@@ -72,7 +72,7 @@ private func createPoolTransactionTable(
 struct ConnectionPoolTransactionTests {
     @Test("TX01 pool.transaction commits through the existing transaction engine")
     func transactionSuccessCommits() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let table = DB.Table(makePoolTransactionTableName())
         try await createPoolTransactionTable(table, on: pool)
 
@@ -99,7 +99,7 @@ struct ConnectionPoolTransactionTests {
 
     @Test("TX02 pool.transaction rolls back and preserves its body error")
     func transactionBodyErrorRollsBack() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let table = DB.Table(makePoolTransactionTableName())
         try await createPoolTransactionTable(table, on: pool)
 
@@ -129,7 +129,7 @@ struct ConnectionPoolTransactionTests {
 
     @Test("TX03 transaction work stays on the same ConnectionId")
     func transactionWorkStaysOnOneConnection() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
 
         let transactionConnectionId = try await pool.transaction { transaction in
             let result = try await transaction.query(SQL.select(Int32(33) => "value"))
@@ -144,7 +144,7 @@ struct ConnectionPoolTransactionTests {
 
     @Test("TX04 max-one checkout waits for transaction finalization")
     func maxOneCheckoutWaitsForTransactionFinalization() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let tableName = makePoolTransactionTableName()
         let table = DB.Table(tableName)
         try await createPoolTransactionTable(table, on: pool)
@@ -194,7 +194,7 @@ struct ConnectionPoolTransactionTests {
 
     @Test("TX05 max-two checkout can use an unrelated Connection")
     func maxTwoCheckoutUsesAnotherConnection() async throws {
-        let pool = try Database().pool(maximumConnections: 2)
+        let pool = try Database.Runtime().pool(maximumConnections: 2)
         let transactionStarted = PoolTransactionSignal()
         let finishTransaction = PoolTransactionSignal()
         let checkoutEntered = PoolTransactionSignal()
@@ -225,7 +225,7 @@ struct ConnectionPoolTransactionTests {
 
     @Test("TX06 flat transaction leak rolls back after a successful Pool body")
     func flatTransactionLeakRollsBackAfterSuccessfulBody() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let table = DB.Table(makePoolTransactionTableName())
         try await createPoolTransactionTable(table, on: pool)
 
@@ -255,7 +255,7 @@ struct ConnectionPoolTransactionTests {
 
     @Test("TX07 flat transaction leak preserves the exact Pool body error")
     func flatTransactionLeakPreservesBodyError() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let table = DB.Table(makePoolTransactionTableName())
         try await createPoolTransactionTable(table, on: pool)
 
@@ -286,7 +286,7 @@ struct ConnectionPoolTransactionTests {
 
     @Test("TX09 stale managed Transaction cannot perform native work after return")
     func staleTransactionCannotPerformNativeWorkAfterReturn() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         var escapedTransaction: DuckTransaction?
 
         try await pool.transaction { transaction in
@@ -307,7 +307,7 @@ struct ConnectionPoolTransactionTests {
 
     @Test("TX10 Pool return waits for a managed transaction already in flight")
     func poolReturnWaitsForManagedTransactionInFlight() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let pool = try database.pool(maximumConnections: 1)
         let tableName = makePoolTransactionTableName()
         try await createPoolTransactionTable(DB.Table(tableName), on: pool)

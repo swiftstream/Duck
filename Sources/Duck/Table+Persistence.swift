@@ -282,34 +282,34 @@ extension Table {
     }
 }
 
-// MARK: - Public DatabaseIdentifier-backed persistence conveniences
+// MARK: - Public Database-backed persistence conveniences
 
 extension Table {
-    /// Inserts this model through a fresh Connection for the supplied database identifier.
-    public nonisolated(nonsending) func insert(on database: DatabaseIdentifier) async throws -> Self {
+    /// Inserts this model through a fresh Connection for the supplied database.
+    public nonisolated(nonsending) func insert(on database: Database) async throws -> Self {
         let connection = try await database.connect()
         return try await insert(on: connection)
     }
 
-    /// Inserts this model without decoding a row through the supplied database identifier.
-    public nonisolated(nonsending) func insertNonReturning(on database: DatabaseIdentifier) async throws {
+    /// Inserts this model without decoding a row through the supplied database.
+    public nonisolated(nonsending) func insertNonReturning(on database: Database) async throws {
         let connection = try await database.connect()
         try await insertNonReturning(on: connection)
     }
 
-    /// Updates changed non-key fields through the supplied database identifier.
+    /// Updates changed non-key fields through the supplied database.
     public nonisolated(nonsending) func update<C: ColumnRepresentable>(
         on keyColumn: KeyPath<Self, C>,
-        on database: DatabaseIdentifier
+        on database: Database
     ) async throws -> Self {
         let connection = try await database.connect()
         return try await update(on: keyColumn, on: connection)
     }
 
-    /// Updates changed non-key fields without decoding a row through the supplied database identifier.
+    /// Updates changed non-key fields without decoding a row through the supplied database.
     public nonisolated(nonsending) func updateNonReturning<C: ColumnRepresentable>(
         on keyColumn: KeyPath<Self, C>,
-        on database: DatabaseIdentifier
+        on database: Database
     ) async throws {
         let connection = try await database.connect()
         try await updateNonReturning(on: keyColumn, on: connection)
@@ -319,13 +319,13 @@ extension Table {
     @discardableResult
     public nonisolated(nonsending) func delete<C: ColumnRepresentable>(
         on keyColumn: KeyPath<Self, C>,
-        on database: DatabaseIdentifier
+        on database: Database
     ) async throws -> UInt64 {
         let query = try persistenceDeleteQuery(on: keyColumn)
         return try await query.execute(on: database)
     }
 
-    /// Upserts this model through a fresh Connection for the supplied database identifier
+    /// Upserts this model through a fresh Connection for the supplied database
     /// and returns the database-decoded row from `RETURNING *`.
     public nonisolated(nonsending) func upsert<
         ConflictColumn,
@@ -333,7 +333,7 @@ extension Table {
     >(
         conflictColumn: KeyPath<Self, ConflictColumn>,
         excluding excludedColumns: repeat KeyPath<Self, each ExcludedColumn>,
-        on database: DatabaseIdentifier
+        on database: Database
     ) async throws -> Self
     where
         ConflictColumn: ColumnRepresentable,
@@ -570,8 +570,8 @@ struct TableBatchRun: Sendable {
 // MARK: - Public batch insert
 
 extension Collection where Element: Table {
-    /// Inserts every model atomically through a fresh Connection for the supplied identifier.
-    public nonisolated(nonsending) func batchInsert(on database: DatabaseIdentifier) async throws {
+    /// Inserts every model atomically through a fresh Connection for the supplied database.
+    public nonisolated(nonsending) func batchInsert(on database: Database) async throws {
         let connection = try await database.connect()
         try await batchInsert(on: connection)
     }

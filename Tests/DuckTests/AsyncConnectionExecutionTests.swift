@@ -4,7 +4,7 @@ import Testing
 
 @Test("Public query executes caller-local SQL through the pending engine")
 func publicQueryExecutesSQL() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
 
     let result = try await connection.query(
@@ -19,7 +19,7 @@ func publicQueryExecutesSQL() async throws {
 
 @Test("Public execute binds mutations and reports changed rows")
 func publicExecuteBindsMutationAndReportsRowsChanged() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = DB.Table("async_connection_events")
 
@@ -54,7 +54,7 @@ func publicExecuteBindsMutationAndReportsRowsChanged() async throws {
 
 @Test("Connection remains reusable after a public query error")
 func connectionRemainsReusableAfterPublicQueryError() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
 
     do {
@@ -75,7 +75,7 @@ func connectionRemainsReusableAfterPublicQueryError() async throws {
 
 @Test("Already-cancelled public query stops before native execution and leaves connection reusable")
 func alreadyCancelledPublicQueryStopsBeforeNativeExecution() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
 
     let task = Task {

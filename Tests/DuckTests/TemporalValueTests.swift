@@ -65,7 +65,7 @@ private func firstValue(_ result: QueryResult, column: String) throws -> Value {
 private func temporalStatement(
     _ type: Type
 ) async throws -> Statement {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     return try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), type) => "value")
     }
@@ -242,7 +242,7 @@ func dateTimeCodecPrecisionsInfinitiesAndNegativeFloor() throws {
 
 @Test("Ordinary queries bind and materialize the temporal vertical")
 func ordinaryQueryTemporalVertical() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let date = try makeDate(2026, 9, 7)
     let time = try makeTime(12_345_678_000)
     let dateTime = try makeDateTime(date, try makeTime(12_000_000_000))
@@ -310,7 +310,7 @@ func reusableStatementTemporalVerticalAndReuse() async throws {
 
 @Test("Appender temporal targets use whole-row preflight and exact round trips")
 func appenderTemporalVerticalAndC07Preflight() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("temporal_appender_rows")
     try await connection.execute(SQL.create.table[any: table].tableDefinitions(
         NewColumn("date_value", .date),
@@ -371,7 +371,7 @@ func appenderTemporalVerticalAndC07Preflight() async throws {
 
 @Test("Temporal NULL and Optional values retain existing binding semantics")
 func temporalNullOptionalAndNakedNil() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .date) => "value")
     }
@@ -421,7 +421,7 @@ func temporalNullOptionalAndNakedNil() async throws {
 
 @Test("Temporal result values retain physical logical precision identity")
 func temporalResultLogicalPrecisionPreserved() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let date = try makeDate(2026, 9, 7)
     let time = try makeTime(1_234_567_000)
     let dateTime = try makeDateTime(date, try makeTime(1_000_000_000))
@@ -439,7 +439,7 @@ func temporalResultLogicalPrecisionPreserved() async throws {
 
 @Test("Targetless temporal values choose exact natural timestamp targets")
 func dateTimeTargetlessAndResolvedRangePolicy() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let dateTime = try makeDateTime(try makeDate(2026, 9, 7), try makeTime(123))
     let result = try await connection.query(SQL.select(dateTime => "value"))
     #expect(try firstValue(result, column: "value") == .dateTime(dateTime))
@@ -462,7 +462,7 @@ func dateTimeTargetlessAndResolvedRangePolicy() async throws {
 
 @Test("Prepared DATE B01 failure leaves the Statement reusable")
 func b01PreparedStatementOutOfDomainDateRemainsReusable() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .date) => "value")
     }
@@ -478,7 +478,7 @@ func b01PreparedStatementOutOfDomainDateRemainsReusable() async throws {
 
 @Test("Appender later-column B01 failure is recoverable without partial row mutation")
 func b01AppenderLaterColumnOutOfDomainDateIsRecoverable() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("temporal_b01_appender")
     try await connection.execute(SQL.create.table[any: table].tableDefinitions(
         NewColumn("id", .integer), NewColumn("date_value", .date)
@@ -502,7 +502,7 @@ func b01AppenderLaterColumnOutOfDomainDateIsRecoverable() async throws {
 func b01DateTimeOutOfDomainRejectedResolvedAndTargetless() async throws {
     let date = try makeDate(-5_877_641, 6, 24)
     let dateTime = try makeDateTime(date, .midnight)
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let targetless = try await connection.prepare { parameters in
         SQL.select(parameters.parameter() => "value")
     }
@@ -640,7 +640,7 @@ func foundationDateCodecTransitionAndSparseFixtures() throws {
 
 @Test("Targetless Foundation.Date uses natural TIMESTAMPTZ binding")
 func ordinaryFoundationDateUsesTargetlessTimestampTZ() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let date = try makeFoundationDate(1_788_739_200_123_456)
 
     let literalResult = try await connection.query(SQL.select(date => "value"))
@@ -656,7 +656,7 @@ func ordinaryFoundationDateUsesTargetlessTimestampTZ() async throws {
 
 @Test("Foundation.Date NULL, Optional, and Value wrapping preserve binding identity")
 func foundationDateNullOptionalAndValueWrapping() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let date = try makeFoundationDate(1_234_567)
     let statement = try await connection.prepare { parameters in
         SQL.select(parameters.parameter() => "value")
@@ -688,7 +688,7 @@ func reusableFoundationDateStatementTargetMatrix() async throws {
     #expect(try firstValue(await resolved.query(dateA), column: "value") == .timestampTZ(dateA))
     #expect(try firstValue(await resolved.query(dateB), column: "value") == .timestampTZ(dateB))
 
-    let targetlessDate = try await Database().connect().prepare { parameters in
+    let targetlessDate = try await Database.Runtime().connect().prepare { parameters in
         SQL.select(parameters.parameter() => "value")
     }
     #expect(try firstValue(await targetlessDate.query(dateA), column: "value") == .timestampTZ(dateA))
@@ -747,7 +747,7 @@ func foundationDateStatementRejectsInexactNonFiniteAndMismatchedTargets() async 
 
 @Test("Foundation.Date Appender preflight failures are zero-mutation and reusable")
 func foundationDateAppenderPhaseOneFailureIsZeroMutationAndReusable() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("foundation_date_phase_one_appender")
     try await connection.execute(SQL.create.table[any: table].tableDefinitions(
         NewColumn("id", .integer), NewColumn("value", .timestamptz)
@@ -788,7 +788,7 @@ func foundationDateAppenderPhaseOneFailureIsZeroMutationAndReusable() async thro
 
 @Test("Foundation.Date Appender and result round-trip preserve TIMESTAMPTZ identity")
 func foundationDateAppenderAndResultRoundTrip() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("foundation_date_round_trip_appender")
     try await connection.execute(SQL.create.table[any: table].tableDefinitions(
         NewColumn("id", .integer), NewColumn("value", .timestamptz)
@@ -818,7 +818,7 @@ func foundationDateAppenderAndResultRoundTrip() async throws {
 
 @Test("Foundation.Date result materialization rejects infinities and inexact native raws")
 func foundationDateResultRejectsInfinityAndInexactRawValues() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let queries: [any SQLable] = [
         SQL.select(Fn.cast("infinity", .timestamptz) => "value"),
         SQL.select(Fn.cast("-infinity", .timestamptz) => "value"),

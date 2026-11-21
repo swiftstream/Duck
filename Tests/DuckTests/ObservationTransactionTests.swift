@@ -4,7 +4,7 @@ import SQL
 import Testing
 
 private struct ObservationTransactionContext {
-    let database: Database
+    let database: Database.Runtime
     let connection: Connection
     let table: DB.Table
     let sequenceName: String
@@ -13,7 +13,7 @@ private struct ObservationTransactionContext {
 private struct ObservationTransactionBodyError: Error {}
 
 private func makeObservationTransactionContext() async throws -> ObservationTransactionContext {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let suffix = UUID().uuidString.replacingOccurrences(of: "-", with: "")
     let table = DB.Table("observation_transaction_\(suffix)")
@@ -81,7 +81,7 @@ private func rows(
 }
 
 private func runWithSignals(
-    _ database: Database,
+    _ database: Database.Runtime,
     operation: () async throws -> Void
 ) async -> (Int, Result<Void, Error>) {
     let registration = await database.observationCoordinator.register(initial: .tables([]))
@@ -103,7 +103,7 @@ private func runWithSignals(
 }
 
 private func countSignals(
-    _ database: Database,
+    _ database: Database.Runtime,
     operation: () async throws -> Void
 ) async throws -> Int {
     let (count, outcome) = await runWithSignals(database, operation: operation)

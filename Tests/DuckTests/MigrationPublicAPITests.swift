@@ -13,7 +13,7 @@ struct MigrationPublicAPITests {
         #expect(defaultMigration.name == "DefaultNamedMigration")
         #expect(explicitMigration.name == "public explicit migration")
 
-        let database = DatabaseIdentifier.memory()
+        let database = Database.memory()
         let migrator: Migrator = database.migrator([defaultMigration, explicitMigration])
         let firstBatch: UInt = try await migrator.migrate()
         #expect(firstBatch == 1)
@@ -78,7 +78,7 @@ struct MigrationPublicAPITests {
 
     @Test("normal import MigrationError is catchable and equatable")
     func normalImportMigrationErrorIsCatchableAndEquatable() async throws {
-        let database = DatabaseIdentifier.memory()
+        let database = Database.memory()
         let migrator = database.migrator([InvalidPublicMigration()])
 
         do {

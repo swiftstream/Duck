@@ -151,7 +151,7 @@ private func fetchTransactionPersistenceAccount(id: Int64, on connection: Connec
 
 @Test("Transaction INSERT returning commits DB defaults and exact round-trip")
 func transactionInsertReturningCommits() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createTransactionPersistenceTable(on: connection)
 
     let model = makeTransactionPersistenceAccount(
@@ -186,7 +186,7 @@ func transactionInsertReturningCommits() async throws {
 
 @Test("Transaction INSERT non-returning rolls back on body error")
 func transactionInsertNonReturningRollsBack() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createTransactionPersistenceTable(on: connection)
 
     let model = makeTransactionPersistenceAccount(
@@ -213,7 +213,7 @@ func transactionInsertNonReturningRollsBack() async throws {
 
 @Test("Transaction UPDATE returning commits durable non-key change")
 func transactionUpdateReturningCommits() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createTransactionPersistenceTable(on: connection)
 
     let baseline = try await makeTransactionPersistenceAccount(
@@ -250,7 +250,7 @@ func transactionUpdateReturningCommits() async throws {
 
 @Test("Transaction UPDATE non-returning rolls back on body error")
 func transactionUpdateNonReturningRollsBack() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createTransactionPersistenceTable(on: connection)
 
     let baseline = try await makeTransactionPersistenceAccount(
@@ -283,7 +283,7 @@ func transactionUpdateNonReturningRollsBack() async throws {
 
 @Test("Transaction model execution failure participates in rollback-only first-error propagation")
 func transactionModelFailureParticipatesInRollbackOnly() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     // TransactionPersistenceMissingTarget.table is intentionally not created.
     let model = TransactionPersistenceMissingTarget(label: "transaction-persistence-missing")
 
@@ -324,7 +324,7 @@ func transactionModelFailureParticipatesInRollbackOnly() async throws {
 
 @Test("Escaped Transaction rejects actual SQL persistence with transactionEnded")
 func escapedTransactionRejectsPersistence() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createTransactionPersistenceTable(on: connection)
 
     var escaped: DuckTransaction?
@@ -358,7 +358,7 @@ func escapedTransactionRejectsPersistence() async throws {
 
 @Test("Zero-changed Transaction UPDATE performs no SQL-visible access after drop")
 func zeroChangedTransactionUpdateNoSQLAfterDrop() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     try await createTransactionPersistenceTable(on: connection)
 
     let decoded = try await makeTransactionPersistenceAccount(

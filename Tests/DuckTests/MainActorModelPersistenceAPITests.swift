@@ -24,9 +24,9 @@ private struct MainActorPersistenceProbe: Table {
 // to hide the public API regression.
 
 @MainActor
-private func compileDatabaseIdentifierPersistenceSurface(
+private func compileDatabasePersistenceSurface(
     model: MainActorPersistenceProbe,
-    database: DatabaseIdentifier
+    database: Database
 ) async throws {
     let current = model
 
@@ -116,7 +116,7 @@ private func compileTransactionPersistenceSurface(
 @MainActor
 private func compileBatchPersistenceSurface(
     rows: [MainActorPersistenceProbe],
-    database: DatabaseIdentifier,
+    database: Database,
     connection: Connection,
     transaction: DuckTransaction
 ) async throws {

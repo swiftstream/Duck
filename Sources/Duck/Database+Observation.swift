@@ -1,17 +1,17 @@
 import SQL
 
-extension DatabaseIdentifier {
+extension Database {
     /// Captures a reusable latest successful state observation synchronously.
     ///
-    /// Equivalent identifiers resolve one canonical runtime, so mutations routed
-    /// through any equivalent identifier or one of its Connections participate in
+    /// Equivalent database values resolve one canonical runtime, so mutations routed
+    /// through any equivalent value or one of its Connections participate in
     /// invalidation. Changes made by another process or directly to the database
     /// file remain outside this observation contract.
     public func observe(_ query: any SQLable) throws -> QueryObservation {
         QueryObservation(identifier: self, snapshot: try PreparedQuerySnapshot(query))
     }
 
-    /// Builds a reusable latest-state observation through this identifier.
+    /// Builds a reusable latest-state observation through this database.
     public func observe(
         @SQLBuilder _ build: () -> SQLBuilder.Root
     ) throws -> QueryObservation {
@@ -19,7 +19,7 @@ extension DatabaseIdentifier {
     }
 }
 
-extension Database {
+extension Database.Runtime {
     /// Captures an internal exact-runtime observation for regression coverage.
     func observe(_ query: any SQLable) throws -> QueryObservation {
         QueryObservation(database: self, snapshot: try PreparedQuerySnapshot(query))

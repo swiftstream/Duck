@@ -47,7 +47,7 @@ private func observationDeliveryNextValueQuery(_ sequenceName: String) -> any SQ
 struct ObservationDeliveryTests {
     @Test("D01 snapshots bindings and emits the initial state")
     func snapshotsBindingsAndEmitsInitialState() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let table = DB.Table("observation_delivery_snapshot")
         try await connection.execute(
@@ -80,7 +80,7 @@ struct ObservationDeliveryTests {
 
     @Test("D02 rejects direct nextval before execution and does not advance")
     func rejectsDirectNextvalWithoutAdvancing() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         try await connection.execute(
             SQL
@@ -108,7 +108,7 @@ struct ObservationDeliveryTests {
 
     @Test("D03 rechecks a view after catalog replacement")
     func rechecksCatalogChangedView() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let reader = try database.connect()
         let writer = try database.connect()
         try await reader.execute(
@@ -164,7 +164,7 @@ struct ObservationDeliveryTests {
 
     @Test("D04 supports repeated committed read-only refreshes")
     func supportsRepeatedReadOnlyRefreshes() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let reader = try database.connect()
         let writer = try database.connect()
         let table = observationDeliveryValueTable("observation_delivery_repeat")
@@ -191,7 +191,7 @@ struct ObservationDeliveryTests {
 
     @Test("D05 suppresses equal states and delivers the changed state")
     func suppressesEqualStates() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let table = observationDeliveryValueTable("observation_delivery_dedup")
         try await connection.execute(createObservationDeliveryValueTable(table))
@@ -210,7 +210,7 @@ struct ObservationDeliveryTests {
 
     @Test("D06 converges after a bounded invalidation burst")
     func convergesAfterBurst() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let reader = try database.connect()
         let writer = try database.connect()
         let table = observationDeliveryValueTable("observation_delivery_burst")
@@ -235,7 +235,7 @@ struct ObservationDeliveryTests {
 
     @Test("D07 reanalyzes a view dependency after replacement")
     func reanalyzesViewDependency() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let reader = try database.connect()
         let writer = try database.connect()
         let left = observationDeliveryValueTable("observation_delivery_left")
@@ -281,7 +281,7 @@ struct ObservationDeliveryTests {
 
     @Test("D08 cancellation stops a pending iterator without polling")
     func cancellationStopsPendingIterator() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let table = observationDeliveryValueTable("observation_delivery_cancel")
         try await connection.execute(createObservationDeliveryValueTable(table))
@@ -312,7 +312,7 @@ struct ObservationDeliveryTests {
 
     @Test("D09 refresh errors terminate one iterator and a fresh iterator is reusable")
     func refreshErrorTerminatesOnlyThatIterator() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let table = observationDeliveryValueTable("observation_delivery_error")
         try await connection.execute(createObservationDeliveryValueTable(table))
@@ -343,7 +343,7 @@ struct ObservationDeliveryTests {
 
     @Test("D10 iterators have independent refresh runtimes")
     func iteratorsAreIndependent() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let table = observationDeliveryValueTable("observation_delivery_independent")
         try await connection.execute(createObservationDeliveryValueTable(table))
@@ -383,8 +383,8 @@ struct ObservationDeliveryTests {
 
     @Test("D11 observation invalidation is scoped to the exact Database")
     func invalidationIsDatabaseLocal() async throws {
-        let firstDatabase = try Database()
-        let secondDatabase = try Database()
+        let firstDatabase = try Database.Runtime()
+        let secondDatabase = try Database.Runtime()
         let connection = try firstDatabase.connect()
         let table = observationDeliveryValueTable("observation_delivery_local")
         try await connection.execute(createObservationDeliveryValueTable(table))

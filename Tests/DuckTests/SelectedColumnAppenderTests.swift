@@ -46,7 +46,7 @@ private func selectedAppenderCount(
 }
 
 private func selectedAppenderDrainedCount(
-    _ database: Database,
+    _ database: Database.Runtime,
     registration: ObservationRegistration
 ) async -> Int {
     await database.observationCoordinator.unregister(registration.id)
@@ -106,7 +106,7 @@ struct SelectedColumnAppenderTests {
 
     @Test("Omitted selected columns use DEFAULT or NULL while selected nil is NULL")
     func selectedOmissionAndNullSemantics() async throws {
-        let connection = try Database().connect()
+        let connection = try Database.Runtime().connect()
         let table = DB.Table("selected_defaults")
         _ = try await connection.execute(
             SQL
@@ -171,7 +171,7 @@ struct SelectedColumnAppenderTests {
 
     @Test("Invalid selected names fail creation before body and leave Connection usable")
     func selectedNameFailuresReleaseSetup() async throws {
-        let connection = try Database().connect()
+        let connection = try Database.Runtime().connect()
         let table = DB.Table("selected_name_failures")
         _ = try await connection.execute(
             SQL
@@ -229,7 +229,7 @@ struct SelectedColumnAppenderTests {
 
     @Test("Selected row preflight failures are recoverable before native mutation")
     func selectedRowPreflightIsRecoverable() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let table = DB.Table("selected_preflight")
         _ = try await connection.execute(
@@ -305,7 +305,7 @@ struct SelectedColumnAppenderTests {
 
     @Test("Selected finalization failure reports constraint and conservatively publishes")
     func selectedConstraintFinalizationPublishes() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let table = DB.Table("selected_constraint")
         _ = try await connection.execute(
@@ -341,7 +341,7 @@ struct SelectedColumnAppenderTests {
 
     @Test("Selected 204800 row auto-flush preserves prefix and invalidates Observation")
     func selectedAutoFlushPrefixAndObservation() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let table = DB.Table("selected_autoflush")
         _ = try await connection.execute(
@@ -372,7 +372,7 @@ struct SelectedColumnAppenderTests {
 
     @Test("Selected Transaction appends publish at commit and caught errors remain rollback-only")
     func selectedTransactionCommitAndRollbackOnly() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let observer = try database.connect()
         let table = DB.Table("selected_transaction")
@@ -429,7 +429,7 @@ struct SelectedColumnAppenderTests {
 
     @Test("Selected Appender guards same Connection, releases cancellation, and permits another Connection")
     func selectedScopeGuardsAndCancellation() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let connection = try database.connect()
         let other = try database.connect()
         let table = DB.Table("selected_guards")
@@ -474,7 +474,7 @@ struct SelectedColumnAppenderTests {
 
     @Test("Selected pooled ordinary and Transaction scopes return a usable checkout")
     func selectedPooledScopesReturnCheckout() async throws {
-        let database = try Database()
+        let database = try Database.Runtime()
         let pool = try database.pool(maximumConnections: 1)
         let table = DB.Table("selected_pool")
         let firstId = try await pool.connection { connection in

@@ -80,8 +80,8 @@ private struct BuilderMissingProjection: Decodable {
 
 private struct BuilderExecutionRollbackIntent: Error {}
 
-private func makeBuilderExecutionDatabase() async throws -> (Database, Connection) {
-    let database = try Database()
+private func makeBuilderExecutionDatabase() async throws -> (Database.Runtime, Connection) {
+    let database = try Database.Runtime()
     let connection = try database.connect()
 
     try await connection.execute {
@@ -342,7 +342,7 @@ func databaseObserveSQLBuilder() async throws {
 
 @Test("Parameterized SQLBuilder prepare preserves marker order and runtime binding")
 func parameterizedSQLBuilderPrepare() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     let statement = try await connection.prepare { parameters in
         let first = parameters.parameter()
@@ -408,7 +408,7 @@ func parameterizedSQLBuilderModelQuery() async throws {
 
 @Test("Existing dynamic prepare overloads remain source-compatible beside SQLBuilder")
 func existingDynamicPrepareOverloadsRemainCompatible() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     let explicitFluent = try await connection.prepare { parameters -> any SQLable in
         let value = parameters.parameter()
@@ -432,9 +432,9 @@ func existingDynamicPrepareOverloadsRemainCompatible() async throws {
     #expect(try await nested.query(Int32(23)).rows.first?["value"] == .int32(23))
 }
 
-@Test("Typed table query terminals decode full models through a DatabaseIdentifier")
-func typedTableQueryDatabaseIdentifierTerminals() async throws {
-    let identifier = DatabaseIdentifier.memory()
+@Test("Typed table query terminals decode full models through a Database")
+func typedTableQueryDatabaseTerminals() async throws {
+    let identifier = Database.memory()
 
     try await SQL
         .create

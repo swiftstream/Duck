@@ -18,7 +18,7 @@ private struct HistoryMigration: Migration {
 }
 
 private struct HistoryFixture {
-    let database: Database
+    let database: Database.Runtime
     let connection: Connection
 }
 
@@ -29,14 +29,14 @@ private func freshFilePath(_ label: String) -> String {
 }
 
 private func bootstrappedFixture() async throws -> HistoryFixture {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     try await MigrationHistory.bootstrap(on: connection)
     return HistoryFixture(database: database, connection: connection)
 }
 
 private func malformedFixture(_ definitions: [any SQLable]) async throws -> HistoryFixture {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let schema = DB.Schema("__swiftduckdb")
     let table = schema.table("migrations")
@@ -112,7 +112,7 @@ func freshFileBackedBootstrapSucceeds() async throws {
     let path = freshFilePath("bootstrap")
     defer { try? FileManager.default.removeItem(atPath: path) }
 
-    let database = try Database(path: path)
+    let database = try Database.Runtime(path: path)
     let connection = try database.connect()
     try await MigrationHistory.bootstrap(on: connection)
     try await MigrationHistory.validate(on: connection)
@@ -124,7 +124,7 @@ func renamedDuckModuleReusesPersistedLegacyHistory() async throws {
     defer { try? FileManager.default.removeItem(atPath: path) }
 
     do {
-        let database = try Database(path: path)
+        let database = try Database.Runtime(path: path)
         let connection = try database.connect()
         let schema = DB.Schema("__swiftduckdb")
         let table = schema.table("migrations")
@@ -149,7 +149,7 @@ func renamedDuckModuleReusesPersistedLegacyHistory() async throws {
     }
 
     do {
-        let database = try Database(path: path)
+        let database = try Database.Runtime(path: path)
         let connection = try database.connect()
 
         try await MigrationHistory.bootstrap(on: connection)

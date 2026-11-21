@@ -282,7 +282,7 @@ private func decodeErrorCase(_ error: Error) -> DecodingError? {
 
 @Test("ResultRow.decode decodes plain synthesized Decodable from real DuckDB row")
 func rowDecodePlainSynthesized() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let amount = try #require(Decimal(string: "1234.56"))
     let result = try await SQL
         .select(
@@ -313,7 +313,7 @@ func rowDecodePlainSynthesized() async throws {
 
 @Test("QueryResult.first returns nil for zero rows and decodes one row")
 func queryResultFirstZeroAndOneRow() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     let empty = try await SQL
         .select(
@@ -338,7 +338,7 @@ func queryResultFirstZeroAndOneRow() async throws {
 
 @Test("QueryResult.first throws on malformed model and never swallows as nil")
 func queryResultFirstMalformedThrows() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let result = try await SQL.select("alpha" => "name").query(on: connection)
 
     do {
@@ -356,7 +356,7 @@ func queryResultFirstMalformedThrows() async throws {
 
 @Test("QueryResult.all preserves row order and throws on later malformed row")
 func queryResultAllOrderAndMalformed() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     let ordered = try await SQL
         .select(Fn.cast(Int64(1), .bigint) => "id", "a" => "name")
@@ -392,7 +392,7 @@ func queryResultAllOrderAndMalformed() async throws {
 
 @Test("Prefix decode, empty prefix equals no prefix, custom CodingKeys, prefix+keys")
 func prefixAndCodingKeys() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     let prefixed = try await SQL.select(
         Fn.cast("11111111-2222-3333-4444-555555555555", .uuid) => "user_id",
@@ -452,7 +452,7 @@ func prefixAndCodingKeys() async throws {
 
 @Test("Native scalar families decode from real DuckDB kinds")
 func nativeScalarFamilies() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     let boolResult = try await SQL.select(SQLBool(true) => "flag").query(on: connection)
     #expect(try firstRow(boolResult).decode(BoolModel.self).flag == true)
@@ -555,7 +555,7 @@ func nativeScalarFamilies() async throws {
 
 @Test("Native UUID/Date/Data/Decimal model values equal Value.get payloads")
 func nativeRepresentationPrecedence() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let amount = try #require(Decimal(string: "1234.56"))
     let result = try await SQL
         .select(
@@ -595,7 +595,7 @@ func nativeRepresentationPrecedence() async throws {
 
 @Test("Int/UInt checked model policy accepts exact signed/unsigned and rejects cross-family")
 func intUIntPolicy() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     #expect(try firstRow(try await SQL.select(Fn.cast(Int8(42), .tinyint) => "value").query(on: connection))
         .decode(IntModel.self).value == 42)
@@ -660,7 +660,7 @@ func intUIntPolicy() async throws {
 
 @Test("Missing / SQL NULL / wrong type / Optional semantics use exact DecodingError cases")
 func errorTaxonomy() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let result = try await SQL.select(
         "alpha" => "name",
         Fn.cast(SQL.null, .varchar) => "note"
@@ -715,7 +715,7 @@ func errorTaxonomy() async throws {
 
 @Test("Real DuckDB duplicate column names are rejected as ambiguous")
 func duplicateColumnRejection() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let result = try await SQL.select(
         Fn.cast(Int64(1), .bigint) => "id",
         Fn.cast(Int64(2), .bigint) => "id"
@@ -800,7 +800,7 @@ func prefixCollisionRejection() throws {
 
 @Test("String-backed Codable enum and invalid raw value / nested boundaries")
 func enumAndUnsupportedBoundaries() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     let enumResult = try await SQL.select(
         "active" => "status",
@@ -882,7 +882,7 @@ private func listBackedRow(
 
 @Test("L20 Value.list decodes into [String]")
 func listDecodesIntoStringArray() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let row = try await listBackedRow(
         on: connection,
         children: [.string("a"), .string("b")]
@@ -897,7 +897,7 @@ func listDecodesIntoStringArray() async throws {
 
 @Test("L21 Value.list with a SQL NULL child decodes into [String?]")
 func listDecodesIntoOptionalStringArray() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let row = try await listBackedRow(
         on: connection,
         children: [.string("a"), .null, .string("c")]
@@ -909,7 +909,7 @@ func listDecodesIntoOptionalStringArray() async throws {
 
 @Test("L22 Value.list decodes raw-value enums through ordinary Codable")
 func listDecodesIntoEnumArray() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let row = try await listBackedRow(
         on: connection,
         children: [.string("active"), .string("paused")]
@@ -921,7 +921,7 @@ func listDecodesIntoEnumArray() async throws {
 
 @Test("L23 an unknown enum label inside a LIST fails as DecodingError")
 func listWithUnknownEnumLabelFails() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let row = try await listBackedRow(
         on: connection,
         children: [.string("active"), .string("not-a-status")]
@@ -937,7 +937,7 @@ func listWithUnknownEnumLabelFails() async throws {
 
 @Test("L24 a non-LIST scalar still rejects when an Array is requested")
 func scalarRequestedAsArrayStillTypeMismatch() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .varchar) => "tags")
     }
@@ -1002,7 +1002,7 @@ func nestedListChildrenRemainRejected() throws {
 
 @Test("SQL Table @Column model decodes from real result via ResultRow.decode")
 func swifQLTableDecodeCompatibility() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = CodableUser.table
 
     try await SQL
@@ -1085,7 +1085,7 @@ func int128RowDecodeFromRealQuery() async throws {
         return
     }
 
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let expected = Int128(1) << 64
 
     let result = try await connection.query(
@@ -1108,7 +1108,7 @@ func uint128RowDecodeFromRealQuery() async throws {
         return
     }
 
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let expected = UInt128(1) << 64
 
     let result = try await connection.query(

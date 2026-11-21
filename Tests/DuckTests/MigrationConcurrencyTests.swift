@@ -39,8 +39,8 @@ private func expectCustomError(
 
 @Test("B-C01 separate in-memory databases have different coordination keys")
 func separateInMemoryDatabasesHaveDifferentKeys() throws {
-    let first = try Database()
-    let second = try Database()
+    let first = try Database.Runtime()
+    let second = try Database.Runtime()
 
     #expect(first.migrationCoordinationKey != second.migrationCoordinationKey)
 }
@@ -56,14 +56,14 @@ func canonicalPathAliasesHaveEqualKeys() throws {
     let aliasURL = directory.appendingPathComponent("nested/../nested/database.duckdb")
     defer { try? FileManager.default.removeItem(at: directory) }
 
-    let actual = try Database(path: actualURL.path)
-    let alias = try Database(path: aliasURL.path)
+    let actual = try Database.Runtime(path: actualURL.path)
+    let alias = try Database.Runtime(path: aliasURL.path)
     #expect(actual.migrationCoordinationKey == alias.migrationCoordinationKey)
 }
 
 @Test("B-C03 same active database acquire is concurrentRun")
 func sameActiveDatabaseAcquireIsConcurrentRun() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let coordinator = MigrationRunCoordinator.shared
     try await coordinator.acquire(for: database)
 
@@ -75,7 +75,7 @@ func sameActiveDatabaseAcquireIsConcurrentRun() async throws {
 
 @Test("B-C04 released database can acquire sequentially")
 func releasedDatabaseCanAcquireSequentially() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let coordinator = MigrationRunCoordinator.shared
     try await coordinator.acquire(for: database)
     await coordinator.release(for: database)
@@ -87,8 +87,8 @@ func releasedDatabaseCanAcquireSequentially() async throws {
 func differentLiveOwnerOnSamePathConflicts() async throws {
     let path = coordinatorFilePath("conflict")
     defer { try? FileManager.default.removeItem(atPath: path) }
-    let first = try Database(path: path)
-    let second = try Database(path: path)
+    let first = try Database.Runtime(path: path)
+    let second = try Database.Runtime(path: path)
     let coordinator = MigrationRunCoordinator.shared
 
     try await coordinator.acquire(for: first)
@@ -102,8 +102,8 @@ func differentLiveOwnerOnSamePathConflicts() async throws {
 func deallocatedWeakOwnerCanBeReplaced() async throws {
     let path = coordinatorFilePath("owner-lifetime")
     defer { try? FileManager.default.removeItem(atPath: path) }
-    var first: Database? = try Database(path: path)
-    let second = try Database(path: path)
+    var first: Database.Runtime? = try Database.Runtime(path: path)
+    let second = try Database.Runtime(path: path)
     let coordinator = MigrationRunCoordinator.shared
 
     try await claimAndRelease(first, coordinator: coordinator)
@@ -113,7 +113,7 @@ func deallocatedWeakOwnerCanBeReplaced() async throws {
 }
 
 private func claimAndRelease(
-    _ database: Database?,
+    _ database: Database.Runtime?,
     coordinator: MigrationRunCoordinator
 ) async throws {
     guard let database else {
@@ -125,8 +125,8 @@ private func claimAndRelease(
 
 @Test("B-C07 different in-memory keys remain independently active")
 func differentInMemoryKeysRemainActive() async throws {
-    let first = try Database()
-    let second = try Database()
+    let first = try Database.Runtime()
+    let second = try Database.Runtime()
     let coordinator = MigrationRunCoordinator.shared
 
     try await coordinator.acquire(for: first)
@@ -143,8 +143,8 @@ func differentFilePathsRemainIndependentlyActive() async throws {
         try? FileManager.default.removeItem(atPath: firstPath)
         try? FileManager.default.removeItem(atPath: secondPath)
     }
-    let first = try Database(path: firstPath)
-    let second = try Database(path: secondPath)
+    let first = try Database.Runtime(path: firstPath)
+    let second = try Database.Runtime(path: secondPath)
     let coordinator = MigrationRunCoordinator.shared
 
     try await coordinator.acquire(for: first)
@@ -157,8 +157,8 @@ func differentFilePathsRemainIndependentlyActive() async throws {
 func releaseRetainsLiveOwnerAssociation() async throws {
     let path = coordinatorFilePath("release-owner")
     defer { try? FileManager.default.removeItem(atPath: path) }
-    let first = try Database(path: path)
-    let second = try Database(path: path)
+    let first = try Database.Runtime(path: path)
+    let second = try Database.Runtime(path: path)
     let coordinator = MigrationRunCoordinator.shared
 
     try await coordinator.acquire(for: first)
@@ -172,7 +172,7 @@ func releaseRetainsLiveOwnerAssociation() async throws {
 
 @Test("D-C10 overlapping public migrate on the same Database is concurrentRun")
 func overlappingPublicMigrateOnSameDatabaseIsConcurrentRun() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let entered = MigrationSignal()
     let gate = MigrationGate()
     let migration = concurrencyMigration(name: "same database migrate overlap") { _ in
@@ -196,7 +196,7 @@ func overlappingPublicMigrateOnSameDatabaseIsConcurrentRun() async throws {
 
 @Test("D-C11 overlapping public revert on the same Database is concurrentRun")
 func overlappingPublicRevertOnSameDatabaseIsConcurrentRun() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let entered = MigrationSignal()
     let gate = MigrationGate()
     let migration = concurrencyMigration(name: "same database revert overlap", down: { _ in
@@ -222,7 +222,7 @@ func overlappingPublicRevertOnSameDatabaseIsConcurrentRun() async throws {
 
 @Test("D-C12 overlapping public migrate and revert on the same Database is concurrentRun")
 func overlappingPublicMigrateAndRevertOnSameDatabaseIsConcurrentRun() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let entered = MigrationSignal()
     let gate = MigrationGate()
     let first = concurrencyMigration(name: "migrate and revert first")
@@ -257,8 +257,8 @@ func canonicalAliasSecondLiveOwnerRemainsConflictingDatabaseOwner() async throws
     let aliasURL = directory.appendingPathComponent("nested/../nested/database.duckdb")
     defer { try? FileManager.default.removeItem(at: directory) }
 
-    let first = try Database(path: actualURL.path)
-    let second = try Database(path: aliasURL.path)
+    let first = try Database.Runtime(path: actualURL.path)
+    let second = try Database.Runtime(path: aliasURL.path)
     let migration = concurrencyMigration(name: "canonical owner")
 
     #expect(try await first.migrator([migration]).migrate() == 1)
@@ -270,8 +270,8 @@ func canonicalAliasSecondLiveOwnerRemainsConflictingDatabaseOwner() async throws
 
 @Test("D-C14 unrelated public migration bodies are concurrently active")
 func unrelatedPublicMigrationBodiesAreConcurrentlyActive() async throws {
-    let first = try Database()
-    let second = try Database()
+    let first = try Database.Runtime()
+    let second = try Database.Runtime()
     let barrier = MigrationBarrier(requiredArrivals: 2)
     let firstMigration = concurrencyMigration(name: "first independent database") { _ in
         await barrier.arriveAndWait()
@@ -294,8 +294,8 @@ func unrelatedPublicMigrationBodiesAreConcurrentlyActive() async throws {
 @Test("D-C14A equivalent public identifiers reject overlapping migration runs")
 func equivalentPublicIdentifiersRejectOverlappingMigrationRuns() async throws {
     let name = "migration-identifier-overlap-\(UUID().uuidString)"
-    let first = DatabaseIdentifier(memory: name)
-    let second = DatabaseIdentifier(memory: name)
+    let first = Database(memory: name)
+    let second = Database(memory: name)
     let entered = MigrationSignal()
     let gate = MigrationGate()
     let migration = concurrencyMigration(name: "identifier overlap") { _ in
@@ -319,10 +319,10 @@ func equivalentPublicIdentifiersRejectOverlappingMigrationRuns() async throws {
 
 @Test("D-C14B distinct public identifiers remain concurrently active")
 func distinctPublicIdentifiersRemainConcurrentlyActive() async throws {
-    let first = DatabaseIdentifier(
+    let first = Database(
         memory: "migration-identifier-first-\(UUID().uuidString)"
     )
-    let second = DatabaseIdentifier(
+    let second = Database(
         memory: "migration-identifier-second-\(UUID().uuidString)"
     )
     let barrier = MigrationBarrier(requiredArrivals: 2)
@@ -346,7 +346,7 @@ func distinctPublicIdentifiersRemainConcurrentlyActive() async throws {
 
 @Test("D-C15 ordinary migrate failure releases coordination")
 func ordinaryMigrateFailureReleasesCoordination() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let failing = concurrencyMigration(name: "recoverable migrate failure") { _ in
         throw ConcurrencyError.failed(code: 401)
     }
@@ -360,7 +360,7 @@ func ordinaryMigrateFailureReleasesCoordination() async throws {
 
 @Test("D-C16 ordinary revert failure releases coordination")
 func ordinaryRevertFailureReleasesCoordination() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let failing = concurrencyMigration(
         name: "recoverable revert failure",
         down: { _ in throw ConcurrencyError.failed(code: 402) }
@@ -377,7 +377,7 @@ func ordinaryRevertFailureReleasesCoordination() async throws {
 
 @Test("D-C17 migrate cancellation with successful rollback releases coordination")
 func migrateCancellationWithSuccessfulRollbackReleasesCoordination() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let entered = MigrationSignal()
     let gate = MigrationGate()
     let migration = concurrencyMigration(name: "cancellable migrate") { transaction in
@@ -409,7 +409,7 @@ func migrateCancellationWithSuccessfulRollbackReleasesCoordination() async throw
 
 @Test("D-C18 revert cancellation with successful rollback releases coordination")
 func revertCancellationWithSuccessfulRollbackReleasesCoordination() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let entered = MigrationSignal()
     let gate = MigrationGate()
     let migration = concurrencyMigration(

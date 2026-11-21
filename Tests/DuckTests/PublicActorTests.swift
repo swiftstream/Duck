@@ -2,48 +2,50 @@
 import Foundation
 import Testing
 
-@Test("Opens an in-memory public database and connection")
-func opensPublicInMemoryDatabase() throws {
-    let database = try Database()
-    _ = try database.connect()
+@Test("Opens an in-memory public Database value and Connection")
+func opensPublicInMemoryDatabase() async throws {
+    let database = Database.memory()
+    _ = try await database.connect()
 }
 
-@Test("Creates a file-backed public database at a unique path")
-func opensPublicFileBackedDatabase() throws {
-    let databaseURL = FileManager.default.temporaryDirectory
+@Test("File-backed Database construction is lazy until connect")
+func opensPublicFileBackedDatabaseLazily() async throws {
+    let directory = FileManager.default.temporaryDirectory
         .appendingPathComponent("duck-public-database-\(UUID().uuidString)")
-        .appendingPathExtension("duckdb")
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
 
-    _ = try Database(path: databaseURL.path)
+    let databaseURL = directory.appendingPathComponent("database.duckdb")
+    let database = Database(path: databaseURL.path)
+    #expect(!FileManager.default.fileExists(atPath: databaseURL.path))
 
+    _ = try await database.connect()
     #expect(FileManager.default.fileExists(atPath: databaseURL.path))
 }
 
-@Test("Creates independent public connections from one database")
-func createsMultiplePublicConnections() throws {
-    let database = try Database()
-    let first = try database.connect()
-    let second = try database.connect()
+@Test("Database.connect creates independent standalone Connections")
+func createsMultiplePublicConnections() async throws {
+    let database = Database.memory()
+    let first = try await database.connect()
+    let second = try await database.connect()
 
     #expect(first !== second)
 }
 
-@Test("Connection retains its parent database")
-func connectionRetainsPublicDatabase() throws {
-    weak var weakDatabase: Database?
+@Test("Connection retains its exact internal Database.Runtime owner")
+func connectionRetainsRuntimeOwner() throws {
+    weak var weakRuntime: Database.Runtime?
     var connection: Connection?
 
     do {
-        let database = try Database()
-        weakDatabase = database
-        connection = try database.connect()
+        let runtime = try Database.Runtime()
+        weakRuntime = runtime
+        connection = try runtime.connect()
     }
 
     #expect(connection != nil)
-    #expect(weakDatabase != nil)
+    #expect(weakRuntime != nil)
 
     connection = nil
-
-    #expect(weakDatabase == nil)
+    #expect(weakRuntime == nil)
 }

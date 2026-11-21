@@ -161,7 +161,7 @@ func rollbackOnlyImmediatelyWakesQueuedSibling() async throws {
     #expect(state.operations[queued.operationId] == nil)
     #expect(!state.isClosing)
 
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let (liveReservationId, rollback) = try await openStateMachineTransaction(on: connection)
 
@@ -243,7 +243,7 @@ func cancellationRollbackOnlyReasonPropagates() async throws {
         // Expected.
     }
 
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let (liveReservationId, rollback) = try await openStateMachineTransaction(on: connection)
     let liveActive = try await connection.registerTransactionOperation(liveReservationId)
@@ -330,7 +330,7 @@ func finalizationInvalidatesRegisteredToken() async throws {
         #expect(error == .transactionEnded)
     }
 
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let (reservationId, rollback) = try await openStateMachineTransaction(on: connection)
     let failing = try await connection.registerTransactionOperation(reservationId)
@@ -406,7 +406,7 @@ func failCloseDrainsQueuedAndRejectsFutureAdmission() async throws {
     )
     #expect(admission.queuedRequests.isEmpty)
 
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let otherConnection = try database.connect()
     await connection.enterFailClosed("state-machine fail-close")
@@ -483,7 +483,7 @@ func reservationStateSerializesQueuedOperationsFIFO() throws {
 
 @Test("COMMIT C0 classification failure rolls back and keeps Connection reusable")
 func commitC0ClassificationFailureRollsBackAndReusesConnection() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = DB.Table("transaction c0 cleanup items")
 

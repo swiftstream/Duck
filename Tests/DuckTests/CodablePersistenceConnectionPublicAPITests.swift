@@ -116,7 +116,7 @@ private func makePublicNote(
 
 @Test("Normal-import public API proves insert/update returning and non-returning")
 func normalImportPublicAPICRUD() async throws {
-    let connection = try await DatabaseIdentifier.memory().connect()
+    let connection = try await Database.memory().connect()
 
     try await CreateTableBuilder<PublicNote>()
         .checkIfNotExists()
@@ -259,7 +259,7 @@ private func createPublicUpsertTable(on connection: Connection) async throws {
 
 @Test("Normal-import UPSERT proves zero/one/multiple typed exclusions on Connection")
 func normalImportPublicAPIUpsert() async throws {
-    let connection = try await DatabaseIdentifier.memory().connect()
+    let connection = try await Database.memory().connect()
     try await createPublicUpsertTable(on: connection)
 
     // Zero-exclusion call shape: compiles and runs the INSERT branch.

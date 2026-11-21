@@ -151,7 +151,7 @@ private func expectUInt128Result(
 
 @Test("A mixed-family QueryResult remains usable after its owners leave scope")
 func mixedFamilyResultSurvivesOwnerScope() async throws {
-    weak var weakDatabase: Database?
+    weak var weakDatabase: Database.Runtime?
     weak var weakConnection: Connection?
 
     let fixture = try hardeningFixture(7)
@@ -165,7 +165,7 @@ func mixedFamilyResultSurvivesOwnerScope() async throws {
             Value?,
             Value?
         ) {
-            let database = try Database()
+            let database = try Database.Runtime()
             weakDatabase = database
             let connection = try database.connect()
             weakConnection = connection
@@ -237,7 +237,7 @@ func mixedFamilyResultSurvivesOwnerScope() async throws {
 
 @Test("Mixed-family reusable Statements share one Connection scheduler safely")
 func concurrentMixedFamilyStatementsShareConnectionScheduler() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let uuidStatement = try await universalStatement(on: connection, .uuid)
     let dateTimeStatement = try await universalStatement(on: connection, .timestampNs)
     let foundationDateStatement = try await universalStatement(on: connection, .timestamptz)
@@ -355,7 +355,7 @@ func concurrentMixedFamilyStatementsShareConnectionScheduler() async throws {
 
 @Test("Separate Connections keep mixed-family Statement workloads independent")
 func mixedFamilyStatementsOnSeparateConnectionsRemainIndependent() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connections = try (0..<4).map { _ in try database.connect() }
     let fixtures = try (1...4).map { try hardeningFixture($0 + 10) }
     let statements = [
@@ -390,7 +390,7 @@ func mixedFamilyStatementsOnSeparateConnectionsRemainIndependent() async throws 
 
 @Test("Concurrent mixed-family Appender rows preserve complete correlation sets")
 func concurrentMixedFamilyAppenderRowsPreserveCorrelation() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("value_hardening_appender_rows")
     try await connection.execute(
         SQL.create.table[any: table].tableDefinitions(
@@ -461,7 +461,7 @@ func concurrentMixedFamilyAppenderRowsPreserveCorrelation() async throws {
 
 @Test("Transaction-local mixed-family reusable Statements preserve bindings")
 func concurrentMixedFamilyStatementsInsideTransactionPreserveBindings() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let uuidStatement = try await universalStatement(on: connection, .uuid)
     let dateTimeStatement = try await universalStatement(on: connection, .timestampNs)
     let foundationDateStatement = try await universalStatement(on: connection, .timestamptz)
@@ -558,13 +558,13 @@ private func hardeningDecimalCoordinates() throws -> [(text: String, value: Deci
 @Test("A Decimal QueryResult remains usable after its owners leave scope")
 func decimalResultSurvivesOwnerScope() async throws {
     let expected = try hardeningDecimal("9999999999999999999")
-    weak var weakDatabase: Database?
+    weak var weakDatabase: Database.Runtime?
     weak var weakConnection: Connection?
 
     let retained: QueryResult
     do {
         func produceOwnerScopedDecimalResult() async throws -> QueryResult {
-            let database = try Database()
+            let database = try Database.Runtime()
             weakDatabase = database
             let connection = try database.connect()
             weakConnection = connection
@@ -589,7 +589,7 @@ func decimalResultSurvivesOwnerScope() async throws {
 
 @Test("Concurrent Decimal Statement calls preserve per-call bindings")
 func concurrentDecimalStatementCallsPreserveBindings() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await targetlessDecimalStatement(on: connection)
     let coordinates = try hardeningDecimalCoordinates()
     var operations: [(value: Decimal, width: UInt8, scale: UInt8)] = []
@@ -631,7 +631,7 @@ func concurrentDecimalStatementCallsPreserveBindings() async throws {
 
 @Test("Decimal Statements on separate Connections remain independent")
 func decimalStatementsOnSeparateConnectionsRemainIndependent() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connections = try (0..<4).map { _ in try database.connect() }
     var statements: [Statement] = []
     statements.reserveCapacity(connections.count)
@@ -675,7 +675,7 @@ func decimalStatementsOnSeparateConnectionsRemainIndependent() async throws {
 
 @Test("Concurrent Decimal Appender rows preserve id/value correlation")
 func concurrentDecimalAppenderRowsPreserveCorrelation() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("value_hardening_decimal_appender_rows")
     try await connection.execute(
         SQL.create.table[any: table].tableDefinitions(
@@ -720,7 +720,7 @@ func concurrentDecimalAppenderRowsPreserveCorrelation() async throws {
 
 @Test("Transaction-local Decimal reusable Statements preserve bindings")
 func decimalStatementsInsideTransactionPreserveBindings() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await targetlessDecimalStatement(on: connection)
     let fixtures: [(value: Decimal, width: UInt8, scale: UInt8)] = [
         (try hardeningDecimal("1.2"), 2, 1),
@@ -755,7 +755,7 @@ func decimalStatementsInsideTransactionPreserveBindings() async throws {
 
 @Test("Decimal Statement and Connection failures recover without stale targets")
 func decimalStatementFailuresRecoverWithoutStaleTargets() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
 
     let roundingStatement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .decimal(3, 1)) => "value")
@@ -840,7 +840,7 @@ func decimalStatementFailuresRecoverWithoutStaleTargets() async throws {
 
 @Test("Decimal Appender failures remain atomic and reusable")
 func decimalAppenderFailuresRemainAtomicAndReusable() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("value_hardening_decimal_appender_recovery")
     try await connection.execute(
         SQL.create.table[any: table].tableDefinitions(

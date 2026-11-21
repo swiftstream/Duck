@@ -70,7 +70,7 @@ func typedTableSelectAritiesAndExistingSelect() {
 
 @Test("Query-centered conveniences delegate selected SQL to Connection")
 func queryCenteredConveniencesDelegateToConnection() async throws {
-    let database = try Database()
+    let database = try Database.Runtime()
     let connection = try database.connect()
     let table = QueryConvenienceUser.table
 
@@ -155,8 +155,8 @@ private func makeQueryTerminalGood(
     return good
 }
 
-private func makeQueryTerminalDatabase() async throws -> (DatabaseIdentifier, Connection) {
-    let database = DatabaseIdentifier.memory()
+private func makeQueryTerminalDatabase() async throws -> (Database, Connection) {
+    let database = Database.memory()
     let connection = try await database.connect()
 
     try await connection.execute(

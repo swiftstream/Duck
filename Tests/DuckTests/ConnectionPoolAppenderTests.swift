@@ -116,7 +116,7 @@ private func createPoolAppenderTable(
 struct ConnectionPoolAppenderTests {
     @Test("AP01 normal pooled Appender writes complete rows")
     func ap01NormalPooledAppenderWritesRows() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let table = DB.Table(makePoolAppenderTableName())
 
         try await pool.connection { connection in
@@ -148,7 +148,7 @@ struct ConnectionPoolAppenderTests {
 
     @Test("AP02 active Appender delays max-one Connection reuse")
     func ap02ActiveAppenderDelaysReuse() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let tableName = makePoolAppenderTableName()
         let scopeActive = PoolAppenderGate()
         let releaseAppender = PoolAppenderGate()
@@ -237,7 +237,7 @@ struct ConnectionPoolAppenderTests {
 
     @Test("AP03 closing lease rejects a valid-width stale Appender row")
     func ap03ClosingLeaseRejectsStaleAppenderRow() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let tableName = makePoolAppenderTableName()
         let scopeActive = PoolAppenderGate()
         let attemptAppend = PoolAppenderGate()
@@ -339,7 +339,7 @@ struct ConnectionPoolAppenderTests {
 
     @Test("AP04 fail-closed Appender retires the pooled Connection")
     func ap04FailClosedAppenderRetiresConnection() async throws {
-        let pool = try Database().pool(maximumConnections: 1)
+        let pool = try Database.Runtime().pool(maximumConnections: 1)
         let table = DB.Table(makePoolAppenderTableName())
         let message = "pooled Appender fail-closed test"
 

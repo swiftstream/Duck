@@ -361,7 +361,7 @@ func uuidPhysicalTransformVectors() {
 
 @Test("Ordinary query binds and materializes UUID with UUID logical identity")
 func ordinaryQueryUUIDVertical() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let uuid = UUID(uuidString: "123E4567-E89B-12D3-A456-426614174000")!
 
     let resolved = try await connection.query(
@@ -392,7 +392,7 @@ func ordinaryQueryInt128Vertical() async throws {
         return
     }
 
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let values: [Int128] = [
         Int128.min,
         Int128.max,
@@ -429,7 +429,7 @@ func ordinaryQueryUInt128Vertical() async throws {
         return
     }
 
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let values: [UInt128] = [
         0,
         1,
@@ -466,7 +466,7 @@ func reusableStatementInt128Vertical() async throws {
         return
     }
 
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let statement = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .hugeint) => "value")
     }
@@ -505,7 +505,7 @@ func reusableStatementUInt128UUIDVertical() async throws {
         return
     }
 
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let unsigned = try await connection.prepare { parameters in
         SQL.select(Fn.cast(parameters.parameter(), .uhugeint) => "value")
     }
@@ -662,7 +662,7 @@ func appenderC07SameSignMatrix() throws {
 
 @Test("Appender B1 vertical round-trips boundaries with UUID logical identity")
 func appenderB1Vertical() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("b1_vertical_rows")
     _ = try await connection.execute(
         SQL
@@ -766,7 +766,7 @@ func appenderB1Vertical() async throws {
 
 @Test("Appender later-column mismatch mutates zero columns and stays reusable")
 func appenderNoPartialRowOnLaterColumnMismatch() async throws {
-    let connection = try Database().connect()
+    let connection = try Database.Runtime().connect()
     let table = DB.Table("b1_no_partial_rows")
     _ = try await connection.execute(
         SQL
