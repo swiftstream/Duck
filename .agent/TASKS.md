@@ -64,9 +64,9 @@ Final external evidence-audit report SHA-256:
 
 Wave02 establishes the thin public actor handle, reusable internal `Connection.Runtime`, exact `ConnectionAuthority`, fresh public handle per pooled generation, exact Statement/DuckTransaction/Appender binding, and the corrected registered-operation drain semantics. TX11/TX12/TX13 close the rollback-only, exact-current drain, and stale-generation proof boundaries. Ordinary Database convenience routing remains transitional until later waves by design.
 
-### Wave 03 canonical Runtime pool/controller + explicit canonical access — CURRENT / POWER RECOVERY AUTHORIZED
+### Wave 03 canonical Runtime pool/controller + explicit canonical access — ACCEPTED FOR WAVE03B / WAVE03B CURRENT
 
-The Product architecture below remains the accepted Wave03 target. The 2026-11-22 unauthorized model-spend continuation is permanently revoked; execution resumes only through the corrected SECONDARY_POWER recovery described below.
+The complete corrected Wave03 Product/test candidate is externally accepted CLEAN for the pre-commit Wave03B automatic-capacity gate. Wave03 itself remains deliberately uncommitted until Wave03B selects and wires the benchmark-approved automatic default, revalidates the combined candidate, and closes its required benchmark/evidence + final implementation audits.
 
 The prior `PRIMARY_MODEL_GATE_CORRECTION_01.md`, `SECONDARY_POWER_WAVE03_CONTINUATION_01_PROMPT.md`, and its mini-launcher are REVOKED and MUST NOT be resumed. Their substitution of Astra into Luna implementation roles was not maintainer-authorized. Local GPT-6.2 Sol planning/adjudication/audit remains a valid canonical SECONDARY_POWER capability under its workflow model matrix and budget. The partial G01/G02/G03 candidate is preserved uncommitted; it is not accepted merely because the interrupted SECONDARY recorded earlier gates as PASS.
 
@@ -78,13 +78,17 @@ Emergency stop:
 
 `/Users/imike/Development/SwiftStream/Duck/.artifacts/handoff/v1-1-wave03-canonical-pool-controller-power-2026-11-22/PRIMARY_EMERGENCY_MODEL_SPEND_STOP_01.md`
 
-PRIMARY has completed the required read-only recovery review of the frozen partial candidate. G01/G02 are retained as technically coherent candidate work and will be revalidated later; G03 remains partial/unaccepted and is the first recovery gate. A NEW SECONDARY_POWER Wave03 recovery continuation is authorized under the corrected POWER v7 workflow. It uses the canonical model matrix: Luna for implementation/execution roles and admitted GPT-6.2 Sol for planning/adjudication/independent local audit. Any required Luna worker/subagent that cannot be selected causes a HARD STOP rather than cross-model substitution. Astra is forbidden in SECONDARY_POWER under all circumstances. After local POWER completion/CLEAN audit, PRIMARY performs the separate external GPT-5.6 Sol/CodexMCP2 double-check before Wave03B.
+The corrected POWER recovery completed G03R-G08 and its single local GPT-6.2-Sol-Light audit found the nested public manual `Database.connect()` self-wait P1. PRIMARY corrected that bounded defect by sharing the same-pool live-lease reentrancy preflight between scoped and manual checkout; bounded Luna validation then passed both required Swift toolchains with full suites. A NEW, SEPARATE GPT-5.6 Sol/CodexMCP2 external audit subsequently completed all previously-stopped T15 dimensions and returned CLEAN with A01-A68 = 68/68 PASS and zero findings.
 
-Current recovery authority/prompt lives under:
+Final external Wave03 report:
 
-`/Users/imike/Development/SwiftStream/Duck/.artifacts/handoff/v1-1-wave03-power-recovery-02-2026-11-22/`
+`/Users/imike/Development/SwiftStream/Duck/.artifacts/reviews/duck-v1-1-wave03-canonical-pool-controller-external-audit-2026-11-22/SOL_EXTERNAL_WAVE03_IMPLEMENTATION_AUDIT_REPORT.md`
 
-The older `v1-1-wave03-luna-recovery-2026-11-22` authority is superseded and must not be executed.
+SHA-256:
+
+`9f144d3445ac46daf83a57e32191f04bf0ee381b39cee5735eb257ef09c30d05`
+
+Terminal authority: `WAVE03_ACCEPTED_FOR_WAVE03B=YES`, `WAVE03B_AUTHORIZED=YES`, `WAVE03_PRODUCT_COMMIT_AUTHORIZED=NO`.
 
 The intended Product authority remains the combined Wave03 + pre-commit Wave03B program from Plan 01 Correction 02, with the additive manual-lease API clarification at:
 
