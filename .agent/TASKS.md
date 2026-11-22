@@ -64,7 +64,7 @@ Final external evidence-audit report SHA-256:
 
 Wave02 establishes the thin public actor handle, reusable internal `Connection.Runtime`, exact `ConnectionAuthority`, fresh public handle per pooled generation, exact Statement/DuckTransaction/Appender binding, and the corrected registered-operation drain semantics. TX11/TX12/TX13 close the rollback-only, exact-current drain, and stale-generation proof boundaries. Ordinary Database convenience routing remains transitional until later waves by design.
 
-### Wave 03 canonical Runtime pool/controller + explicit canonical access — CURRENT / INCIDENT-PAUSED
+### Wave 03 canonical Runtime pool/controller + explicit canonical access — CURRENT / LUNA RECOVERY AUTHORIZED
 
 The Product architecture below remains the accepted Wave03 target, but Wave03 execution is temporarily PAUSED by the 2026-11-22 unauthorized model-spend incident.
 
@@ -78,7 +78,7 @@ Emergency stop:
 
 `/Users/imike/Development/SwiftStream/Duck/.artifacts/handoff/v1-1-wave03-canonical-pool-controller-power-2026-11-22/PRIMARY_EMERGENCY_MODEL_SPEND_STOP_01.md`
 
-No new Wave03 continuation is authorized until PRIMARY has reviewed the frozen candidate and authors a NEW continuation under the current Luna-only workflows. No Astra/Sol/Terra/non-Luna local dispatch is authorized unless the maintainer explicitly names exact model + exact role/stage + exact maximum call/worker count.
+PRIMARY has now completed the required read-only recovery review of the frozen partial candidate. G01/G02 are retained as technically coherent candidate work and will be revalidated later; G03 remains partial/unaccepted and is the first recovery gate. A NEW Codex/Luna-only Wave03 recovery continuation is authorized under the current workflows. It must run in the main Luna coordinator with local Codex tools only, must not dispatch Astra/Sol/Terra/non-Luna workers, must validate/repair G03 before continuing to G04-G08, and must return to PRIMARY before independent external GPT-5.6 Sol/CodexMCP2 audit. No local non-Luna dispatch is authorized unless the maintainer explicitly names exact model + exact role/stage + exact maximum call/worker count.
 
 The intended Product authority remains the combined Wave03 + pre-commit Wave03B program from Plan 01 Correction 02, with the additive manual-lease API clarification at:
 
