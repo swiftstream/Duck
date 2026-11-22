@@ -64,9 +64,23 @@ Final external evidence-audit report SHA-256:
 
 Wave02 establishes the thin public actor handle, reusable internal `Connection.Runtime`, exact `ConnectionAuthority`, fresh public handle per pooled generation, exact Statement/DuckTransaction/Appender binding, and the corrected registered-operation drain semantics. TX11/TX12/TX13 close the rollback-only, exact-current drain, and stale-generation proof boundaries. Ordinary Database convenience routing remains transitional until later waves by design.
 
-### Wave 03 canonical Runtime pool/controller + explicit canonical access — CURRENT / AUTHORIZED
+### Wave 03 canonical Runtime pool/controller + explicit canonical access — CURRENT / INCIDENT-PAUSED
 
-Current executable authority is the combined Wave03 + pre-commit Wave03B program from Plan 01 Correction 02, with the additive manual-lease API clarification at:
+The Product architecture below remains the accepted Wave03 target, but Wave03 execution is temporarily PAUSED by the 2026-11-22 unauthorized model-spend incident.
+
+The prior `PRIMARY_MODEL_GATE_CORRECTION_01.md`, `SECONDARY_POWER_WAVE03_CONTINUATION_01_PROMPT.md`, and its mini-launcher are REVOKED and MUST NOT be resumed. Their Astra/local-Sol model permissions were not maintainer-authorized. The partial G01/G02/G03 candidate is preserved uncommitted for later PRIMARY technical review; it is not accepted merely because the interrupted SECONDARY recorded earlier gates as PASS.
+
+Incident authority:
+
+`/Users/imike/Development/SwiftStream/Duck/.artifacts/incidents/2026-11-22-unauthorized-astra-model-spend/INCIDENT_REPORT.md`
+
+Emergency stop:
+
+`/Users/imike/Development/SwiftStream/Duck/.artifacts/handoff/v1-1-wave03-canonical-pool-controller-power-2026-11-22/PRIMARY_EMERGENCY_MODEL_SPEND_STOP_01.md`
+
+No new Wave03 continuation is authorized until PRIMARY has reviewed the frozen candidate and authors a NEW continuation under the current Luna-only workflows. No Astra/Sol/Terra/non-Luna local dispatch is authorized unless the maintainer explicitly names exact model + exact role/stage + exact maximum call/worker count.
+
+The intended Product authority remains the combined Wave03 + pre-commit Wave03B program from Plan 01 Correction 02, with the additive manual-lease API clarification at:
 
 `/Users/imike/Development/SwiftStream/Duck/.artifacts/planning/v1-1-wave03-canonical-pool-controller-2026-11-22/PRIMARY_MANUAL_LEASE_API_DECISION.md`
 

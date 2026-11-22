@@ -31,6 +31,21 @@ If a required executable operation is technically unavailable through the coordi
 
 If the configured repository interface becomes unavailable or stops providing required ordinary repository access, **STOP that role/session** and ask the maintainer to restore or explicitly reconfigure it. Do not silently switch to an unreviewed substitute interface.
 
+## Model / Cost Authorization Gate
+
+Model choice is governed by the maintainer-owned rule in `SYSTEM_RULES.md`.
+
+Before any coordinator/auditor/executor dispatch:
+- identify the exact authorized model/role from the maintainer-approved workflow or stage authority;
+- verify that any stage-specific model override is backed by an explicit maintainer instruction, not merely by a PRIMARY/SECONDARY-authored `.artifacts/**` file;
+- freeze any authorized non-default model, role, and call/worker limit in the stage state before dispatch.
+
+If the required model cannot be selected for any reason, **STOP**. Do not choose a model from the available-model list, do not upgrade to a stronger/newer/more expensive model, and do not create a PRIMARY/campaign exception on your own.
+
+For SECONDARY work, Luna-only execution is the standing policy. If a Luna worker/subagent is unavailable, the Luna coordinator performs the bounded task directly when the active workflow permits that; otherwise it returns a blocked handoff. Astra/Sol/Terra or any other non-Luna local model requires an explicit maintainer exception for that exact stage/role/call budget.
+
+A transient plan/prompt/handoff may narrow model permissions but cannot broaden them beyond the maintainer-owned stable rule.
+
 ## Research Gate
 
 Planning starts from current evidence, not remembered state.

@@ -67,6 +67,25 @@ The root auditor:
 
 A root-audit PASS/CLEAN is still reviewed by the coordinator before the next gate opens.
 
+## Maintainer-Owned Model / Spend Gate
+
+The coordinator does **not** own model substitution, model escalation, reasoning-tier escalation, worker-count escalation, or expensive-model budget expansion.
+
+Those are maintainer-owned spend decisions governed by `SYSTEM_RULES.md`.
+
+Hard rules:
+
+- A PRIMARY coordinator cannot create a `PRIMARY_*_MODEL_CORRECTION.md`, stage prompt, campaign authority, or handoff that grants itself or SECONDARY permission to use a different model unless the maintainer explicitly authorized that exact model/role/budget.
+- A SECONDARY coordinator cannot interpret "project/campaign authority", "higher-priority authority", or an available-model catalog as permission to substitute a model.
+- If the required model is unavailable/rejected/usage-limited, the role stops. It does not pick a "closest", "stronger", "newer", or "available" replacement.
+- SECONDARY's standing local execution policy is Luna-only. Optional workers are Luna-only. If Luna worker dispatch is unavailable, the Luna coordinator performs the bounded task directly when allowed; otherwise it returns a blocked handoff.
+- Local Astra, Sol, Terra, or other non-Luna dispatch is forbidden unless the maintainer explicitly authorizes the exact model, exact role/stage, and maximum call/worker count.
+- Independent Sol auditing normally occurs in a fresh external PRIMARY-auditor ChatGPT session using the configured audit repository interface. A local SECONDARY audit model is not implied by a requirement for "independent audit".
+- A transient `.artifacts/**` authority may narrow permissions. It cannot broaden this model/spend gate.
+- On a model-spend violation: stop new dispatches immediately, preserve the live candidate and evidence, do not destructively revert, revoke the offending executable prompt/authority, record an incident, and return to maintainer/PRIMARY adjudication.
+
+The maintainer's explicit instruction is the only valid source of a bounded exception.
+
 ## Default Flow
 
 ```text

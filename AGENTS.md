@@ -35,6 +35,8 @@ When stable documents conflict, higher authority wins:
 
 Model-specific stable orchestration owners are intentionally avoided. Session/tool constraints that are transient belong in `.artifacts/NEW_CHAT.md`; durable model-independent orchestration belongs in `DEVELOPMENT_ORCHESTRATION.md`.
 
+**Maintainer-owned model/spend authority is a top-level invariant.** `SYSTEM_RULES.md` forbids PRIMARY, SECONDARY, stage prompts, campaign artifacts, or available-model catalogs from self-authorizing model substitution/escalation or expensive-model budget expansion. If a required model is unavailable, the role stops; it does not choose a stronger/newer/available replacement. Only an explicit maintainer instruction may grant a bounded exception.
+
 ## Mandatory Workflow
 
 Use **RESEARCH -> PLAN -> IMPLEMENT -> AUDIT** for every non-trivial task.
