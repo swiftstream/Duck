@@ -82,7 +82,7 @@ PRIMARY has completed the required read-only recovery review of the frozen parti
 
 Current recovery authority/prompt lives under:
 
-`/Users/imike/Development/SwiftStream/Duck/.artifacts/handoff/v1-1-wave03-power-recovery-2026-11-22/`
+`/Users/imike/Development/SwiftStream/Duck/.artifacts/handoff/v1-1-wave03-power-recovery-02-2026-11-22/`
 
 The older `v1-1-wave03-luna-recovery-2026-11-22` authority is superseded and must not be executed.
 
