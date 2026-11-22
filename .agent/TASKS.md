@@ -68,7 +68,7 @@ Wave02 establishes the thin public actor handle, reusable internal `Connection.R
 
 The Product architecture below remains the accepted Wave03 target, but Wave03 execution is temporarily PAUSED by the 2026-11-22 unauthorized model-spend incident.
 
-The prior `PRIMARY_MODEL_GATE_CORRECTION_01.md`, `SECONDARY_POWER_WAVE03_CONTINUATION_01_PROMPT.md`, and its mini-launcher are REVOKED and MUST NOT be resumed. Their Astra/local-Sol model permissions were not maintainer-authorized. The partial G01/G02/G03 candidate is preserved uncommitted for later PRIMARY technical review; it is not accepted merely because the interrupted SECONDARY recorded earlier gates as PASS.
+The prior `PRIMARY_MODEL_GATE_CORRECTION_01.md`, `SECONDARY_POWER_WAVE03_CONTINUATION_01_PROMPT.md`, and its mini-launcher are REVOKED and MUST NOT be resumed. Their substitution of Astra into Luna implementation roles was not maintainer-authorized. Local GPT-6.2 Sol planning/adjudication/audit remains a valid canonical SECONDARY_POWER capability under its workflow model matrix and budget. The partial G01/G02/G03 candidate is preserved uncommitted; it is not accepted merely because the interrupted SECONDARY recorded earlier gates as PASS.
 
 Incident authority:
 
@@ -78,7 +78,7 @@ Emergency stop:
 
 `/Users/imike/Development/SwiftStream/Duck/.artifacts/handoff/v1-1-wave03-canonical-pool-controller-power-2026-11-22/PRIMARY_EMERGENCY_MODEL_SPEND_STOP_01.md`
 
-PRIMARY has now completed the required read-only recovery review of the frozen partial candidate. G01/G02 are retained as technically coherent candidate work and will be revalidated later; G03 remains partial/unaccepted and is the first recovery gate. A NEW Codex/Luna-only Wave03 recovery continuation is authorized under the current workflows. It must run in the main Luna coordinator with local Codex tools only, must not dispatch Astra/Sol/Terra/non-Luna workers, must validate/repair G03 before continuing to G04-G08, and must return to PRIMARY before independent external GPT-5.6 Sol/CodexMCP2 audit. No local non-Luna dispatch is authorized unless the maintainer explicitly names exact model + exact role/stage + exact maximum call/worker count.
+PRIMARY has completed the required read-only recovery review of the frozen partial candidate. G01/G02 are retained as technically coherent candidate work and will be revalidated later; G03 remains partial/unaccepted and is the first recovery gate. A NEW SECONDARY_POWER Wave03 recovery continuation is authorized under the corrected POWER v7 workflow. It uses the canonical model matrix: Luna for implementation/execution roles and admitted GPT-6.2 Sol for planning/adjudication/independent local audit. Any required Luna worker/subagent that cannot be selected causes a HARD STOP rather than cross-model substitution. Astra is forbidden in SECONDARY_POWER under all circumstances. After local POWER completion/CLEAN audit, PRIMARY performs the separate external GPT-5.6 Sol/CodexMCP2 double-check before Wave03B.
 
 The intended Product authority remains the combined Wave03 + pre-commit Wave03B program from Plan 01 Correction 02, with the additive manual-lease API clarification at:
 
