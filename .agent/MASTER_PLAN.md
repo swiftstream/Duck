@@ -88,7 +88,11 @@ v1.1.0 must therefore:
 - benchmark the observation layer itself under million-row tables, multiple active observations, and sustained INSERT/UPDATE/DELETE traffic;
 - compare the final candidate against the v1 Database-wide invalidation baseline;
 - measure reruns avoided, mutation and refresh latency, throughput, CPU, memory, and irrelevant-observation overhead;
+- keep `Database` canonical runtime, canonical pool, lease authority, and Observation invalidation explicitly process-local: an equivalent file-backed `Database` opened by another process (including a WidgetKit extension through an App Group path) owns a separate runtime/pool and does not join the containing app's Observation coordinator;
+- require v1.1 public documentation to state that process boundary and recommend committed-state projection/snapshot publication for app + WidgetKit instead of implying that canonical pooling makes the live primary `.duckdb` file safe for cross-process app-read-write + widget-read access;
 - require independent implementation/evidence audit before closure.
+
+The App Group / WidgetKit public-comment case is recorded as an upstream/platform boundary plus a future capability candidate. It does not require replanning the current Connection/pool waves. Product work for public `READ_ONLY` database-open configuration, immutable DuckDB snapshots, Parquet publication ergonomics, Quack-on-iOS feasibility, or cross-process helpers is deferred to a separate post-v1.1/v1.2 research lane unless the maintainer explicitly reprioritizes it. The v1.1 requirement is the truthful process-local architecture boundary and documentation, not cross-process Observation.
 
 The objective is a blazing-fast ordinary database experience and existing `.observe(on:)` experience rather than forcing callers to manage pools manually. Exact pool capacity/configuration/lifetime, the compatibility form of the `DatabaseIdentifier` deprecation, and the final public `Database` facade shape are not frozen by this priority; they must be selected through research, planning, benchmark evidence, source-compatibility review, and independent audit.
 

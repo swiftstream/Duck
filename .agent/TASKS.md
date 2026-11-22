@@ -72,6 +72,16 @@ Deferred Advanced Appender and recursive/composite Value work remain out of scop
 
 New push/tag/release/publication remains separately unauthorized.
 
+### App Group / WidgetKit multi-process boundary — RECORDED / NON-BLOCKING FOR CURRENT WAVE
+
+A Habr comment exposed the concrete app + WidgetKit case where the primary DuckDB file lives in an App Group. Current Duck truth and DuckDB 2.0 / WidgetKit research confirm that canonical runtime/pool/Observation ownership remains process-local: the containing app and widget extension have independent process registries/runtimes/pools even for the same file path. DuckDB's direct embedded native-file model supports one read-write process or multiple read-only processes; canonical pooling does not make simultaneous main-app read-write + widget read access to the same live primary file safe.
+
+v1.1 durable work is limited to preserving this process-local invariant and documenting it during public/stable closure. The preferred widget direction is application-owned committed-state publication into the App Group, followed by `WidgetCenter` timeline reload: small Codable/property-list projection first, separate finalized DuckDB snapshot when the widget genuinely needs SQL, and Parquet only for sufficiently large/tabular projections. No cross-process Observation, snapshot helper, Parquet helper, Quack server, or public read-only/open-mode Product implementation is authorized by this comment.
+
+Post-v1.1 / v1.2 candidate research is explicitly preserved for public database `READ_ONLY`/open configuration, immutable DuckDB snapshot publication, Parquet projection ergonomics, and Quack-on-iOS/static-build feasibility. Current Duck statically links Parquet but not Quack, and the standard DuckDB extension distribution does not target iOS. Detailed PRIMARY research is preserved under `.artifacts/research/public-comment-widget-multiprocess-2026-11-22/PRIMARY_WIDGET_MULTIPROCESS_RESEARCH_01.md`.
+
+This task does not pause or replan the active Wave02/Wave03 canonical-pool sequence.
+
 ## Current capability state
 
 ### Codable / Model Layer — COMPLETE
