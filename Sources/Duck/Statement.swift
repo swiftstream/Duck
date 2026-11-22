@@ -205,27 +205,36 @@ public final class Statement: Sendable {
     }
 
     let connection: Connection
+    /// Exact handle authority captured when the Statement was created.
+    let connectionAuthority: ConnectionAuthority
     let id: StatementId
     let dynamicArgumentCount: Int
 
+    /// Creates a reusable Statement bound to the authority that prepared it.
     init(
         connection: Connection,
+        connectionAuthority: ConnectionAuthority,
         id: StatementId,
         dynamicArgumentCount: Int
     ) {
         self.connection = connection
+        self.connectionAuthority = connectionAuthority
         self.id = id
         self.dynamicArgumentCount = dynamicArgumentCount
     }
 
     public func query(_ values: (any Sendable)?...) async throws -> QueryResult {
         try await withOperationLifetime { connection, id in
-            try await connection.rejectLiveTransactionBodyMisuse(asTransaction: false)
-            try await connection.rejectLiveAppenderBodyMisuse()
+            try await connection.rejectLiveTransactionBodyMisuse(
+                asTransaction: false,
+                authority: connectionAuthority
+            )
+            try await connection.rejectLiveAppenderBodyMisuse(authority: connectionAuthority)
             let bindings = try normalizeDynamicBindings(values)
             return try await connection.executePreparedStatementQuery(
                 id,
-                dynamicBindings: bindings
+                dynamicBindings: bindings,
+                authority: connectionAuthority
             )
         }
     }
@@ -233,12 +242,16 @@ public final class Statement: Sendable {
     @discardableResult
     public func execute(_ values: (any Sendable)?...) async throws -> UInt64 {
         try await withOperationLifetime { connection, id in
-            try await connection.rejectLiveTransactionBodyMisuse(asTransaction: false)
-            try await connection.rejectLiveAppenderBodyMisuse()
+            try await connection.rejectLiveTransactionBodyMisuse(
+                asTransaction: false,
+                authority: connectionAuthority
+            )
+            try await connection.rejectLiveAppenderBodyMisuse(authority: connectionAuthority)
             let bindings = try normalizeDynamicBindings(values)
             return try await connection.executePreparedStatementMutation(
                 id,
-                dynamicBindings: bindings
+                dynamicBindings: bindings,
+                authority: connectionAuthority
             )
         }
     }
@@ -255,7 +268,8 @@ public final class Statement: Sendable {
             try await connection.executeTransactionPreparedStatementQuery(
                 id,
                 dynamicBindings: bindings,
-                token: token
+                token: token,
+                authority: connectionAuthority
             )
         }
     }
@@ -273,7 +287,8 @@ public final class Statement: Sendable {
             try await connection.executeTransactionPreparedStatementMutation(
                 id,
                 dynamicBindings: bindings,
-                token: token
+                token: token,
+                authority: connectionAuthority
             )
         }
     }
@@ -281,8 +296,9 @@ public final class Statement: Sendable {
     deinit {
         let connection = connection
         let id = id
+        let authority = connectionAuthority
         Task {
-            await connection.removePreparedStatement(id)
+            await connection.removePreparedStatement(id, authority: authority)
         }
     }
 
@@ -305,13 +321,14 @@ public final class Statement: Sendable {
         ) async throws -> Result
     ) async throws -> Result {
         try await withOperationLifetime { connection, id in
-            guard connection.id == transaction.connection.id else {
+            guard connectionAuthority == transaction.connectionAuthority else {
                 throw DatabaseError.statementConnectionMismatch
             }
 
-            try await connection.rejectLiveAppenderBodyMisuse()
+            try await connection.rejectLiveAppenderBodyMisuse(authority: connectionAuthority)
             let token = try await connection.registerTransactionOperation(
-                transaction.reservationId
+                transaction.reservationId,
+                authority: transaction.connectionAuthority
             )
             let bindings: [Value]
 
@@ -320,14 +337,16 @@ public final class Statement: Sendable {
             } catch let error as DatabaseError {
                 try await connection.resolveTransactionPreparationFailure(
                     token,
-                    error: error
+                    error: error,
+                    authority: transaction.connectionAuthority
                 )
                 throw error
             } catch {
                 let descriptor = DatabaseError.invalidResult(String(describing: error))
                 try await connection.resolveTransactionPreparationFailure(
                     token,
-                    error: descriptor
+                    error: descriptor,
+                    authority: transaction.connectionAuthority
                 )
                 throw error
             }

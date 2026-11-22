@@ -140,7 +140,10 @@ func outerAdmissionStateMachinePreservesFIFOAndPendingTransactionExclusion() thr
 @Test("Rollback-only production transition completes queued structured sibling before finalization")
 func rollbackOnlyImmediatelyWakesQueuedSibling() async throws {
     let reservationId = TransactionReservationId()
-    var state = TransactionReservationState(id: reservationId)
+    var state = TransactionReservationState(
+        id: reservationId,
+        connectionAuthority: .standalone(coreId: ConnectionId())
+    )
     state.openBody()
 
     let active = try state.registerOperation()
@@ -220,7 +223,10 @@ func rollbackOnlyImmediatelyWakesQueuedSibling() async throws {
 @Test("Cancellation rollback-only reason completes non-active siblings and closes new registration")
 func cancellationRollbackOnlyReasonPropagates() async throws {
     let reservationId = TransactionReservationId()
-    var state = TransactionReservationState(id: reservationId)
+    var state = TransactionReservationState(
+        id: reservationId,
+        connectionAuthority: .standalone(coreId: ConnectionId())
+    )
     state.openBody()
 
     let active = try state.registerOperation()
@@ -282,7 +288,10 @@ func cancellationRollbackOnlyReasonPropagates() async throws {
 @Test("Rollback-only marks registered local-preparing token terminal with first reason")
 func rollbackOnlyMarksRegisteredTokenTerminal() throws {
     let reservationId = TransactionReservationId()
-    var state = TransactionReservationState(id: reservationId)
+    var state = TransactionReservationState(
+        id: reservationId,
+        connectionAuthority: .standalone(coreId: ConnectionId())
+    )
     state.openBody()
 
     let failing = try state.registerOperation()
@@ -305,7 +314,10 @@ func rollbackOnlyMarksRegisteredTokenTerminal() throws {
 
 @Test("Finalization invalidates local-preparing work and full reservation end supersedes stale token")
 func finalizationInvalidatesRegisteredToken() async throws {
-    var pureState = TransactionReservationState(id: TransactionReservationId())
+    var pureState = TransactionReservationState(
+        id: TransactionReservationId(),
+        connectionAuthority: .standalone(coreId: ConnectionId())
+    )
     pureState.openBody()
     let laterFailure = try pureState.registerOperation()
     let laterSuccess = try pureState.registerOperation()
@@ -355,7 +367,10 @@ func finalizationInvalidatesRegisteredToken() async throws {
 @Test("Already-native-active sibling drains after rollback-only while first reason remains authoritative")
 func activeSiblingDrainsAfterRollbackOnly() throws {
     let reservationId = TransactionReservationId()
-    var state = TransactionReservationState(id: reservationId)
+    var state = TransactionReservationState(
+        id: reservationId,
+        connectionAuthority: .standalone(coreId: ConnectionId())
+    )
     state.openBody()
 
     let active = try state.registerOperation()
@@ -444,7 +459,10 @@ func failCloseDrainsQueuedAndRejectsFutureAdmission() async throws {
 @Test("Reservation state serializes queued native operations in FIFO order")
 func reservationStateSerializesQueuedOperationsFIFO() throws {
     let reservationId = TransactionReservationId()
-    var state = TransactionReservationState(id: reservationId)
+    var state = TransactionReservationState(
+        id: reservationId,
+        connectionAuthority: .standalone(coreId: ConnectionId())
+    )
     state.openBody()
 
     let first = try state.registerOperation()
@@ -507,7 +525,11 @@ func commitC0ClassificationFailureRollsBackAndReusesConnection() async throws {
         return
     }
 
-    let transaction = DuckTransaction(connection: connection, reservationId: reservationId)
+    let transaction = DuckTransaction(
+        connection: connection,
+        connectionAuthority: connection.authority,
+        reservationId: reservationId
+    )
     try await SQL
         .insertInto(table, fields: "id")
         .values

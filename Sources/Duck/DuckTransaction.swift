@@ -39,7 +39,9 @@ struct OuterAdmissionWaiterId: Hashable, Sendable {
 }
 
 struct TransactionBodyScope: Sendable {
-    let connectionId: ConnectionId
+    /// Exact Connection handle authority whose body is active.
+    let connectionAuthority: ConnectionAuthority
+    /// Transaction reservation active for that handle.
     let reservationId: TransactionReservationId
 }
 
@@ -282,6 +284,8 @@ struct TransactionFinalizationTransition: Equatable, Sendable {
 /// Owns admission, operation scheduling, rollback-only truth, and terminal state for one reservation.
 struct TransactionReservationState: Equatable, Sendable {
     let id: TransactionReservationId
+    /// Exact Connection handle authority that owns this reservation.
+    let connectionAuthority: ConnectionAuthority
     /// Determines whether terminal state is retained for the managed body or released immediately.
     let ownership: TransactionOwnershipMode
     private(set) var bodyIsOpen = false
@@ -300,9 +304,11 @@ struct TransactionReservationState: Equatable, Sendable {
     /// Creates an active reservation with its ownership contract.
     init(
         id: TransactionReservationId,
+        connectionAuthority: ConnectionAuthority,
         ownership: TransactionOwnershipMode = .managedClosure
     ) {
         self.id = id
+        self.connectionAuthority = connectionAuthority
         self.ownership = ownership
     }
 
@@ -606,32 +612,56 @@ public struct TransactionRollbackError: Error {
 
 public struct DuckTransaction: Sendable {
     let connection: Connection
+    /// Exact Connection handle authority that owns this transaction reservation.
+    let connectionAuthority: ConnectionAuthority
+    /// Internal reservation identity used to route transaction operations.
     let reservationId: TransactionReservationId
 
-    init(connection: Connection, reservationId: TransactionReservationId) {
+    /// Creates a transaction handle bound to one runtime reservation and Connection authority.
+    init(
+        connection: Connection,
+        connectionAuthority: ConnectionAuthority,
+        reservationId: TransactionReservationId
+    ) {
         self.connection = connection
+        self.connectionAuthority = connectionAuthority
         self.reservationId = reservationId
     }
 
     public nonisolated(nonsending) func query(
         _ query: any SQLable
     ) async throws -> QueryResult {
-        try await connection.rejectLiveAppenderBodyMisuse()
-        let token = try await connection.registerTransactionOperation(reservationId)
+        try await connection.rejectLiveAppenderBodyMisuse(authority: connectionAuthority)
+        let token = try await connection.registerTransactionOperation(
+            reservationId,
+            authority: connectionAuthority
+        )
         let snapshot: PreparedQuerySnapshot
 
         do {
             snapshot = try PreparedQuerySnapshot(query)
         } catch let error as DatabaseError {
-            try await connection.resolveTransactionPreparationFailure(token, error: error)
+            try await connection.resolveTransactionPreparationFailure(
+                token,
+                error: error,
+                authority: connectionAuthority
+            )
             throw error
         } catch {
             let descriptor = DatabaseError.invalidResult(String(describing: error))
-            try await connection.resolveTransactionPreparationFailure(token, error: descriptor)
+            try await connection.resolveTransactionPreparationFailure(
+                token,
+                error: descriptor,
+                authority: connectionAuthority
+            )
             throw error
         }
 
-        return try await connection.executeTransactionQuery(snapshot, token: token)
+        return try await connection.executeTransactionQuery(
+            snapshot,
+            token: token,
+            authority: connectionAuthority
+        )
     }
 
     /// Builds and executes a query through this transaction's existing query path.
@@ -645,22 +675,37 @@ public struct DuckTransaction: Sendable {
     public nonisolated(nonsending) func execute(
         _ query: any SQLable
     ) async throws -> UInt64 {
-        try await connection.rejectLiveAppenderBodyMisuse()
-        let token = try await connection.registerTransactionOperation(reservationId)
+        try await connection.rejectLiveAppenderBodyMisuse(authority: connectionAuthority)
+        let token = try await connection.registerTransactionOperation(
+            reservationId,
+            authority: connectionAuthority
+        )
         let snapshot: PreparedQuerySnapshot
 
         do {
             snapshot = try PreparedQuerySnapshot(query)
         } catch let error as DatabaseError {
-            try await connection.resolveTransactionPreparationFailure(token, error: error)
+            try await connection.resolveTransactionPreparationFailure(
+                token,
+                error: error,
+                authority: connectionAuthority
+            )
             throw error
         } catch {
             let descriptor = DatabaseError.invalidResult(String(describing: error))
-            try await connection.resolveTransactionPreparationFailure(token, error: descriptor)
+            try await connection.resolveTransactionPreparationFailure(
+                token,
+                error: descriptor,
+                authority: connectionAuthority
+            )
             throw error
         }
 
-        return try await connection.executeTransactionStatement(snapshot, token: token)
+        return try await connection.executeTransactionStatement(
+            snapshot,
+            token: token,
+            authority: connectionAuthority
+        )
     }
 
     /// Builds and executes a statement, returning the affected row count within this transaction.
@@ -679,7 +724,10 @@ public struct DuckTransaction: Sendable {
     /// the `Connection` becomes unusable/fail-closed and no compensating retry or
     /// rollback is attempted.
     public nonisolated(nonsending) func commit() async throws {
-        try await connection.commitManualTransaction(reservationId)
+        try await connection.commitManualTransaction(
+            reservationId,
+            authority: connectionAuthority
+        )
     }
 
     /// Terminally rolls back this transaction handle.
@@ -690,7 +738,10 @@ public struct DuckTransaction: Sendable {
     /// body exits. A rollback failure is surfaced and leaves the `Connection`
     /// unusable/fail-closed.
     public nonisolated(nonsending) func rollback() async throws {
-        try await connection.rollbackManualTransaction(reservationId)
+        try await connection.rollbackManualTransaction(
+            reservationId,
+            authority: connectionAuthority
+        )
     }
 
     #if compiler(>=6.4)
@@ -701,7 +752,10 @@ public struct DuckTransaction: Sendable {
     /// cleanup failure is not rethrown; the `Connection` remains unusable/fail-closed.
     /// A transaction that is already terminal or ended is a no-op.
     public nonisolated(nonsending) func rollbackIfNeeded() async {
-        await connection.rollbackManualTransactionIfNeeded(reservationId)
+        await connection.rollbackManualTransactionIfNeeded(
+            reservationId,
+            authority: connectionAuthority
+        )
     }
     #endif
 }

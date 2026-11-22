@@ -70,7 +70,14 @@ private func runActivePendingCancellationScenario(gateId: UInt64) async throws {
         return
     }
 
-    let connection = try Connection(database: database, nativeDatabase: nativeDatabase)
+    let runtime = try Connection.Runtime(
+        database: database,
+        nativeDatabase: nativeDatabase
+    )
+    let connection = Connection(
+        runtime: runtime,
+        authority: runtime.standaloneAuthority
+    )
     _ = try await connection.query(SQL.raw("SET threads = 1"))
 
     let settings = try await connection.query(

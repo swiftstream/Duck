@@ -140,18 +140,19 @@ struct ConnectionPoolTests {
         #expect(state.lifecycle == .open)
     }
 
-    @Test("Sequential max-one scopes reuse the same Connection actor")
+    @Test("Sequential max-one scopes reuse one runtime with fresh Connection handles")
     func sequentialScopesReuseConnection() async throws {
         let pool = try Database.Runtime().pool(maximumConnections: 1)
 
         let first = try await pool.connection { connection in
-            connection.id
+            connection
         }
         let second = try await pool.connection { connection in
-            connection.id
+            connection
         }
 
-        #expect(first == second)
+        #expect(first.id == second.id)
+        #expect(ObjectIdentifier(first) != ObjectIdentifier(second))
         try await pool.shutdown()
     }
 
@@ -512,6 +513,13 @@ struct ConnectionPoolTests {
 
         try await pool.connection { connection in
             #expect(connection.id == pair.escaped.id)
+            #expect(ObjectIdentifier(connection) != ObjectIdentifier(pair.escaped))
+            let staleInsideL2 = await poolTaskOutcome {
+                _ = try await pair.escaped.query(
+                    SQL.select(Int32(16) => "value")
+                )
+            }
+            #expect(staleInsideL2 == .poolLeaseExpired)
             await releaseChild.signal()
             #expect(await pair.child.value == .poolLeaseExpired)
 

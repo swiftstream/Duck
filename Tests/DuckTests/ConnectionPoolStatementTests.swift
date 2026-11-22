@@ -23,22 +23,6 @@ private func expectPoolLeaseExpired(
     }
 }
 
-private func expectStatementUnusable(
-    _ operation: () async throws -> Void
-) async {
-    do {
-        try await operation()
-        Issue.record("Expected DatabaseError.statementUnusable.")
-    } catch let error as DatabaseError {
-        guard case .statementUnusable = error else {
-            Issue.record("Expected DatabaseError.statementUnusable, got \(error).")
-            return
-        }
-    } catch {
-        Issue.record("Expected DatabaseError.statementUnusable, got \(error).")
-    }
-}
-
 @Suite("ConnectionPoolStatementTests")
 struct ConnectionPoolStatementTests {
     @Test("ST01 prepare and reuse inside one active Pool lease")
@@ -92,7 +76,7 @@ struct ConnectionPoolStatementTests {
         try await pool.shutdown()
     }
 
-    @Test("ST03 L1 Statement is unusable under later L2")
+    @Test("ST03 L1 Statement authority expires under later L2")
     func statementFromFirstLeaseIsUnusableUnderLaterLease() async throws {
         let pool = try Database.Runtime().pool(maximumConnections: 1)
         let firstLease = try await pool.connection { connection in
@@ -113,7 +97,7 @@ struct ConnectionPoolStatementTests {
                     == nil
             )
 
-            await expectStatementUnusable {
+            await expectPoolLeaseExpired {
                 _ = try await firstLease.1.query(Int32(42))
             }
 

@@ -162,7 +162,8 @@ struct ConnectionPoolObservationTests {
             #expect(refresh.dependency == .tables([tableName]))
             return connection
         }
-        #expect(activeConnection === pooledConnection)
+        #expect(activeConnection.id == pooledConnection.id)
+        #expect(activeConnection !== pooledConnection)
 
         do {
             _ = try await activeConnection.refreshObservation(snapshot)

@@ -26,8 +26,9 @@ private actor PoolLeaseSignal {
 }
 
 private struct PoolLeaseFixture: Sendable {
-    let database: Database.Runtime
     let poolID: ConnectionPoolID
+    let runtime: Connection.Runtime
+    let initialToken: ConnectionPoolLeaseToken
     let connection: Connection
 
     func token() -> ConnectionPoolLeaseToken {
@@ -37,15 +38,26 @@ private struct PoolLeaseFixture: Sendable {
             connectionID: connection.id
         )
     }
+
+    func handle(for token: ConnectionPoolLeaseToken) -> Connection {
+        Connection(runtime: runtime, authority: .pooled(token))
+    }
 }
 
 private func makePoolLeaseFixture() throws -> PoolLeaseFixture {
     let database = try Database.Runtime()
     let poolID = ConnectionPoolID()
-    return PoolLeaseFixture(
-        database: database,
+    let runtime = try database.makePooledRuntime(poolID: poolID)
+    let token = ConnectionPoolLeaseToken(
         poolID: poolID,
-        connection: try database.makePooledConnection(poolID: poolID)
+        leaseID: ConnectionPoolLeaseID(),
+        connectionID: runtime.id
+    )
+    return PoolLeaseFixture(
+        poolID: poolID,
+        runtime: runtime,
+        initialToken: token,
+        connection: Connection(runtime: runtime, authority: .pooled(token))
     )
 }
 
@@ -68,19 +80,6 @@ private func expectPoolLeaseExpired(
         #expect(error == .poolLeaseExpired)
     } catch {
         Issue.record("Expected DatabaseError.poolLeaseExpired, got \(error).")
-    }
-}
-
-private func expectTransactionEnded(
-    _ operation: () async throws -> Void
-) async {
-    do {
-        try await operation()
-        Issue.record("Expected transactionEnded.")
-    } catch let error as DatabaseError {
-        #expect(error == .transactionEnded)
-    } catch {
-        Issue.record("Expected DatabaseError.transactionEnded, got \(error).")
     }
 }
 
@@ -154,13 +153,13 @@ func standaloneConnectionRemainsUnchanged() async throws {
 @Test("Pooled Connection rejects idle, stale, and detached use but accepts active and structured child use")
 func pooledConnectionEnforcesExactDynamicLease() async throws {
     let fixture = try makePoolLeaseFixture()
-    let token = fixture.token()
+    let token = fixture.initialToken
 
     await expectPoolLeaseExpired {
         _ = try await fixture.connection.query(SQL.select(Int32(1) => "value"))
     }
 
-    try await fixture.connection.activatePoolLease(token)
+    try await fixture.runtime.activatePoolLease(token)
 
     let active = try await withPoolLease(token) {
         try await fixture.connection.query(SQL.select(Int32(2) => "value"))
@@ -197,7 +196,7 @@ func pooledConnectionEnforcesExactDynamicLease() async throws {
     }
     #expect(detachedRejected)
 
-    let outcome = try await fixture.connection.returnPoolLease(token)
+    let outcome = try await fixture.runtime.returnPoolLease(token)
     #expect(outcome == ConnectionPoolLeaseReturnOutcome(
         disposition: .reusable,
         manualTransactionWasNotFinalized: false,
@@ -211,7 +210,8 @@ func pooledConnectionEnforcesExactDynamicLease() async throws {
     }
 
     let next = fixture.token()
-    try await fixture.connection.activatePoolLease(next)
+    let nextConnection = fixture.handle(for: next)
+    try await fixture.runtime.activatePoolLease(next)
 
     await expectPoolLeaseExpired {
         try await withPoolLease(token) {
@@ -220,22 +220,22 @@ func pooledConnectionEnforcesExactDynamicLease() async throws {
     }
 
     let nextResult = try await withPoolLease(next) {
-        try await fixture.connection.query(SQL.select(Int32(7) => "value"))
+        try await nextConnection.query(SQL.select(Int32(7) => "value"))
     }
     #expect(nextResult.rows.first?["value"] == .int32(7))
 
-    _ = try await fixture.connection.returnPoolLease(next)
+    _ = try await fixture.runtime.returnPoolLease(next)
 }
 
 @Test("Closing transition rejects new admission and completes reusable return")
 func pooledConnectionClosingRejectsNewAdmission() async throws {
     let fixture = try makePoolLeaseFixture()
-    let token = fixture.token()
-    try await fixture.connection.activatePoolLease(token)
+    let token = fixture.initialToken
+    try await fixture.runtime.activatePoolLease(token)
 
-    let manualLeak = try await fixture.connection.beginPoolLeaseReturn(token)
+    let manualLeak = try await fixture.runtime.beginPoolLeaseReturn(token)
     #expect(!manualLeak)
-    #expect(await fixture.connection.poolLeaseStateSnapshot() == .pooledClosing(token))
+    #expect(await fixture.runtime.poolLeaseStateSnapshot() == .pooledClosing(token))
 
     await expectPoolLeaseExpired {
         try await withPoolLease(token) {
@@ -243,19 +243,19 @@ func pooledConnectionClosingRejectsNewAdmission() async throws {
         }
     }
 
-    let outcome = try await fixture.connection.finishPoolLeaseReturn(
+    let outcome = try await fixture.runtime.finishPoolLeaseReturn(
         token,
         manualTransactionWasNotFinalized: manualLeak
     )
     #expect(outcome.disposition == .reusable)
-    #expect(await fixture.connection.poolLeaseStateSnapshot() == .pooledIdle(fixture.poolID))
+    #expect(await fixture.runtime.poolLeaseStateSnapshot() == .pooledIdle(fixture.poolID))
 }
 
-@Test("Statement prepared in one Pool lease is invalidated before later lease reuse")
+@Test("Statement authority from one Pool lease expires before later lease reuse")
 func pooledStatementDoesNotCrossLeaseBoundary() async throws {
     let fixture = try makePoolLeaseFixture()
-    let first = fixture.token()
-    try await fixture.connection.activatePoolLease(first)
+    let first = fixture.initialToken
+    try await fixture.runtime.activatePoolLease(first)
 
     let statement = try await withPoolLease(first) {
         try await fixture.connection.prepare { parameters in
@@ -270,31 +270,36 @@ func pooledStatementDoesNotCrossLeaseBoundary() async throws {
     }
     #expect(firstResult.rows.first?["value"] == .int32(11))
 
-    _ = try await fixture.connection.returnPoolLease(first)
+    _ = try await fixture.runtime.returnPoolLease(first)
 
     let second = fixture.token()
-    try await fixture.connection.activatePoolLease(second)
+    let secondConnection = fixture.handle(for: second)
+    try await fixture.runtime.activatePoolLease(second)
 
     do {
         _ = try await withPoolLease(second) {
             try await statement.query(Int32(12))
         }
-        Issue.record("Expected the previous lease's Statement to be invalidated.")
+        Issue.record("Expected the previous lease's Statement authority to expire.")
     } catch let error as DatabaseError {
-        guard case .statementUnusable = error else {
-            Issue.record("Expected statementUnusable, got \(error).")
+        guard case .poolLeaseExpired = error else {
+            Issue.record("Expected poolLeaseExpired, got \(error).")
             return
         }
     }
+    let current = try await withPoolLease(second) {
+        try await secondConnection.query(SQL.select(Int32(13) => "value"))
+    }
+    #expect(current.rows.first?["value"] == .int32(13))
 
-    _ = try await fixture.connection.returnPoolLease(second)
+    _ = try await fixture.runtime.returnPoolLease(second)
 }
 
 @Test("Leaked flat transaction is rolled back before pooled Connection reuse")
 func pooledReturnRollsBackLeakedFlatTransaction() async throws {
     let fixture = try makePoolLeaseFixture()
-    let first = fixture.token()
-    try await fixture.connection.activatePoolLease(first)
+    let first = fixture.initialToken
+    try await fixture.runtime.activatePoolLease(first)
 
     let table = DB.Table(
         "pool_lease_" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
@@ -317,36 +322,37 @@ func pooledReturnRollsBackLeakedFlatTransaction() async throws {
         return transaction
     }
 
-    let outcome = try await fixture.connection.returnPoolLease(first)
+    let outcome = try await fixture.runtime.returnPoolLease(first)
     #expect(outcome.disposition == .reusable)
     #expect(outcome.manualTransactionWasNotFinalized)
     #expect(outcome.cleanupFailure == nil)
 
     let second = fixture.token()
-    try await fixture.connection.activatePoolLease(second)
+    let secondConnection = fixture.handle(for: second)
+    try await fixture.runtime.activatePoolLease(second)
 
     let rows = try await withPoolLease(second) {
         try await SQL
             .select(table.column("id"))
             .from(table)
-            .query(on: fixture.connection)
+            .query(on: secondConnection)
     }
     #expect(rows.rows.isEmpty)
 
-    await expectTransactionEnded {
+    await expectPoolLeaseExpired {
         try await withPoolLease(second) {
             try await transaction.rollback()
         }
     }
 
-    _ = try await fixture.connection.returnPoolLease(second)
+    _ = try await fixture.runtime.returnPoolLease(second)
 }
 
 @Test("Managed transaction already active at closing reaches terminal state before reuse")
 func pooledReturnDrainsActiveManagedTransaction() async throws {
     let fixture = try makePoolLeaseFixture()
-    let token = fixture.token()
-    try await fixture.connection.activatePoolLease(token)
+    let token = fixture.initialToken
+    try await fixture.runtime.activatePoolLease(token)
 
     let bodyStarted = PoolLeaseSignal()
     let allowBodyToFinish = PoolLeaseSignal()
@@ -361,11 +367,11 @@ func pooledReturnDrainsActiveManagedTransaction() async throws {
     }
 
     await bodyStarted.wait()
-    let manualLeak = try await fixture.connection.beginPoolLeaseReturn(token)
+    let manualLeak = try await fixture.runtime.beginPoolLeaseReturn(token)
     #expect(!manualLeak)
 
     let finishTask = Task {
-        try await fixture.connection.finishPoolLeaseReturn(
+        try await fixture.runtime.finishPoolLeaseReturn(
             token,
             manualTransactionWasNotFinalized: manualLeak
         )
@@ -377,20 +383,20 @@ func pooledReturnDrainsActiveManagedTransaction() async throws {
 
     #expect(outcome.disposition == .reusable)
     #expect(outcome.cleanupFailure == nil)
-    #expect(await fixture.connection.poolLeaseStateSnapshot() == .pooledIdle(fixture.poolID))
+    #expect(await fixture.runtime.poolLeaseStateSnapshot() == .pooledIdle(fixture.poolID))
 }
 
 @Test("New transaction operation is rejected once pooled lease begins closing")
 func pooledClosingRejectsNewTransactionOperation() async throws {
     let fixture = try makePoolLeaseFixture()
-    let token = fixture.token()
-    try await fixture.connection.activatePoolLease(token)
+    let token = fixture.initialToken
+    try await fixture.runtime.activatePoolLease(token)
 
     let transaction = try await withPoolLease(token) {
         try await fixture.connection.transaction()
     }
 
-    let manualLeak = try await fixture.connection.beginPoolLeaseReturn(token)
+    let manualLeak = try await fixture.runtime.beginPoolLeaseReturn(token)
     #expect(manualLeak)
 
     await expectPoolLeaseExpired {
@@ -399,7 +405,7 @@ func pooledClosingRejectsNewTransactionOperation() async throws {
         }
     }
 
-    let outcome = try await fixture.connection.finishPoolLeaseReturn(
+    let outcome = try await fixture.runtime.finishPoolLeaseReturn(
         token,
         manualTransactionWasNotFinalized: manualLeak
     )
@@ -411,13 +417,13 @@ func pooledClosingRejectsNewTransactionOperation() async throws {
 @Test("Idle pooled Connection can retire and can no longer activate or execute")
 func idlePooledConnectionCanRetire() async throws {
     let fixture = try makePoolLeaseFixture()
-    let token = fixture.token()
+    let token = fixture.initialToken
 
-    try await fixture.connection.retirePooledConnection(poolID: fixture.poolID)
-    #expect(await fixture.connection.poolLeaseStateSnapshot() == .pooledRetired(fixture.poolID))
+    try await fixture.runtime.retirePooledConnection(poolID: fixture.poolID)
+    #expect(await fixture.runtime.poolLeaseStateSnapshot() == .pooledRetired(fixture.poolID))
 
     do {
-        try await fixture.connection.activatePoolLease(token)
+        try await fixture.runtime.activatePoolLease(token)
         Issue.record("Expected retired Connection activation to fail.")
     } catch let error as ConnectionPoolLeaseInternalError {
         #expect(error == .invalidTransition)

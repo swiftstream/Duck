@@ -1,433 +1,45 @@
 import Foundation
 import SQL
 
-/// Owns the prepared split execution SQL, normalized bindings, and plain analysis SQL.
-struct PreparedQuerySnapshot: Sendable {
-    /// SQL sent to DuckDB for real execution.
-    let sql: String
-    /// Values bound to the split execution SQL.
-    let bindings: [Value]
-    /// SQL passed only to observation dependency analysis.
-    let analysisSQL: String
-
-    /// Synchronously snapshots one SQLable into split execution SQL, normalized bindings, and plain analysis SQL.
-    init(_ query: any SQLable) throws {
-        let prepared = query.prepare(.duck)
-        let split = prepared.splitted
-        sql = split.query
-        bindings = try split.values.map { try normalizeBinding($0) }
-        analysisSQL = prepared.plain
-    }
-}
-
-private struct TransactionLifecycleSnapshots {
-    let begin: PreparedQuerySnapshot
-    let commit: PreparedQuerySnapshot
-    let rollback: PreparedQuerySnapshot
-
-    init() throws {
-        begin = try PreparedQuerySnapshot(SQL.begin)
-        commit = try PreparedQuerySnapshot(SQL.commit)
-        rollback = try PreparedQuerySnapshot(SQL.rollback)
-    }
-}
-
-private struct ObservationLifecycleSnapshots {
-    let begin: PreparedQuerySnapshot
-    let commit: PreparedQuerySnapshot
-    let rollback: PreparedQuerySnapshot
-
-    init() throws {
-        begin = try PreparedQuerySnapshot(SQL.raw("BEGIN TRANSACTION READ ONLY"))
-        commit = try PreparedQuerySnapshot(SQL.commit)
-        rollback = try PreparedQuerySnapshot(SQL.rollback)
-    }
-}
-
-private protocol OptionalBindingValue {
-    var wrappedBindingValue: Any? { get }
-}
-
-extension Optional: OptionalBindingValue {
-    var wrappedBindingValue: Any? {
-        switch self {
-        case .some(let value):
-            return value
-        case .none:
-            return nil
-        }
-    }
-}
-
-private func exactCast<ValueType>(_ value: Any, as type: ValueType.Type) -> ValueType? {
-    guard Swift.type(of: value) == type else {
-        return nil
-    }
-    return value as? ValueType
-}
-
-func normalizeBinding(_ value: Any) throws -> Value {
-    if let value = exactCast(value, as: Value.self) {
-        return value
-    }
-
-    if let preparedModelValue = exactCast(value, as: PreparedModelValue.self) {
-        return preparedModelValue.value
-    }
-
-    if let optional = value as? OptionalBindingValue {
-        guard let wrapped = optional.wrappedBindingValue else {
-            return .null
-        }
-        return try normalizeBinding(wrapped)
-    }
-
-    if let value = exactCast(value, as: Bool.self) {
-        return .boolean(value)
-    }
-    if let value = exactCast(value, as: Int8.self) {
-        return .int8(value)
-    }
-    if let value = exactCast(value, as: Int16.self) {
-        return .int16(value)
-    }
-    if let value = exactCast(value, as: Int32.self) {
-        return .int32(value)
-    }
-    if let value = exactCast(value, as: Int64.self) {
-        return .int64(value)
-    }
-    if let value = exactCast(value, as: Int.self) {
-        guard let normalized = Int64(exactly: value) else {
-            throw DatabaseError.unsupportedBindingType("Int value does not fit in Int64.")
-        }
-        return .int64(normalized)
-    }
-    if let value = exactCast(value, as: UInt8.self) {
-        return .uint8(value)
-    }
-    if let value = exactCast(value, as: UInt16.self) {
-        return .uint16(value)
-    }
-    if let value = exactCast(value, as: UInt32.self) {
-        return .uint32(value)
-    }
-    if let value = exactCast(value, as: UInt64.self) {
-        return .uint64(value)
-    }
-    if let value = exactCast(value, as: UInt.self) {
-        guard let normalized = UInt64(exactly: value) else {
-            throw DatabaseError.unsupportedBindingType("UInt value does not fit in UInt64.")
-        }
-        return .uint64(normalized)
-    }
-    if let value = exactCast(value, as: Float.self) {
-        return .float(value)
-    }
-    if let value = exactCast(value, as: Double.self) {
-        return .double(value)
-    }
-    if let value = exactCast(value, as: Decimal.self) {
-        return .decimal(value)
-    }
-    if let value = exactCast(value, as: String.self) {
-        return .string(value)
-    }
-    if let value = exactCast(value, as: Data.self) {
-        return .blob(value)
-    }
-    if #available(macOS 15.0, iOS 18.0, *) {
-        if let value = exactCast(value, as: Int128.self) {
-            return .int128(value)
-        }
-        if let value = exactCast(value, as: UInt128.self) {
-            return .uint128(value)
-        }
-    }
-    if let value = exactCast(value, as: UUID.self) {
-        return .uuid(value)
-    }
-    if let value = exactCast(value, as: Date.self) {
-        return .timestampTZ(value)
-    }
-    if let value = exactCast(value, as: PureDate.self) {
-        return .date(value)
-    }
-    if let value = exactCast(value, as: PureTime.self) {
-        return .time(value)
-    }
-    if let value = exactCast(value, as: DateTime.self) {
-        return .dateTime(value)
-    }
-    if let value = exactCast(value, as: Interval.self) {
-        return .interval(value)
-    }
-
-    throw DatabaseError.unsupportedBindingType(String(reflecting: Swift.type(of: value)))
-}
-
-enum TransactionBeginOutcome: Sendable {
-    case started
-    case cancelledBeforeStart
-    case failed(primary: DatabaseError, rollbackFailure: DatabaseError?)
-}
-
-enum TransactionCommitOutcome: Sendable {
-    case committed
-    case cancelledBeforeStart
-    case failed(primary: DatabaseError, rollbackFailure: DatabaseError?)
-}
-
-private enum ConnectionUsability {
-    case usable
-    case unusable(String)
-}
-
-private enum NativeStatementPolicy {
-    case user
-    case lifecycle
-}
-
-private enum NativeCancellationPolicy: Equatable {
-    case cooperative
-    case definitive
-}
-
-private enum NativeObservationPublicationPolicy: Equatable {
-    case none
-    case ordinary
-    case transaction(TransactionReservationId)
-}
-
-private struct ManualFinalizationAdmission {
-    let rollbackOnlyReason: TransactionRollbackOnlyReason?
-    let retainsTerminalState: Bool
-    let failClosedError: DatabaseError?
-}
-
-private struct PreparedStatementEntry {
-    var statement: NativePreparedStatement?
-    let bindingLayout: [StatementBindingSource]
-    let dynamicArgumentCount: Int
-    let poolLeaseToken: ConnectionPoolLeaseToken?
-    var unusableMessage: String?
-}
-
-/// Exact DuckDB v1.5.5 `BaseAppender::DEFAULT_FLUSH_COUNT` (`STANDARD_VECTOR_SIZE * 100ULL`).
-private let ordinaryAppenderAutoFlushRowCount = 204_800
-
-private enum AppenderObservationMode: Equatable, Sendable {
-    case ordinary
-    case transaction(TransactionReservationId)
-}
-
-private struct AppenderEntry {
-    var appender: NativeAppender?
-    let expectedArgumentCount: Int
-    var terminalFailure: AppenderStoredFailure?
-    let targetInvalidation: ObservationInvalidation
-    let mode: AppenderObservationMode
-    var ordinaryRowsSinceFlush: Int
-}
-
-private struct AppenderDiscardResult {
-    let error: DatabaseError?
-    let bufferedDataOutcomeAmbiguous: Bool
-}
-
-private struct AppenderFinalizationSuccess: Sendable {
-    let targetInvalidation: ObservationInvalidation
-    let mode: AppenderObservationMode
-}
-
+/// A lightweight actor handle bound to one exact standalone Connection or pooled lease.
 public actor Connection {
+    /// Stable identity of the reusable runtime/core owned by this handle.
     nonisolated let id: ConnectionId
+    /// Immutable authorization for this exact handle generation.
+    nonisolated let authority: ConnectionAuthority
+    /// Reusable internal native execution owner.
+    nonisolated let runtime: Runtime
 
-    private let database: Database.Runtime
-    private let nativeConnection: NativeConnection
-    private var usability: ConnectionUsability = .usable
-    private var poolLeaseState: ConnectionPoolLeaseStateMachine
-    private var poolLeaseDrainWaiter: CheckedContinuation<Void, Never>?
-    private var poolLeaseClosingWaiters: [CheckedContinuation<Void, Never>] = []
-    private var outerAdmissionState = ConnectionAdmissionStateMachine()
-    private var outerWaiters: [OuterAdmissionWaiterId: CheckedContinuation<Void, Error>] = [:]
-    private var transactionState: TransactionReservationState?
-    private var transactionOperationWaiters: [TransactionOperationId: CheckedContinuation<Void, Error>] = [:]
-    private var transactionDrainWaiter: CheckedContinuation<Void, Never>?
-    private var lifecycleStateMachine = TransactionLifecycleStateMachine()
-    private var preparedStatements: [StatementId: PreparedStatementEntry] = [:]
-    private var appenders: [AppenderId: AppenderEntry] = [:]
-
-    /// Creates a standalone Connection or one idle Connection owned by the supplied Pool identity.
-    init(
-        database: Database.Runtime,
-        nativeDatabase: NativeDatabase,
-        poolID: ConnectionPoolID? = nil
-    ) throws {
-        self.id = ConnectionId()
-        self.database = database
-        self.nativeConnection = try nativeDatabase.connect()
-        self.poolLeaseState = ConnectionPoolLeaseStateMachine(poolID: poolID)
+    /// Creates a public handle for one exact runtime authority.
+    init(runtime: Runtime, authority: ConnectionAuthority) {
+        self.runtime = runtime
+        self.authority = authority
+        self.id = runtime.id
     }
 
-    /// Activates this idle Pool-managed Connection for one exact checkout token.
-    func activatePoolLease(
-        _ token: ConnectionPoolLeaseToken
-    ) throws {
-        try poolLeaseState.activate(token, connectionID: id)
+    /// Executes a query on this exact Connection handle.
+    public nonisolated(nonsending) func query(
+        _ query: any SQLable
+    ) async throws -> QueryResult {
+        try await runtime.query(query, authority: authority)
     }
 
-    /// Returns the current Connection-side Pool ownership state for coordination and tests.
-    func poolLeaseStateSnapshot() -> ConnectionPoolLeaseState {
-        poolLeaseState.state
-    }
-
-    /// Waits until this Connection's current Pool lease enters closing state.
-    func waitForPoolLeaseClosing() async {
-        if case .pooledClosing = poolLeaseState.state {
-            return
-        }
-
-        await withCheckedContinuation { continuation in
-            poolLeaseClosingWaiters.append(continuation)
-        }
-    }
-
-    /// Permanently retires an idle Connection from its owning Pool.
-    func retirePooledConnection(
-        poolID: ConnectionPoolID
-    ) throws {
-        try poolLeaseState.retireIdle(poolID: poolID)
-    }
-
-    /// Closes, drains, cleans, and returns one exact Pool lease to reusable or retired state.
-    func returnPoolLease(
-        _ token: ConnectionPoolLeaseToken
-    ) async throws -> ConnectionPoolLeaseReturnOutcome {
-        let manualTransactionWasNotFinalized = try beginPoolLeaseReturn(token)
-        return try await finishPoolLeaseReturn(
-            token,
-            manualTransactionWasNotFinalized: manualTransactionWasNotFinalized
-        )
-    }
-
-    /// Stops new user admission for a returned lease and reports an unfinalized flat transaction.
-    func beginPoolLeaseReturn(
-        _ token: ConnectionPoolLeaseToken
-    ) throws -> Bool {
-        try poolLeaseState.beginClosing(token)
-        let closingWaiters = poolLeaseClosingWaiters
-        poolLeaseClosingWaiters.removeAll()
-        for waiter in closingWaiters {
-            waiter.resume()
-        }
-        drainOuterWaitersForPoolClosing()
-        return transactionState?.ownership == .manualHandle
-            && transactionState?.terminalState == .active
-    }
-
-    /// Performs mandatory return cleanup after the lease has entered closing state.
-    func finishPoolLeaseReturn(
-        _ token: ConnectionPoolLeaseToken,
-        manualTransactionWasNotFinalized: Bool
-    ) async throws -> ConnectionPoolLeaseReturnOutcome {
-        guard case .pooledClosing(let closingToken) = poolLeaseState.state,
-              closingToken == token else {
-            throw ConnectionPoolLeaseInternalError.invalidTransition
-        }
-
-        var cleanupFailure: DatabaseError?
-
-        if manualTransactionWasNotFinalized {
-            cleanupFailure = await rollbackLeakedManualTransactionForPoolReturn()
-        }
-
-        await waitForPoolLeaseQuiescence()
-        invalidatePreparedStatements(createdBy: token)
-
-        if outerAdmissionState.lease != nil
-            || transactionState != nil
-            || !appenders.isEmpty {
-            let message = "Pooled Connection did not reach a quiescent return state."
-            enterFailClosed(message)
-            if cleanupFailure == nil {
-                cleanupFailure = .connectionUnusable(message)
-            }
-        }
-
-        let reusable: Bool
-        if cleanupFailure != nil {
-            reusable = false
-        } else {
-            switch usability {
-            case .usable:
-                reusable = true
-            case .unusable:
-                reusable = false
-            }
-        }
-
-        try poolLeaseState.completeReturn(token, reusable: reusable)
-
-        return ConnectionPoolLeaseReturnOutcome(
-            disposition: reusable ? .reusable : .retired,
-            manualTransactionWasNotFinalized: manualTransactionWasNotFinalized,
-            cleanupFailure: cleanupFailure
-        )
-    }
-
-    private func ensurePoolLeaseAdmission() throws {
-        guard poolLeaseState.authorizes(
-            ConnectionPoolLeaseContext.current,
-            connectionID: id
-        ) else {
-            throw DatabaseError.poolLeaseExpired
-        }
-    }
-
-    private func isPoolLeaseAdmissionAuthorized() -> Bool {
-        poolLeaseState.authorizes(
-            ConnectionPoolLeaseContext.current,
-            connectionID: id
-        )
-    }
-
-    private func currentPoolLeaseTokenForResource() throws -> ConnectionPoolLeaseToken? {
-        switch poolLeaseState.state {
-        case .standalone:
-            return nil
-        case .pooledActive(let token)
-            where token == ConnectionPoolLeaseContext.current
-                && token.connectionID == id:
-            return token
-        case .pooledIdle, .pooledActive, .pooledClosing, .pooledRetired:
-            throw DatabaseError.poolLeaseExpired
-        }
-    }
-
-    public nonisolated(nonsending) func query(_ query: any SQLable) async throws -> QueryResult {
-        try await rejectLiveTransactionBodyMisuse(asTransaction: false)
-        try await rejectLiveAppenderBodyMisuse()
-        let snapshot = try PreparedQuerySnapshot(query)
-        return try await executeOrdinaryQuery(snapshot)
-    }
-
-    /// Builds and executes a query through the ordinary connection query path.
+    /// Builds and executes a query through this Connection handle.
     public nonisolated(nonsending) func query(
         @SQLBuilder _ build: () -> SQLBuilder.Root
     ) async throws -> QueryResult {
         try await query(build())
     }
 
+    /// Executes a statement and returns its affected row count.
     @discardableResult
-    public nonisolated(nonsending) func execute(_ query: any SQLable) async throws -> UInt64 {
-        try await rejectLiveTransactionBodyMisuse(asTransaction: false)
-        try await rejectLiveAppenderBodyMisuse()
-        let snapshot = try PreparedQuerySnapshot(query)
-        return try await executeOrdinaryStatement(snapshot)
+    public nonisolated(nonsending) func execute(
+        _ query: any SQLable
+    ) async throws -> UInt64 {
+        try await runtime.execute(query, authority: authority)
     }
 
-    /// Builds and executes a statement, returning the affected row count.
+    /// Builds and executes a statement, returning its affected row count.
     @discardableResult
     public nonisolated(nonsending) func execute(
         @SQLBuilder _ build: () -> SQLBuilder.Root
@@ -435,2392 +47,486 @@ public actor Connection {
         try await execute(build())
     }
 
+    /// Prepares one reusable statement on this exact Connection handle.
     public nonisolated(nonsending) func prepare(
         _ query: any SQLable
     ) async throws -> Statement {
-        try await rejectLiveTransactionBodyMisuse(asTransaction: false)
-        try await rejectLiveAppenderBodyMisuse()
-        let snapshot = try StatementTemplateSnapshot(query)
-        return try await installPreparedStatement(snapshot)
+        try await runtime.prepare(query, authority: authority, connection: self)
     }
 
+    /// Builds and prepares one reusable parameterized statement.
     public nonisolated(nonsending) func prepare(
         _ build: (Statement.Parameters) throws -> any SQLable
     ) async throws -> Statement {
-        try await rejectLiveTransactionBodyMisuse(asTransaction: false)
-        try await rejectLiveAppenderBodyMisuse()
-        let parameters = Statement.Parameters()
-        let query = try build(parameters)
-        let snapshot = try StatementTemplateSnapshot(query, parameters: parameters)
-        return try await installPreparedStatement(snapshot)
+        try await runtime.prepare(build, authority: authority, connection: self)
     }
 
-    /// Builds and installs a reusable parameterized statement with shared marker accounting.
+    /// Builds and prepares one reusable parameterized statement with shared marker accounting.
     public nonisolated(nonsending) func prepare(
         @SQLBuilder _ build: (Statement.Parameters) throws -> SQLBuilder.Root
     ) async throws -> Statement {
-        try await rejectLiveTransactionBodyMisuse(asTransaction: false)
-        try await rejectLiveAppenderBodyMisuse()
-        let parameters = Statement.Parameters()
-        let query = try build(parameters)
-        let snapshot = try StatementTemplateSnapshot(query, parameters: parameters)
-        return try await installPreparedStatement(snapshot)
+        try await runtime.prepare(build, authority: authority, connection: self)
     }
 
-    /// Executes `body` in a managed transaction with automatic terminal finalization.
-    ///
-    /// A normal body return commits; an error or cancellation rolls back. If an
-    /// operation made the transaction rollback-only, finalization rolls it back and
-    /// surfaces the stored reason. The supplied `DuckTransaction` is valid only for this
-    /// managed lifecycle.
+    /// Executes a managed transaction bound to this exact handle authority.
     public nonisolated(nonsending) func transaction<Result>(
         _ body: (DuckTransaction) async throws -> Result
     ) async throws -> Result {
-        try Task.checkCancellation()
-        try await rejectLiveTransactionBodyMisuse(asTransaction: true)
-        try await rejectLiveAppenderBodyMisuse()
-
-        let lifecycle = try TransactionLifecycleSnapshots()
-        let reservationId = try await acquireTransactionReservation(
-            ownership: .managedClosure
+        try await runtime.transaction(
+            authority: authority,
+            connection: self,
+            body
         )
-
-        switch await beginTransaction(
-            reservationId,
-            begin: lifecycle.begin,
-            rollback: lifecycle.rollback
-        ) {
-        case .started:
-            break
-        case .cancelledBeforeStart:
-            throw CancellationError()
-        case .failed(let primary, let rollbackFailure):
-            if let rollbackFailure {
-                throw TransactionRollbackError(
-                    originalError: primary,
-                    rollbackError: rollbackFailure
-                )
-            }
-            throw primary
-        }
-
-        let transaction = DuckTransaction(connection: self, reservationId: reservationId)
-        let scopes = TransactionBodyContext.scopes + [
-            TransactionBodyScope(connectionId: id, reservationId: reservationId)
-        ]
-
-        let result: Result
-        do {
-            result = try await TransactionBodyContext.$scopes.withValue(scopes) {
-                try Task.checkCancellation()
-                return try await body(transaction)
-            }
-        } catch {
-            let originalError = error
-
-            if let terminal = await transactionTerminalSnapshot(reservationId),
-               terminal.state != .active,
-               terminal.state != .finalizationStarted {
-                await endTransactionReservation(reservationId)
-                if let failure = terminal.failure {
-                    try failure.throwStored()
-                }
-                throw originalError
-            }
-
-            _ = try? await beginTransactionFinalization(reservationId)
-            if let rollbackFailure = await rollbackTransaction(
-                reservationId,
-                rollback: lifecycle.rollback
-            ) {
-                throw TransactionRollbackError(
-                    originalError: originalError,
-                    rollbackError: rollbackFailure
-                )
-            }
-            throw originalError
-        }
-
-        if let terminal = await transactionTerminalSnapshot(reservationId),
-           terminal.state != .active,
-           terminal.state != .finalizationStarted {
-            await endTransactionReservation(reservationId)
-            if let failure = terminal.failure {
-                try failure.throwStored()
-            }
-            return result
-        }
-
-        let rollbackOnlyReason: TransactionRollbackOnlyReason?
-        do {
-            rollbackOnlyReason = try await beginTransactionFinalization(reservationId)
-        } catch let finalizationFailure as DatabaseError {
-            guard case .connectionUnusable = finalizationFailure,
-                  await isTransactionReservationLive(reservationId) else {
-                throw finalizationFailure
-            }
-
-            let storedRollbackOnlyReason: TransactionRollbackOnlyReason?
-            do {
-                storedRollbackOnlyReason = try await beginFailClosedTransactionTeardown(
-                    reservationId
-                )
-            } catch let teardownError as DatabaseError {
-                throw TransactionRollbackError(
-                    originalError: finalizationFailure,
-                    rollbackError: teardownError
-                )
-            }
-
-            let authoritativeError = storedRollbackOnlyReason?.errorValue ?? finalizationFailure
-            if let rollbackFailure = await rollbackTransaction(
-                reservationId,
-                rollback: lifecycle.rollback
-            ) {
-                throw TransactionRollbackError(
-                    originalError: authoritativeError,
-                    rollbackError: rollbackFailure
-                )
-            }
-
-            if let storedRollbackOnlyReason {
-                try storedRollbackOnlyReason.throwStoredReason()
-            }
-            throw finalizationFailure
-        }
-
-        if let rollbackOnlyReason {
-            if let rollbackFailure = await rollbackTransaction(
-                reservationId,
-                rollback: lifecycle.rollback
-            ) {
-                throw TransactionRollbackError(
-                    originalError: rollbackOnlyReason.errorValue,
-                    rollbackError: rollbackFailure
-                )
-            }
-            try rollbackOnlyReason.throwStoredReason()
-        }
-
-        switch await commitTransaction(
-            reservationId,
-            commit: lifecycle.commit,
-            rollback: lifecycle.rollback
-        ) {
-        case .committed:
-            return result
-        case .cancelledBeforeStart:
-            if let rollbackFailure = await rollbackTransaction(
-                reservationId,
-                rollback: lifecycle.rollback
-            ) {
-                throw TransactionRollbackError(
-                    originalError: CancellationError(),
-                    rollbackError: rollbackFailure
-                )
-            }
-            throw CancellationError()
-        case .failed(let primary, let rollbackFailure):
-            if let rollbackFailure {
-                throw TransactionRollbackError(
-                    originalError: primary,
-                    rollbackError: rollbackFailure
-                )
-            }
-            throw primary
-        }
     }
 
-    /// Begins a one-shot flat transaction and reserves this `Connection` until
-    /// terminal finalization.
-    ///
-    /// The caller owns the transaction lifetime and must finish it with `commit()`
-    /// or `rollback()`; on compiler >= 6.4, `rollbackIfNeeded()` is available for
-    /// best-effort asynchronous cleanup. While the reservation is active, ordinary
-    /// direct operations on this `Connection` are rejected.
+    /// Begins a one-shot flat transaction bound to this exact handle authority.
     public nonisolated(nonsending) func transaction() async throws -> DuckTransaction {
-        try Task.checkCancellation()
-        try await rejectLiveTransactionBodyMisuse(asTransaction: true)
-        try await rejectLiveAppenderBodyMisuse()
-
-        let lifecycle = try TransactionLifecycleSnapshots()
-        let reservationId = try await acquireTransactionReservation(
-            ownership: .manualHandle
-        )
-
-        switch await beginTransaction(
-            reservationId,
-            begin: lifecycle.begin,
-            rollback: lifecycle.rollback
-        ) {
-        case .started:
-            return DuckTransaction(connection: self, reservationId: reservationId)
-        case .cancelledBeforeStart:
-            throw CancellationError()
-        case .failed(let primary, let rollbackFailure):
-            if let rollbackFailure {
-                throw TransactionRollbackError(
-                    originalError: primary,
-                    rollbackError: rollbackFailure
-                )
-            }
-            throw primary
-        }
+        try await runtime.transaction(authority: authority, connection: self)
     }
+}
 
-    /// Rejects ordinary or nested transaction admission while this Connection has a live transaction.
-    nonisolated func rejectLiveTransactionBodyMisuse(
-        asTransaction: Bool
+extension Connection {
+    /// Checks transaction-body compatibility against this handle's exact authority.
+    nonisolated(nonsending) func rejectLiveTransactionBodyMisuse(
+        asTransaction: Bool,
+        authority expectedAuthority: ConnectionAuthority? = nil
     ) async throws {
-        if let scope = TransactionBodyContext.scopes.reversed().first(where: { $0.connectionId == id }),
-           await isTransactionReservationLive(scope.reservationId) {
-            if asTransaction {
-                throw DatabaseError.transactionAlreadyActive
-            }
-            throw DatabaseError.transactionScopeViolation
+        guard (expectedAuthority ?? authority) == authority else {
+            throw DatabaseError.poolLeaseExpired
         }
-
-        if await isManualTransactionLive() {
-            if asTransaction {
-                throw DatabaseError.transactionAlreadyActive
-            }
-            throw DatabaseError.transactionScopeViolation
-        }
-    }
-
-    func isTransactionReservationLive(_ reservationId: TransactionReservationId) -> Bool {
-        outerAdmissionState.isTransactionLive(reservationId)
-    }
-
-    /// Returns whether a flat transaction currently owns this Connection reservation.
-    func isManualTransactionLive() -> Bool {
-        guard transactionState != nil else {
-            return false
-        }
-        return transactionState?.ownership == .manualHandle
-    }
-
-    nonisolated func rejectLiveAppenderBodyMisuse() async throws {
-        guard let scope = AppenderBodyContext.scopes.reversed().first(where: { $0.connectionId == id }) else {
-            return
-        }
-        guard await isAppenderScopeLive(scope.appenderId) else {
-            return
-        }
-        throw DatabaseError.appenderScopeViolation
-    }
-
-    func isAppenderScopeLive(_ id: AppenderId) -> Bool {
-        appenders[id] != nil
-    }
-
-    private func executeOrdinaryQuery(_ snapshot: PreparedQuerySnapshot) async throws -> QueryResult {
-        try await acquireOrdinaryLease()
-        defer { releaseOrdinaryLease() }
-        return try await executeUserSnapshot(
-            snapshot,
-            materializeRows: true,
-            observationPublicationPolicy: .ordinary
+        try await runtime.rejectLiveTransactionBodyMisuse(
+            authority: authority,
+            asTransaction: asTransaction
         )
     }
 
-    private func executeOrdinaryStatement(_ snapshot: PreparedQuerySnapshot) async throws -> UInt64 {
-        try await acquireOrdinaryLease()
-        defer { releaseOrdinaryLease() }
-        return try await executeUserSnapshot(
-            snapshot,
-            materializeRows: false,
-            observationPublicationPolicy: .ordinary
-        ).rowsChanged
-    }
-
-    private func installPreparedStatement(
-        _ snapshot: StatementTemplateSnapshot
-    ) async throws -> Statement {
-        try await acquireOrdinaryLease()
-        defer { releaseOrdinaryLease() }
-
-        do {
-            try Task.checkCancellation()
-            try ensureUsable()
-            let nativeStatement = try prepareNativeStatement(
-                sql: snapshot.sql,
-                policy: .user
-            )
-
-            guard nativeStatement.parameterCount == snapshot.bindingLayout.count else {
-                throw DatabaseError.invalidResult(
-                    "Reusable statement binding layout count does not match DuckDB parameter count."
-                )
-            }
-
-            let id = StatementId()
-            preparedStatements[id] = PreparedStatementEntry(
-                statement: nativeStatement,
-                bindingLayout: snapshot.bindingLayout,
-                dynamicArgumentCount: snapshot.dynamicArgumentCount,
-                poolLeaseToken: try currentPoolLeaseTokenForResource(),
-                unusableMessage: nil
-            )
-            return Statement(
-                connection: self,
-                id: id,
-                dynamicArgumentCount: snapshot.dynamicArgumentCount
-            )
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch let error as NativeDuckDBError {
-            throw mapNativeError(error)
+    /// Checks Appender-body compatibility against this handle's exact authority.
+    nonisolated(nonsending) func rejectLiveAppenderBodyMisuse(
+        authority expectedAuthority: ConnectionAuthority? = nil
+    ) async throws {
+        guard (expectedAuthority ?? authority) == authority else {
+            throw DatabaseError.poolLeaseExpired
         }
+        try await runtime.rejectLiveAppenderBodyMisuse(authority: authority)
     }
 
-    func removePreparedStatement(_ id: StatementId) {
-        preparedStatements.removeValue(forKey: id)
-    }
-
-    func preparedStatementBindingLayout(
-        _ id: StatementId
-    ) -> [StatementBindingSource]? {
-        preparedStatements[id]?.bindingLayout
-    }
-
-    func preparedStatementDynamicArgumentCount(_ id: StatementId) -> Int? {
-        preparedStatements[id]?.dynamicArgumentCount
-    }
-
-    /// Acquires ordinary admission and installs a fully initialized Appender scope.
-    func acquireAndInstallAppenderScope(
+    /// Installs one ordinary Appender scope after exact-authority admission.
+    nonisolated(nonsending) func acquireAndInstallAppenderScope(
         _ target: AppenderTarget,
         selectedColumns: [String]? = nil
     ) async throws -> AppenderScopeStart {
-        try await acquireOrdinaryLease()
-        var transfersLeaseToLiveScope = false
-        defer {
-            if !transfersLeaseToLiveScope {
-                releaseOrdinaryLease()
-            }
-        }
-
-        try Task.checkCancellation()
-        try ensureUsable()
-
-        let start = try installAppenderScope(
+        try await runtime.acquireAndInstallAppenderScope(
+            authority: authority,
             target,
-            mode: .ordinary,
             selectedColumns: selectedColumns
         )
-        transfersLeaseToLiveScope = true
-        return start
     }
 
-    /// Installs a Transaction Appender scope for an already registered operation.
-    func acquireAndInstallTransactionAppenderScope(
+    /// Installs one transaction Appender scope under the exact transaction authority.
+    nonisolated(nonsending) func acquireAndInstallTransactionAppenderScope(
         _ target: AppenderTarget,
         token: TransactionOperationToken,
-        selectedColumns: [String]? = nil
+        selectedColumns: [String]? = nil,
+        authority expectedAuthority: ConnectionAuthority? = nil
     ) async throws -> AppenderScopeStart {
-        try await acquireTransactionNativeAdmission(token)
-
-        do {
-            try Task.checkCancellation()
-            try ensureUsable()
-            return try installAppenderScope(
-                target,
-                mode: .transaction(token.reservationId),
-                selectedColumns: selectedColumns
-            )
-        } catch is CancellationError {
-            completeTransactionOperation(token, failure: .cancelled)
-            throw CancellationError()
-        } catch let error as DatabaseError {
-            completeTransactionOperation(token, failure: .database(error))
-            throw error
-        } catch let error as NativeAppenderError {
-            let mapped = mapNativeAppenderError(error)
-            completeTransactionOperation(token, failure: .database(mapped))
-            throw mapped
-        } catch {
-            let mapped = DatabaseError.appenderCreation(String(describing: error))
-            completeTransactionOperation(token, failure: .database(mapped))
-            throw mapped
+        guard (expectedAuthority ?? authority) == authority else {
+            throw DatabaseError.poolLeaseExpired
         }
-    }
-
-    private func installAppenderScope(
-        _ target: AppenderTarget,
-        mode: AppenderObservationMode,
-        selectedColumns: [String]?
-    ) throws -> AppenderScopeStart {
-
-        let nativeAppender: NativeAppender
-        do {
-            nativeAppender = try NativeAppender(
-                connection: nativeConnection,
-                catalog: target.catalog,
-                schema: target.schema,
-                table: target.table,
-                selectedColumns: selectedColumns
-            )
-        } catch let error as NativeAppenderError {
-            throw mapNativeAppenderError(error)
-        } catch {
-            throw DatabaseError.appenderCreation(String(describing: error))
-        }
-
-        let id = AppenderId()
-        appenders[id] = AppenderEntry(
-            appender: nativeAppender,
-            expectedArgumentCount: nativeAppender.columnCount,
-            terminalFailure: nil,
-            targetInvalidation: appenderTargetInvalidation(target),
-            mode: mode,
-            ordinaryRowsSinceFlush: 0
-        )
-        return AppenderScopeStart(
-            id: id,
-            expectedArgumentCount: nativeAppender.columnCount
+        return try await runtime.acquireAndInstallTransactionAppenderScope(
+            authority: authority,
+            target,
+            token: token,
+            selectedColumns: selectedColumns
         )
     }
 
-    /// Maps an Appender target to the shared Observation identity space without SQL parsing.
-    ///
-    /// Partial targets fall back to Database-wide invalidation. Only a fully qualified
-    /// safe `catalog.schema.table` target publishes a table-scoped qualification closure.
-    private func appenderTargetInvalidation(
-        _ target: AppenderTarget
-    ) -> ObservationInvalidation {
-        guard let catalog = target.catalog, let schema = target.schema else {
-            return .database
-        }
-
-        guard
-            let full = ObservationTableName(components: [catalog, schema, target.table]),
-            let schemaQualified = ObservationTableName(components: [schema, target.table]),
-            let bare = ObservationTableName(components: [target.table])
-        else {
-            return .database
-        }
-
-        return .tables([full, schemaQualified, bare])
-    }
-
-    func appendAppenderRow(
+    /// Appends one complete row through this handle's exact authority.
+    nonisolated(nonsending) func appendAppenderRow(
         _ id: AppenderId,
-        bindings: [Value]
+        bindings: [Value],
+        authority expectedAuthority: ConnectionAuthority? = nil
     ) async throws {
-        try ensurePoolLeaseAdmission()
-        try ensureUsable()
-
-        guard var entry = appenders[id] else {
-            throw DatabaseError.appenderEnded
+        guard (expectedAuthority ?? authority) == authority else {
+            throw DatabaseError.poolLeaseExpired
         }
-        if let terminalFailure = entry.terminalFailure {
-            try terminalFailure.throwStored()
-        }
-        guard bindings.count == entry.expectedArgumentCount else {
-            throw DatabaseError.invalidResult(
-                "Appender argument count diverged from its registered table width."
-            )
-        }
-        guard let nativeAppender = entry.appender else {
-            throw DatabaseError.appenderEnded
-        }
-
-        try Task.checkCancellation()
-
-        do {
-            try nativeAppender.appendRow(bindings)
-        } catch let error as NativeAppenderError {
-            let primary = mapNativeAppenderError(error)
-            if error.isPreflight {
-                throw primary
-            }
-            let discard = discardAppenderForScope(nativeAppender)
-            entry.appender = nil
-
-            let terminal: AppenderStoredFailure
-            if let cleanup = discard.error {
-                terminal = .cleanup(original: primary, cleanup: cleanup)
-            } else {
-                terminal = .database(primary)
-            }
-            entry.terminalFailure = terminal
-            appenders[id] = entry
-
-            if entry.mode == .ordinary {
-                await database.observationCoordinator.invalidate(
-                    entry.targetInvalidation
-                )
-            }
-            try terminal.throwStored()
-        } catch {
-            let primary = DatabaseError.appenderRowCompletion(String(describing: error))
-            let discard = discardAppenderForScope(nativeAppender)
-            entry.appender = nil
-
-            let terminal: AppenderStoredFailure
-            if let cleanup = discard.error {
-                terminal = .cleanup(original: primary, cleanup: cleanup)
-            } else {
-                terminal = .database(primary)
-            }
-            entry.terminalFailure = terminal
-            appenders[id] = entry
-
-            if entry.mode == .ordinary {
-                await database.observationCoordinator.invalidate(
-                    entry.targetInvalidation
-                )
-            }
-            try terminal.throwStored()
-        }
-
-        switch entry.mode {
-        case .transaction:
-            appenders[id] = entry
-            return
-        case .ordinary:
-            entry.ordinaryRowsSinceFlush += 1
-            if entry.ordinaryRowsSinceFlush >= ordinaryAppenderAutoFlushRowCount {
-                entry.ordinaryRowsSinceFlush = 0
-                appenders[id] = entry
-                await database.observationCoordinator.invalidate(
-                    entry.targetInvalidation
-                )
-            } else {
-                appenders[id] = entry
-            }
-            return
-        }
+        try await runtime.appendAppenderRow(
+            authority: authority,
+            id,
+            bindings: bindings
+        )
     }
 
-    func abortAppenderScope(_ id: AppenderId) async -> AppenderAbortOutcome {
-        defer { releaseOrdinaryLease() }
-
-        return await abortAppenderEntry(id)
-    }
-
-    func abortTransactionAppenderScope(
-        _ id: AppenderId,
-        token: TransactionOperationToken,
-        failure: TransactionRollbackOnlyReason
-    ) async -> AppenderAbortOutcome {
-        let outcome = await abortAppenderEntry(id)
-        let effectiveFailure: TransactionRollbackOnlyReason
-
-        switch outcome {
-        case .cleaned, .cleanup:
-            effectiveFailure = failure
-        case .terminal(let terminal):
-            switch terminal {
-            case .database(let error), .cleanup(let error, _):
-                effectiveFailure = .database(error)
-            }
-        }
-
-        completeTransactionOperation(token, failure: effectiveFailure)
-        return outcome
-    }
-
-    private func abortAppenderEntry(_ id: AppenderId) async -> AppenderAbortOutcome {
-
-        guard let entry = appenders.removeValue(forKey: id) else {
-            let cleanup = DatabaseError.appenderCleanup(
-                "Appender scope registry entry disappeared before abort cleanup."
-            )
-            enterFailClosed("Appender scope registry entry disappeared before abort cleanup.")
-            return .cleanup(cleanup)
-        }
-
-        if let terminal = entry.terminalFailure {
-            if let nativeAppender = entry.appender {
-                let discard = discardAppenderForScope(nativeAppender)
-                if discard.bufferedDataOutcomeAmbiguous, entry.mode == .ordinary {
-                    await database.observationCoordinator.invalidate(
-                        entry.targetInvalidation
-                    )
-                }
-                if let cleanup = discard.error {
-                    switch terminal {
-                    case .database(let original):
-                        return .terminal(.cleanup(original: original, cleanup: cleanup))
-                    case .cleanup:
-                        return .terminal(terminal)
-                    }
-                }
-            }
-            return .terminal(terminal)
-        }
-
-        guard let nativeAppender = entry.appender else {
-            let cleanup = DatabaseError.appenderCleanup(
-                "Live Appender scope lost its native owner before abort cleanup."
-            )
-            enterFailClosed("Live Appender scope lost its native owner before abort cleanup.")
-            return .cleanup(cleanup)
-        }
-
-        let discard = discardAppenderForScope(nativeAppender)
-        if discard.bufferedDataOutcomeAmbiguous, entry.mode == .ordinary {
-            await database.observationCoordinator.invalidate(entry.targetInvalidation)
-        }
-        if let cleanup = discard.error {
-            return .cleanup(cleanup)
-        }
-        return .cleaned
-    }
-
-    func finishAppenderScopeSuccess(_ id: AppenderId) async throws {
-        defer { releaseOrdinaryLease() }
-
-        _ = try await finalizeAppenderEntry(id)
-    }
-
-    func finishTransactionAppenderScopeSuccess(
-        _ id: AppenderId,
-        token: TransactionOperationToken
-    ) async throws {
-        do {
-            let success = try await finalizeAppenderEntry(id)
-            guard case .transaction(let reservationId) = success.mode,
-                  reservationId == token.reservationId else {
-                let message = "Transaction Appender observation mode lost its matching reservation."
-                enterFailClosed(message)
-                await database.observationCoordinator.invalidate(.database)
-                let error = DatabaseError.connectionUnusable(message)
-                completeTransactionOperation(token, failure: .database(error))
-                throw error
-            }
-
-            guard mergeTransactionObservation(
-                reservationId,
-                invalidation: success.targetInvalidation
-            ) else {
-                await database.observationCoordinator.invalidate(.database)
-                let message = "Transaction Appender target impact lost its active reservation."
-                let error = DatabaseError.connectionUnusable(message)
-                completeTransactionOperation(token, failure: .database(error))
-                throw error
-            }
-
-            completeTransactionOperation(token, failure: nil)
-        } catch is CancellationError {
-            completeTransactionOperation(token, failure: .cancelled)
-            throw CancellationError()
-        } catch let error as AppenderCleanupError {
-            let failure: TransactionRollbackOnlyReason
-            if error.originalError is CancellationError {
-                failure = .cancelled
-            } else if let databaseError = error.originalError as? DatabaseError {
-                failure = .database(databaseError)
-            } else {
-                failure = .database(
-                    .appenderTransactionAborted(String(describing: error.originalError))
-                )
-            }
-            completeTransactionOperation(token, failure: failure)
-            throw error
-        } catch let error as DatabaseError {
-            completeTransactionOperation(token, failure: .database(error))
-            throw error
-        } catch {
-            let mapped = DatabaseError.appenderTransactionAborted(String(describing: error))
-            completeTransactionOperation(token, failure: .database(mapped))
-            throw error
-        }
-    }
-
-    private func finalizeAppenderEntry(
+    /// Aborts one ordinary Appender scope owned by this handle.
+    nonisolated(nonsending) func abortAppenderScope(
         _ id: AppenderId
-    ) async throws -> AppenderFinalizationSuccess {
-
-        guard let entry = appenders.removeValue(forKey: id) else {
-            let message = "Appender scope registry entry disappeared before finalization."
-            enterFailClosed(message)
-            throw DatabaseError.appenderCleanup(message)
-        }
-
-        if let terminal = entry.terminalFailure {
-            if let nativeAppender = entry.appender {
-                let discard = discardAppenderForScope(nativeAppender)
-                if discard.bufferedDataOutcomeAmbiguous, entry.mode == .ordinary {
-                    await database.observationCoordinator.invalidate(
-                        entry.targetInvalidation
-                    )
-                }
-                if let cleanup = discard.error {
-                    switch terminal {
-                    case .database(let original):
-                        throw AppenderCleanupError(
-                            originalError: original,
-                            cleanupError: cleanup
-                        )
-                    case .cleanup:
-                        try terminal.throwStored()
-                    }
-                }
-            }
-            try terminal.throwStored()
-        }
-
-        guard let nativeAppender = entry.appender else {
-            let message = "Live Appender scope lost its native owner before finalization."
-            enterFailClosed(message)
-            throw DatabaseError.appenderCleanup(message)
-        }
-
-        do {
-            try ensureUsable()
-        } catch {
-            let discard = discardAppenderForScope(nativeAppender)
-            if discard.bufferedDataOutcomeAmbiguous, entry.mode == .ordinary {
-                await database.observationCoordinator.invalidate(
-                    entry.targetInvalidation
-                )
-            }
-            if let cleanup = discard.error {
-                throw AppenderCleanupError(
-                    originalError: error,
-                    cleanupError: cleanup
-                )
-            }
-            throw error
-        }
-
-        do {
-            try Task.checkCancellation()
-        } catch {
-            let cancellation = CancellationError()
-            let discard = discardAppenderForScope(nativeAppender)
-            if discard.bufferedDataOutcomeAmbiguous, entry.mode == .ordinary {
-                await database.observationCoordinator.invalidate(
-                    entry.targetInvalidation
-                )
-            }
-            if let cleanup = discard.error {
-                throw AppenderCleanupError(
-                    originalError: cancellation,
-                    cleanupError: cleanup
-                )
-            }
-            throw cancellation
-        }
-
-        do {
-            try nativeAppender.close()
-        } catch let error as NativeAppenderError {
-            let mapped = mapNativeAppenderError(error)
-            switch entry.mode {
-            case .transaction:
-                break
-            case .ordinary:
-                switch error.stage {
-                case .finalization:
-                    await database.observationCoordinator.invalidate(
-                        entry.targetInvalidation
-                    )
-                case .cleanup:
-                    if entry.ordinaryRowsSinceFlush > 0 {
-                        await database.observationCoordinator.invalidate(
-                            entry.targetInvalidation
-                        )
-                    }
-                case .creation, .appendColumn, .rowCompletion:
-                    await database.observationCoordinator.invalidate(
-                        entry.targetInvalidation
-                    )
-                }
-            }
-            throw mapped
-        } catch {
-            let primary = DatabaseError.appenderFinalization(String(describing: error))
-            if entry.mode == .ordinary {
-                await database.observationCoordinator.invalidate(
-                    entry.targetInvalidation
-                )
-            }
-            let discard = discardAppenderForScope(nativeAppender)
-            if let cleanup = discard.error {
-                throw AppenderCleanupError(
-                    originalError: primary,
-                    cleanupError: cleanup
-                )
-            }
-            throw primary
-        }
-
-        let success = AppenderFinalizationSuccess(
-            targetInvalidation: entry.targetInvalidation,
-            mode: entry.mode
-        )
-        if case .ordinary = entry.mode, entry.ordinaryRowsSinceFlush > 0 {
-            await database.observationCoordinator.invalidate(entry.targetInvalidation)
-        }
-        return success
+    ) async -> AppenderAbortOutcome {
+        await runtime.abortAppenderScope(authority: authority, id)
     }
 
-    private func discardAppenderForScope(
-        _ nativeAppender: NativeAppender
-    ) -> AppenderDiscardResult {
-        do {
-            try nativeAppender.discard()
-            return AppenderDiscardResult(
-                error: nil,
-                bufferedDataOutcomeAmbiguous: false
-            )
-        } catch let error as NativeAppenderError {
-            let cleanup = mapNativeAppenderError(error)
-            if error.bufferedDataOutcomeAmbiguous {
-                enterFailClosed(
-                    "Appender cleanup left buffered-data outcome ambiguous: \(error.message)"
-                )
-            }
-            return AppenderDiscardResult(
-                error: cleanup,
-                bufferedDataOutcomeAmbiguous: error.bufferedDataOutcomeAmbiguous
-            )
-        } catch {
-            let message = "Unexpected Appender cleanup failure: \(String(describing: error))"
-            enterFailClosed(message)
-            return AppenderDiscardResult(
-                error: .appenderCleanup(message),
-                bufferedDataOutcomeAmbiguous: false
-            )
+    /// Aborts one transaction Appender scope owned by this handle.
+    nonisolated(nonsending) func abortTransactionAppenderScope(
+        _ id: AppenderId,
+        token: TransactionOperationToken,
+        failure: TransactionRollbackOnlyReason,
+        authority expectedAuthority: ConnectionAuthority? = nil
+    ) async -> AppenderAbortOutcome {
+        guard (expectedAuthority ?? authority) == authority else {
+            return .terminal(.database(.poolLeaseExpired))
         }
-    }
-
-    func executePreparedStatementQuery(
-        _ id: StatementId,
-        dynamicBindings: [Value]
-    ) async throws -> QueryResult {
-        try await executeOrdinaryReusablePreparedStatement(
+        return await runtime.abortTransactionAppenderScope(
+            authority: authority,
             id,
-            dynamicBindings: dynamicBindings,
-            materializeRows: true
-        )
-    }
-
-    func executePreparedStatementMutation(
-        _ id: StatementId,
-        dynamicBindings: [Value]
-    ) async throws -> UInt64 {
-        let result = try await executeOrdinaryReusablePreparedStatement(
-            id,
-            dynamicBindings: dynamicBindings,
-            materializeRows: false
-        )
-        return result.rowsChanged
-    }
-
-    func executeTransactionPreparedStatementQuery(
-        _ id: StatementId,
-        dynamicBindings: [Value],
-        token: TransactionOperationToken
-    ) async throws -> QueryResult {
-        try await executeTransactionReusablePreparedStatement(
-            id,
-            dynamicBindings: dynamicBindings,
             token: token,
-            materializeRows: true
+            failure: failure
         )
     }
 
-    func executeTransactionPreparedStatementMutation(
-        _ id: StatementId,
-        dynamicBindings: [Value],
-        token: TransactionOperationToken
-    ) async throws -> UInt64 {
-        let result = try await executeTransactionReusablePreparedStatement(
+    /// Finalizes one ordinary Appender scope owned by this handle.
+    nonisolated(nonsending) func finishAppenderScopeSuccess(
+        _ id: AppenderId
+    ) async throws {
+        try await runtime.finishAppenderScopeSuccess(authority: authority, id)
+    }
+
+    /// Finalizes one transaction Appender scope owned by this handle.
+    nonisolated(nonsending) func finishTransactionAppenderScopeSuccess(
+        _ id: AppenderId,
+        token: TransactionOperationToken,
+        authority expectedAuthority: ConnectionAuthority? = nil
+    ) async throws {
+        guard (expectedAuthority ?? authority) == authority else {
+            throw DatabaseError.poolLeaseExpired
+        }
+        try await runtime.finishTransactionAppenderScopeSuccess(
+            authority: authority,
             id,
-            dynamicBindings: dynamicBindings,
-            token: token,
-            materializeRows: false
+            token: token
         )
-        return result.rowsChanged
     }
 
-    private func executeOrdinaryReusablePreparedStatement(
+    /// Executes one reusable Statement for this handle's exact authority.
+    nonisolated(nonsending) func executePreparedStatementQuery(
         _ id: StatementId,
         dynamicBindings: [Value],
-        materializeRows: Bool
+        authority expectedAuthority: ConnectionAuthority? = nil
     ) async throws -> QueryResult {
-        try await acquireOrdinaryLease()
-        defer { releaseOrdinaryLease() }
-        return try await executeReusablePreparedStatementNative(
+        guard (expectedAuthority ?? authority) == authority else {
+            throw DatabaseError.poolLeaseExpired
+        }
+        return try await runtime.executePreparedStatementQuery(
+            authority: authority,
             id,
-            dynamicBindings: dynamicBindings,
-            materializeRows: materializeRows,
-            observationPublicationPolicy: .ordinary
+            dynamicBindings: dynamicBindings
         )
     }
 
-    private func executeTransactionReusablePreparedStatement(
+    /// Executes one reusable mutation Statement for this handle's exact authority.
+    nonisolated(nonsending) func executePreparedStatementMutation(
+        _ id: StatementId,
+        dynamicBindings: [Value],
+        authority expectedAuthority: ConnectionAuthority? = nil
+    ) async throws -> UInt64 {
+        guard (expectedAuthority ?? authority) == authority else {
+            throw DatabaseError.poolLeaseExpired
+        }
+        return try await runtime.executePreparedStatementMutation(
+            authority: authority,
+            id,
+            dynamicBindings: dynamicBindings
+        )
+    }
+
+    /// Executes a reusable Statement inside this handle's exact transaction authority.
+    nonisolated(nonsending) func executeTransactionPreparedStatementQuery(
         _ id: StatementId,
         dynamicBindings: [Value],
         token: TransactionOperationToken,
-        materializeRows: Bool
+        authority expectedAuthority: ConnectionAuthority? = nil
     ) async throws -> QueryResult {
-        try await acquireTransactionNativeAdmission(token)
-
-        do {
-            let result = try await executeReusablePreparedStatementNative(
-                id,
-                dynamicBindings: dynamicBindings,
-                materializeRows: materializeRows,
-                observationPublicationPolicy: .transaction(token.reservationId)
-            )
-            completeTransactionOperation(token, failure: nil)
-            return result
-        } catch is CancellationError {
-            completeTransactionOperation(token, failure: .cancelled)
-            throw CancellationError()
-        } catch let error as DatabaseError {
-            completeTransactionOperation(token, failure: .database(error))
-            throw error
-        } catch {
-            let mapped = DatabaseError.invalidResult(String(describing: error))
-            completeTransactionOperation(token, failure: .database(mapped))
-            throw mapped
+        guard (expectedAuthority ?? authority) == authority else {
+            throw DatabaseError.poolLeaseExpired
         }
+        return try await runtime.executeTransactionPreparedStatementQuery(
+            authority: authority,
+            id,
+            dynamicBindings: dynamicBindings,
+            token: token
+        )
     }
 
-    private func executeReusablePreparedStatementNative(
+    /// Executes a reusable mutation Statement inside this handle's exact transaction authority.
+    nonisolated(nonsending) func executeTransactionPreparedStatementMutation(
         _ id: StatementId,
         dynamicBindings: [Value],
-        materializeRows: Bool,
-        observationPublicationPolicy: NativeObservationPublicationPolicy = .none
+        token: TransactionOperationToken,
+        authority expectedAuthority: ConnectionAuthority? = nil
+    ) async throws -> UInt64 {
+        guard (expectedAuthority ?? authority) == authority else {
+            throw DatabaseError.poolLeaseExpired
+        }
+        return try await runtime.executeTransactionPreparedStatementMutation(
+            authority: authority,
+            id,
+            dynamicBindings: dynamicBindings,
+            token: token
+        )
+    }
+
+    /// Removes one prepared registry entry only when its creating authority matches.
+    nonisolated(nonsending) func removePreparedStatement(
+        _ id: StatementId,
+        authority expectedAuthority: ConnectionAuthority? = nil
+    ) async {
+        guard (expectedAuthority ?? authority) == authority else {
+            return
+        }
+        await runtime.removePreparedStatement(
+            id,
+            authority: authority
+        )
+    }
+
+    /// Returns one prepared Statement binding layout for internal diagnostics.
+    nonisolated(nonsending) func preparedStatementBindingLayout(
+        _ id: StatementId
+    ) async -> [StatementBindingSource]? {
+        await runtime.preparedStatementBindingLayout(id)
+    }
+
+    /// Returns one prepared Statement dynamic argument count for internal diagnostics.
+    nonisolated(nonsending) func preparedStatementDynamicArgumentCount(
+        _ id: StatementId
+    ) async -> Int? {
+        await runtime.preparedStatementDynamicArgumentCount(id)
+    }
+
+    /// Registers one operation under this handle's exact transaction authority.
+    nonisolated(nonsending) func registerTransactionOperation(
+        _ reservationId: TransactionReservationId,
+        authority expectedAuthority: ConnectionAuthority? = nil
+    ) async throws -> TransactionOperationToken {
+        guard (expectedAuthority ?? authority) == authority else {
+            throw DatabaseError.poolLeaseExpired
+        }
+        return try await runtime.registerTransactionOperation(
+            authority: authority,
+            reservationId
+        )
+    }
+
+    /// Resolves transaction preparation failure against this handle's exact authority.
+    nonisolated(nonsending) func resolveTransactionPreparationFailure(
+        _ token: TransactionOperationToken,
+        error: DatabaseError,
+        authority expectedAuthority: ConnectionAuthority? = nil
+    ) async throws {
+        guard (expectedAuthority ?? authority) == authority else {
+            throw DatabaseError.poolLeaseExpired
+        }
+        try await runtime.resolveTransactionPreparationFailure(
+            authority: authority,
+            token,
+            error: error
+        )
+    }
+
+    /// Executes a query inside one exact transaction reservation.
+    nonisolated(nonsending) func executeTransactionQuery(
+        _ snapshot: PreparedQuerySnapshot,
+        token: TransactionOperationToken,
+        authority expectedAuthority: ConnectionAuthority? = nil
     ) async throws -> QueryResult {
-        do {
-            try Task.checkCancellation()
-            try ensureUsable()
-
-            guard var entry = preparedStatements[id] else {
-                throw DatabaseError.statementUnusable(
-                    "Reusable statement is no longer registered on its originating Connection."
-                )
-            }
-            guard let statement = entry.statement else {
-                throw DatabaseError.statementUnusable(
-                    entry.unusableMessage ?? "Reusable statement is no longer usable."
-                )
-            }
-            guard dynamicBindings.count == entry.dynamicArgumentCount else {
-                throw DatabaseError.invalidResult(
-                    "Reusable statement dynamic argument count diverged from its registered template."
-                )
-            }
-
-            do {
-                try statement.clearBindings()
-            } catch let error as NativeDuckDBError {
-                let message = error.message
-                entry.statement = nil
-                entry.unusableMessage = message
-                preparedStatements[id] = entry
-                throw DatabaseError.statementUnusable(message)
-            }
-
-            for (offset, source) in entry.bindingLayout.enumerated() {
-                let binding: Value
-                switch source {
-                case .fixed(let value):
-                    binding = value
-                case .dynamic(let index):
-                    guard dynamicBindings.indices.contains(index) else {
-                        throw DatabaseError.invalidResult(
-                            "Reusable statement binding layout referenced an unavailable dynamic argument."
-                        )
-                    }
-                    binding = dynamicBindings[index]
-                }
-                try statement.bind(binding, at: offset + 1)
-            }
-
-            return try await executePreparedStatement(
-                statement,
-                materializeRows: materializeRows,
-                cancellationPolicy: .cooperative,
-                observationPublicationPolicy: observationPublicationPolicy
-            )
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch let error as NativeDuckDBError {
-            throw mapNativeError(error)
+        guard (expectedAuthority ?? authority) == authority else {
+            throw DatabaseError.poolLeaseExpired
         }
+        return try await runtime.executeTransactionQuery(
+            authority: authority,
+            snapshot,
+            token: token
+        )
     }
 
-    /// Acquires an ordinary-operation lease without bypassing a live flat transaction.
-    func acquireOrdinaryLease() async throws {
-        try ensurePoolLeaseAdmission()
-        try ensureUsable()
-        guard !isManualTransactionLive() else {
-            throw DatabaseError.transactionScopeViolation
+    /// Executes a mutation inside one exact transaction reservation.
+    nonisolated(nonsending) func executeTransactionStatement(
+        _ snapshot: PreparedQuerySnapshot,
+        token: TransactionOperationToken,
+        authority expectedAuthority: ConnectionAuthority? = nil
+    ) async throws -> UInt64 {
+        guard (expectedAuthority ?? authority) == authority else {
+            throw DatabaseError.poolLeaseExpired
         }
-        let waiterId = OuterAdmissionWaiterId()
-
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            switch outerAdmissionState.requestOrdinary(waiterId: waiterId) {
-            case .admitted:
-                continuation.resume()
-            case .queued:
-                outerWaiters[waiterId] = continuation
-            }
-        }
+        return try await runtime.executeTransactionStatement(
+            authority: authority,
+            snapshot,
+            token: token
+        )
     }
 
-    /// Reserves this Connection for a managed or flat transaction.
-    func acquireTransactionReservation(
+    /// Commits one flat transaction owned by this handle's exact authority.
+    nonisolated(nonsending) func commitManualTransaction(
+        _ reservationId: TransactionReservationId,
+        authority expectedAuthority: ConnectionAuthority? = nil
+    ) async throws {
+        guard (expectedAuthority ?? authority) == authority else {
+            throw DatabaseError.poolLeaseExpired
+        }
+        try await runtime.commitManualTransaction(
+            authority: authority,
+            reservationId
+        )
+    }
+
+    /// Rolls back one flat transaction owned by this handle's exact authority.
+    nonisolated(nonsending) func rollbackManualTransaction(
+        _ reservationId: TransactionReservationId,
+        authority expectedAuthority: ConnectionAuthority? = nil
+    ) async throws {
+        guard (expectedAuthority ?? authority) == authority else {
+            throw DatabaseError.poolLeaseExpired
+        }
+        try await runtime.rollbackManualTransaction(
+            authority: authority,
+            reservationId
+        )
+    }
+
+    #if compiler(>=6.4)
+    /// Best-effort cleanup for one flat transaction owned by this handle.
+    nonisolated(nonsending) func rollbackManualTransactionIfNeeded(
+        _ reservationId: TransactionReservationId,
+        authority expectedAuthority: ConnectionAuthority? = nil
+    ) async {
+        guard (expectedAuthority ?? authority) == authority else {
+            return
+        }
+        await runtime.rollbackManualTransactionIfNeeded(
+            authority: authority,
+            reservationId
+        )
+    }
+    #endif
+
+    /// Refreshes an Observation through this handle's exact authority.
+    nonisolated(nonsending) func refreshObservation(
+        _ snapshot: PreparedQuerySnapshot
+    ) async throws -> ObservationRefresh {
+        try await runtime.refreshObservation(authority: authority, snapshot)
+    }
+
+    /// Reports whether one transaction reservation remains live on the runtime.
+    nonisolated(nonsending) func isTransactionReservationLive(
+        _ reservationId: TransactionReservationId
+    ) async -> Bool {
+        await runtime.isTransactionReservationLive(reservationId)
+    }
+
+    /// Acquires internal ordinary-operation admission for deterministic state tests.
+    nonisolated(nonsending) func acquireOrdinaryLease() async throws {
+        try await runtime.acquireOrdinaryLease(authority: authority)
+    }
+
+    /// Releases one previously acquired ordinary-operation admission.
+    nonisolated(nonsending) func releaseOrdinaryLease() async {
+        await runtime.releaseOrdinaryLease()
+    }
+
+    /// Reserves this runtime for one internal transaction lifecycle.
+    nonisolated(nonsending) func acquireTransactionReservation(
         ownership: TransactionOwnershipMode = .managedClosure
     ) async throws -> TransactionReservationId {
-        try ensurePoolLeaseAdmission()
-        try ensureUsable()
-        let reservationId = TransactionReservationId()
-        let waiterId = OuterAdmissionWaiterId()
-
-        do {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                do {
-                    let decision = try outerAdmissionState.requestTransaction(
-                        reservationId,
-                        waiterId: waiterId
-                    )
-                    lifecycleStateMachine = TransactionLifecycleStateMachine()
-                    transactionState = TransactionReservationState(
-                        id: reservationId,
-                        ownership: ownership
-                    )
-
-                    switch decision {
-                    case .admitted:
-                        continuation.resume()
-                    case .queued:
-                        outerWaiters[waiterId] = continuation
-                    }
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-            return reservationId
-        } catch {
-            if transactionState?.id == reservationId {
-                transactionState = nil
-            }
-            let cancelledRequests = outerAdmissionState.cancelPendingTransaction(reservationId)
-            for request in cancelledRequests {
-                guard let continuation = outerWaiters.removeValue(forKey: request.waiterId) else {
-                    enterFailClosed("Transaction admission scheduler lost a cancelled continuation.")
-                    continue
-                }
-                continuation.resume(throwing: error)
-            }
-            throw error
-        }
-    }
-
-    private func drainOuterWaitersForPoolClosing() {
-        let queuedRequests = outerAdmissionState.drainQueuedRequests()
-
-        for request in queuedRequests {
-            if case .transaction(_, let reservationId) = request,
-               outerAdmissionState.lease != .transaction(reservationId) {
-                if transactionState?.id == reservationId {
-                    transactionState = nil
-                    lifecycleStateMachine = TransactionLifecycleStateMachine()
-                }
-                outerAdmissionState.endTransaction(reservationId)
-            }
-
-            guard let continuation = outerWaiters.removeValue(forKey: request.waiterId) else {
-                enterFailClosed(
-                    "Connection admission scheduler lost a queued continuation during pooled return."
-                )
-                continue
-            }
-            continuation.resume(throwing: DatabaseError.poolLeaseExpired)
-        }
-
-        if !outerWaiters.isEmpty {
-            enterFailClosed(
-                "Connection admission scheduler retained an unknown waiter during pooled return."
-            )
-        }
-
-        resumePoolLeaseDrainWaiterIfQuiescent()
-    }
-
-    private func waitForPoolLeaseQuiescence() async {
-        guard outerAdmissionState.lease != nil else {
-            return
-        }
-
-        await withCheckedContinuation { continuation in
-            guard outerAdmissionState.lease != nil else {
-                continuation.resume()
-                return
-            }
-            guard poolLeaseDrainWaiter == nil else {
-                enterFailClosed("Pooled Connection installed more than one return drain waiter.")
-                continuation.resume()
-                return
-            }
-            poolLeaseDrainWaiter = continuation
-        }
-    }
-
-    private func resumePoolLeaseDrainWaiterIfQuiescent() {
-        guard poolLeaseState.isClosing,
-              outerAdmissionState.lease == nil,
-              let waiter = poolLeaseDrainWaiter else {
-            return
-        }
-        poolLeaseDrainWaiter = nil
-        waiter.resume()
-    }
-
-    private func invalidatePreparedStatements(
-        createdBy token: ConnectionPoolLeaseToken
-    ) {
-        let ids = preparedStatements.compactMap { id, entry in
-            entry.poolLeaseToken == token ? id : nil
-        }
-        for id in ids {
-            preparedStatements.removeValue(forKey: id)
-        }
-    }
-
-    private func rollbackLeakedManualTransactionForPoolReturn() async -> DatabaseError? {
-        guard let state = transactionState,
-              state.ownership == .manualHandle,
-              state.terminalState == .active else {
-            return nil
-        }
-
-        do {
-            let lifecycle = try TransactionLifecycleSnapshots()
-            _ = try await beginManualTransactionFinalization(state.id)
-            return await rollbackTransaction(
-                state.id,
-                rollback: lifecycle.rollback
-            )
-        } catch let error as DatabaseError {
-            return error
-        } catch {
-            return .transactionRollback(lifecycleFailureMessage(error))
-        }
-    }
-
-    func releaseOrdinaryLease() {
-        guard outerAdmissionState.lease == .ordinary else {
-            return
-        }
-        outerAdmissionState.releaseOrdinary()
-        if poolLeaseState.isClosing {
-            resumePoolLeaseDrainWaiterIfQuiescent()
-            return
-        }
-        admitNextOuterWaiter()
-    }
-
-    private func admitNextOuterWaiter() {
-        guard case .usable = usability else {
-            drainOuterWaitersForFailClosedConnection()
-            return
-        }
-
-        while let request = outerAdmissionState.admitNextQueuedRequest() {
-            guard let continuation = outerWaiters.removeValue(forKey: request.waiterId) else {
-                enterFailClosed("Connection admission scheduler lost a queued continuation.")
-                return
-            }
-
-            switch request {
-            case .ordinary:
-                continuation.resume()
-                return
-            case .transaction(_, let reservationId):
-                guard transactionState?.id == reservationId,
-                      outerAdmissionState.lease == .transaction(reservationId) else {
-                    if transactionState?.id == reservationId {
-                        transactionState = nil
-                    }
-                    outerAdmissionState.endTransaction(reservationId)
-                    continuation.resume(throwing: DatabaseError.transactionEnded)
-                    continue
-                }
-                continuation.resume()
-                return
-            }
-        }
-    }
-
-    func registerTransactionOperation(
-        _ reservationId: TransactionReservationId
-    ) throws -> TransactionOperationToken {
-        try ensurePoolLeaseAdmission()
-        try ensureUsable()
-        guard var state = transactionState, state.id == reservationId else {
-            throw DatabaseError.transactionEnded
-        }
-
-        let token = try state.registerOperation()
-        transactionState = state
-        return token
-    }
-
-    func resolveTransactionPreparationFailure(
-        _ token: TransactionOperationToken,
-        error: DatabaseError
-    ) throws {
-        try ensureUsable()
-        guard var state = transactionState, state.id == token.reservationId else {
-            throw DatabaseError.transactionEnded
-        }
-
-        do {
-            let transition = try state.resolvePreparationFailure(token, error: error)
-            transactionState = state
-            if let transition {
-                resumeTransactionOperationWaiters(
-                    transition.queuedOperationIds,
-                    with: transition.reason
-                )
-            }
-        } catch {
-            transactionState = state
-            throw error
-        }
-    }
-
-    func executeTransactionQuery(
-        _ snapshot: PreparedQuerySnapshot,
-        token: TransactionOperationToken
-    ) async throws -> QueryResult {
-        try await acquireTransactionNativeAdmission(token)
-
-        do {
-            let result = try await executeUserSnapshot(
-                snapshot,
-                materializeRows: true,
-                observationPublicationPolicy: .transaction(token.reservationId)
-            )
-            completeTransactionOperation(token, failure: nil)
-            return result
-        } catch is CancellationError {
-            completeTransactionOperation(token, failure: .cancelled)
-            throw CancellationError()
-        } catch let error as DatabaseError {
-            completeTransactionOperation(token, failure: .database(error))
-            throw error
-        } catch {
-            let mapped = DatabaseError.invalidResult(String(describing: error))
-            completeTransactionOperation(token, failure: .database(mapped))
-            throw mapped
-        }
-    }
-
-    func executeTransactionStatement(
-        _ snapshot: PreparedQuerySnapshot,
-        token: TransactionOperationToken
-    ) async throws -> UInt64 {
-        try await acquireTransactionNativeAdmission(token)
-
-        do {
-            let result = try await executeUserSnapshot(
-                snapshot,
-                materializeRows: false,
-                observationPublicationPolicy: .transaction(token.reservationId)
-            )
-            completeTransactionOperation(token, failure: nil)
-            return result.rowsChanged
-        } catch is CancellationError {
-            completeTransactionOperation(token, failure: .cancelled)
-            throw CancellationError()
-        } catch let error as DatabaseError {
-            completeTransactionOperation(token, failure: .database(error))
-            throw error
-        } catch {
-            let mapped = DatabaseError.invalidResult(String(describing: error))
-            completeTransactionOperation(token, failure: .database(mapped))
-            throw mapped
-        }
-    }
-
-    func acquireTransactionNativeAdmission(
-        _ token: TransactionOperationToken
-    ) async throws {
-        try ensureUsable()
-
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            guard var state = transactionState, state.id == token.reservationId else {
-                continuation.resume(throwing: DatabaseError.transactionEnded)
-                return
-            }
-
-            do {
-                let decision = try state.requestNativeAdmission(token)
-                transactionState = state
-
-                switch decision {
-                case .admitted:
-                    continuation.resume()
-                case .queued:
-                    transactionOperationWaiters[token.operationId] = continuation
-                }
-            } catch {
-                transactionState = state
-                continuation.resume(throwing: error)
-            }
-        }
-    }
-
-    func completeTransactionOperation(
-        _ token: TransactionOperationToken,
-        failure: TransactionRollbackOnlyReason?
-    ) {
-        guard var state = transactionState, state.id == token.reservationId,
-              let transition = state.completeNativeOperation(token, failure: failure) else {
-            return
-        }
-
-        transactionState = state
-
-        if let rollbackTransition = transition.rollbackOnlyTransition {
-            guard resumeTransactionOperationWaiters(
-                rollbackTransition.queuedOperationIds,
-                with: rollbackTransition.reason
-            ) else {
-                resumeTransactionDrainWaiter()
-                return
-            }
-        }
-
-        if let inconsistencyOperationId = transition.schedulerInconsistencyOperationId {
-            let message = "Transaction operation scheduler state became inconsistent."
-            transactionOperationWaiters.removeValue(forKey: inconsistencyOperationId)?.resume(
-                throwing: DatabaseError.connectionUnusable(message)
-            )
-            enterFailClosed(message)
-            resumeTransactionDrainWaiter()
-            return
-        }
-
-        if let nextOperationId = transition.nextNativeOperationId {
-            guard let waiter = transactionOperationWaiters.removeValue(forKey: nextOperationId) else {
-                enterFailClosed("Transaction operation scheduler lost a queued continuation.")
-                resumeTransactionDrainWaiter()
-                return
-            }
-            waiter.resume()
-        }
-
-        if transition.shouldResumeFinalizationDrain {
-            resumeTransactionDrainWaiter()
-        }
-    }
-
-    /// Starts normal transaction finalization and drains queued transaction operations.
-    func beginTransactionFinalization(
-        _ reservationId: TransactionReservationId
-    ) async throws -> TransactionRollbackOnlyReason? {
-        try ensureUsable()
-        guard var state = transactionState, state.id == reservationId else {
-            throw DatabaseError.transactionEnded
-        }
-        guard !state.isClosing else {
-            throw DatabaseError.transactionEnded
-        }
-
-        let transition = state.beginFinalization()
-        transactionState = state
-        resumeTransactionOperationWaitersAsEnded(transition.queuedOperationIds)
-
-        if transition.waitsForNativeActiveOperation {
-            await withCheckedContinuation { continuation in
-                transactionDrainWaiter = continuation
-            }
-        }
-
-        return transactionState?.rollbackOnlyReason ?? transition.rollbackOnlyReason
-    }
-
-    /// Returns the retained terminal state for a transaction reservation, when present.
-    func transactionTerminalSnapshot(
-        _ reservationId: TransactionReservationId
-    ) -> TransactionTerminalSnapshot? {
-        guard let state = transactionState, state.id == reservationId else {
-            return nil
-        }
-        return TransactionTerminalSnapshot(
-            state: state.terminalState,
-            failure: state.manualFinalizerFailure
+        try await runtime.acquireTransactionReservation(
+            authority: authority,
+            ownership: ownership
         )
     }
 
-    /// Starts transaction teardown after the Connection has entered irreversible fail-closed state.
-    func beginFailClosedTransactionTeardown(
-        _ reservationId: TransactionReservationId
-    ) async throws -> TransactionRollbackOnlyReason? {
-        guard transactionState?.id == reservationId,
-              outerAdmissionState.lease == .transaction(reservationId),
-              case .unusable(let message) = usability else {
-            throw DatabaseError.transactionRollback(
-                "Fail-closed transaction teardown lost the active transaction reservation."
-            )
-        }
-
-        guard var state = transactionState, state.id == reservationId else {
-            throw DatabaseError.transactionRollback(
-                "Fail-closed transaction teardown lost the active transaction reservation."
-            )
-        }
-
-        let transition = state.beginFinalization()
-        transactionState = state
-        for operationId in transition.queuedOperationIds {
-            transactionOperationWaiters.removeValue(forKey: operationId)?.resume(
-                throwing: DatabaseError.connectionUnusable(message)
-            )
-        }
-
-        if transition.waitsForNativeActiveOperation {
-            await withCheckedContinuation { continuation in
-                transactionDrainWaiter = continuation
-            }
-        }
-
-        return transactionState?.rollbackOnlyReason ?? transition.rollbackOnlyReason
-    }
-
-    func beginTransaction(
+    /// Starts the native transaction for one internal lifecycle reservation.
+    nonisolated(nonsending) func beginTransaction(
         _ reservationId: TransactionReservationId,
         begin: PreparedQuerySnapshot,
         rollback: PreparedQuerySnapshot
     ) async -> TransactionBeginOutcome {
-        do {
-            try ensureUsable()
-            guard transactionState?.id == reservationId,
-                  outerAdmissionState.lease == .transaction(reservationId) else {
-                return .failed(primary: .transactionEnded, rollbackFailure: nil)
-            }
-
-            guard lifecycleStateMachine.beginStart(isCancelled: Task.isCancelled) else {
-                endTransactionReservation(reservationId)
-                return .cancelledBeforeStart
-            }
-
-            let statement = try prepareNativeStatement(begin, policy: .lifecycle)
-            _ = try await executePreparedStatement(
-                statement,
-                materializeRows: false,
-                cancellationPolicy: .definitive
-            )
-
-            guard var state = transactionState, state.id == reservationId else {
-                return .failed(primary: .transactionEnded, rollbackFailure: nil)
-            }
-            state.openBody()
-            transactionState = state
-            return .started
-        } catch {
-            let primary = DatabaseError.transactionBegin(lifecycleFailureMessage(error))
-            let rollbackFailure = await rollbackTransaction(
-                reservationId,
-                rollback: rollback
-            )
-            return .failed(primary: primary, rollbackFailure: rollbackFailure)
-        }
+        await runtime.beginTransaction(
+            reservationId,
+            begin: begin,
+            rollback: rollback
+        )
     }
 
-    /// Attempts native COMMIT and applies the transaction lifecycle failure policy.
-    func commitTransaction(
+    /// Starts finalization and drains queued operations for one reservation.
+    nonisolated(nonsending) func beginTransactionFinalization(
+        _ reservationId: TransactionReservationId
+    ) async throws -> TransactionRollbackOnlyReason? {
+        try await runtime.beginTransactionFinalization(reservationId)
+    }
+
+    /// Attempts native COMMIT for one internal transaction reservation.
+    nonisolated(nonsending) func commitTransaction(
         _ reservationId: TransactionReservationId,
         commit: PreparedQuerySnapshot,
         rollback: PreparedQuerySnapshot,
         retainTerminalState: Bool = false
     ) async -> TransactionCommitOutcome {
-        do {
-            try ensureUsable()
-            guard transactionState?.id == reservationId,
-                  outerAdmissionState.lease == .transaction(reservationId) else {
-                return .failed(primary: .transactionEnded, rollbackFailure: nil)
-            }
-
-            guard lifecycleStateMachine.commitStart(isCancelled: Task.isCancelled) else {
-                return .cancelledBeforeStart
-            }
-
-            do {
-                let statement = try prepareNativeStatement(commit, policy: .lifecycle)
-                _ = try await executePreparedStatement(
-                    statement,
-                    materializeRows: false,
-                    cancellationPolicy: .definitive
-                ) {
-                    lifecycleStateMachine.commitSchedulingAttempted()
-                }
-                let invalidation = transactionObservationInvalidation(reservationId)
-                if retainTerminalState {
-                    completeTransactionFinalization(
-                        reservationId,
-                        state: .committed,
-                        failure: nil
-                    )
-                } else {
-                    endTransactionReservation(reservationId)
-                }
-                await publishTransactionObservation(invalidation)
-                return .committed
-            } catch {
-                let message = lifecycleFailureMessage(error)
-                let primary = DatabaseError.transactionCommit(message)
-
-                switch lifecycleStateMachine.commitFailurePolicy {
-                case .rollbackCleanup:
-                    let rollbackFailure = await rollbackTransaction(
-                        reservationId,
-                        rollback: rollback,
-                        retainTerminalState: retainTerminalState,
-                        originalError: .database(primary),
-                        successFailure: .database(primary)
-                    )
-                    return .failed(primary: primary, rollbackFailure: rollbackFailure)
-                case .failClosed:
-                    enterFailClosed(
-                        "COMMIT outcome became ambiguous after native scheduling: \(message)"
-                    )
-                    completeTransactionFinalization(
-                        reservationId,
-                        state: .finalizationFailed,
-                        failure: .database(primary)
-                    )
-                    if !retainTerminalState {
-                        endTransactionReservation(reservationId)
-                    }
-                    await database.observationCoordinator.invalidate(.database)
-                    return .failed(primary: primary, rollbackFailure: nil)
-                }
-            }
-        } catch let error as DatabaseError {
-            if retainTerminalState {
-                completeTransactionFinalization(
-                    reservationId,
-                    state: .finalizationFailed,
-                    failure: .database(error)
-                )
-            }
-            return .failed(primary: error, rollbackFailure: nil)
-        } catch {
-            let primary = DatabaseError.transactionCommit(lifecycleFailureMessage(error))
-            if retainTerminalState {
-                completeTransactionFinalization(
-                    reservationId,
-                    state: .finalizationFailed,
-                    failure: .database(primary)
-                )
-            }
-            return .failed(
-                primary: primary,
-                rollbackFailure: nil
-            )
-        }
+        await runtime.commitTransaction(
+            reservationId,
+            commit: commit,
+            rollback: rollback,
+            retainTerminalState: retainTerminalState
+        )
     }
 
-    /// Performs definitive native ROLLBACK cleanup and terminalizes the reservation.
-    func rollbackTransaction(
+    /// Performs native ROLLBACK for one internal transaction reservation.
+    nonisolated(nonsending) func rollbackTransaction(
         _ reservationId: TransactionReservationId,
         rollback: PreparedQuerySnapshot,
         retainTerminalState: Bool = false,
         originalError: TransactionRollbackOnlyReason? = nil,
         successFailure: TransactionManualFinalizerFailure? = nil
     ) async -> DatabaseError? {
-        guard transactionState?.id == reservationId,
-              outerAdmissionState.lease == .transaction(reservationId) else {
-            return .transactionRollback("Transaction reservation ended before rollback cleanup.")
-        }
-
-        lifecycleStateMachine.rollbackStarted()
-
-        do {
-            let statement = try prepareNativeStatement(rollback, policy: .lifecycle)
-            _ = try await executePreparedStatement(
-                statement,
-                materializeRows: false,
-                cancellationPolicy: .definitive
-            )
-            let invalidation = transactionObservationInvalidation(reservationId)
-            if retainTerminalState {
-                completeTransactionFinalization(
-                    reservationId,
-                    state: .rolledBack,
-                    failure: successFailure
-                )
-            } else {
-                endTransactionReservation(reservationId)
-            }
-            await publishTransactionObservation(invalidation)
-            return nil
-        } catch {
-            let rollbackError = DatabaseError.transactionRollback(lifecycleFailureMessage(error))
-            enterFailClosed("Transaction rollback failed: \(lifecycleFailureMessage(error))")
-            if retainTerminalState {
-                let failure: TransactionManualFinalizerFailure
-                if let originalError {
-                    failure = .rollback(
-                        original: originalError,
-                        rollbackError: rollbackError
-                    )
-                } else {
-                    failure = .database(rollbackError)
-                }
-                completeTransactionFinalization(
-                    reservationId,
-                    state: .finalizationFailed,
-                    failure: failure
-                )
-            } else {
-                endTransactionReservation(reservationId)
-            }
-            await database.observationCoordinator.invalidate(.database)
-            return rollbackError
-        }
-    }
-
-    private func completeTransactionFinalization(
-        _ reservationId: TransactionReservationId,
-        state terminalState: TransactionReservationTerminalState,
-        failure: TransactionManualFinalizerFailure?
-    ) {
-        guard var state = transactionState, state.id == reservationId else {
-            return
-        }
-        state.completeFinalization(terminalState, failure: failure)
-        transactionState = state
-    }
-
-    private func retainsManagedTransactionState(
-        _ reservationId: TransactionReservationId
-    ) -> Bool {
-        transactionState?.id == reservationId
-            && transactionState?.ownership == .managedClosure
-    }
-
-    /// Finalizes a public transaction handle, rolling back instead of committing fail-closed state.
-    func commitManualTransaction(
-        _ reservationId: TransactionReservationId
-    ) async throws {
-        try ensurePoolLeaseAdmission()
-        let lifecycle = try TransactionLifecycleSnapshots()
-        let admission = try await beginManualTransactionFinalization(reservationId)
-        let rollbackOnlyReason = admission.rollbackOnlyReason
-        let retainTerminalState = admission.retainsTerminalState
-
-        if let failClosedError = admission.failClosedError {
-            let authoritativeReason = rollbackOnlyReason ?? .database(failClosedError)
-            let failure = finalizerFailure(for: authoritativeReason)
-            if let rollbackFailure = await rollbackTransaction(
-                reservationId,
-                rollback: lifecycle.rollback,
-                retainTerminalState: retainTerminalState,
-                originalError: authoritativeReason,
-                successFailure: failure
-            ) {
-                throw TransactionRollbackError(
-                    originalError: authoritativeReason.errorValue,
-                    rollbackError: rollbackFailure
-                )
-            }
-            try failure.throwStored()
-        }
-
-        if let rollbackOnlyReason {
-            let storedFailure = finalizerFailure(for: rollbackOnlyReason)
-
-            if let rollbackFailure = await rollbackTransaction(
-                reservationId,
-                rollback: lifecycle.rollback,
-                retainTerminalState: retainTerminalState,
-                originalError: rollbackOnlyReason,
-                successFailure: storedFailure
-            ) {
-                throw TransactionRollbackError(
-                    originalError: rollbackOnlyReason.errorValue,
-                    rollbackError: rollbackFailure
-                )
-            }
-            try storedFailure.throwStored()
-        }
-
-        switch await commitTransaction(
+        await runtime.rollbackTransaction(
             reservationId,
-            commit: lifecycle.commit,
-            rollback: lifecycle.rollback,
-            retainTerminalState: retainTerminalState
-        ) {
-        case .committed:
-            return
-        case .cancelledBeforeStart:
-            let rollbackFailure = await rollbackTransaction(
-                reservationId,
-                rollback: lifecycle.rollback,
-                retainTerminalState: retainTerminalState,
-                originalError: .cancelled,
-                successFailure: .cancelled
-            )
-            if let rollbackFailure {
-                throw TransactionRollbackError(
-                    originalError: CancellationError(),
-                    rollbackError: rollbackFailure
-                )
-            }
-            throw CancellationError()
-        case .failed(let primary, let rollbackFailure):
-            if let rollbackFailure {
-                throw TransactionRollbackError(
-                    originalError: primary,
-                    rollbackError: rollbackFailure
-                )
-            }
-            throw primary
-        }
+            rollback: rollback,
+            retainTerminalState: retainTerminalState,
+            originalError: originalError,
+            successFailure: successFailure
+        )
     }
 
-    /// Rolls back a public transaction handle and preserves fail-closed truth after cleanup.
-    func rollbackManualTransaction(
+    /// Returns retained terminal state for one internal transaction reservation.
+    nonisolated(nonsending) func transactionTerminalSnapshot(
         _ reservationId: TransactionReservationId
+    ) async -> TransactionTerminalSnapshot? {
+        await runtime.transactionTerminalSnapshot(reservationId)
+    }
+
+    /// Acquires one registered transaction operation's native admission.
+    nonisolated(nonsending) func acquireTransactionNativeAdmission(
+        _ token: TransactionOperationToken
     ) async throws {
-        try ensurePoolLeaseAdmission()
-        let lifecycle = try TransactionLifecycleSnapshots()
-        let admission = try await beginManualTransactionFinalization(reservationId)
-        let retainTerminalState = admission.retainsTerminalState
-
-        if let failClosedError = admission.failClosedError {
-            let authoritativeReason = admission.rollbackOnlyReason ?? .database(failClosedError)
-            let failure = finalizerFailure(for: authoritativeReason)
-            if let rollbackFailure = await rollbackTransaction(
-                reservationId,
-                rollback: lifecycle.rollback,
-                retainTerminalState: retainTerminalState,
-                originalError: authoritativeReason,
-                successFailure: failure
-            ) {
-                throw TransactionRollbackError(
-                    originalError: authoritativeReason.errorValue,
-                    rollbackError: rollbackFailure
-                )
-            }
-            try failure.throwStored()
-        }
-
-        if let rollbackFailure = await rollbackTransaction(
-            reservationId,
-            rollback: lifecycle.rollback,
-            retainTerminalState: retainTerminalState
-        ) {
-            throw rollbackFailure
-        }
+        try await runtime.acquireTransactionNativeAdmission(token)
     }
 
-    #if compiler(>=6.4)
-    /// Rolls back an active transaction during asynchronous cleanup without throwing publicly.
-    func rollbackManualTransactionIfNeeded(
-        _ reservationId: TransactionReservationId
+    /// Completes one registered transaction operation and advances its scheduler.
+    nonisolated(nonsending) func completeTransactionOperation(
+        _ token: TransactionOperationToken,
+        failure: TransactionRollbackOnlyReason?
     ) async {
-        guard isPoolLeaseAdmissionAuthorized(),
-              let snapshot = transactionTerminalSnapshot(reservationId),
-              snapshot.state == .active else {
-            return
-        }
-
-        do {
-            try await rollbackManualTransaction(reservationId)
-        } catch {
-            // This API is intentionally nonthrowing. rollbackManualTransaction has
-            // already entered the Connection's fail-closed state on native failure.
-        }
-    }
-    #endif
-
-    /// Admits manual finalization through normal or fail-closed teardown for the matching active reservation.
-    private func beginManualTransactionFinalization(
-        _ reservationId: TransactionReservationId
-    ) async throws -> ManualFinalizationAdmission {
-        do {
-            let rollbackOnlyReason = try await beginTransactionFinalization(reservationId)
-            return ManualFinalizationAdmission(
-                rollbackOnlyReason: rollbackOnlyReason,
-                retainsTerminalState: retainsManagedTransactionState(reservationId),
-                failClosedError: nil
-            )
-        } catch let error as DatabaseError {
-            guard case .connectionUnusable = error,
-                  isTransactionReservationLive(reservationId),
-                  transactionTerminalSnapshot(reservationId)?.state == .active else {
-                throw error
-            }
-
-            let rollbackOnlyReason = try await beginFailClosedTransactionTeardown(reservationId)
-            return ManualFinalizationAdmission(
-                rollbackOnlyReason: rollbackOnlyReason,
-                retainsTerminalState: retainsManagedTransactionState(reservationId),
-                failClosedError: error
-            )
-        }
+        await runtime.completeTransactionOperation(token, failure: failure)
     }
 
-    /// Converts rollback-only truth into retained manual-finalizer error storage.
-    private func finalizerFailure(
-        for reason: TransactionRollbackOnlyReason
-    ) -> TransactionManualFinalizerFailure {
-        switch reason {
-        case .database(let error):
-            return .database(error)
-        case .cancelled:
-            return .cancelled
-        }
+    /// Enters the runtime's existing fail-closed state for deterministic tests.
+    nonisolated(nonsending) func enterFailClosed(_ message: String) async {
+        await runtime.enterFailClosed(message)
     }
 
-    /// Merges transaction impact or fail-closes conservatively if its reservation is lost.
-    @discardableResult
-    private func mergeTransactionObservation(
-        _ reservationId: TransactionReservationId,
-        invalidation: ObservationInvalidation
-    ) -> Bool {
-        guard invalidation != .none else {
-            return true
-        }
-        guard var state = transactionState, state.id == reservationId else {
-            enterFailClosed("Transaction observation impact lost its active reservation.")
-            return false
-        }
-        state.mergeObservationInvalidation(invalidation)
-        transactionState = state
-        return true
+    /// Returns the pool lease state for deterministic internal diagnostics.
+    nonisolated(nonsending) func poolLeaseStateSnapshot() async -> ConnectionPoolLeaseState {
+        await runtime.poolLeaseStateSnapshot()
     }
 
-    /// Returns the accumulated transaction impact before terminal reservation cleanup.
-    private func transactionObservationInvalidation(
-        _ reservationId: TransactionReservationId
-    ) -> ObservationInvalidation {
-        transactionState?.id == reservationId
-            ? transactionState?.observationInvalidation ?? .database
-            : .database
-    }
-
-    /// Publishes one captured transaction invalidation after definitive finalization.
-    private func publishTransactionObservation(
-        _ invalidation: ObservationInvalidation
-    ) async {
-        guard invalidation != .none else {
-            return
-        }
-        await database.observationCoordinator.invalidate(invalidation)
-    }
-
-    private func executeUserSnapshot(
-        _ snapshot: PreparedQuerySnapshot,
-        materializeRows: Bool,
-        observationPublicationPolicy: NativeObservationPublicationPolicy = .none
-    ) async throws -> QueryResult {
-        do {
-            try Task.checkCancellation()
-            let statement = try prepareNativeStatement(snapshot, policy: .user)
-            return try await executePreparedStatement(
-                statement,
-                materializeRows: materializeRows,
-                cancellationPolicy: .cooperative,
-                observationPublicationPolicy: observationPublicationPolicy
-            )
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch let error as NativeDuckDBError {
-            throw mapNativeError(error)
-        }
-    }
-
-    private func prepareNativeStatement(
-        _ snapshot: PreparedQuerySnapshot,
-        policy: NativeStatementPolicy
-    ) throws -> NativePreparedStatement {
-        let statement = try prepareNativeStatement(sql: snapshot.sql, policy: policy)
-
-        for (offset, binding) in snapshot.bindings.enumerated() {
-            try statement.bind(binding, at: offset + 1)
-        }
-
-        return statement
-    }
-
-    private func prepareNativeStatement(
-        sql: String,
-        policy: NativeStatementPolicy
-    ) throws -> NativePreparedStatement {
-        let statement = try nativeConnection.prepare(sql)
-
-        switch policy {
-        case .user:
-            guard !statement.isTransactionStatement else {
-                throw DatabaseError.transactionControlNotAllowed
-            }
-        case .lifecycle:
-            guard statement.isTransactionStatement else {
-                throw DatabaseError.invalidResult(
-                    "Internal transaction lifecycle statement was not classified as a DuckDB transaction statement."
-                )
-            }
-        }
-
-        return statement
-    }
-
-    private func executePreparedStatement(
-        _ statement: NativePreparedStatement,
-        materializeRows: Bool,
-        cancellationPolicy: NativeCancellationPolicy,
-        beforePending: () -> Void = {},
-        requireReadOnlyResult: Bool = false,
-        observationPublicationPolicy: NativeObservationPublicationPolicy = .none
-    ) async throws -> QueryResult {
-        if cancellationPolicy == .cooperative {
-            try Task.checkCancellation()
-        }
-
-        beforePending()
-        var pendingAttempted = false
-        var successfulResultReadOnly: Bool?
-        var didPublish = false
-
-        do {
-            pendingAttempted = true
-            let pending = try statement.pending()
-
-            executionLoop: while true {
-                if cancellationPolicy == .cooperative {
-                    try interruptAndThrowIfCancelled()
-                }
-
-                let state: NativePendingState
-                do {
-                    state = try pending.executeTask()
-                } catch {
-                    if cancellationPolicy == .cooperative, Task.isCancelled {
-                        nativeConnection.interrupt()
-                        throw CancellationError()
-                    }
-                    throw error
-                }
-
-                switch state {
-                case .ready:
-                    break executionLoop
-                case .notReady:
-                    await Task.yield()
-                }
-            }
-
-            if cancellationPolicy == .cooperative {
-                try interruptAndThrowIfCancelled()
-            }
-            let result = try pending.execute()
-            successfulResultReadOnly = result.isReadOnly
-            if successfulResultReadOnly == false {
-                switch observationPublicationPolicy {
-                case .none:
-                    break
-                case .ordinary:
-                    guard !didPublish else { break }
-                    didPublish = true
-                    await database.observationCoordinator.invalidate(.database)
-                case .transaction(let reservationId):
-                    if !mergeTransactionObservation(
-                        reservationId,
-                        invalidation: .database
-                    ) {
-                        await database.observationCoordinator.invalidate(.database)
-                    }
-                }
-            }
-            if requireReadOnlyResult, !result.isReadOnly {
-                throw DatabaseError.invalidResult(
-                    "Observation query returned a successful non-read-only native result."
-                )
-            }
-            if cancellationPolicy == .cooperative {
-                try Task.checkCancellation()
-            }
-
-            guard materializeRows else {
-                return QueryResult(columns: [], resultColumns: [], rows: [], rowsChanged: result.rowsChanged)
-            }
-
-            let resultColumns = try result.resultColumns()
-            let columns = resultColumns.map(\.name)
-            var rows: [ResultRow] = []
-
-            while true {
-                if cancellationPolicy == .cooperative {
-                    try Task.checkCancellation()
-                }
-                guard let chunkRows = try result.materializeNextChunk(resultColumns: resultColumns) else {
-                    break
-                }
-                rows.append(contentsOf: chunkRows)
-                await Task.yield()
-            }
-
-            if cancellationPolicy == .cooperative {
-                try Task.checkCancellation()
-            }
-            return QueryResult(
-                columns: columns,
-                resultColumns: resultColumns,
-                rows: rows,
-                rowsChanged: result.rowsChanged
-            )
-        } catch {
-            if pendingAttempted,
-               successfulResultReadOnly == nil {
-                switch observationPublicationPolicy {
-                case .none:
-                    break
-                case .ordinary:
-                    guard !didPublish else { break }
-                    didPublish = true
-                    await database.observationCoordinator.invalidate(.database)
-                case .transaction(let reservationId):
-                    if !mergeTransactionObservation(
-                        reservationId,
-                        invalidation: .database
-                    ) {
-                        await database.observationCoordinator.invalidate(.database)
-                    }
-                }
-            }
-            throw error
-        }
-    }
-
-    /// Executes one observation refresh in an isolated native READ ONLY transaction.
-    ///
-    /// The returned dependency is analyzed from the plain SQL snapshot and the
-    /// plain SQL is never executed.
-    func refreshObservation(
-        _ snapshot: PreparedQuerySnapshot
-    ) async throws -> ObservationRefresh {
-        try Task.checkCancellation()
-        try await acquireOrdinaryLease()
-        defer { releaseOrdinaryLease() }
-
-        let lifecycle = try ObservationLifecycleSnapshots()
-        do {
-            let begin = try prepareNativeStatement(lifecycle.begin, policy: .lifecycle)
-            _ = try await executePreparedStatement(
-                begin,
-                materializeRows: false,
-                cancellationPolicy: .definitive
-            )
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            throw DatabaseError.transactionBegin(lifecycleFailureMessage(error))
-        }
-
-        let refresh: ObservationRefresh
-        do {
-            let statement = try prepareNativeStatement(snapshot, policy: .user)
-            guard statement.isReadOnly else {
-                throw DatabaseError.observationRequiresReadOnlyQuery
-            }
-
-            let dependency = ObservationDependency.analyze(
-                sql: snapshot.analysisSQL,
-                on: nativeConnection
-            )
-            let result = try await executePreparedStatement(
-                statement,
-                materializeRows: true,
-                cancellationPolicy: .cooperative,
-                requireReadOnlyResult: true
-            )
-            try Task.checkCancellation()
-            refresh = ObservationRefresh(result: result, dependency: dependency)
-        } catch is CancellationError {
-            try await rollbackObservation(lifecycle.rollback, originalError: CancellationError())
-            throw CancellationError()
-        } catch {
-            let primary = mapObservationError(error)
-            try await rollbackObservation(lifecycle.rollback, originalError: primary)
-            throw primary
-        }
-
-        do {
-            let commit = try prepareNativeStatement(lifecycle.commit, policy: .lifecycle)
-            _ = try await executePreparedStatement(
-                commit,
-                materializeRows: false,
-                cancellationPolicy: .definitive
-            )
-        } catch {
-            let message = lifecycleFailureMessage(error)
-            enterFailClosed("Observation READ ONLY COMMIT failed: \(message)")
-            throw DatabaseError.transactionCommit(message)
-        }
-
-        return refresh
-    }
-
-    private func rollbackObservation(
-        _ snapshot: PreparedQuerySnapshot,
-        originalError: any Error
-    ) async throws {
-        do {
-            let rollback = try prepareNativeStatement(snapshot, policy: .lifecycle)
-            _ = try await executePreparedStatement(
-                rollback,
-                materializeRows: false,
-                cancellationPolicy: .definitive
-            )
-        } catch {
-            let rollbackError = DatabaseError.transactionRollback(lifecycleFailureMessage(error))
-            enterFailClosed("Observation rollback failed: \(lifecycleFailureMessage(error))")
-            throw TransactionRollbackError(
-                originalError: originalError,
-                rollbackError: rollbackError
-            )
-        }
-    }
-
-    private func mapObservationError(_ error: any Error) -> DatabaseError {
-        if let error = error as? DatabaseError {
-            return error
-        }
-        if let error = error as? NativeDuckDBError {
-            return mapNativeError(error)
-        }
-        return .invalidResult(String(describing: error))
-    }
-
-    @discardableResult
-    private func resumeTransactionOperationWaiters(
-        _ operationIds: [TransactionOperationId],
-        with reason: TransactionRollbackOnlyReason
-    ) -> Bool {
-        for operationId in operationIds {
-            guard let continuation = transactionOperationWaiters.removeValue(forKey: operationId) else {
-                enterFailClosed("Transaction operation scheduler lost a rollback-only continuation.")
-                return false
-            }
-            resume(continuation, with: reason)
-        }
-        return true
-    }
-
-    private func resumeTransactionOperationWaitersAsEnded(
-        _ operationIds: [TransactionOperationId]
-    ) {
-        for operationId in operationIds {
-            guard let continuation = transactionOperationWaiters.removeValue(forKey: operationId) else {
-                enterFailClosed("Transaction operation scheduler lost a finalization continuation.")
-                continue
-            }
-            continuation.resume(throwing: DatabaseError.transactionEnded)
-        }
-    }
-
-    private func resume(
-        _ continuation: CheckedContinuation<Void, Error>,
-        with reason: TransactionRollbackOnlyReason
-    ) {
-        switch reason {
-        case .database(let error):
-            continuation.resume(throwing: error)
-        case .cancelled:
-            continuation.resume(throwing: CancellationError())
-        }
-    }
-
-    private func resumeTransactionDrainWaiter() {
-        guard let waiter = transactionDrainWaiter else {
-            return
-        }
-        transactionDrainWaiter = nil
-        waiter.resume()
-    }
-
-    private func endTransactionReservation(_ reservationId: TransactionReservationId) {
-        guard transactionState?.id == reservationId else {
-            return
-        }
-
-        let strandedOperationWaiters = transactionOperationWaiters.values
-        transactionOperationWaiters.removeAll()
-        for waiter in strandedOperationWaiters {
-            waiter.resume(throwing: DatabaseError.transactionEnded)
-        }
-
-        transactionState = nil
-        transactionDrainWaiter = nil
-        outerAdmissionState.endTransaction(reservationId)
-
-        if poolLeaseState.isClosing {
-            resumePoolLeaseDrainWaiterIfQuiescent()
-        } else if case .usable = usability {
-            admitNextOuterWaiter()
-        }
-    }
-
-    private func ensureUsable() throws {
-        if case .unusable(let message) = usability {
-            throw DatabaseError.connectionUnusable(message)
-        }
-    }
-
-    func enterFailClosed(_ message: String) {
-        if case .unusable = usability {
-            return
-        }
-
-        usability = .unusable(message)
-
-        let operationWaiters = transactionOperationWaiters.values
-        transactionOperationWaiters.removeAll()
-        for waiter in operationWaiters {
-            waiter.resume(throwing: DatabaseError.connectionUnusable(message))
-        }
-
-        drainOuterWaitersForFailClosedConnection()
-    }
-
-    private func drainOuterWaitersForFailClosedConnection() {
-        guard case .unusable(let message) = usability else {
-            return
-        }
-
-        let queuedRequests = outerAdmissionState.drainQueuedRequests()
-        for request in queuedRequests {
-            outerWaiters.removeValue(forKey: request.waiterId)?.resume(
-                throwing: DatabaseError.connectionUnusable(message)
-            )
-        }
-
-        let unexpectedWaiters = outerWaiters.values
-        outerWaiters.removeAll()
-        for waiter in unexpectedWaiters {
-            waiter.resume(throwing: DatabaseError.connectionUnusable(message))
-        }
-    }
-
-    private func interruptAndThrowIfCancelled() throws {
-        guard Task.isCancelled else {
-            return
-        }
-
-        nativeConnection.interrupt()
-        throw CancellationError()
-    }
-
-    private func mapNativeAppenderError(_ error: NativeAppenderError) -> DatabaseError {
-        switch error.stage {
-        case .creation:
-            return .appenderCreation(error.message)
-        case .appendColumn(let column):
-            return .appenderAppend(column: column, message: error.message)
-        case .rowCompletion:
-            return .appenderRowCompletion(error.message)
-        case .finalization:
-            return .appenderFinalization(error.message)
-        case .cleanup:
-            return .appenderCleanup(error.message)
-        }
-    }
-
-    private func mapNativeError(_ error: NativeDuckDBError) -> DatabaseError {
-        switch error.operation {
-        case .databaseOpen:
-            return .databaseOpen(error.message)
-        case .connectionOpen:
-            return .connectionOpen(error.message)
-        case .preparation:
-            return .preparation(error.message)
-        case .binding:
-            guard let index = error.parameterIndex else {
-                return .invalidResult("Native binding error omitted its parameter index: \(error.message)")
-            }
-            return .binding(index: index, message: error.message)
-        case .pendingCreation, .execution:
-            return .execution(error.message)
-        case .unsupportedResultType:
-            return .unsupportedResultType(error.message)
-        case .invalidResult:
-            return .invalidResult(error.message)
-        }
-    }
-
-    private func lifecycleFailureMessage(_ error: any Error) -> String {
-        if let nativeError = error as? NativeDuckDBError {
-            return nativeError.message
-        }
-
-        if let databaseError = error as? DatabaseError {
-            switch databaseError {
-            case .databaseOpen(let message),
-                 .connectionOpen(let message),
-                 .preparation(let message),
-                 .execution(let message),
-                 .unsupportedBindingType(let message),
-                 .unsupportedResultType(let message),
-                 .invalidResult(let message),
-                 .invalidQuery(let message),
-                 .transactionBegin(let message),
-                 .transactionCommit(let message),
-                 .transactionRollback(let message),
-                 .connectionUnusable(let message),
-                 .invalidStatementTemplate(let message),
-                 .statementUnusable(let message),
-                 .appenderCreation(let message),
-                 .appenderRowCompletion(let message),
-                 .appenderFinalization(let message),
-                 .appenderCleanup(let message),
-                 .appenderTransactionAborted(let message),
-                 .invalidPoolConfiguration(let message):
-                return message
-            case .binding(_, let message):
-                return message
-            case .transactionAlreadyActive:
-                return "A transaction is already active on this Connection."
-            case .transactionScopeViolation:
-                return "Ordinary Connection execution is not allowed inside its active transaction body."
-            case .transactionEnded:
-                return "The transaction reservation has ended."
-            case .transactionControlNotAllowed:
-                return "User transaction-control execution is not allowed."
-            case .observationRequiresReadOnlyQuery:
-                return "The observed query is not read-only."
-            case .statementArgumentCount(let expected, let actual):
-                return "Reusable statement expected \(expected) dynamic arguments but received \(actual)."
-            case .statementConnectionMismatch:
-                return "Reusable statement and transaction belong to different Connections."
-            case .appenderScopeViolation:
-                return "Ordinary same-Connection execution is not allowed inside its active Appender body."
-            case .appenderEnded:
-                return "The Appender scope has ended."
-            case .appenderArgumentCount(let expected, let actual):
-                return "Appender expected \(expected) row values but received \(actual)."
-            case .appenderAppend(_, let message):
-                return message
-            case .poolClosed:
-                return "The Pool no longer accepts checkout because shutdown has started."
-            case .poolReentrantCheckout:
-                return "The current task already owns an exact live lease from this Pool."
-            case .poolShutdownFromLease:
-                return "Shutdown was requested from inside this Pool's exact live lease."
-            case .poolLeaseExpired:
-                return "A pooled resource was used without its exact current Connection lease."
-            case .poolTransactionNotFinalized:
-                return "A scoped Connection body returned while a flat transaction remained active."
-            }
-        }
-
-        return String(describing: error)
+    /// Waits for the underlying runtime to enter pool return state.
+    nonisolated(nonsending) func waitForPoolLeaseClosing() async {
+        await runtime.waitForPoolLeaseClosing()
     }
 
 }

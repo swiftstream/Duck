@@ -501,6 +501,8 @@ struct ConnectionPoolStateMachine: Sendable {
 struct ConnectionPoolLease: Sendable {
     /// Connection actor authorized by this lease.
     let connection: Connection
+    /// Reusable internal runtime returned to Pool ownership after this lease.
+    let runtime: Connection.Runtime
     /// Exact full token authorizing this lease scope.
     let token: ConnectionPoolLeaseToken
 }
@@ -524,7 +526,7 @@ public actor ConnectionPool {
     private var state: ConnectionPoolStateMachine
     /// When non-nil, the next pooled Connection open throws this exact error and consumes the value.
     private var forcedOpenFailure: DatabaseError?
-    private var connections: [ConnectionId: Connection] = [:]
+    private var connections: [ConnectionId: Connection.Runtime] = [:]
     private var checkoutContinuations:
         [ConnectionPoolWaiterId: CheckedContinuation<ConnectionPoolLease, Error>] = [:]
     private var queuedCheckoutWaiterObservers: [CheckedContinuation<Void, Never>] = []
@@ -648,12 +650,26 @@ public actor ConnectionPool {
         forcedOpenFailure = error
     }
 
-    private func openPooledConnection() throws -> Connection {
+    private func openPooledRuntime() throws -> Connection.Runtime {
         if let error = forcedOpenFailure {
             forcedOpenFailure = nil
             throw error
         }
-        return try database.makePooledConnection(poolID: poolID)
+        return try database.makePooledRuntime(poolID: poolID)
+    }
+
+    private func makeLease(
+        runtime: Connection.Runtime,
+        token: ConnectionPoolLeaseToken
+    ) -> ConnectionPoolLease {
+        ConnectionPoolLease(
+            connection: Connection(
+                runtime: runtime,
+                authority: .pooled(token)
+            ),
+            runtime: runtime,
+            token: token
+        )
     }
 
     private nonisolated func checkout() async throws -> ConnectionPoolLease {
@@ -731,40 +747,40 @@ public actor ConnectionPool {
     private func createDirect(
         creationId: ConnectionPoolCreationId
     ) async throws -> ConnectionPoolLease {
-        let connection: Connection
+        let runtime: Connection.Runtime
 
         do {
-            connection = try openPooledConnection()
+            runtime = try openPooledRuntime()
         } catch {
             _ = state.failCreation(creationId)
             notifyShutdownIfClosed()
             throw error
         }
 
-        connections[connection.id] = connection
+        connections[runtime.id] = runtime
 
         guard let token = state.materializeCreation(
             creationId,
-            connectionID: connection.id
+            connectionID: runtime.id
         ) else {
-            connections.removeValue(forKey: connection.id)
+            connections.removeValue(forKey: runtime.id)
             throw DatabaseError.connectionUnusable(
                 "Connection Pool lost its creation reservation."
             )
         }
 
         return try await activateDirect(
-            connection,
+            runtime,
             token: token
         )
     }
 
     private func activateDirect(
-        _ connection: Connection,
+        _ runtime: Connection.Runtime,
         token: ConnectionPoolLeaseToken
     ) async throws -> ConnectionPoolLease {
         do {
-            try await connection.activatePoolLease(token)
+            try await runtime.activatePoolLease(token)
         } catch {
             _ = state.failActivation(token)
             connections.removeValue(forKey: token.connectionID)
@@ -778,17 +794,11 @@ public actor ConnectionPool {
         guard let completion = state.completeActivation(token) else {
             if state.beginReclaimAfterActivation(token) {
                 await reclaimUndeliveredLease(
-                    ConnectionPoolLease(
-                        connection: connection,
-                        token: token
-                    )
+                    makeLease(runtime: runtime, token: token)
                 )
             } else {
                 await discardActivatedConnection(
-                    ConnectionPoolLease(
-                        connection: connection,
-                        token: token
-                    )
+                    makeLease(runtime: runtime, token: token)
                 )
             }
             throw DatabaseError.connectionUnusable(
@@ -798,17 +808,11 @@ public actor ConnectionPool {
 
         switch completion {
         case .deliver:
-            return ConnectionPoolLease(
-                connection: connection,
-                token: token
-            )
+            return makeLease(runtime: runtime, token: token)
 
         case .close:
             await reclaimUndeliveredLease(
-                ConnectionPoolLease(
-                    connection: connection,
-                    token: token
-                )
+                makeLease(runtime: runtime, token: token)
             )
             throw DatabaseError.poolClosed
         }
@@ -824,7 +828,7 @@ public actor ConnectionPool {
         let returnOutcome: ConnectionPoolLeaseReturnOutcome
 
         do {
-            returnOutcome = try await lease.connection.returnPoolLease(lease.token)
+            returnOutcome = try await lease.runtime.returnPoolLease(lease.token)
         } catch let error as DatabaseError {
             _ = state.abandonReturning(lease.token)
             connections.removeValue(forKey: lease.token.connectionID)
@@ -861,7 +865,7 @@ public actor ConnectionPool {
 
         case .handoff(let waiterId, let token):
             await activateForWaiter(
-                connection: lease.connection,
+                runtime: lease.runtime,
                 waiterId: waiterId,
                 token: token
             )
@@ -874,7 +878,7 @@ public actor ConnectionPool {
 
         case .retire:
             await retireConnection(
-                lease.connection,
+                lease.runtime,
                 connectionID: lease.token.connectionID
             )
         }
@@ -888,7 +892,7 @@ public actor ConnectionPool {
         let outcome: ConnectionPoolLeaseReturnOutcome
 
         do {
-            outcome = try await lease.connection.returnPoolLease(lease.token)
+            outcome = try await lease.runtime.returnPoolLease(lease.token)
         } catch {
             _ = state.abandonReturning(lease.token)
             connections.removeValue(forKey: lease.token.connectionID)
@@ -912,7 +916,7 @@ public actor ConnectionPool {
         switch completion {
         case .retire:
             await retireConnection(
-                lease.connection,
+                lease.runtime,
                 connectionID: lease.token.connectionID
             )
 
@@ -925,7 +929,7 @@ public actor ConnectionPool {
 
         case .handoff(let waiterId, let token):
             await activateForWaiter(
-                connection: lease.connection,
+                runtime: lease.runtime,
                 waiterId: waiterId,
                 token: token
             )
@@ -938,7 +942,7 @@ public actor ConnectionPool {
         _ lease: ConnectionPoolLease
     ) async {
         do {
-            _ = try await lease.connection.returnPoolLease(lease.token)
+            _ = try await lease.runtime.returnPoolLease(lease.token)
         } catch {
             // The Connection-side lease remains non-authorizing after this Pool
             // drops ownership, even when invariant-recovery cleanup cannot finish.
@@ -964,7 +968,7 @@ public actor ConnectionPool {
 
             switch reservation {
             case .activate(let waiterId, let connectionID, let token):
-                guard let connection = connections[connectionID] else {
+                guard let runtime = connections[connectionID] else {
                     _ = state.failActivation(token)
                     resumeWaiter(
                         waiterId,
@@ -976,16 +980,16 @@ public actor ConnectionPool {
                 }
 
                 await activateForWaiter(
-                    connection: connection,
+                    runtime: runtime,
                     waiterId: waiterId,
                     token: token
                 )
 
             case .create(let waiterId, let reservedCreationId, _):
-                let connection: Connection
+                let runtime: Connection.Runtime
 
                 do {
-                    connection = try openPooledConnection()
+                    runtime = try openPooledRuntime()
                 } catch {
                     _ = state.failCreation(reservedCreationId)
                     resumeWaiter(waiterId, throwing: error)
@@ -993,13 +997,13 @@ public actor ConnectionPool {
                     continue
                 }
 
-                connections[connection.id] = connection
+                connections[runtime.id] = runtime
 
                 guard let token = state.materializeCreation(
                     reservedCreationId,
-                    connectionID: connection.id
+                    connectionID: runtime.id
                 ) else {
-                    connections.removeValue(forKey: connection.id)
+                    connections.removeValue(forKey: runtime.id)
                     resumeWaiter(
                         waiterId,
                         throwing: DatabaseError.connectionUnusable(
@@ -1010,7 +1014,7 @@ public actor ConnectionPool {
                 }
 
                 await activateForWaiter(
-                    connection: connection,
+                    runtime: runtime,
                     waiterId: waiterId,
                     token: token
                 )
@@ -1019,12 +1023,12 @@ public actor ConnectionPool {
     }
 
     private func activateForWaiter(
-        connection: Connection,
+        runtime: Connection.Runtime,
         waiterId: ConnectionPoolWaiterId,
         token: ConnectionPoolLeaseToken
     ) async {
         do {
-            try await connection.activatePoolLease(token)
+            try await runtime.activatePoolLease(token)
         } catch {
             _ = state.failActivation(token)
             connections.removeValue(forKey: token.connectionID)
@@ -1045,10 +1049,7 @@ public actor ConnectionPool {
                     "Connection Pool lost handoff activation ownership."
                 )
             )
-            let lease = ConnectionPoolLease(
-                connection: connection,
-                token: token
-            )
+            let lease = makeLease(runtime: runtime, token: token)
             if state.beginReclaimAfterActivation(token) {
                 await reclaimUndeliveredLease(lease)
             } else {
@@ -1061,27 +1062,18 @@ public actor ConnectionPool {
         case .deliver:
             guard let continuation = checkoutContinuations.removeValue(forKey: waiterId) else {
                 await returnAbandonedDeliveredLease(
-                    ConnectionPoolLease(
-                        connection: connection,
-                        token: token
-                    )
+                    makeLease(runtime: runtime, token: token)
                 )
                 return
             }
             continuation.resume(
-                returning: ConnectionPoolLease(
-                    connection: connection,
-                    token: token
-                )
+                returning: makeLease(runtime: runtime, token: token)
             )
 
         case .close:
             resumeWaiter(waiterId, throwing: DatabaseError.poolClosed)
             await reclaimUndeliveredLease(
-                ConnectionPoolLease(
-                    connection: connection,
-                    token: token
-                )
+                makeLease(runtime: runtime, token: token)
             )
         }
     }
@@ -1095,7 +1087,7 @@ public actor ConnectionPool {
         }
 
         do {
-            let outcome = try await lease.connection.returnPoolLease(lease.token)
+            let outcome = try await lease.runtime.returnPoolLease(lease.token)
             guard let completion = state.completeReturn(
                 lease.token,
                 disposition: outcome.disposition,
@@ -1113,7 +1105,7 @@ public actor ConnectionPool {
                 break
             case .handoff(let waiterId, let token):
                 await activateForWaiter(
-                    connection: lease.connection,
+                    runtime: lease.runtime,
                     waiterId: waiterId,
                     token: token
                 )
@@ -1122,7 +1114,7 @@ public actor ConnectionPool {
                 connections.removeValue(forKey: lease.token.connectionID)
             case .retire:
                 await retireConnection(
-                    lease.connection,
+                    lease.runtime,
                     connectionID: lease.token.connectionID
                 )
             }
@@ -1146,11 +1138,11 @@ public actor ConnectionPool {
     }
 
     private func retireConnection(
-        _ connection: Connection,
+        _ runtime: Connection.Runtime,
         connectionID: ConnectionId
     ) async {
         do {
-            try await connection.retirePooledConnection(poolID: poolID)
+            try await runtime.retirePooledConnection(poolID: poolID)
         } catch {
             // Dropping Pool ownership is still safe because idle/retired Connection
             // admission remains closed without an active lease token.
@@ -1176,12 +1168,12 @@ public actor ConnectionPool {
             }
 
             for connectionID in idleConnections {
-                guard let connection = connections[connectionID] else {
+                guard let runtime = connections[connectionID] else {
                     _ = state.finishRetiring(connectionID)
                     continue
                 }
                 await retireConnection(
-                    connection,
+                    runtime,
                     connectionID: connectionID
                 )
             }

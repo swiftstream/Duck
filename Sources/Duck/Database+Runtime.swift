@@ -38,7 +38,14 @@ extension Database {
         /// Opens one fresh standalone Connection on this runtime.
         func connect() throws -> Connection {
             do {
-                return try Connection(database: self, nativeDatabase: nativeDatabase)
+                let runtime = try Connection.Runtime(
+                    database: self,
+                    nativeDatabase: nativeDatabase
+                )
+                return Connection(
+                    runtime: runtime,
+                    authority: runtime.standaloneAuthority
+                )
             } catch let error as NativeDuckDBError {
                 throw DatabaseError.connectionOpen(error.message)
             }
@@ -54,12 +61,12 @@ extension Database {
             )
         }
 
-        /// Creates one idle Pool-managed Connection owned by this exact runtime.
-        func makePooledConnection(
+        /// Creates one idle reusable Connection runtime owned by this exact database runtime.
+        func makePooledRuntime(
             poolID: ConnectionPoolID
-        ) throws -> Connection {
+        ) throws -> Connection.Runtime {
             do {
-                return try Connection(
+                return try Connection.Runtime(
                     database: self,
                     nativeDatabase: nativeDatabase,
                     poolID: poolID

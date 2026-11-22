@@ -21,7 +21,8 @@ struct AppenderScopeStart: Sendable {
 }
 
 struct AppenderBodyScope: Sendable {
-    let connectionId: ConnectionId
+    /// Exact Connection handle authority that owns this Appender body.
+    let connectionAuthority: ConnectionAuthority
     let appenderId: AppenderId
 }
 
@@ -64,15 +65,20 @@ public struct AppenderCleanupError: Error {
 
 public final class Appender: Sendable {
     let connection: Connection
+    /// Exact handle authority captured when the Appender scope was created.
+    let connectionAuthority: ConnectionAuthority
     let id: AppenderId
     let expectedArgumentCount: Int
 
+    /// Creates an Appender bound to the exact Connection authority that opened its scope.
     init(
         connection: Connection,
+        connectionAuthority: ConnectionAuthority,
         id: AppenderId,
         expectedArgumentCount: Int
     ) {
         self.connection = connection
+        self.connectionAuthority = connectionAuthority
         self.id = id
         self.expectedArgumentCount = expectedArgumentCount
     }
@@ -90,7 +96,11 @@ public final class Appender: Sendable {
         }
 
         let bindings = try values.map { try normalizeBinding($0 as Any) }
-        try await connection.appendAppenderRow(id, bindings: bindings)
+        try await connection.appendAppenderRow(
+            id,
+            bindings: bindings,
+            authority: connectionAuthority
+        )
     }
 
     /// Appends one row of already-normalized bindings prepared by typed `Table` batch persistence,
@@ -109,7 +119,11 @@ public final class Appender: Sendable {
             )
         }
 
-        try await connection.appendAppenderRow(id, bindings: bindings)
+        try await connection.appendAppenderRow(
+            id,
+            bindings: bindings,
+            authority: connectionAuthority
+        )
     }
 }
 
@@ -223,11 +237,15 @@ extension Connection {
         )
         let appender = Appender(
             connection: self,
+            connectionAuthority: authority,
             id: start.id,
             expectedArgumentCount: start.expectedArgumentCount
         )
         let scopes = AppenderBodyContext.scopes + [
-            AppenderBodyScope(connectionId: id, appenderId: start.id)
+            AppenderBodyScope(
+                connectionAuthority: authority,
+                appenderId: start.id
+            )
         ]
 
         let result: Result
@@ -316,20 +334,28 @@ extension DuckTransaction {
         selectedColumns: [String]? = nil,
         _ body: (Appender) async throws -> Result
     ) async throws -> Result {
-        try await connection.rejectLiveAppenderBodyMisuse()
-        let token = try await connection.registerTransactionOperation(reservationId)
+        try await connection.rejectLiveAppenderBodyMisuse(authority: connectionAuthority)
+        let token = try await connection.registerTransactionOperation(
+            reservationId,
+            authority: connectionAuthority
+        )
         let start = try await connection.acquireAndInstallTransactionAppenderScope(
             target,
             token: token,
-            selectedColumns: selectedColumns
+            selectedColumns: selectedColumns,
+            authority: connectionAuthority
         )
         let appender = Appender(
             connection: connection,
+            connectionAuthority: connectionAuthority,
             id: start.id,
             expectedArgumentCount: start.expectedArgumentCount
         )
         let scopes = AppenderBodyContext.scopes + [
-            AppenderBodyScope(connectionId: connection.id, appenderId: start.id)
+            AppenderBodyScope(
+                connectionAuthority: connectionAuthority,
+                appenderId: start.id
+            )
         ]
 
         let result: Result
@@ -354,7 +380,8 @@ extension DuckTransaction {
             switch await connection.abortTransactionAppenderScope(
                 start.id,
                 token: token,
-                failure: failure
+                failure: failure,
+                authority: connectionAuthority
             ) {
             case .cleaned:
                 throw originalError
@@ -370,7 +397,8 @@ extension DuckTransaction {
 
         try await connection.finishTransactionAppenderScopeSuccess(
             start.id,
-            token: token
+            token: token,
+            authority: connectionAuthority
         )
         return result
     }
