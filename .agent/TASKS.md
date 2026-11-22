@@ -48,25 +48,51 @@ The public `Database` value, internal `Database.Runtime`, deprecated `DatabaseId
 
 The isolated proof passed Swift 6.3.3 and Swift 6.4 under complete strict concurrency and was independently accepted by the final external GPT-5.6 Sol audit. Final external report SHA-256: `62384a4ad1b8fde9aa075e8c7cfe976f5ed42667116c5ae600a24a485e7a86ae`. The accepted proof establishes thin actor viability, `nonisolated(nonsending)` forwarding, deinit -> async cleanup without retaining the owner, one shared exact-token release primitive, deterministic exactly-once close/deinit contention, and stale-generation isolation. It does not itself prove Product integration.
 
-### `Connection` public-handle / internal-runtime split — CURRENT / AUTHORIZED
+### `Connection` public-handle / internal-runtime split — CLOSED / EXTERNALLY ACCEPTED
 
-Current executable authority is this Product migration only:
+The complete corrected Wave02 candidate passed the final independent GPT-5.6 Sol source + evidence audit with 86/86 required checks, zero findings, and `WAVE02_ACCEPTED=YES`. The accepted implementation is committed at:
 
-- preserve public actor `Connection` type kind;
-- separate reusable internal `Connection.Runtime`/core state from the public handle;
-- make the public handle thin and carry exact immutable authority;
-- keep `ConnectionId` as reusable core identity;
-- use full `ConnectionPoolLeaseToken` as lease-generation authority;
-- introduce/update exact `ConnectionAuthority` checks across Transaction/Appender/Statement dynamic/resource compatibility;
-- preserve current query/execute/prepare/transaction/Appender behavior;
-- preserve current explicit v1 `ConnectionPool` behavior and tests;
-- preserve the historical standalone ordinary path only as a transitional implementation state;
-- prove an old handle cannot regain authority when the same `ConnectionId` is reused with a new leaseID;
-- prove pooled Statement/transaction/Appender exact-authority behavior.
+`c7b0feb45b65c71f4936a6f9c6b986863858a765`
 
-Do NOT yet reroute ordinary `Database.connect()`, query conveniences, model persistence, migrations, or Observation to a canonical Runtime pool. A fresh material implementation audit is required before this migration may be committed.
+subject:
 
-**MAC MUST BE IDLE BEFORE RUNNING PERFORMANCE BENCHMARKS.**
+**🪚 Separate `Connection` handle from runtime**
+
+Final external evidence-audit report SHA-256:
+
+`8061b706132f74fb6ad1f6d0b135420f0d5cecf810d8ac3dfaa59256abd538be`
+
+Wave02 establishes the thin public actor handle, reusable internal `Connection.Runtime`, exact `ConnectionAuthority`, fresh public handle per pooled generation, exact Statement/DuckTransaction/Appender binding, and the corrected registered-operation drain semantics. TX11/TX12/TX13 close the rollback-only, exact-current drain, and stale-generation proof boundaries. Ordinary Database convenience routing remains transitional until later waves by design.
+
+### Wave 03 canonical Runtime pool/controller + explicit canonical access — CURRENT / AUTHORIZED
+
+Current executable authority is the combined Wave03 + pre-commit Wave03B program from Plan 01 Correction 02, with the additive manual-lease API clarification at:
+
+`/Users/imike/Development/SwiftStream/Duck/.artifacts/planning/v1-1-wave03-canonical-pool-controller-2026-11-22/PRIMARY_MANUAL_LEASE_API_DECISION.md`
+
+SHA-256:
+
+`93aa0fd219601f47e36764351a0e918721ff2086aa1615061443708d742752bf`
+
+Wave03 must implement:
+
+- one `Database.Runtime`-owned canonical pool/controller;
+- one canonical `ConnectionPool` per Runtime;
+- serialized capacity configuration/freeze/conflict semantics;
+- `Database.connection { ... }` as scoped canonical checkout;
+- `Database.connect()` as a manual canonical lease from that SAME pool;
+- public `Connection.release() async throws` as exact manual-lease completion;
+- exactly-once explicit-release/deinit fallback arbitration;
+- terminal Runtime/pool shutdown behavior;
+- deprecated `pool(maximumConnections:)` forwarding to configuration + the SAME canonical pool, never a secondary pool.
+
+Public `Connection.close()` is intentionally absent: normal manual release returns a healthy reusable native core to the canonical pool rather than physically disconnecting it. Physical destruction belongs to internal retirement/shutdown. v1.1 does not add a public capacity-bypassing unpooled connection API; a possible future fresh/non-reusable dedicated API is deferred and would still require capacity/lifetime control.
+
+Wave03 must NOT yet bulk-reroute ordinary SQLable/model Database conveniences; that is Wave04. The combined Wave03 candidate must remain uncommitted until Wave03B selects and wires the automatic capacity/default from accepted benchmark evidence.
+
+**MAC MUST BE IDLE BEFORE RUNNING WAVE03B PERFORMANCE BENCHMARKS.**
+
+Before Wave03B, capacity-sensitive Wave03 tests/probes use explicit configuration; no unfinished temporary default may be committed or documented as accepted public behavior.
 
 Deferred Advanced Appender and recursive/composite Value work remain out of scope.
 
