@@ -4,7 +4,7 @@ import Foundation
 struct ConnectionAuthority: Hashable, Sendable {
     /// Identity of the reusable Connection runtime/core.
     let coreId: ConnectionId
-    /// Standalone-handle nonce or complete pooled checkout token.
+    /// Standalone-handle nonce or complete pooled checkout token and ownership.
     let generation: ConnectionAuthorityGeneration
 
     private init(
@@ -23,20 +23,41 @@ struct ConnectionAuthority: Hashable, Sendable {
         )
     }
 
-    /// Creates the exact authority for one pooled lease generation.
-    static func pooled(_ token: ConnectionPoolLeaseToken) -> ConnectionAuthority {
+    /// Creates the exact authority for one checkout with the supplied ownership.
+    static func pooled(
+        _ token: ConnectionPoolLeaseToken,
+        ownership: ConnectionPoolLeaseOwnership = .scoped
+    ) -> ConnectionAuthority {
         ConnectionAuthority(
             coreId: token.connectionID,
-            generation: .pooled(token)
+            generation: .pooled(token, ownership)
         )
     }
 
     /// Full pooled token when this authority represents a pooled checkout.
     var poolLeaseToken: ConnectionPoolLeaseToken? {
-        guard case .pooled(let token) = generation else {
+        guard case .pooled(let token, _) = generation else {
             return nil
         }
         return token
+    }
+
+    /// Exact token when this authority owns a manually held Pool checkout.
+    var manualPoolLeaseToken: ConnectionPoolLeaseToken? {
+        guard case .pooled(let token, .manual) = generation else {
+            return nil
+        }
+        return token
+    }
+
+    /// Scoped leases admit user operations only within their matching dynamic scope.
+    var permitsCurrentScope: Bool {
+        switch generation {
+        case .pooled(let token, .scoped):
+            return token == ConnectionPoolLeaseContext.current
+        case .pooled(_, .manual), .standalone:
+            return true
+        }
     }
 }
 
@@ -50,6 +71,14 @@ struct StandaloneConnectionAuthorityId: Hashable, Sendable {
 enum ConnectionAuthorityGeneration: Hashable, Sendable {
     /// Unique identity for one transitional standalone handle.
     case standalone(StandaloneConnectionAuthorityId)
-    /// Full pool, core, and lease-generation token for pooled authority.
-    case pooled(ConnectionPoolLeaseToken)
+    /// Full pool, core, and lease-generation token with its checkout ownership.
+    case pooled(ConnectionPoolLeaseToken, ConnectionPoolLeaseOwnership)
+}
+
+/// Distinguishes closure-scoped checkout from a manually held lease.
+enum ConnectionPoolLeaseOwnership: Hashable, Sendable {
+    /// The caller borrows the handle inside a pool-managed dynamic scope.
+    case scoped
+    /// The caller owns the handle across calls until the lease is released.
+    case manual
 }

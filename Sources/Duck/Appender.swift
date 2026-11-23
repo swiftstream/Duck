@@ -134,7 +134,7 @@ extension Database {
         columns: [String],
         _ body: (Appender) async throws -> Result
     ) async throws -> Result {
-        let connection = try await connect()
+        let connection = try await connectStandaloneForOrdinaryConvenience()
         return try await connection.appender(to: table, columns: columns, body)
     }
 
@@ -144,7 +144,7 @@ extension Database {
         columns: [String],
         _ body: (Appender) async throws -> Result
     ) async throws -> Result {
-        let connection = try await connect()
+        let connection = try await connectStandaloneForOrdinaryConvenience()
         return try await connection.appender(to: table, columns: columns, body)
     }
 
@@ -153,7 +153,7 @@ extension Database {
         to table: DB.Table,
         _ body: (Appender) async throws -> Result
     ) async throws -> Result {
-        let connection = try await connect()
+        let connection = try await connectStandaloneForOrdinaryConvenience()
         return try await connection.appender(to: table, body)
     }
 
@@ -162,7 +162,7 @@ extension Database {
         to table: DB.Schema.Table,
         _ body: (Appender) async throws -> Result
     ) async throws -> Result {
-        let connection = try await connect()
+        let connection = try await connectStandaloneForOrdinaryConvenience()
         return try await connection.appender(to: table, body)
     }
 }
@@ -250,9 +250,11 @@ extension Connection {
 
         let result: Result
         do {
-            result = try await AppenderBodyContext.$scopes.withValue(scopes) {
-                try Task.checkCancellation()
-                return try await body(appender)
+            result = try await withManualPoolLeaseScope {
+                try await AppenderBodyContext.$scopes.withValue(scopes) {
+                    try Task.checkCancellation()
+                    return try await body(appender)
+                }
             }
         } catch {
             let originalError = error
@@ -360,9 +362,11 @@ extension DuckTransaction {
 
         let result: Result
         do {
-            result = try await AppenderBodyContext.$scopes.withValue(scopes) {
-                try Task.checkCancellation()
-                return try await body(appender)
+            result = try await connection.withManualPoolLeaseScope {
+                try await AppenderBodyContext.$scopes.withValue(scopes) {
+                    try Task.checkCancellation()
+                    return try await body(appender)
+                }
             }
         } catch {
             let originalError = error

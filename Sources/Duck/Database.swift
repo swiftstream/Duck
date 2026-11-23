@@ -60,34 +60,80 @@ public struct Database: Hashable, Sendable {
         try await DatabaseRegistry.shared.resolve(self)
     }
 
-    /// Opens one fresh standalone Connection on this database's canonical runtime.
-    public func connect() async throws -> Connection {
+    /// Opens one standalone Connection for a Database convenience that has not migrated to the canonical pool.
+    func connectStandaloneForOrdinaryConvenience() async throws -> Connection {
         let runtime = try await resolveRuntime()
         return try runtime.connect()
     }
 
-    /// Runs one scoped operation with a fresh Connection for this database value.
+    /// Checks out one canonical Pool Connection until `Connection.release()` or deinit.
+    public func connect() async throws -> Connection {
+        let runtime = try await resolveRuntime()
+        return try await runtime.connectManual()
+    }
+
+    /// Borrows a Connection from the canonical pool and returns the body's result.
+    ///
+    /// The Connection's lease expires when the body returns or throws.
     public nonisolated(nonsending) func connection<Result>(
         _ body: (Connection) async throws -> Result
     ) async throws -> Result {
-        let connection = try await connect()
-        return try await body(connection)
+        let pool = try await pool()
+        return try await pool.connection(body)
     }
 
     /// Runs one managed transaction on a fresh Connection for this database value.
     public nonisolated(nonsending) func transaction<Result>(
         _ body: (DuckTransaction) async throws -> Result
     ) async throws -> Result {
-        let connection = try await connect()
+        let connection = try await connectStandaloneForOrdinaryConvenience()
         return try await connection.transaction(body)
     }
 
-    /// Creates a lazy bounded explicit Connection pool on this database's runtime.
+    /// Configures this database's canonical Connection pool before first use.
+    ///
+    /// minimumConnections Connections are opened eagerly before this method
+    /// returns. Additional Connections are opened lazily on demand up to
+    /// maximumConnections.
+    ///
+    /// DuckDB recommends reusing Connections and notes that a single Connection
+    /// frequently works best. Duck therefore defaults to 1/1 when no explicit
+    /// configuration is supplied. Applications remain free to choose another
+    /// bounded configuration for their workload.
+    public func configure(
+        minimumConnections: Int = 1,
+        maximumConnections: Int
+    ) async throws {
+        let runtime = try await resolveRuntime()
+        try await runtime.configure(
+            minimumConnections: minimumConnections,
+            maximumConnections: maximumConnections
+        )
+    }
+
+    /// Returns the canonical Connection pool shared by equivalent database values.
+    ///
+    /// Shutting down the pool ends checkout for this runtime's lifetime.
+    public func pool() async throws -> ConnectionPool {
+        let runtime = try await resolveRuntime()
+        return try await runtime.canonicalPool()
+    }
+
+    /// Configures the maximum and returns this database's canonical Connection pool.
+    @available(
+        *,
+        deprecated,
+        message: "Use configure(minimumConnections:maximumConnections:) before first use, then pool() when an explicit pool handle is needed."
+    )
     public func pool(
+        minimumConnections: Int = 1,
         maximumConnections: Int
     ) async throws -> ConnectionPool {
-        let runtime = try await resolveRuntime()
-        return try runtime.pool(maximumConnections: maximumConnections)
+        try await configure(
+            minimumConnections: minimumConnections,
+            maximumConnections: maximumConnections
+        )
+        return try await pool()
     }
 }
 

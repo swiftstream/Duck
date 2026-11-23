@@ -255,6 +255,7 @@ extension Connection {
         private let nativeConnection: NativeConnection
         private var usability: ConnectionUsability = .usable
         private var poolLeaseState: ConnectionPoolLeaseStateMachine
+        private var poolLeaseOwnership: ConnectionPoolLeaseOwnership = .scoped
         private var poolLeaseDrainWaiter: CheckedContinuation<Void, Never>?
         private var poolLeaseClosingWaiters: [CheckedContinuation<Void, Never>] = []
         private var outerAdmissionState = ConnectionAdmissionStateMachine()
@@ -282,11 +283,13 @@ extension Connection {
             self.poolLeaseState = ConnectionPoolLeaseStateMachine(poolID: poolID)
         }
 
-        /// Activates this idle Pool-managed Connection for one exact checkout token.
+        /// Activates this idle core for one exact token and its checkout ownership.
         func activatePoolLease(
-            _ token: ConnectionPoolLeaseToken
+            _ token: ConnectionPoolLeaseToken,
+            ownership: ConnectionPoolLeaseOwnership = .scoped
         ) throws {
             try poolLeaseState.activate(token, connectionID: id)
+            poolLeaseOwnership = ownership
         }
 
         /// Returns the current Connection-side Pool ownership state for coordination and tests.
@@ -412,25 +415,13 @@ extension Connection {
         private func isAuthorityAuthorized(
             _ authority: ConnectionAuthority
         ) -> Bool {
-            guard authority.coreId == id else {
-                return false
-            }
-
-            switch (poolLeaseState.state, authority.generation) {
-            case (.standalone, .standalone):
-                return authority == standaloneAuthority
-            case (.pooledActive(let activeToken), .pooled(let handleToken)):
-                return activeToken == handleToken
-                    && handleToken.connectionID == id
-                    && handleToken == ConnectionPoolLeaseContext.current
-            case (.pooledIdle, _), (.pooledActive, _), (.pooledClosing, _), (.pooledRetired, _),
-                 (.standalone, .pooled):
-                return false
-            }
+            !poolLeaseState.isClosing
+                && ownsLiveAuthority(authority)
+                && authority.permitsCurrentScope
         }
 
-        /// Authorizes cleanup for one exact resource owner after its lease has started closing.
-        private func isCleanupAuthorityAuthorized(
+        /// Matches an exact standalone or active/closing pooled owner, independently of task scope.
+        private func ownsLiveAuthority(
             _ authority: ConnectionAuthority
         ) -> Bool {
             guard authority.coreId == id else {
@@ -440,9 +431,11 @@ extension Connection {
             switch (poolLeaseState.state, authority.generation) {
             case (.standalone, .standalone):
                 return authority == standaloneAuthority
-            case (.pooledActive(let activeToken), .pooled(let handleToken)),
-                 (.pooledClosing(let activeToken), .pooled(let handleToken)):
-                return activeToken == handleToken && handleToken.connectionID == id
+            case (.pooledActive(let activeToken), .pooled(let handleToken, let ownership)),
+                 (.pooledClosing(let activeToken), .pooled(let handleToken, let ownership)):
+                return activeToken == handleToken
+                    && handleToken.connectionID == id
+                    && ownership == poolLeaseOwnership
             case (.pooledIdle, _), (.pooledActive, _), (.pooledClosing, _), (.pooledRetired, _),
                  (.standalone, .pooled):
                 return false
@@ -1142,7 +1135,7 @@ extension Connection {
             authority: ConnectionAuthority,
             _ id: AppenderId
         ) async -> AppenderAbortOutcome {
-            guard isCleanupAuthorityAuthorized(authority),
+            guard ownsLiveAuthority(authority),
                   appenders[id]?.authority == authority else {
                 return .terminal(.database(.poolLeaseExpired))
             }
@@ -1157,7 +1150,7 @@ extension Connection {
             token: TransactionOperationToken,
             failure: TransactionRollbackOnlyReason
         ) async -> AppenderAbortOutcome {
-            guard isCleanupAuthorityAuthorized(authority),
+            guard ownsLiveAuthority(authority),
                   transactionState?.connectionAuthority == authority,
                   transactionState?.id == token.reservationId,
                   appenders[id]?.authority == authority else {
@@ -1232,7 +1225,7 @@ extension Connection {
             authority: ConnectionAuthority,
             _ id: AppenderId
         ) async throws {
-            guard isCleanupAuthorityAuthorized(authority) else {
+            guard ownsLiveAuthority(authority) else {
                 throw DatabaseError.poolLeaseExpired
             }
             guard appenders[id]?.authority == authority else {
@@ -1248,7 +1241,7 @@ extension Connection {
             _ id: AppenderId,
             token: TransactionOperationToken
         ) async throws {
-            guard isCleanupAuthorityAuthorized(authority) else {
+            guard ownsLiveAuthority(authority) else {
                 throw DatabaseError.poolLeaseExpired
             }
             guard transactionState?.connectionAuthority == authority,
@@ -1915,30 +1908,13 @@ extension Connection {
             _ authority: ConnectionAuthority,
             token: TransactionOperationToken
         ) throws {
-            guard authority.coreId == id else {
+            guard ownsLiveAuthority(authority), authority.permitsCurrentScope else {
                 throw DatabaseError.poolLeaseExpired
             }
-
-            switch (poolLeaseState.state, authority.generation) {
-            case (.standalone, .standalone):
-                guard authority == standaloneAuthority else {
-                    throw DatabaseError.poolLeaseExpired
-                }
-            case (.pooledActive(let activeToken), .pooled(let handleToken)),
-                 (.pooledClosing(let activeToken), .pooled(let handleToken)):
-                guard activeToken == handleToken,
-                      handleToken.connectionID == id,
-                      handleToken == ConnectionPoolLeaseContext.current else {
-                    throw DatabaseError.poolLeaseExpired
-                }
-            case (.pooledIdle, _), (.pooledActive, _), (.pooledClosing, _), (.pooledRetired, _),
-                 (.standalone, .pooled):
-                throw DatabaseError.poolLeaseExpired
-            }
-
             guard let state = transactionState,
                   state.id == token.reservationId,
-                  state.connectionAuthority == authority else {
+                  state.connectionAuthority == authority,
+                  state.operations[token.operationId] != nil else {
                 throw DatabaseError.transactionEnded
             }
         }
@@ -3105,6 +3081,10 @@ extension Connection {
                     return "Appender expected \(expected) row values but received \(actual)."
                 case .appenderAppend(_, let message):
                     return message
+                case .poolConfigurationConflict(let existing, let requested):
+                    return "Requested pool capacity \(requested) conflicts with the configured capacity of \(existing)."
+                case .poolMinimumConfigurationConflict(let existing, let requested):
+                    return "Requested pool minimum \(requested) conflicts with the configured minimum of \(existing)."
                 case .poolClosed:
                     return "The Pool no longer accepts checkout because shutdown has started."
                 case .poolReentrantCheckout:
@@ -3113,6 +3093,8 @@ extension Connection {
                     return "Shutdown was requested from inside this Pool's exact live lease."
                 case .poolLeaseExpired:
                     return "A pooled resource was used without its exact current Connection lease."
+                case .connectionReleaseScopeViolation:
+                    return "This Connection cannot be released from the current scope."
                 case .poolTransactionNotFinalized:
                     return "A scoped Connection body returned while a flat transaction remained active."
                 }

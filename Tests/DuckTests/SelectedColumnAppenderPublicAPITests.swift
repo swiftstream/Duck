@@ -15,6 +15,7 @@ struct SelectedColumnAppenderPublicAPITests {
     @Test("Normal import exposes all six selected-column overloads")
     func allSelectedColumnPathOverloadsArePublic() async throws {
         let database = Database.memory()
+        try await database.configure(maximumConnections: 1)
         let connection = try await database.connect()
         let currentDatabase = try await connection.query(
             SQL.select(Fn.build(.custom("current_database"), body: []) => "catalog")

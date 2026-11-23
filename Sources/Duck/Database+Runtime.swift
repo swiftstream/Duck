@@ -1,9 +1,10 @@
 import Foundation
 
 extension Database {
-    /// One live DuckDB runtime owning native database and observation state.
+    /// One live DuckDB runtime owning the native database, observations, and canonical pool controller.
     final class Runtime: Sendable {
         private let nativeDatabase: NativeDatabase
+        private let poolController = CanonicalPoolController()
         /// Stable migration-run identity for the represented database.
         let migrationCoordinationKey: MigrationCoordinationKey
         /// Logical database value represented by this runtime.
@@ -51,12 +52,36 @@ extension Database {
             }
         }
 
-        /// Creates a lazy bounded pool owned by this exact runtime.
+        /// Checks out one manual Connection from this runtime's canonical Pool.
+        func connectManual() async throws -> Connection {
+            let pool = try await canonicalPool()
+            return try await pool.connectManual()
+        }
+
+        /// Freezes or verifies this runtime's canonical Pool configuration.
+        func configure(
+            minimumConnections: Int,
+            maximumConnections: Int
+        ) async throws {
+            try await poolController.configure(
+                for: self,
+                minimumConnections: minimumConnections,
+                maximumConnections: maximumConnections
+            )
+        }
+
+        /// Returns this runtime's canonical pool, materializing it on first access.
+        func canonicalPool() async throws -> ConnectionPool {
+            try await poolController.pool(for: self)
+        }
+
+        /// Creates an independent pool for internal low-level access.
         func pool(
             maximumConnections: Int
         ) throws -> ConnectionPool {
             try ConnectionPool(
                 database: self,
+                minimumConnections: 0,
                 maximumConnections: maximumConnections
             )
         }

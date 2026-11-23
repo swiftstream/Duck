@@ -140,6 +140,42 @@ struct ConnectionPoolTests {
         #expect(state.lifecycle == .open)
     }
 
+    @Test("Eager minimum counts in-flight creation reservations before opening another core")
+    func eagerMinimumCountsCreationReservations() throws {
+        let poolID = ConnectionPoolID()
+        var state = ConnectionPoolStateMachine(
+            poolID: poolID,
+            maximumConnections: 2
+        )
+
+        let firstConnectionID = ConnectionId()
+        let didRegisterFirstConnection = state.registerIdleConnection(firstConnectionID)
+        #expect(didRegisterFirstConnection)
+
+        let firstReservation = state.reserveImmediateCheckout(
+            leaseID: ConnectionPoolLeaseID(),
+            creationId: ConnectionPoolCreationId()
+        )
+        guard case .activate(let activatedID, _) = firstReservation else {
+            Issue.record("Expected the eager idle Connection to be reserved first.")
+            return
+        }
+        #expect(activatedID == firstConnectionID)
+
+        let secondCreationID = ConnectionPoolCreationId()
+        let secondReservation = state.reserveImmediateCheckout(
+            leaseID: ConnectionPoolLeaseID(),
+            creationId: secondCreationID
+        )
+        guard case .create(let creationID, _) = secondReservation else {
+            Issue.record("Expected the remaining capacity to become an in-flight creation reservation.")
+            return
+        }
+        #expect(creationID == secondCreationID)
+        #expect(state.ownedOrReservedCount == 2)
+        #expect(!state.needsMinimumMaterialization(2))
+    }
+
     @Test("Sequential max-one scopes reuse one runtime with fresh Connection handles")
     func sequentialScopesReuseConnection() async throws {
         let pool = try Database.Runtime().pool(maximumConnections: 1)

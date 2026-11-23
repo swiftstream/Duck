@@ -53,6 +53,7 @@ private func databaseRecord(
 @Suite("Database public API")
 struct DatabasePublicAPITests {
     @Test("Database routes query, persistence, transaction, Appender, and Pool")
+    @available(*, deprecated, message: "Exercises the deprecated pool API")
     func databaseRoutesPublicDatabaseWork() async throws {
         let database = Database.memory()
 
@@ -171,6 +172,7 @@ struct DatabasePublicAPITests {
                 == ["database"]
         )
 
+        try await first.configure(maximumConnections: 1)
         let connection = try await second.connect()
         try await databaseRecord(id: 2, name: "connection")
             .insertNonReturning(on: connection)
@@ -182,6 +184,7 @@ struct DatabasePublicAPITests {
                 .map(\.name)
                 == ["database", "connection"]
         )
+        try await connection.release()
     }
 
     @Test("Database routes model UPSERT through a fresh Connection and returns decoded model")

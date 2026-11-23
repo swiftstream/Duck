@@ -9,12 +9,19 @@ public actor Connection {
     nonisolated let authority: ConnectionAuthority
     /// Reusable internal native execution owner.
     nonisolated let runtime: Runtime
+    /// Lifetime owner present only for a manually held canonical Pool lease.
+    nonisolated let manualLifetimeOwner: ManualConnectionLifetimeOwner?
 
     /// Creates a public handle for one exact runtime authority.
-    init(runtime: Runtime, authority: ConnectionAuthority) {
+    init(
+        runtime: Runtime,
+        authority: ConnectionAuthority,
+        manualLifetimeOwner: ManualConnectionLifetimeOwner? = nil
+    ) {
         self.runtime = runtime
         self.authority = authority
         self.id = runtime.id
+        self.manualLifetimeOwner = manualLifetimeOwner
     }
 
     /// Executes a query on this exact Connection handle.
@@ -72,16 +79,52 @@ public actor Connection {
     public nonisolated(nonsending) func transaction<Result>(
         _ body: (DuckTransaction) async throws -> Result
     ) async throws -> Result {
-        try await runtime.transaction(
-            authority: authority,
-            connection: self,
-            body
-        )
+        try await withManualPoolLeaseScope {
+            try await runtime.transaction(
+                authority: authority,
+                connection: self,
+                body
+            )
+        }
     }
 
     /// Begins a one-shot flat transaction bound to this exact handle authority.
     public nonisolated(nonsending) func transaction() async throws -> DuckTransaction {
         try await runtime.transaction(authority: authority, connection: self)
+    }
+
+    /// Releases a manually held canonical Pool checkout and invalidates this handle.
+    public nonisolated(nonsending) func release() async throws {
+        guard let manualLifetimeOwner else {
+            throw DatabaseError.connectionReleaseScopeViolation
+        }
+
+        if let scope = TransactionBodyContext.scopes.reversed().first(where: {
+            $0.connectionAuthority == authority
+        }), await runtime.isTransactionReservationLive(scope.reservationId) {
+            throw DatabaseError.connectionReleaseScopeViolation
+        }
+
+        if let scope = AppenderBodyContext.scopes.reversed().first(where: {
+            $0.connectionAuthority == authority
+        }), await runtime.isAppenderScopeLive(scope.appenderId) {
+            throw DatabaseError.connectionReleaseScopeViolation
+        }
+
+        try await manualLifetimeOwner.release()
+    }
+
+    /// Runs a closure with this manual lease's exact token in task-local context.
+    nonisolated(nonsending) func withManualPoolLeaseScope<Result>(
+        _ operation: () async throws -> Result
+    ) async rethrows -> Result {
+        guard let token = authority.manualPoolLeaseToken else {
+            return try await operation()
+        }
+
+        return try await ConnectionPoolLeaseContext.$current.withValue(token) {
+            try await operation()
+        }
     }
 }
 

@@ -34,6 +34,10 @@ public enum DatabaseError: Error, Sendable, Equatable {
     case appenderTransactionAborted(String)
     /// Pool configuration is invalid before any Connection is opened.
     case invalidPoolConfiguration(String)
+    /// This runtime already has a different effective pool capacity.
+    case poolConfigurationConflict(existing: Int, requested: Int)
+    /// This runtime already has a different eager minimum Connection count.
+    case poolMinimumConfigurationConflict(existing: Int, requested: Int)
     /// The Pool no longer accepts checkout because shutdown has started.
     case poolClosed
     /// The current task already owns an exact live lease from this Pool.
@@ -42,6 +46,8 @@ public enum DatabaseError: Error, Sendable, Equatable {
     case poolShutdownFromLease
     /// A pooled resource was used without its exact current Connection lease.
     case poolLeaseExpired
+    /// The caller cannot release this Connection from the current scope.
+    case connectionReleaseScopeViolation
     /// A scoped Connection body returned while a flat transaction remained active.
     case poolTransactionNotFinalized
 }

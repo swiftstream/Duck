@@ -672,4 +672,51 @@ struct ConnectionPoolTransactionTests {
         #expect(rows.rows.first?["id"] == .int32(1313))
         try await pool.shutdown()
     }
+
+    @Test("Manual lease admits and drains only its own registered operation outside a task scope")
+    func manualLeaseDrainsRegisteredOperationWithoutTaskScope() async throws {
+        let database = try Database.Runtime()
+        let poolId = ConnectionPoolID()
+        let runtime = try database.makePooledRuntime(poolID: poolId)
+        let token = ConnectionPoolLeaseToken(
+            poolID: poolId,
+            leaseID: ConnectionPoolLeaseID(),
+            connectionID: runtime.id
+        )
+        let authority = ConnectionAuthority.pooled(token, ownership: .manual)
+        let connection = Connection(runtime: runtime, authority: authority)
+        let scoped = Connection(runtime: runtime, authority: .pooled(token))
+        try await runtime.activatePoolLease(token, ownership: .manual)
+
+        #expect(ConnectionPoolLeaseContext.current == nil)
+        await ConnectionPoolLeaseContext.$current.withValue(token) {
+            await #expect(throws: DatabaseError.poolLeaseExpired) {
+                _ = try await scoped.query(SQL.select(Int32(1)))
+            }
+        }
+        let transaction = try await connection.transaction()
+        let operation = try await runtime.registerTransactionOperation(
+            authority: authority,
+            transaction.reservationId
+        )
+        let manualTransactionWasNotFinalized = try await runtime.beginPoolLeaseReturn(token)
+        #expect(manualTransactionWasNotFinalized)
+        await #expect(throws: DatabaseError.poolLeaseExpired) {
+            _ = try await transaction.query(SQL.select(Int32(2)))
+        }
+
+        let snapshot = try PreparedQuerySnapshot(SQL.select(Int32(3) => "value"))
+        let result = try await runtime.executeTransactionQuery(authority: authority, snapshot, token: operation)
+        #expect(result.rows.first?["value"] == .int32(3))
+        await #expect(throws: DatabaseError.transactionEnded) {
+            _ = try await runtime.executeTransactionQuery(authority: authority, snapshot, token: operation)
+        }
+
+        let outcome = try await runtime.finishPoolLeaseReturn(
+            token,
+            manualTransactionWasNotFinalized: manualTransactionWasNotFinalized
+        )
+        #expect(outcome.disposition == .reusable)
+        #expect(outcome.cleanupFailure == nil)
+    }
 }

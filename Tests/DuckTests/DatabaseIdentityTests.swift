@@ -142,14 +142,22 @@ struct DatabaseIdentityTests {
         #expect(ObjectIdentifier(resolvedAgain) == ObjectIdentifier(retained))
     }
 
-    @Test("W01-T11 Database connect, scoped convenience, transaction, and explicit pools retain v1 routing")
-    func existingRoutingRemainsFreshAndPoolsRemainIndependent() async throws {
+    @Test("Scoped Database access and the explicit pool share one reusable Connection core")
+    func scopedDatabaseAccessSharesPool() async throws {
         let database = Database.memory()
+        try await database.configure(maximumConnections: 2)
 
         let firstConnection = try await database.connect()
         let secondConnection = try await database.connect()
         #expect(firstConnection !== secondConnection)
+        #expect(firstConnection.id != secondConnection.id)
+        let manuallyCheckedOutCoreIDs = Set([
+            firstConnection.id,
+            secondConnection.id,
+        ])
 
+        try await firstConnection.release()
+        try await secondConnection.release()
         let firstScoped = try await database.connection { $0 }
         let secondScoped = try await database.connection { $0 }
         #expect(firstScoped !== secondScoped)
@@ -158,17 +166,11 @@ struct DatabaseIdentityTests {
         let secondTransactionConnection = try await database.transaction { $0.connection.id }
         #expect(firstTransactionConnection != secondTransactionConnection)
 
-        let firstPool = try await database.pool(maximumConnections: 1)
-        let secondPool = try await database.pool(maximumConnections: 1)
-        #expect(firstPool !== secondPool)
-
-        let firstPoolConnection = try await firstPool.connection { $0.id }
-        let firstPoolConnectionAgain = try await firstPool.connection { $0.id }
-        let secondPoolConnection = try await secondPool.connection { $0.id }
-        #expect(firstPoolConnection == firstPoolConnectionAgain)
-        #expect(firstPoolConnection != secondPoolConnection)
-
-        try await firstPool.shutdown()
-        try await secondPool.shutdown()
+        let pool = try await database.pool()
+        let core = try await pool.connection { $0.id }
+        #expect(manuallyCheckedOutCoreIDs.contains(firstScoped.id))
+        #expect(manuallyCheckedOutCoreIDs.contains(secondScoped.id))
+        #expect(manuallyCheckedOutCoreIDs.contains(core))
+        try await pool.shutdown()
     }
 }

@@ -18,6 +18,7 @@ struct MigrationPublicAPITests {
         let firstBatch: UInt = try await migrator.migrate()
         #expect(firstBatch == 1)
 
+        try await database.configure(maximumConnections: 1)
         let connection = try await database.connect()
         #expect(try await publicRows(on: connection, tableName: DefaultNamedMigration.tableName) == [7])
         #expect(try await publicRows(on: connection, tableName: ExplicitNamedMigration.tableName) == [11])
@@ -74,6 +75,7 @@ struct MigrationPublicAPITests {
             .from(history)
             .query(on: connection)
         #expect(finalHistory.rows.isEmpty)
+        try await connection.release()
     }
 
     @Test("normal import MigrationError is catchable and equatable")

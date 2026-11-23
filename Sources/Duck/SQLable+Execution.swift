@@ -13,7 +13,7 @@ extension SQLable {
     public nonisolated(nonsending) func query(
         on database: Database
     ) async throws -> QueryResult {
-        let connection = try await database.connect()
+        let connection = try await database.connectStandaloneForOrdinaryConvenience()
         return try await connection.query(self)
     }
 
@@ -22,7 +22,7 @@ extension SQLable {
     public nonisolated(nonsending) func execute(
         on database: Database
     ) async throws -> UInt64 {
-        let connection = try await database.connect()
+        let connection = try await database.connectStandaloneForOrdinaryConvenience()
         return try await connection.execute(self)
     }
 

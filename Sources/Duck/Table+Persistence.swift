@@ -287,13 +287,13 @@ extension Table {
 extension Table {
     /// Inserts this model through a fresh Connection for the supplied database.
     public nonisolated(nonsending) func insert(on database: Database) async throws -> Self {
-        let connection = try await database.connect()
+        let connection = try await database.connectStandaloneForOrdinaryConvenience()
         return try await insert(on: connection)
     }
 
     /// Inserts this model without decoding a row through the supplied database.
     public nonisolated(nonsending) func insertNonReturning(on database: Database) async throws {
-        let connection = try await database.connect()
+        let connection = try await database.connectStandaloneForOrdinaryConvenience()
         try await insertNonReturning(on: connection)
     }
 
@@ -302,7 +302,7 @@ extension Table {
         on keyColumn: KeyPath<Self, C>,
         on database: Database
     ) async throws -> Self {
-        let connection = try await database.connect()
+        let connection = try await database.connectStandaloneForOrdinaryConvenience()
         return try await update(on: keyColumn, on: connection)
     }
 
@@ -311,7 +311,7 @@ extension Table {
         on keyColumn: KeyPath<Self, C>,
         on database: Database
     ) async throws {
-        let connection = try await database.connect()
+        let connection = try await database.connectStandaloneForOrdinaryConvenience()
         try await updateNonReturning(on: keyColumn, on: connection)
     }
 
@@ -339,7 +339,7 @@ extension Table {
         ConflictColumn: ColumnRepresentable,
         repeat each ExcludedColumn: ColumnRepresentable
     {
-        let connection = try await database.connect()
+        let connection = try await database.connectStandaloneForOrdinaryConvenience()
         return try await upsert(
             conflictColumn: conflictColumn,
             excluding: repeat each excludedColumns,
@@ -572,7 +572,7 @@ struct TableBatchRun: Sendable {
 extension Collection where Element: Table {
     /// Inserts every model atomically through a fresh Connection for the supplied database.
     public nonisolated(nonsending) func batchInsert(on database: Database) async throws {
-        let connection = try await database.connect()
+        let connection = try await database.connectStandaloneForOrdinaryConvenience()
         try await batchInsert(on: connection)
     }
 

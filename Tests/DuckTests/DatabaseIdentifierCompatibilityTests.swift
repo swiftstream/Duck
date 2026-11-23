@@ -14,6 +14,7 @@ private struct AliasTodo: Table {
 @Suite("Deprecated DatabaseIdentifier source compatibility")
 struct DatabaseIdentifierCompatibilityTests {
     @Test("W01-T10 deprecated alias is the same type, value identity, and runtime")
+    @available(*, deprecated, message: "Exercises deprecated API source compatibility")
     func deprecatedAliasResolvesAsDatabase() async throws {
         let databaseType: Database.Type = DatabaseIdentifier.self
         let legacyType: DatabaseIdentifier.Type = Database.self
@@ -34,6 +35,8 @@ struct DatabaseIdentifierCompatibilityTests {
         #expect(try await AliasTodo.all(on: database).isEmpty)
 
         let legacyUnique: DatabaseIdentifier = .memory()
-        _ = try await legacyUnique.connect()
+        try await legacyUnique.configure(maximumConnections: 1)
+        let connection = try await legacyUnique.connect()
+        try await connection.release()
     }
 }

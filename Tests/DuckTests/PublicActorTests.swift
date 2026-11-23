@@ -5,10 +5,12 @@ import Testing
 @Test("Opens an in-memory public Database value and Connection")
 func opensPublicInMemoryDatabase() async throws {
     let database = Database.memory()
-    _ = try await database.connect()
+    try await database.configure(maximumConnections: 1)
+    let connection = try await database.connect()
+    try await connection.release()
 }
 
-@Test("File-backed Database construction is lazy until connect")
+@Test("File-backed Database construction is lazy until runtime configuration")
 func opensPublicFileBackedDatabaseLazily() async throws {
     let directory = FileManager.default.temporaryDirectory
         .appendingPathComponent("duck-public-database-\(UUID().uuidString)")
@@ -19,17 +21,22 @@ func opensPublicFileBackedDatabaseLazily() async throws {
     let database = Database(path: databaseURL.path)
     #expect(!FileManager.default.fileExists(atPath: databaseURL.path))
 
-    _ = try await database.connect()
+    try await database.configure(maximumConnections: 1)
     #expect(FileManager.default.fileExists(atPath: databaseURL.path))
+    let connection = try await database.connect()
+    try await connection.release()
 }
 
-@Test("Database.connect creates independent standalone Connections")
+@Test("Database.connect creates independent manually held Connections")
 func createsMultiplePublicConnections() async throws {
     let database = Database.memory()
+    try await database.configure(maximumConnections: 2)
     let first = try await database.connect()
     let second = try await database.connect()
 
     #expect(first !== second)
+    try await first.release()
+    try await second.release()
 }
 
 @Test("Connection retains its exact internal Database.Runtime owner")

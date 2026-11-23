@@ -146,7 +146,7 @@ private func makeQueryTerminalGood(
     _ available: Bool,
     _ createdAt: Int64
 ) -> QueryTerminalGood {
-    var good = QueryTerminalGood()
+    let good = QueryTerminalGood()
     good.id = id
     good.name = name
     good.category = category
@@ -157,6 +157,7 @@ private func makeQueryTerminalGood(
 
 private func makeQueryTerminalDatabase() async throws -> (Database, Connection) {
     let database = Database.memory()
+    try await database.configure(maximumConnections: 1)
     let connection = try await database.connect()
 
     try await connection.execute(
