@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — 1.1.0
+
+- Moves explicit scoped/manual Connection access onto one canonical bounded reusable pool per logical `Database` runtime.
+- Adds developer-controlled `minimumConnections` / `maximumConnections` configuration: the minimum is initialized eagerly, additional Connections grow lazily on demand, and the maximum remains the hard bound.
+- Uses a conservative reusable 1/1 default when no explicit configuration is supplied; this follows DuckDB Connection-reuse guidance and is not presented as a universal optimum.
+- Keeps `configure(maximumConnections:)` and the deprecated `pool(maximumConnections:)` source-compatible through the default minimum while documenting explicit min/max configuration for applications that need more concurrency.
+- Uses deterministic correctness, lifecycle, stress, and resource-accounting evidence for pool/Observation acceptance rather than timing-derived capacity selection.
+
 ## 1.0.0
 
 - Introduces the first stable Duck release, exposing DuckDB 2.0.0 through a Swift concurrency-aware API with SQL-based query construction.
