@@ -64,9 +64,9 @@ Final external evidence-audit report SHA-256:
 
 Wave02 establishes the thin public actor handle, reusable internal `Connection.Runtime`, exact `ConnectionAuthority`, fresh public handle per pooled generation, exact Statement/DuckTransaction/Appender binding, and the corrected registered-operation drain semantics. TX11/TX12/TX13 close the rollback-only, exact-current drain, and stale-generation proof boundaries. Ordinary Database convenience routing remains transitional until later waves by design.
 
-### Wave 03 canonical Runtime pool/controller + explicit canonical access — CLOSED / LOCALLY COMMITTED; WAVE04 CURRENT
+### Wave 03 canonical Runtime pool/controller + explicit canonical access — CLOSED / LOCALLY COMMITTED; WAVE04 CLOSED; WAVE05 CURRENT
 
-The complete corrected Wave03 + pool-configuration candidate is CLOSED / independently accepted. Product/tests are committed at `3e6095424b40d35e9b41219346622e62b4dc0185`, public docs/release draft at `581f706a3a15659a4f309f1cf70334366e311c4b`, and the revoked Wave03B timing harness was removed at `2471515912ecb31c0ae8b5fe3c3aba8f45e096e2`. The final implementation audit's single README-only HIGH was corrected and the fresh F01 re-audit returned CLEAN at 14/14 with report SHA-256 `92f221098b9cf6ed27a702cbe230eae86d9edf7b31f62dc3202dacd24e2e9319`. The current implementation frontier is Wave04 ordinary Database convenience routing through the canonical Pool.
+The complete corrected Wave03 + pool-configuration candidate is CLOSED / independently accepted. Product/tests are committed at `3e6095424b40d35e9b41219346622e62b4dc0185`, public docs/release draft at `581f706a3a15659a4f309f1cf70334366e311c4b`, and the revoked Wave03B timing harness was removed at `2471515912ecb31c0ae8b5fe3c3aba8f45e096e2`. Wave04 ordinary Database/migration routing is also CLOSED / independently accepted and committed at `d302972b6185c23dd47406780e0fb4b00787c6f7`, with public docs at `150befcef65f83ed5ed8067779e4474c672ff52c`; its final audit passed W01-W16 = 16/16 with report SHA-256 `30ba93fbfd163e57d30fc3277096af2f5b654247fbfc6c511b21c98168523131`. The current implementation frontier is Wave05 Observation refresh-scoped canonical pooling.
 
 The prior `PRIMARY_MODEL_GATE_CORRECTION_01.md`, `SECONDARY_POWER_WAVE03_CONTINUATION_01_PROMPT.md`, and its mini-launcher are REVOKED and MUST NOT be resumed. Their substitution of Astra into Luna implementation roles was not maintainer-authorized. Local GPT-6.2 Sol planning/adjudication/audit remains a valid canonical SECONDARY_POWER capability under its workflow model matrix and budget. The partial G01/G02/G03 candidate is preserved uncommitted; it is not accepted merely because the interrupted SECONDARY recorded earlier gates as PASS.
 
@@ -112,7 +112,7 @@ Wave03 closed with:
 
 Public `Connection.close()` is intentionally absent: normal manual release returns a healthy reusable native core to the canonical pool rather than physically disconnecting it. Physical destruction belongs to internal retirement/shutdown. v1.1 does not add a public capacity-bypassing unpooled connection API; a possible future fresh/non-reusable dedicated API is deferred and would still require capacity/lifetime control.
 
-Wave03 intentionally did not bulk-reroute ordinary SQLable/model Database conveniences. Wave04 now owns that migration. The closed Wave03 configuration establishes the conservative 1/1 default plus explicit min/max configuration, eager minimum initialization, lazy growth, exact scoped/manual canonical leases, and deterministic state/resource validation; no timing-based capacity selection or performance benchmark gate is part of this acceptance path.
+Wave03 intentionally did not bulk-reroute ordinary SQLable/model Database conveniences. Wave04 has now completed that migration, including managed transactions, Database Appender/model persistence, batch persistence, typed terminals, and migrations. The current Wave05 boundary is QueryObservation refresh ownership only: remove iterator-lifetime private Connections, use refresh-scoped canonical checkout, preserve widened `.database` coverage through every wait/reanalysis/read/finalization/lease return, and narrow only after a successful refresh. MutationImpact/table-aware publication remains Wave06+.
 
 Deferred Advanced Appender and recursive/composite Value work remain out of scope.
 
@@ -126,7 +126,7 @@ v1.1 durable work is limited to preserving this process-local invariant and docu
 
 Post-v1.1 / v1.2 candidate research is explicitly preserved for public database `READ_ONLY`/open configuration, immutable DuckDB snapshot publication, Parquet projection ergonomics, and Quack-on-iOS/static-build feasibility. Current Duck statically links Parquet but not Quack, and the standard DuckDB extension distribution does not target iOS. Detailed PRIMARY research is preserved under `.artifacts/research/public-comment-widget-multiprocess-2026-11-22/PRIMARY_WIDGET_MULTIPROCESS_RESEARCH_01.md`.
 
-This boundary does not pause or replan the active Wave04 ordinary-convenience routing sequence.
+This boundary does not pause or replan the active Wave05 Observation refresh-scoped pooling sequence.
 
 ## Current capability state
 
