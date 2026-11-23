@@ -42,9 +42,9 @@ Plan the pool/runtime architecture before or together with Observation implement
 
 Do not start v1.1 by automatically selecting Advanced Appender or recursive/composite Value work. Those remain preserved candidates after this coupled pool/observation program unless the maintainer explicitly reprioritizes.
 
-For `OBSERVATION-SCALABILITY-V1_1`, performance benchmarking is **MANDATORY** for closure. Required evidence includes deterministic synthetic million-row datasets, multiple simultaneous observations, sustained INSERT/UPDATE/DELETE traffic, unrelated-table writes, same-table predicate-irrelevant and relevant writes, transactions/Appender, and a direct comparison against the v1 Database-wide invalidation baseline.
+For `OBSERVATION-SCALABILITY-V1_1`, deterministic scalability/stress validation is mandatory for closure, but wall-clock performance timing is not. Required evidence includes generated large datasets, multiple simultaneous observations, sustained INSERT/UPDATE/DELETE traffic, unrelated-table writes, same-table predicate-irrelevant and relevant writes, transactions/Appender, bounded resource ownership, cancellation cleanup, and no missed relevant committed states.
 
-Platform validation remains an assurance track and participates only where required by the active v1.1 plan or release evidence; it does not justify broad platform work by itself. New push/tag/remote publication remains separately unauthorized without explicit maintainer approval. Performance benchmarking remains optional for unrelated work but is mandatory for the v1.1 canonical-pool/Observation closure where required by the governing dossiers.
+Platform validation remains an assurance track and participates only where required by the active v1.1 plan or release evidence; it does not justify broad platform work by itself. New push/tag/remote publication remains separately unauthorized without explicit maintainer approval. The v1.1 canonical-pool/Observation closure uses deterministic correctness, stress, and resource-accounting evidence rather than timing-derived thresholds or locally selected magic capacities.
 
 ## Other Future Work
 

@@ -1,21 +1,43 @@
 ---
 name: duck-connection-pooling
-description: Use for Duck bounded ConnectionPool creation from DatabaseIdentifier, scoped Connection checkout, managed pool transactions, lease-bound Statement/Appender work, identifier Observation interaction, checkout cancellation, and graceful shutdown.
+description: Use for Duck canonical bounded ConnectionPool configuration from Database, minimum/maximum Connection policy, scoped or manual pooled Connection checkout, managed transactions, lease-bound Statement/Appender work, Observation interaction, checkout cancellation, and graceful shutdown.
 license: LICENSE.txt
 ---
 
 # Duck Connection Pooling
 
-Use this skill when application work needs multiple independent Duck Connections with a bounded, reusable owner. For ordinary one-off work on a caller-owned Connection, use the query-execution skill. For detailed transaction or Observation semantics, load the matching dedicated skill when that workflow becomes central.
+Use this skill when application work needs a bounded reusable Connection owner or explicit pooled Connection lifetime. Ordinary `Database` work uses the same canonical pool; callers do not create a separate resource model merely to get reuse. For detailed transaction or Observation semantics, load the matching dedicated skill when that workflow becomes central.
 
-## 1. Create a bounded pool from one DatabaseIdentifier
+## 1. Configure the canonical pool
+
+Without explicit configuration Duck uses the conservative canonical default:
 
 ```swift
-let database = DatabaseIdentifier.memory()
-let pool = try await database.pool(maximumConnections: 4)
+let database = Database.memory()
+let pool = try await database.pool()
+
+pool.minimumConnections // 1
+pool.maximumConnections // 1
 ```
 
-`DatabaseIdentifier.pool(maximumConnections:)` resolves the identifier's canonical runtime and creates a lazy bounded pool on it. It throws for nonpositive capacity. The pool opens Connections on demand up to `maximumConnections`; do not describe the pool itself as the global identifier registry or as owning Connections from another logical database.
+This 1/1 default is intentionally conservative, not a universal optimum. DuckDB recommends reusing Connections and notes that a single Connection frequently works best, while the right concurrency level remains workload-specific.
+
+Applications that need a different range configure it before the first canonical use:
+
+```swift
+let database = Database.memory()
+
+try await database.configure(
+    minimumConnections: 1,
+    maximumConnections: 4
+)
+
+let pool = try await database.pool()
+```
+
+`minimumConnections` must be zero or greater and must not exceed `maximumConnections`; `maximumConnections` must be greater than zero. The configured minimum is opened eagerly before configuration returns. Further Connections are opened lazily on demand up to the maximum, then reused. Equivalent `Database` values share the same canonical runtime, Pool, and frozen configuration.
+
+Use `minimumConnections: 0` when a fully lazy pool is preferred. Do not derive a magic maximum from a repository-local timing benchmark; the application owns that choice.
 
 ## 2. Keep each checkout inside its closure
 
@@ -32,7 +54,7 @@ let result = try await pool.connection { connection in
 
 The closure receives one pooled Connection for one exact active lease. Await all work that uses it before returning. The pool finishes mandatory return cleanup before the call completes. Return Swift-owned results or application values, not a Connection or a resource intended for later pooled work.
 
-An escaped pooled Connection is not authorized after lease return; stale work fails with `.poolLeaseExpired`. Reusing the same Connection actor in a later lease does not revive old Statements, Transactions, or Appenders. A detached task has no inherited lease authority. Structured child work must finish within the active scope. Do not manufacture a manual checkout/release abstraction around this API.
+An escaped pooled Connection is not authorized after lease return; stale work fails with `.poolLeaseExpired`. Reusing the same Connection actor in a later lease does not revive old Statements, Transactions, or Appenders. A detached task has no inherited lease authority. Structured child work must finish within the active scope. Use the scoped form when lexical lifetime is enough. For an explicitly longer-lived canonical lease, use `Database.connect()` and end it with `Connection.release()`; do not manufacture another checkout/release abstraction or an out-of-pool Connection.
 
 When capacity is busy, checkouts wait in FIFO order. Cancellation of a queued request removes its place and preserves capacity. One Connection still serializes its own native operations; concurrency comes from independent leased Connections.
 
@@ -60,7 +82,7 @@ If a flat `connection.transaction()` is used inside `pool.connection`, explicitl
 
 Prepare and use a reusable Statement only while its originating Connection's exact lease is live. An Appender scope must finish within the lease. Ordinary Appender ingestion can expose auto-flushed prefixes before the body ends; use an explicit DuckTransaction when all rows need one commit/rollback boundary. Follow the Statement, Appender, or Transaction skill for their detailed APIs and error rules. Do not invent statement caches or Appender pools as features of `ConnectionPool`.
 
-## 6. Observe through the DatabaseIdentifier
+## 6. Observe through the Database
 
 ```swift
 let observation = try SQL
@@ -83,4 +105,4 @@ Shutdown stops new checkout, fails queued requests with `.poolClosed`, and drain
 
 Pool-specific typed errors include `.invalidPoolConfiguration`, `.poolClosed`, `.poolReentrantCheckout`, `.poolShutdownFromLease`, `.poolLeaseExpired`, and `.poolTransactionNotFinalized`. A native Connection open failure can still surface as `.connectionOpen`; transaction cleanup may surface `TransactionRollbackError`. Do not inspect native error text to infer a guaranteed internal stage.
 
-The current pool has no manual checkout/release, checkout timeout, idle lifetime policy, session reset, statement cache, metrics, or global registry. Do not add a `pool.observe` or independent transaction lifecycle in generated examples. All executable SQL construction uses SQL; use `SQL.raw(...)` only as an explicit escape hatch, never an ordinary handwritten String query API. Do not infer a new platform support or benchmark claim from pooling.
+The canonical pool has no checkout timeout, idle lifetime policy, session reset, statement cache, public metrics, or public global registry. Do not add a `pool.observe` or independent transaction lifecycle in generated examples. All executable SQL construction uses SQL; use `SQL.raw(...)` only as an explicit escape hatch, never an ordinary handwritten String query API. Do not infer a new platform support or benchmark claim from pooling.

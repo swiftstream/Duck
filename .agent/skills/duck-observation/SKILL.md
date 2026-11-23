@@ -175,7 +175,7 @@ Important v1.0 performance boundary: ordinary successful non-read-only query/Sta
 
 v1.0 also does not promise column-, predicate-, or changed-row-aware invalidation. A selective `WHERE` does not by itself prove that a same-table write can skip refresh.
 
-This behavior is correctness-conservative, not a stale-state defect. The explicit v1.1 priority `OBSERVATION-SCALABILITY-V1_1` tracks finer-grained table-aware mutation publication plus benchmark-justified hot-table relevance fast paths.
+This behavior is correctness-conservative, not a stale-state defect. The explicit v1.1 priority `OBSERVATION-SCALABILITY-V1_1` tracks finer-grained table-aware mutation publication plus hot-table relevance fast paths justified by source/runtime semantics and deterministic stress/resource evidence rather than wall-clock timing.
 
 If dependency extraction, mutation-impact extraction, or identity normalization is unsafe or cannot be trusted, Duck falls back to Database-wide invalidation rather than risking a missed refresh.
 

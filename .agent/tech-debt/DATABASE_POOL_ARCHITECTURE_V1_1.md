@@ -1,7 +1,7 @@
 # Database Pool Architecture and Database API v1.1 Dossier
 
 **Debt / objective ID:** DATABASE-POOL-ARCHITECTURE-V1_1
-**Status:** ACTIVE HIGH-PRIORITY VERIFIED ARCHITECTURAL DEBT / v1.1 RELEASE OBJECTIVE / NOT IMPLEMENTATION AUTHORIZATION
+**Status:** ACTIVE HIGH-PRIORITY VERIFIED ARCHITECTURAL DEBT / v1.1 RELEASE OBJECTIVE / IMPLEMENTATION IN PROGRESS UNDER ACCEPTED PLAN + 2026-11-23 CONFIGURATION POLICY CORRECTION
 **Created:** 2026-11-16
 
 ## Context-budget rule
@@ -10,7 +10,7 @@ This file is the detailed stable technical dossier for the v1.1 database-resourc
 
 Normal project startup should load only the short pointer in `.agent/TECH_DEBT.md`.
 
-Load this dossier when planning, auditing, implementing, benchmarking, or documenting the v1.1 connection-pool/runtime redesign, or when work touches `DatabaseIdentifier`, `Database`, ordinary identifier-backed execution, `ConnectionPool`, explicit `connect()`, transactions, or Observation refresh ownership.
+Load this dossier when planning, auditing, implementing, stress-validating, or documenting the v1.1 connection-pool/runtime redesign, or when work touches `DatabaseIdentifier`, `Database`, ordinary database-backed execution, `ConnectionPool`, explicit `connect()`, transactions, or Observation refresh ownership.
 
 This objective is directly coupled to `OBSERVATION-SCALABILITY-V1_1`. The Observation scalability plan must not freeze a final architecture while assuming the v1 connection-allocation model will remain unchanged.
 
@@ -141,7 +141,9 @@ The v1.1 canonical runtime should own or resolve one default/canonical pool poli
 
 Required properties:
 
-- lazy creation;
+- conservative default configuration of `minimumConnections = 1` and `maximumConnections = 1` when the application does not configure the pool explicitly;
+- public pre-use configuration of both eager minimum and bounded maximum Connection counts;
+- eager materialization of the configured minimum and lazy growth above that minimum only when demand requires it;
 - bounded maximum connection count;
 - connection reuse;
 - scoped automatic return;
@@ -152,7 +154,7 @@ Required properties:
 - deterministic interaction with canonical Observation publication;
 - no unbounded implicit connection fan-out.
 
-Do not freeze the default maximum connection count without benchmark and workload evidence.
+Do not derive a magic pool size from repository-local timing measurements. Follow DuckDB's official connection guidance: reuse Connections, note that a single Connection frequently works best, and let each application choose explicit minimum/maximum bounds for its own workload. The library's conservative default is 1/1, not a universal optimum.
 
 The plan must decide how pool configuration belongs to database identity/runtime and how conflicting configuration attempts for equivalent file-backed identities are handled.
 
@@ -241,11 +243,11 @@ invalidation
 -> wait for next invalidation
 ```
 
-The observation itself remains long-lived; the native Connection lease should be short-lived and refresh-scoped unless benchmark/correctness evidence proves a different ownership model is necessary.
+The observation itself remains long-lived; the native Connection lease should be short-lived and refresh-scoped unless deterministic correctness/resource evidence proves a different ownership model is necessary.
 
 This allows many registered observations without requiring one permanently open Connection each.
 
-The v1.1 plan must benchmark and prove:
+The v1.1 plan must deterministically prove:
 
 - many idle observations do not pin equivalent numbers of Connections;
 - simultaneous refreshes are naturally bounded by pool capacity;
@@ -283,7 +285,7 @@ Transactions must not require or recommend any separate out-of-pool Connection p
 
 ---
 
-# 10. Existing explicit pool API must be redesigned coherently
+# 10. Existing explicit pool API compatibility is resolved
 
 The v1 API:
 
@@ -295,15 +297,16 @@ creates a separate explicit pool.
 
 Once the canonical runtime itself owns the ordinary pool, the role of this API must be reconsidered rather than preserved accidentally.
 
-The v1.1 reviewed plan must decide among possibilities such as:
+The v1.1 decision is:
 
-- configure the canonical pool before first use;
-- expose the canonical pool as an advanced handle;
-- permit explicitly named/secondary pools only for proven use cases;
-- replace the current creation API with database configuration;
-- retain a compatibility shim while steering new code to the canonical model.
+- new code configures the canonical Pool with `Database.configure(minimumConnections:maximumConnections:)` before first canonical use when the conservative 1/1 default is not suitable;
+- `Database.pool()` exposes the SAME canonical Pool only when an explicit Pool handle is useful;
+- deprecated `pool(maximumConnections:)` remains source-compatible by forwarding to canonical configuration with the default minimum and then returning that SAME Pool;
+- no ordinary public secondary/custom capacity-bypassing Pool is created by these APIs;
+- equivalent `Database` identities share the first frozen min/max configuration;
+- manual `Database.connect()` also checks out from the same canonical Pool and returns through `Connection.release()`.
 
-Do not allow two APIs to appear to configure the same canonical pool while actually creating unrelated pools.
+Do not allow compatibility APIs to look canonical while actually creating unrelated Pools.
 
 Do not freeze this API decision until configuration/lifetime semantics are reviewed.
 
@@ -387,7 +390,7 @@ Before implementation-plan freeze, answer the remaining questions:
 3. Is pool configuration part of `Database` value identity, canonical runtime configuration, or separate pre-use configuration?
 4. What happens if two equivalent file database values request different pool limits?
 5. When does canonical pool configuration become immutable?
-6. What is the default maximum connection count and what benchmark evidence supports it?
+6. What are the default minimum/maximum connection counts and what official guidance/policy supports them? **Resolved:** conservative 1/1 default, with developer-owned explicit configuration before first use; no timing-derived default.
 7. What exact scoped Connection API should replace ordinary `connect()` usage?
 8. Is a public manual pooled-lease API still necessary, and if so what is its explicit release/return contract?
 9. Is there still a public way to obtain/configure the canonical `ConnectionPool` handle?
@@ -404,36 +407,23 @@ No implementation plan is complete until these are dispositioned.
 
 ---
 
-# 13. Benchmark and correctness requirements
+# 13. Deterministic correctness and resource requirements
 
-The pool redesign must be measured together with Observation scalability, not only unit-tested.
+The pool redesign closes through deterministic state/resource evidence rather than wall-clock timing.
 
-Required comparison should include at least:
+Required coverage must prove at least:
 
-```text
-A. v1 ordinary fresh-Connection-per-operation behavior
-B. v1 explicit ConnectionPool behavior
-C. v1.1 canonical implicit pool candidate
-```
+- configured minimum Connections are eagerly materialized;
+- additional Connections are created only on demand and never exceed `maximumConnections`;
+- healthy Connections are reused instead of disconnected/reopened per operation;
+- equivalent `Database` values resolve the same canonical Pool and the same frozen configuration;
+- the conservative 1/1 default works without explicit configuration;
+- explicit application configuration may choose another valid `minimumConnections...maximumConnections` range before first use;
+- invalid minimum/maximum combinations and conflicting equivalent-identity configuration fail deterministically;
+- many idle observations do not pin equivalent numbers of Connections;
+- queueing/backpressure and cancellation remain bounded and deterministic.
 
-Measure:
-
-- connection creations/destructions;
-- steady-state connection reuse;
-- maximum simultaneous native Connections;
-- query throughput;
-- p50/p95/p99 operation latency;
-- wait time under saturation;
-- transaction latency;
-- observation refresh latency;
-- many-idle-observation connection count;
-- many-active-observation contention;
-- CPU and memory;
-- cancellation behavior;
-- zero/low/high concurrency;
-- pool capacity sensitivity.
-
-Correctness must include:
+Correctness must also include:
 
 - no lease use after return;
 - no transaction connection hopping;
@@ -482,7 +472,7 @@ The current v1 README/article explanation that ordinary `DatabaseIdentifier` ope
 After implementation acceptance:
 
 - update README database setup;
-- update Connection Pooling section;
+- update Connection Pooling section with official DuckDB connection best practices and the `minimumConnections` / `maximumConnections` policy;
 - update Observation resource-lifetime explanation;
 - update SwiftUI/UIKit examples;
 - update source-owned Agent Skills;
@@ -500,14 +490,14 @@ Do not rewrite public docs into future tense before implementation is accepted.
 1. independently reviewed architecture freezes the canonical pool/resource ownership model;
 2. ordinary database-backed conveniences use bounded reusable canonical pooling instead of fresh native Connections per operation;
 3. managed transactions retain one exact pooled lease through finalization;
-4. Observation no longer requires one permanently held native Connection per idle iterator unless benchmark/evidence explicitly rejects the preferred refresh-scoped model;
+4. Observation no longer requires one permanently held native Connection per idle iterator unless deterministic correctness/resource evidence rejects the preferred refresh-scoped model;
 5. pool capacity/backpressure is deterministic and cancellation-safe;
 6. scoped and any retained manual Connection APIs acquire from the canonical pool and do not create out-of-pool native Connections;
-7. the role of the v1 `connect()` and explicit `pool(maximumConnections:)` APIs is resolved coherently;
+7. v1 `connect()` and explicit `pool(maximumConnections:)` compatibility are resolved coherently onto manual/scoped access to the SAME canonical Pool;
 8. the `Database.app` public API direction is implemented and the old `DatabaseIdentifier` spelling has a reviewed soft-deprecation path;
 9. current internal live runtime naming no longer blocks the public `Database` API;
 10. regression/correctness coverage proves leases, transactions, Observation, Statement, Appender, migrations, and fail-close behavior;
-11. benchmarks prove bounded connection counts and acceptable/improved performance versus v1 fresh-connection behavior;
+11. deterministic resource/state validation proves bounded connection counts, eager-minimum/lazy-growth behavior, reuse, cancellation-safe backpressure, and no fresh-Connection-per-operation regression in the canonical paths;
 12. `OBSERVATION-SCALABILITY-V1_1` uses the final accepted pooled refresh ownership model;
 13. README/examples/skills/migration guidance are synchronized;
 14. full supported validation passes;

@@ -67,7 +67,7 @@ Do not use arbitrary sleeps, wall-clock timing thresholds, or test serialization
 
 For concurrency tests, prefer structured task groups, explicit state/result assertions, unique data, and deterministic synchronization where a public/production-safe synchronization point already exists.
 
-Performance timing may be benchmark evidence later, but it is not correctness proof.
+Wall-clock performance timing is not a correctness gate and is not used to select canonical-pool defaults. Pool and Observation acceptance relies on deterministic correctness, stress, lifecycle, and resource-accounting evidence.
 
 ## SQL Construction
 

@@ -169,13 +169,13 @@ If future server-side PostgreSQL/MySQL-style migration products need stronger re
 
 ---
 
-# 5. Benchmark-first rule
+# 5. Product-pain and deterministic scale rule
 
-No long-history optimization is justified merely because the architecture is elegant.
+No long-history optimization is justified merely because the architecture is elegant, and it is not gated by wall-clock timing.
 
-Before implementation, measure both cases.
+Before implementation, establish a real client problem and exercise both fresh and dormant histories at deterministic scale.
 
-## Fresh replay benchmark
+## Fresh replay stress matrix
 
 Representative migration counts:
 
@@ -189,20 +189,11 @@ Representative migration counts:
 10,000
 ```
 
-Families should include:
+Families should include DDL creation, schema evolution on empty state, empty-data DML, bounded seed/reference data, Run-heavy database-contained work, and mixed realistic long-lived history.
 
-- DDL creation;
-- schema evolution on empty state;
-- empty-data DML;
-- bounded seed/reference data;
-- Run-heavy database-contained work;
-- mixed realistic long-lived history.
+Record deterministic facts such as migration/statement counts, rows transformed, history-table growth, transaction/checkpoint behavior, memory/resource bounds where observable, and exact resulting schema/data state. Do not use elapsed-time thresholds as an architecture gate.
 
-Separate fixed database/runtime startup cost from migration scaling where practical.
-
-Do not benchmark only no-op closures.
-
-## Dormant populated replay benchmark
+## Dormant populated replay stress matrix
 
 Representative pending distances:
 
@@ -217,30 +208,13 @@ Representative pending distances:
 
 Representative data sizes should range from tiny to large, including realistic multi-table user data.
 
-Families should distinguish:
+Families should distinguish schema/catalog-heavy histories, realistic sparse data transformations, deliberately heavy repeated data rewrites, Run-heavy histories, and mixed realistic dormant-client history.
 
-- schema/catalog-heavy histories;
-- realistic sparse data transformations;
-- deliberately heavy repeated data rewrites;
-- Run-heavy histories;
-- mixed realistic dormant-client history.
-
-The report must identify the actual cost driver:
-
-```text
-migration count
-row rewrites
-catalog work
-file I/O
-transaction/checkpoint work
-mixed/other
-```
+The evidence must identify the structural cost driver — migration count, row rewrites, catalog work, file I/O/checkpoint work, or another concrete resource/complexity source — without turning host speed into a universal product threshold.
 
 Important interpretation:
 
-> If runtime cost is dominated by a few expensive data transformations rather than migration count itself, optimize/replace those transformations instead of inventing migration-count infrastructure.
-
-No universal millisecond threshold was selected.
+> If the real product problem comes from a few expensive data transformations rather than migration count itself, optimize/replace those transformations instead of inventing migration-count infrastructure.
 
 ---
 
@@ -271,7 +245,7 @@ Several increasingly complex designs were considered, including:
 
 ### Fresh replay may not be a real problem
 
-The entire bootstrap direction is **not justified until benchmark evidence says empty replay is materially expensive**.
+The entire bootstrap direction is **not justified until real product evidence and deterministic scale/resource analysis show that ordinary empty replay is an actual problem**.
 
 Its current status is:
 
@@ -316,7 +290,7 @@ A client rollup model may solve both:
 
 with one migration abstraction and no bundled database artifact.
 
-Therefore separate bootstrap infrastructure should be reopened only if benchmarks show the rollup approach does not provide sufficient fresh-install performance.
+Therefore separate bootstrap infrastructure should be reopened only if real fresh-install product evidence shows that the rollup approach is insufficient or creates unacceptable structural/resource cost.
 
 ---
 
@@ -1116,11 +1090,9 @@ empty
 
 This can remove the need for a separate generated `.duckdb` bootstrap artifact.
 
-Whether this is actually fast enough is benchmark-dependent.
+Whether this is acceptable must be decided from real product behavior, deterministic replay scale, resource/state evidence, and maintenance complexity rather than a repository-local stopwatch.
 
-Do not assume it is.
-
-If a short rollup chain later becomes measurably too expensive for fresh creation, the old precompiled-bootstrap research may be reopened as a separate optimization.
+If a short rollup chain later proves structurally or operationally unacceptable for fresh creation, the old precompiled-bootstrap research may be reopened as a separate optimization.
 
 ---
 
@@ -1219,7 +1191,7 @@ the design should be reconsidered.
 
 These must be researched again before implementation.
 
-1. Do fresh and dormant replay benchmarks prove a real product problem?
+1. Do real fresh/dormant client scenarios and deterministic scale/resource evidence prove a product problem?
 2. What exact public client-layer API is smallest and clearest?
 3. Should the rollup protocol be a separate type rather than `Migration`?
 4. What exact `RollupContext` gives enough information without exposing huge historical sets?
@@ -1234,7 +1206,7 @@ These must be researched again before implementation.
 13. How many historical `.duckdb` fixtures should remain long-term?
 14. When, if ever, may an old rollup bridge itself be retired?
 15. Does a linear rollup chain remain simple after several generations in a real project?
-16. Does this architecture still beat simply replaying ordinary migrations after real benchmark results?
+16. Does this architecture still justify its complexity compared with simply replaying ordinary migrations under real product scenarios?
 17. If fresh replay remains costly even with a short rollup chain, should precompiled bootstrap be reopened?
 18. How does future DuckDB storage-format evolution interact with retained historical database fixtures and dormant-user upgrade guarantees?
 
@@ -1246,12 +1218,12 @@ When the maintainer explicitly promotes this debt into active work:
 
 1. read this dossier;
 2. verify then-current Duck migration implementation and tests rather than trusting old source facts;
-3. run fresh replay benchmarks;
-4. run dormant populated replay benchmarks;
+3. run deterministic fresh replay stress/scale validation;
+4. run deterministic dormant populated replay stress/scale validation;
 5. re-check current DuckDB storage/transaction semantics;
 6. re-check current GRDB/Django/Room/Flyway behavior if used as comparison evidence;
 7. independently challenge the linear-rollup candidate rather than treating it as frozen architecture;
-8. write a fresh implementation architecture only if measured value justifies it;
+8. write a fresh implementation architecture only if demonstrated product value and deterministic scale/resource evidence justify it;
 9. run normal independent plan audit before source changes;
 10. preserve foundation `Migration/MigrationPlan/Migrator/down/revert` unless a separately authorized foundation change is proven necessary.
 
@@ -1267,7 +1239,7 @@ This debt may be closed only when one of the following happens.
 
 A client long-history strategy is:
 
-- justified by benchmark/product evidence;
+- justified by real product evidence plus deterministic scale/resource evidence;
 - designed and independently audited;
 - implemented;
 - tested across supported historical states;
@@ -1283,7 +1255,7 @@ Then:
 
 ## Closure by rejection
 
-Fresh/dormant benchmarks and product evidence prove that no dedicated long-history feature is worthwhile for supported real use cases.
+Fresh/dormant product scenarios and deterministic scale/resource evidence prove that no dedicated long-history feature is worthwhile for supported real use cases.
 
 Then document that durable decision in the appropriate stable owner, close/remove the debt entry, and **delete this dossier file**.
 
@@ -1314,7 +1286,8 @@ DEBT=CLIENT-MIGRATION-LONG-HISTORY-DX
 
 RELEASE_BLOCKER_V1_0_0=NO
 IMPLEMENTATION_AUTHORIZED=NO
-BENCHMARK_REQUIRED=YES
+WALL_CLOCK_BENCHMARK_REQUIRED=NO
+DETERMINISTIC_SCALE_RESOURCE_EVIDENCE_REQUIRED=YES
 
 FOUNDATION_MIGRATOR=KEEP
 FOUNDATION_REVERT_DOWN=KEEP
@@ -1342,7 +1315,7 @@ OUTER_CLIENT_UPGRADE_EXCLUSIVITY=LIKELY_REQUIRED
 HISTORICAL_TESTING=FIRST_CLASS
 LONG_TERM_TEST_ASSET=BOUNDED_REAL_HISTORICAL_DUCKDB_FIXTURES
 
-SEPARATE_PRECOMPILED_BOOTSTRAP=BENCHMARK_GATED_SECONDARY
+SEPARATE_PRECOMPILED_BOOTSTRAP=PRODUCT_EVIDENCE_GATED_SECONDARY
 GENERAL_GRAPH_PLANNER=NO
 NUMERIC_SCHEMA_VERSION=NO
 POINT_MILESTONE=NO

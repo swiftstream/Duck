@@ -1722,8 +1722,14 @@ Trigger for publication: when the maintainer chooses a channel and completes its
 ### Start with one scope
 
 ```swift
-let database = DatabaseIdentifier.memory()
-let pool = try await database.pool(maximumConnections: 4)
+let database = Database.memory()
+
+try await database.configure(
+    minimumConnections: 1,
+    maximumConnections: 4
+)
+
+let pool = try await database.pool()
 let users = DB.Table("users")
 
 let rows = try await pool.connection { connection in
@@ -1738,7 +1744,7 @@ The caller receives a `QueryResult` whose values are Swift-owned. The leased Con
 
 ### Why a pool exists
 
-An embedded application can have several independent units of database work: a request reading a dashboard, a background import, and a command updating one row. A single Connection serializes its native work. Creating an unbounded new Connection for every unit of work gives the application no capacity limit. `DatabaseIdentifier.pool(maximumConnections:)` resolves the canonical runtime and offers a bounded, lazy set of Connections with one explicit scope per checkout. It opens them on demand and keeps reuse behind the pool. The count must be positive.
+An embedded application can have several independent units of database work: a request reading a dashboard, a background import, and a command updating one row. A single Connection serializes its native work. Duck resolves one canonical bounded Pool per logical `Database` runtime. The conservative default is 1/1; applications may explicitly choose `minimumConnections` and `maximumConnections` before first canonical use. The minimum is opened eagerly, additional Connections grow lazily on demand up to the maximum, and healthy cores are reused. This follows DuckDB's official Connection guidance: reuse Connections, start conservatively, and treat the exact concurrency bound as workload-specific rather than a universal magic number.
 
 The bound concerns live or reserved Connections, not an automatic limit on task creation. When every slot is occupied, checkout waits in FIFO order. Cancellation of a queued checkout removes that request; it does not leak a slot. A body should release its lease promptly rather than waiting on work that needs another lease of the same pool.
 
@@ -1755,7 +1761,7 @@ let count = try await pool.connection { connection in
 
 This closure is the validity boundary. Await any child work that uses the Connection before returning. A reference kept beyond the scope cannot be used as a fresh pooled Connection, even if a later checkout happens to reuse the same actor. Statements, Transactions, and Appenders created under a lease also remain bound to their originating Connection and lease lifetime. A stale pooled operation fails with `.poolLeaseExpired`.
 
-Reentering `pool.connection` from within an active lease of the same pool fails with `.poolReentrantCheckout`. Independent work that needs another Connection should be structured outside that live lease. A pool belongs to the canonical runtime resolved by the identifier that created it; a different identifier identity owns a different logical database.
+Reentering `pool.connection` from within an active lease of the same pool fails with `.poolReentrantCheckout`. Independent work that needs another Connection should be structured outside that live lease. A pool belongs to the canonical runtime resolved by the `Database` that created it; a different database identity owns a different logical database.
 
 ### Put a transaction inside the lease
 
@@ -1773,7 +1779,7 @@ try await pool.transaction { transaction in
 
 Flat transactions are available through a leased Connection when a lexical managed body is unsuitable, but the caller must explicitly finish them before leaving the pool closure. An unfinalized flat transaction is rolled back during return and a successful body receives `.poolTransactionNotFinalized`; cleanup failure may produce `TransactionRollbackError`.
 
-### Observation stays with the DatabaseIdentifier
+### Observation stays with the Database
 
 ```swift
 let observation = try database.observe(
@@ -1791,7 +1797,7 @@ try await pool.connection { connection in
 }
 ```
 
-An observation iterator has its own private refresh Connection; it does not hold a pool lease. Mutations made through a Connection from an equivalent `DatabaseIdentifier` publish through the same canonical Observation coordinator. Managed transaction finalization and Appender native visibility keep their existing publication boundaries. Returning a lease, retiring an unusable Connection, or opening its replacement is not itself a mutation and produces no synthetic observation signal. `QueryObservation` remains a latest-state read-only query sequence, not a per-write event log or an external-file watcher. There is no `pool.observe` or `Connection.observe` method.
+Until the v1.1 Observation refresh-routing wave lands, an observation iterator has its own private refresh Connection. Mutations made through a Connection from an equivalent `Database` publish through the same canonical Observation coordinator. Managed transaction finalization and Appender native visibility keep their existing publication boundaries. Returning a lease, retiring an unusable Connection, or opening its replacement is not itself a mutation and produces no synthetic observation signal. `QueryObservation` remains a latest-state read-only query sequence, not a per-write event log or an external-file watcher. There is no `pool.observe` or `Connection.observe` method.
 
 ### Close intentionally
 
@@ -1803,12 +1809,12 @@ Call shutdown after the application's active pool work has a path to finish. Shu
 
 ### Boundaries to preserve
 
-Pool capacity is not a claim that all DuckDB work runs in parallel: each individual Connection serializes its own operations. Cancellation is cooperative at supported boundaries. The current public API offers no manual checkout/release, timeout, idle lifetime, session reset, statement cache, metrics, or global pool registry. It also makes no new platform or performance guarantee.
+Pool capacity is not a claim that all DuckDB work runs in parallel: each individual Connection serializes its own operations and DuckDB may already parallelize one query internally. Cancellation is cooperative at supported boundaries. Manual canonical checkout is available through `Database.connect()` and ends with `Connection.release()`. The current public API does not add checkout timeout, idle lifetime, session reset, statement cache, public metrics, or public global registry control. It also makes no new platform or universal performance guarantee.
 
 ### Useful publication angles
 
-1. One bounded pool can serve independent app requests while keeping Connection lifetime explicit.
+1. One canonical bounded pool can serve independent app requests while keeping Connection lifetime explicit and developer-configurable through min/max bounds.
 2. Scoped leases keep stale resources from silently participating in later work.
 3. The transaction convenience reuses managed Connection semantics instead of adding a parallel commit model.
-4. Identifier-bound canonical-runtime Observation continues across lease return and reuse without claiming event delivery.
+4. Database-bound canonical-runtime Observation continues across lease return and reuse without claiming event delivery.
 5. Graceful shutdown has an explicit stop-and-drain boundary.

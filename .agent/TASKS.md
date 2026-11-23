@@ -38,7 +38,7 @@ Fresh external GPT-5.6 Sol re-audit:
 
 R0 architecture/reality research and plan correction/audit are CLOSED.
 
-Wave 00 is CLOSED. The final external GPT-5.6 Sol B0 acceptance audit returned `CLEAN`, `FINDING_COUNT=0`, `WAVE00_B0_ACCEPTED=YES`, and `WAVE01_AUTHORIZED=YES`. The accepted benchmark harness is committed at `c56a3ca953380a2d97676e67ad1ceb43b84e5924`; the external B0 report SHA-256 is `b73a40d48baf1681369026ea565b340834cae4506174c1f8c1ad39ff89f3041c`.
+Wave 00 is CLOSED historical evidence. The final external GPT-5.6 Sol B0 acceptance audit returned `CLEAN`, `FINDING_COUNT=0`, `WAVE00_B0_ACCEPTED=YES`, and `WAVE01_AUTHORIZED=YES`. Its old harness/evidence is not an active timing gate and must not be used to derive v1.1 pool defaults.
 
 ### Database public identity migration — CLOSED / EXTERNALLY ACCEPTED
 
@@ -64,9 +64,9 @@ Final external evidence-audit report SHA-256:
 
 Wave02 establishes the thin public actor handle, reusable internal `Connection.Runtime`, exact `ConnectionAuthority`, fresh public handle per pooled generation, exact Statement/DuckTransaction/Appender binding, and the corrected registered-operation drain semantics. TX11/TX12/TX13 close the rollback-only, exact-current drain, and stale-generation proof boundaries. Ordinary Database convenience routing remains transitional until later waves by design.
 
-### Wave 03 canonical Runtime pool/controller + explicit canonical access — ACCEPTED FOR WAVE03B / WAVE03B CURRENT
+### Wave 03 canonical Runtime pool/controller + explicit canonical access — EXTERNALLY ACCEPTED / CONFIGURATION CORRECTION CURRENT
 
-The complete corrected Wave03 Product/test candidate is externally accepted CLEAN for the pre-commit Wave03B automatic-capacity gate. Wave03 itself remains deliberately uncommitted until Wave03B selects and wires the benchmark-approved automatic default, revalidates the combined candidate, and closes its required benchmark/evidence + final implementation audits.
+The complete corrected Wave03 Product/test candidate is externally accepted CLEAN. The maintainer revoked the former pre-commit Wave03B timing-derived automatic-capacity gate on 2026-11-23. Wave03 remains uncommitted while the canonical pool configuration API is corrected to use official DuckDB connection guidance, a conservative 1/1 default, explicit `minimumConnections` / `maximumConnections`, eager minimum warm-up, lazy growth to the maximum, deterministic resource/correctness validation, public documentation, and a fresh final implementation audit.
 
 The prior `PRIMARY_MODEL_GATE_CORRECTION_01.md`, `SECONDARY_POWER_WAVE03_CONTINUATION_01_PROMPT.md`, and its mini-launcher are REVOKED and MUST NOT be resumed. Their substitution of Astra into Luna implementation roles was not maintainer-authorized. Local GPT-6.2 Sol planning/adjudication/audit remains a valid canonical SECONDARY_POWER capability under its workflow model matrix and budget. The partial G01/G02/G03 candidate is preserved uncommitted; it is not accepted merely because the interrupted SECONDARY recorded earlier gates as PASS.
 
@@ -88,9 +88,9 @@ SHA-256:
 
 `9f144d3445ac46daf83a57e32191f04bf0ee381b39cee5735eb257ef09c30d05`
 
-Terminal authority: `WAVE03_ACCEPTED_FOR_WAVE03B=YES`, `WAVE03B_AUTHORIZED=YES`, `WAVE03_PRODUCT_COMMIT_AUTHORIZED=NO`.
+Historical external terminal authority recorded `WAVE03_ACCEPTED_FOR_WAVE03B=YES`, `WAVE03B_AUTHORIZED=YES`, and `WAVE03_PRODUCT_COMMIT_AUTHORIZED=NO`. The maintainer's later 2026-11-23 decision supersedes only the timing/default-selection path; the accepted Wave03 correctness evidence remains valid input.
 
-The intended Product authority remains the combined Wave03 + pre-commit Wave03B program from Plan 01 Correction 02, with the additive manual-lease API clarification at:
+The intended Product authority is the accepted Wave03 resource model plus the maintainer's 2026-11-23 pool-configuration correction, with the additive manual-lease API clarification at:
 
 `/Users/imike/Development/SwiftStream/Duck/.artifacts/planning/v1-1-wave03-canonical-pool-controller-2026-11-22/PRIMARY_MANUAL_LEASE_API_DECISION.md`
 
@@ -112,11 +112,7 @@ Wave03 must implement:
 
 Public `Connection.close()` is intentionally absent: normal manual release returns a healthy reusable native core to the canonical pool rather than physically disconnecting it. Physical destruction belongs to internal retirement/shutdown. v1.1 does not add a public capacity-bypassing unpooled connection API; a possible future fresh/non-reusable dedicated API is deferred and would still require capacity/lifetime control.
 
-Wave03 must NOT yet bulk-reroute ordinary SQLable/model Database conveniences; that is Wave04. The combined Wave03 candidate must remain uncommitted until Wave03B selects and wires the automatic capacity/default from accepted benchmark evidence.
-
-**MAC MUST BE IDLE BEFORE RUNNING WAVE03B PERFORMANCE BENCHMARKS.**
-
-Before Wave03B, capacity-sensitive Wave03 tests/probes use explicit configuration; no unfinished temporary default may be committed or documented as accepted public behavior.
+Wave03 must NOT yet bulk-reroute ordinary SQLable/model Database conveniences; that is Wave04. The current correction removes the temporary "automatic capacity not selected" failure and establishes the conservative 1/1 default plus explicit min/max configuration. Capacity-sensitive validation uses deterministic state/resource assertions; no timing-based capacity selection or performance benchmark gate is part of this acceptance path.
 
 Deferred Advanced Appender and recursive/composite Value work remain out of scope.
 
@@ -152,17 +148,17 @@ The accepted v1 surface is a UI-neutral reusable latest-state `QueryObservation`
 
 The current boundary explicitly does not promise event-log delivery, reusable prepared-handle VIEW rebind, cross-identifier/cross-process invalidation, cross-process/file watching, or framework-specific publishers. Accepted executable evidence remains Swift 6.3.3 build + 557/557 tests in 11 suites with zero failures/skips, focused Swift 6.4 public Observation/manual-finalization coverage, and Swift 6.4 build PASS.
 
-The capability is functionally complete for v1, but v1.1 has an active coupled architecture/performance program: `DATABASE-POOL-ARCHITECTURE-V1_1` + `OBSERVATION-SCALABILITY-V1_1`. Ordinary non-read-only query/Statement execution currently publishes Database-wide invalidation, and each live Observation iterator currently owns a private Connection for its lifetime. Plan 01 Correction 02 is independently CLEAN and implementation-authorized. Wave 00 historical benchmark evidence, the Database public identity migration, and the isolated manual Connection lifetime proof are CLOSED / externally accepted; the current Product work is the `Connection` public-handle/internal-runtime split without canonical Database routing.
+The capability is functionally complete for v1, but v1.1 has an active coupled architecture/resource-scalability program: `DATABASE-POOL-ARCHITECTURE-V1_1` + `OBSERVATION-SCALABILITY-V1_1`. Ordinary non-read-only query/Statement execution currently publishes Database-wide invalidation, and each live Observation iterator currently owns a private Connection for its lifetime. Plan 01 Correction 02 is independently CLEAN and implementation-authorized, with its timing-derived capacity-selection clause superseded by the maintainer's 2026-11-23 policy. Wave 00 remains historical evidence; current Product work is the canonical min/max/default configuration correction followed by ordinary Database routing and pooled Observation refresh work.
 
-### Connection Pooling — COMPLETE
+### Connection Pooling — v1 COMPLETE / v1.1 CANONICAL CONFIGURATION CORRECTION ACTIVE
 
-The public surface is `DatabaseIdentifier.pool(maximumConnections:)`, actor `ConnectionPool` with `maximumConnections`, scoped `pool.connection`, thin `pool.transaction`, and `shutdown()`.
+The accepted v1 Pool machinery preserves FIFO cancellation-safe checkout, full-token lease liveness, retirement/replacement of unusable Connections, lease-safe Observation publication, pooled Appender visibility, and same-database canonical-runtime locality.
 
-The accepted implementation preserves FIFO cancellation-safe checkout, full-token lease liveness, retirement/replacement of unusable Connections, lease-safe Observation refresh/publication, pooled Appender visibility, and same-identifier canonical-runtime observation locality. Full Swift 6.3.3 validation is 636 tests / 18 suites with 0 failures / 0 skips / 0 warnings. README, publication source material, and the source-owned `duck-connection-pooling` skill complete public closure.
+The active v1.1 surface is one canonical `Database` Pool with public `minimumConnections` / `maximumConnections`, conservative 1/1 default, eager minimum initialization, lazy growth up to the developer-selected maximum, scoped `Database.connection {}`, manual pooled `Database.connect()` + `Connection.release()`, `pool.connection`, thin `pool.transaction`, and `shutdown()`. Deprecated `pool(maximumConnections:)` remains only as source-compatible configuration + access to that SAME canonical Pool. No timing-derived capacity selection remains in the acceptance path.
 
 The fixed selected-column Appender slice is also accepted current state with Swift 6.3.3 build and 647 tests in 20 suites passing.
 
-The v1 explicit ConnectionPool remains accepted v1 behavior, but its role is explicitly reopened by `DATABASE-POOL-ARCHITECTURE-V1_1`: ordinary work, explicit scoped/manual Connection access, transactions, and Observation refresh must be reconciled into one canonical bounded resource model through reviewed v1.1 work. Android follow-up, unrelated platform assurance, Advanced Appender surfaces, and further recursive/composite Value families remain separately gated.
+After this configuration correction, ordinary conveniences and Observation refresh still need their separately authorized canonical-routing waves. Android follow-up, unrelated platform assurance, Advanced Appender surfaces, and further recursive/composite Value families remain separately gated.
 
 ### Public capability closure contract
 

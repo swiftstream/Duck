@@ -10,7 +10,7 @@ This file is the detailed stable technical dossier for the v1.1 reactive-observa
 
 Normal project startup should load only the short pointer in `.agent/TECH_DEBT.md` and the accepted current behavior in `.agent/skills/duck-observation/SKILL.md`.
 
-Load this dossier when planning, auditing, implementing, or benchmarking the v1.1 observation-scalability work, or when a task explicitly asks about observation invalidation performance.
+Load this dossier when planning, auditing, implementing, stress-validating, or documenting the v1.1 observation-scalability work.
 
 The dossier is intentionally self-contained so future work does not depend on transient `.artifacts/**` research.
 
@@ -21,12 +21,12 @@ This file records an active high-priority debt, but it is still not production-s
 When the v1.1 objective is fully implemented and independently accepted:
 
 1. move accepted permanent architecture rules into the correct source docs, tests, README/public docs, `.agent/PROJECT_MEMORY.md`, `.agent/SOURCE_MAP.md`, and `.agent/skills/duck-observation/SKILL.md`;
-2. preserve benchmark methodology/results in the durable benchmark owner selected by the reviewed plan;
+2. preserve deterministic stress/correctness methodology and results in the durable evidence owner selected by the reviewed plan;
 3. close or remove the corresponding entry in `.agent/TECH_DEBT.md`;
 4. update `.agent/MASTER_PLAN.md` and `.agent/TODO.md`;
 5. delete this dossier only after no active/stable documentation depends on it.
 
-The debt is not closed merely because table-aware invalidation exists. Closure requires the accepted scalability target and benchmark gate below.
+The debt is not closed merely because table-aware invalidation exists. Closure requires the deterministic scalability/correctness gate below.
 
 ---
 
@@ -303,7 +303,7 @@ For mutation paths where affected row identity or old/new values can be obtained
 
 This may be valuable for hot-table workloads where table-level invalidation is still too broad.
 
-The exact capture mechanism is unresolved and must be benchmarked before adoption.
+The exact capture mechanism is unresolved and must be proven against deterministic correctness/resource stress cases before adoption.
 
 Do not add a per-row bookkeeping system whose mutation overhead is worse than the reruns it avoids.
 
@@ -313,7 +313,7 @@ Incrementally patching the current QueryResult instead of rerunning SQL is expli
 
 It may become attractive for narrow simple-query classes, but it expands the correctness surface dramatically.
 
-Do not turn the v1.1 objective into a general incremental-view-maintenance project unless benchmark evidence proves the preceding levels insufficient.
+Do not turn the v1.1 objective into a general incremental-view-maintenance project unless source/runtime evidence and deterministic stress coverage prove the preceding levels insufficient.
 
 ---
 
@@ -358,7 +358,7 @@ They are not automatically the preferred solution because a trigger-based design
 - lifecycle/migration complexity;
 - extra materialization/copying of changed rows.
 
-No trigger-based architecture may be adopted without benchmark and semantic evidence that its overhead is acceptable and its compatibility surface is understood.
+No trigger-based architecture may be adopted without semantic/resource evidence that its lifecycle and compatibility surface are understood.
 
 ## C API v2
 
@@ -437,30 +437,26 @@ Observation remains a latest-state abstraction, not an event log.
 
 ---
 
-# 11. Benchmark suite is mandatory for closure
+# 11. Deterministic scalability stress suite is mandatory for closure
 
-This debt cannot close from unit tests alone.
+This debt cannot close from small unit tests alone, but wall-clock timing is not a release gate.
 
-v1.1 must add a reproducible benchmark harness designed specifically for reactive observation.
-
-Synthetic data generation is required so the benchmark can scale deterministically without checked-in giant database fixtures.
+v1.1 must include deterministic generated-data stress coverage specifically for reactive Observation. The goal is to prove correctness, bounded resource behavior, routing precision, and lifecycle cleanup at realistic scale without using throughput or latency thresholds.
 
 ## Required database scales
 
-At minimum include representative runs at:
+Representative generated-data lanes should include:
 
 ```text
 100k rows
 1M rows
 5M rows
-10M rows
+10M rows where practical
 ```
 
-The million-row lanes are mandatory.
+At least one million-row lane is mandatory. Larger lanes are stress coverage, not performance timing.
 
-If 10M is impractical on a required CI/host lane, keep it as an explicit heavy/manual benchmark rather than silently deleting it.
-
-Use multiple tables so cross-table invalidation can be measured.
+Use multiple tables so cross-table invalidation and unrelated-write routing are exercised.
 
 ## Required observation counts
 
@@ -473,9 +469,7 @@ Representative lanes should include:
 100
 ```
 
-active observations where hardware permits.
-
-Do not benchmark only one subscriber.
+active observations where the validation host can execute them reliably.
 
 ## Required query classes
 
@@ -488,9 +482,9 @@ Include at least:
 5. selective query where most writes are irrelevant;
 6. two-table JOIN;
 7. aggregate/GROUP BY query;
-8. a deliberately complex query that is expected to fall back conservatively.
+8. a deliberately complex query that must fall back conservatively.
 
-The benchmark report must identify which invalidation level each query class receives.
+Every query class must record which invalidation level it receives and assert the expected routing behavior.
 
 ## Required mutation classes
 
@@ -500,92 +494,72 @@ Include:
 - single-row UPDATE;
 - single-row DELETE;
 - batch INSERT;
-- batch UPDATE where supported by the benchmark model;
+- batch UPDATE where supported by the validation model;
 - transaction containing mixed mutations;
 - Appender ingestion;
 - unrelated-table writes;
 - same-table but predicate-irrelevant writes;
 - same-table predicate-relevant writes.
 
-Include both sparse and bursty traffic.
+Include both sparse and bursty traffic patterns.
 
-## Required metrics
+## Required assertions
 
-Measure at least:
+Record and assert at least:
 
-- mutation throughput;
-- p50/p95/p99 mutation latency;
-- observation refresh latency;
-- p50/p95/p99 time from committed relevant mutation to emitted latest state;
 - number of invalidations generated;
 - number of observations matched;
 - number of SQL reruns;
 - number of reruns avoided;
 - number of equal QueryResults suppressed after rerun;
-- rows/materialized bytes where practical;
-- CPU time/utilization;
-- peak/resident memory where practical;
-- overhead with zero active observations;
-- overhead with many observations that are irrelevant to the write stream.
+- maximum queued refresh/check-out work;
+- maximum live pooled Connections;
+- bounded subscription/dependency state;
+- correct cancellation cleanup;
+- expected latest committed state after every synchronization checkpoint;
+- zero missed relevant committed updates;
+- zero transactional intermediate-state leakage.
 
-The critical metric is not merely raw DuckDB SELECT speed.
-
-The benchmark must show how much work Duck's observation layer causes or avoids.
+These are deterministic counters/state assertions, not wall-clock performance metrics.
 
 ---
 
-# 12. Baselines and acceptance philosophy
+# 12. Acceptance philosophy
 
-Every benchmark family must compare at least:
-
-```text
-A. v1-style Database-wide invalidation baseline
-B. table-aware candidate
-C. final v1.1 candidate
-```
-
-Where a predicate/row-aware fast path exists, include a lane with that fast path disabled so its benefit and overhead are visible.
-
-Do not invent a marketing-friendly absolute threshold before measurements exist.
-
-Acceptance should instead require all of the following:
+Acceptance requires all of the following:
 
 - zero missed relevant committed updates in correctness oracles;
-- no unbounded invalidation queue/memory growth;
+- no unbounded invalidation queue or memory/state growth;
 - table-unrelated writes do not rerun unrelated table-scoped observations;
-- supported predicate-aware cases measurably avoid same-table irrelevant reruns;
-- the observation machinery adds low overhead to writes when no active observation is relevant;
-- the candidate materially improves high-write/high-observation workloads over the v1 baseline;
-- no benchmark lane shows a severe regression hidden by an average;
-- results are reproducible enough for independent audit.
+- supported predicate-aware cases avoid same-table irrelevant reruns according to deterministic counters;
+- zero-observation and irrelevant-observation paths do not create unexpected retained work/resources;
+- Connection use remains bounded by the canonical pool configuration;
+- cancellation and iterator teardown release coordinator, dependency, waiter, and lease state;
+- unsupported/ambiguous query or mutation shapes fall back conservatively;
+- results are reproducible enough for independent audit without relying on timing thresholds.
 
-After real numbers exist, the maintainer may freeze concrete performance budgets for release gating.
+Do not introduce performance budgets or capacity defaults from local timing measurements.
 
 ---
 
-# 13. Benchmark methodology
+# 13. Stress methodology
 
-The benchmark harness must be reproducible and resistant to accidental self-deception.
+The stress harness must be deterministic and resistant to accidental false confidence.
 
 Require:
 
 - deterministic seeded synthetic data;
 - recorded schema and generator parameters;
-- Release/optimized build;
 - recorded Swift/Xcode/DuckDB version;
-- recorded host CPU/RAM/OS;
-- separate setup/generation time from measured steady-state time;
-- warm-up where appropriate;
-- multiple measured repetitions;
-- median plus tail metrics, not one best run;
-- explicit cold/warm cache labeling;
-- no debug logging in timed loops;
-- no UI rendering in database-core benchmark lanes;
-- validation that the expected number of relevant state changes actually occurred.
+- exact operation counts and synchronization points;
+- explicit expected-state oracle;
+- structured concurrency and deterministic gates rather than sleeps;
+- resource/state counters captured at synchronization checkpoints;
+- no UI rendering in database-core stress lanes;
+- validation that the expected number of relevant state changes occurred;
+- repeatable success without wall-clock thresholds.
 
-The primary heavy benchmark should run on the maintainer's Apple Silicon environment used for the target client workload.
-
-Cross-platform benchmark evidence is useful but is not a substitute for the primary client workload lane.
+Cross-platform stress evidence may be added where useful, but release acceptance is based on semantic/resource correctness rather than comparing host speed.
 
 ---
 
@@ -593,7 +567,7 @@ Cross-platform benchmark evidence is useful but is not a substitute for the prim
 
 Performance optimization is subordinate to observation correctness.
 
-The benchmark/test system should maintain an independent expected-state oracle for generated mutations.
+The deterministic stress/test system should maintain an independent expected-state oracle for generated mutations.
 
 At synchronization checkpoints, compare:
 
@@ -620,7 +594,7 @@ Include adversarial transitions:
 - NULL predicate transitions;
 - join-key changes.
 
-A fast path that misses one relevant state is rejected even if benchmark numbers are excellent.
+A fast path that misses one relevant state is rejected regardless of any perceived performance benefit.
 
 ---
 
@@ -632,7 +606,7 @@ Do not require callers to manually specify tables or predicates that Duck can de
 
 Do not expose internal invalidation tiers merely to make the implementation easier.
 
-Public configuration may be considered only if benchmark evidence proves there is a real consumer choice that cannot be inferred automatically.
+Public configuration may be considered only when there is a real consumer choice that cannot be inferred safely from semantics.
 
 Observation should remain easy:
 
@@ -682,7 +656,7 @@ The v1.1 plan must answer, with source/runtime evidence:
 10. Does a centralized coordinator remain the correct data structure, or does v1.1 need table-indexed subscription buckets or another indexing strategy?
 11. What data structures avoid O(number of all observations) work for every mutation?
 12. At what point does result materialization dominate invalidation overhead for million-row tables?
-13. Which benchmark results justify predicate/row-aware complexity beyond table/column-aware routing?
+13. Which source/runtime and deterministic stress evidence justifies predicate/row-aware complexity beyond table/column-aware routing?
 
 No implementation plan is complete until these questions are explicitly dispositioned.
 
@@ -692,7 +666,7 @@ No implementation plan is complete until these questions are explicitly disposit
 
 The v1 coordinator currently iterates active subscriptions and checks whether each dependency matches an invalidation.
 
-For heavy workloads, v1.1 must benchmark this independently from query execution.
+For heavy workloads, v1.1 must stress this independently from query execution using deterministic operation counts and resource/state assertions.
 
 A likely research direction is indexed subscription routing:
 
@@ -706,7 +680,7 @@ If column/predicate tiers are added, indexing may become hierarchical.
 
 Do not assume an O(N observations) scan is harmless merely because N is small in demos.
 
-Measure matching cost with realistic active-observation counts.
+Validate matching work with realistic active-observation counts using deterministic counters rather than wall-clock thresholds.
 
 ---
 
@@ -725,7 +699,7 @@ Cancellation must release:
 
 Transaction impact accumulation must be bounded by a compact summary where possible rather than retaining every mutation event.
 
-Benchmark memory during sustained write storms, not only after idle cleanup.
+Validate bounded retained state during sustained write storms, not only after idle cleanup.
 
 ---
 
@@ -735,14 +709,14 @@ Benchmark memory during sustained write storms, not only after idle cleanup.
 
 1. an independently reviewed implementation plan freezes the selected architecture;
 2. ordinary mutation paths are table-aware wherever safe;
-3. the accepted finer-grained strategy for hot-table workloads is implemented to the extent required by benchmark evidence;
+3. the accepted finer-grained strategy for hot-table workloads is implemented to the extent required by source/runtime and deterministic stress evidence;
 4. all unsupported/ambiguous cases conservatively fall back without missed updates;
 5. transaction/Appender/Statement/model mutation paths share coherent invalidation semantics;
 6. deterministic correctness coverage proves relevant updates are not lost, including the explicit cross-Connection COMMIT-during-refresh race and rollback/cancellation non-leakage cases;
 7. transaction/batch/pool integration coverage proves uncommitted intermediate row states never reach observers and every successful relevant COMMIT converges to the final state even when a stale refresh raced with finalization;
-8. the million-row benchmark harness exists and is reproducible;
-9. high-write/high-observation benchmark results materially beat the v1 Database-wide baseline;
-10. zero-observation and irrelevant-observation write overhead are measured and accepted;
+8. the million-row deterministic stress harness exists and is reproducible;
+9. high-write/high-observation stress coverage proves correct routing, bounded reruns/coalescing, and no missed relevant state;
+10. zero-observation and irrelevant-observation paths prove bounded retained work/resources with deterministic counters;
 11. memory/coalescing/cancellation behavior remains bounded under stress;
 12. Swift 6.3+ supported package validation passes;
 13. a fresh independent implementation/evidence audit is CLEAN;
