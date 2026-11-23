@@ -60,12 +60,6 @@ public struct Database: Hashable, Sendable {
         try await DatabaseRegistry.shared.resolve(self)
     }
 
-    /// Opens one standalone Connection for a Database convenience that has not migrated to the canonical pool.
-    func connectStandaloneForOrdinaryConvenience() async throws -> Connection {
-        let runtime = try await resolveRuntime()
-        return try runtime.connect()
-    }
-
     /// Checks out one canonical Pool Connection until `Connection.release()` or deinit.
     public func connect() async throws -> Connection {
         let runtime = try await resolveRuntime()
@@ -82,12 +76,13 @@ public struct Database: Hashable, Sendable {
         return try await pool.connection(body)
     }
 
-    /// Runs one managed transaction on a fresh Connection for this database value.
+    /// Runs one managed transaction on a Connection borrowed from this database's canonical pool.
     public nonisolated(nonsending) func transaction<Result>(
         _ body: (DuckTransaction) async throws -> Result
     ) async throws -> Result {
-        let connection = try await connectStandaloneForOrdinaryConvenience()
-        return try await connection.transaction(body)
+        try await connection { connection in
+            try await connection.transaction(body)
+        }
     }
 
     /// Configures this database's canonical Connection pool before first use.

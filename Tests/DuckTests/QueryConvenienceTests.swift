@@ -372,7 +372,11 @@ func typedTableQueryCountMatrix() async throws {
         .count(on: connection)
     #expect(c09 == 1)
 
+    // Wave04 routes Database terminals through the same canonical Pool.
+    // Release this max-one manual lease before asking Database to check out that Pool.
+    try await connection.release()
     #expect(try await QueryTerminalGood.query.count(on: database) == 5)
+    try await (try await database.pool()).shutdown()
 }
 
 private func assertDeleteRejected(

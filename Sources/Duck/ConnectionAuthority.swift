@@ -61,15 +61,15 @@ struct ConnectionAuthority: Hashable, Sendable {
     }
 }
 
-/// Exact standalone-handle identity used only before canonical pooling is implemented.
+/// Exact standalone-handle identity used by the transitional private Observation refresh path.
 struct StandaloneConnectionAuthorityId: Hashable, Sendable {
     /// Opaque nonce preventing standalone authority reuse across handles.
     let rawValue = UUID()
 }
 
-/// Distinguishes transitional standalone authority from exact pooled lease authority.
+/// Distinguishes transitional Observation refresh authority from exact pooled lease authority.
 enum ConnectionAuthorityGeneration: Hashable, Sendable {
-    /// Unique identity for one transitional standalone handle.
+    /// Unique identity for one private Observation refresh handle.
     case standalone(StandaloneConnectionAuthorityId)
     /// Full pool, core, and lease-generation token with its checkout ownership.
     case pooled(ConnectionPoolLeaseToken, ConnectionPoolLeaseOwnership)

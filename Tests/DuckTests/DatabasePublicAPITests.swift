@@ -56,6 +56,7 @@ struct DatabasePublicAPITests {
     @available(*, deprecated, message: "Exercises the deprecated pool API")
     func databaseRoutesPublicDatabaseWork() async throws {
         let database = Database.memory()
+        try await database.configure(maximumConnections: 2)
 
         try await CreateTableBuilder<DatabaseRecord>()
             .column("id", .bigint, .notNull)
@@ -118,7 +119,6 @@ struct DatabasePublicAPITests {
                 .count
         }
         #expect(pooledCount == 4)
-        try await pool.shutdown()
 
         let rows = try await DatabaseRecord
             .select
@@ -139,6 +139,8 @@ struct DatabasePublicAPITests {
             .from(appenderTable)
             .query(on: database)
         #expect(appended.rows.first?["id"] == .int32(7))
+
+        try await pool.shutdown()
     }
 
     @Test("Equivalent databases share one observation runtime")
@@ -187,7 +189,7 @@ struct DatabasePublicAPITests {
         try await connection.release()
     }
 
-    @Test("Database routes model UPSERT through a fresh Connection and returns decoded model")
+    @Test("Database routes model UPSERT through the canonical Pool and returns decoded model")
     func databaseRoutesModelUpsert() async throws {
         let database = Database.memory()
 

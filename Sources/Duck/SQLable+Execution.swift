@@ -9,25 +9,26 @@ extension SQLable {
         try database.observe(self)
     }
 
-    /// Executes this query on a fresh Connection for the supplied database.
+    /// Executes this query on a Connection borrowed from the supplied database's canonical pool.
     public nonisolated(nonsending) func query(
         on database: Database
     ) async throws -> QueryResult {
-        let connection = try await database.connectStandaloneForOrdinaryConvenience()
-        return try await connection.query(self)
+        try await database.connection { connection in
+            try await connection.query(self)
+        }
     }
 
-    /// Executes this statement on a fresh Connection for the supplied database.
+    /// Executes this statement on a Connection borrowed from the supplied database's canonical pool.
     @discardableResult
     public nonisolated(nonsending) func execute(
         on database: Database
     ) async throws -> UInt64 {
-        let connection = try await database.connectStandaloneForOrdinaryConvenience()
-        return try await connection.execute(self)
+        try await database.connection { connection in
+            try await connection.execute(self)
+        }
     }
 
-    /// Executes this query on a fresh Connection for the supplied database
-    /// and decodes every row.
+    /// Executes this query through the database's canonical pool and decodes every row.
     public nonisolated(nonsending) func all<Model: Decodable>(
         decoding type: Model.Type,
         on database: Database
@@ -35,8 +36,7 @@ extension SQLable {
         try await query(on: database).all(decoding: type)
     }
 
-    /// Executes this query on a fresh Connection for the supplied database
-    /// and decodes the first row, or returns `nil` when the result has no rows.
+    /// Executes this query through the database's canonical pool and decodes the first row, or returns `nil` when empty.
     public nonisolated(nonsending) func first<Model: Decodable>(
         decoding type: Model.Type,
         on database: Database

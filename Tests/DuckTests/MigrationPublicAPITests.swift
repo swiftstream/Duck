@@ -59,6 +59,10 @@ struct MigrationPublicAPITests {
         }
         #expect(columnNames == ["id", "name", "batch", "applied_at"])
 
+        // Migration operations use the canonical Pool, so release the manual
+        // max-one lease before asking the migrator to acquire its scope.
+        try await connection.release()
+
         let latestReverted: UInt = try await migrator.revert()
         #expect(latestReverted == 0)
         let countedReverted: UInt = try await migrator.revert(last: 1)
@@ -68,14 +72,15 @@ struct MigrationPublicAPITests {
         let allReverted: UInt = try await migrator.revertAll()
         #expect(allReverted == 0)
 
-        #expect(try await publicRows(on: connection, tableName: DefaultNamedMigration.tableName) == [])
-        #expect(try await publicRows(on: connection, tableName: ExplicitNamedMigration.tableName) == [])
+        let finalConnection = try await database.connect()
+        #expect(try await publicRows(on: finalConnection, tableName: DefaultNamedMigration.tableName) == [])
+        #expect(try await publicRows(on: finalConnection, tableName: ExplicitNamedMigration.tableName) == [])
         let finalHistory = try await SQL
             .select(history.column("name"))
             .from(history)
-            .query(on: connection)
+            .query(on: finalConnection)
         #expect(finalHistory.rows.isEmpty)
-        try await connection.release()
+        try await finalConnection.release()
     }
 
     @Test("normal import MigrationError is catchable and equatable")

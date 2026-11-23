@@ -70,12 +70,12 @@ extension TableQuery {
 }
 
 extension TableQuery {
-    /// Executes this query on a fresh connection and decodes every row as `T`.
+    /// Executes this query through the database's canonical pool and decodes every row as `T`.
     public nonisolated(nonsending) func all(on database: Database) async throws -> [T] {
         try await selectStatement().all(decoding: T.self, on: database)
     }
 
-    /// Executes this query on a fresh connection and decodes the first row as `T`, if present.
+    /// Executes this query through the database's canonical pool and decodes the first row as `T`, if present.
     public nonisolated(nonsending) func first(on database: Database) async throws -> T? {
         try await selectStatement().first(decoding: T.self, on: database)
     }
@@ -100,7 +100,7 @@ extension TableQuery {
         try await selectStatement().first(decoding: T.self, on: transaction)
     }
 
-    /// Executes this query on a fresh connection and decodes every row as `Decoded`.
+    /// Executes this query through the database's canonical pool and decodes every row as `Decoded`.
     public nonisolated(nonsending) func all<Decoded: Decodable>(
         decoding type: Decoded.Type,
         on database: Database
@@ -108,7 +108,7 @@ extension TableQuery {
         try await selectStatement().all(decoding: type, on: database)
     }
 
-    /// Executes this query on a fresh connection and decodes the first row as `Decoded`, if present.
+    /// Executes this query through the database's canonical pool and decodes the first row as `Decoded`, if present.
     public nonisolated(nonsending) func first<Decoded: Decodable>(
         decoding type: Decoded.Type,
         on database: Database
@@ -200,12 +200,12 @@ extension Table {
         TableQuery()
     }
 
-    /// Returns all rows from this table using a fresh connection for the supplied database.
+    /// Returns all rows from this table using the supplied database's canonical pool.
     public static func all(on database: Database) async throws -> [Self] {
         try await Self.select.all(decoding: Self.self, on: database)
     }
 
-    /// Returns the first row from this table using a fresh connection, or `nil` when it is empty.
+    /// Returns the first row from this table using the supplied database's canonical pool, or `nil` when it is empty.
     public static func first(on database: Database) async throws -> Self? {
         try await Self.select.first(decoding: Self.self, on: database)
     }

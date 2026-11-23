@@ -144,11 +144,13 @@ public struct Migrator: Sendable {
         try await coordinator.acquire(for: database)
 
         do {
-            let connection = try database.connect()
-            try await MigrationHistory.bootstrap(on: connection)
-            try await MigrationHistory.validate(on: connection)
-            let applied = try await MigrationHistory.load(on: connection)
-            let result = try await body(connection, applied)
+            let pool = try await database.canonicalPool()
+            let result = try await pool.connection { connection in
+                try await MigrationHistory.bootstrap(on: connection)
+                try await MigrationHistory.validate(on: connection)
+                let applied = try await MigrationHistory.load(on: connection)
+                return try await body(connection, applied)
+            }
             await coordinator.release(for: database)
             return result
         } catch {

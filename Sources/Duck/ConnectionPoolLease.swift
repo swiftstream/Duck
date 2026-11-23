@@ -64,7 +64,7 @@ struct ConnectionPoolLeaseReturnOutcome: Equatable, Sendable {
 
 /// Connection-side ownership states for standalone and Pool-managed Connections.
 enum ConnectionPoolLeaseState: Equatable, Sendable {
-    /// Ordinary Database.connect() Connection with no Pool authority.
+    /// Transitional private Observation refresh Connection with no Pool authority.
     case standalone
     /// Pool-owned Connection that is currently available for activation.
     case pooledIdle(ConnectionPoolID)

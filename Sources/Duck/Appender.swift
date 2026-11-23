@@ -128,42 +128,46 @@ public final class Appender: Sendable {
 }
 
 extension Database {
-    /// Creates a scoped Appender on a fresh Connection using the selected column order.
+    /// Creates a scoped Appender on a canonical pooled Connection using the selected column order.
     public nonisolated(nonsending) func appender<Result>(
         to table: DB.Table,
         columns: [String],
         _ body: (Appender) async throws -> Result
     ) async throws -> Result {
-        let connection = try await connectStandaloneForOrdinaryConvenience()
-        return try await connection.appender(to: table, columns: columns, body)
+        try await connection { connection in
+            try await connection.appender(to: table, columns: columns, body)
+        }
     }
 
-    /// Creates a scoped Appender on a fresh Connection for a qualified table using the selected column order.
+    /// Creates a scoped Appender on a canonical pooled Connection for a qualified table using the selected column order.
     public nonisolated(nonsending) func appender<Result>(
         to table: DB.Schema.Table,
         columns: [String],
         _ body: (Appender) async throws -> Result
     ) async throws -> Result {
-        let connection = try await connectStandaloneForOrdinaryConvenience()
-        return try await connection.appender(to: table, columns: columns, body)
+        try await connection { connection in
+            try await connection.appender(to: table, columns: columns, body)
+        }
     }
 
-    /// Creates a scoped Appender on a fresh Connection for one table.
+    /// Creates a scoped Appender on a canonical pooled Connection for one table.
     public nonisolated(nonsending) func appender<Result>(
         to table: DB.Table,
         _ body: (Appender) async throws -> Result
     ) async throws -> Result {
-        let connection = try await connectStandaloneForOrdinaryConvenience()
-        return try await connection.appender(to: table, body)
+        try await connection { connection in
+            try await connection.appender(to: table, body)
+        }
     }
 
-    /// Creates a scoped Appender on a fresh Connection for one qualified table.
+    /// Creates a scoped Appender on a canonical pooled Connection for one qualified table.
     public nonisolated(nonsending) func appender<Result>(
         to table: DB.Schema.Table,
         _ body: (Appender) async throws -> Result
     ) async throws -> Result {
-        let connection = try await connectStandaloneForOrdinaryConvenience()
-        return try await connection.appender(to: table, body)
+        try await connection { connection in
+            try await connection.appender(to: table, body)
+        }
     }
 }
 

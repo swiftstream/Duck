@@ -285,16 +285,18 @@ extension Table {
 // MARK: - Public Database-backed persistence conveniences
 
 extension Table {
-    /// Inserts this model through a fresh Connection for the supplied database.
+    /// Inserts this model through the supplied database's canonical pool.
     public nonisolated(nonsending) func insert(on database: Database) async throws -> Self {
-        let connection = try await database.connectStandaloneForOrdinaryConvenience()
-        return try await insert(on: connection)
+        try await database.connection { connection in
+            try await insert(on: connection)
+        }
     }
 
     /// Inserts this model without decoding a row through the supplied database.
     public nonisolated(nonsending) func insertNonReturning(on database: Database) async throws {
-        let connection = try await database.connectStandaloneForOrdinaryConvenience()
-        try await insertNonReturning(on: connection)
+        try await database.connection { connection in
+            try await insertNonReturning(on: connection)
+        }
     }
 
     /// Updates changed non-key fields through the supplied database.
@@ -302,8 +304,9 @@ extension Table {
         on keyColumn: KeyPath<Self, C>,
         on database: Database
     ) async throws -> Self {
-        let connection = try await database.connectStandaloneForOrdinaryConvenience()
-        return try await update(on: keyColumn, on: connection)
+        try await database.connection { connection in
+            try await update(on: keyColumn, on: connection)
+        }
     }
 
     /// Updates changed non-key fields without decoding a row through the supplied database.
@@ -311,8 +314,9 @@ extension Table {
         on keyColumn: KeyPath<Self, C>,
         on database: Database
     ) async throws {
-        let connection = try await database.connectStandaloneForOrdinaryConvenience()
-        try await updateNonReturning(on: keyColumn, on: connection)
+        try await database.connection { connection in
+            try await updateNonReturning(on: keyColumn, on: connection)
+        }
     }
 
     /// Deletes rows matching this model's selected key and returns the affected-row count.
@@ -325,7 +329,7 @@ extension Table {
         return try await query.execute(on: database)
     }
 
-    /// Upserts this model through a fresh Connection for the supplied database
+    /// Upserts this model through the supplied database's canonical pool
     /// and returns the database-decoded row from `RETURNING *`.
     public nonisolated(nonsending) func upsert<
         ConflictColumn,
@@ -339,12 +343,13 @@ extension Table {
         ConflictColumn: ColumnRepresentable,
         repeat each ExcludedColumn: ColumnRepresentable
     {
-        let connection = try await database.connectStandaloneForOrdinaryConvenience()
-        return try await upsert(
-            conflictColumn: conflictColumn,
-            excluding: repeat each excludedColumns,
-            on: connection
-        )
+        try await database.connection { connection in
+            try await upsert(
+                conflictColumn: conflictColumn,
+                excluding: repeat each excludedColumns,
+                on: connection
+            )
+        }
     }
 }
 
@@ -570,10 +575,11 @@ struct TableBatchRun: Sendable {
 // MARK: - Public batch insert
 
 extension Collection where Element: Table {
-    /// Inserts every model atomically through a fresh Connection for the supplied database.
+    /// Inserts every model atomically through one canonical pooled Connection for the supplied database.
     public nonisolated(nonsending) func batchInsert(on database: Database) async throws {
-        let connection = try await database.connectStandaloneForOrdinaryConvenience()
-        try await batchInsert(on: connection)
+        try await database.connection { connection in
+            try await batchInsert(on: connection)
+        }
     }
 
     /// Inserts every model of this homogeneous collection atomically through a managed
