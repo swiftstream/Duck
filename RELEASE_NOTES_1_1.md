@@ -6,7 +6,7 @@ This file is an unreleased working draft. The historical [Duck 1.0.0 release not
 
 ## Canonical Connection pool
 
-A `Database` resolves one process-local canonical pool. Scoped `Database.connection { ... }` work and manual `Database.connect()` leases use that same bounded resource instead of creating an unrelated out-of-pool native Connection.
+A `Database` resolves one process-local canonical pool. Ordinary `Database`-backed query/execute, model persistence, managed transactions, Appender work, migrations, scoped `Database.connection { ... }`, and manual `Database.connect()` leases use that same bounded resource instead of creating unrelated out-of-pool native Connections.
 
 A manual lease ends explicitly with:
 
@@ -54,7 +54,7 @@ Configuration requires:
 - `minimumConnections >= 0`;
 - `minimumConnections <= maximumConnections`.
 
-Equivalent `Database` values share the same process-local canonical runtime, Pool, and first frozen configuration.
+Equivalent `Database` values share the same process-local canonical runtime, Pool, first frozen configuration, and checkout queue. A long-lived lease therefore backpressures concurrent ordinary work through an equivalent `Database` when the configured maximum is already in use.
 
 ## DuckDB Connection best practices
 

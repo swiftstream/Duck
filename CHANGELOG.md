@@ -2,7 +2,7 @@
 
 ## Unreleased — 1.1.0
 
-- Moves explicit scoped/manual Connection access onto one canonical bounded reusable pool per logical `Database` runtime.
+- Moves ordinary `Database` query/execute, model persistence, managed transactions, Appender work, migrations, and explicit scoped/manual Connection access onto one canonical bounded reusable pool per logical `Database` runtime.
 - Adds developer-controlled `minimumConnections` / `maximumConnections` configuration: the minimum is initialized eagerly, additional Connections grow lazily on demand, and the maximum remains the hard bound.
 - Uses a conservative reusable 1/1 default when no explicit configuration is supplied; this follows DuckDB Connection-reuse guidance and is not presented as a universal optimum.
 - Keeps `configure(maximumConnections:)` and the deprecated `pool(maximumConnections:)` source-compatible through the default minimum while documenting explicit min/max configuration for applications that need more concurrency.

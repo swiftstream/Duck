@@ -1182,7 +1182,7 @@ Cancellation or refresh failure terminates one iterator, not the reusable observ
 
 ## Connection pools
 
-Duck uses one canonical bounded pool per logical `Database` runtime. Ordinary scoped and manual Connection access use that same reusable pool rather than opening an unrelated native Connection.
+Duck uses one canonical bounded pool per logical `Database` runtime. Ordinary `Database`-backed query/execute, model persistence, managed transactions, Appender work, migrations, scoped `Database.connection { ... }`, and manual `Database.connect()` leases all use that same reusable bounded resource rather than opening unrelated native Connections. Observation refresh ownership remains private and separate until its v1.1 scalability migration.
 
 Without explicit configuration, Duck uses a conservative **1/1** policy:
 
@@ -1231,7 +1231,7 @@ let todos = try await pool.connection { connection in
 }
 ```
 
-When all Connections are leased, checkout waits. Queued requests are served in order; cancellation removes a queued request.
+When all Connections are leased, checkout waits. That backpressure applies to ordinary `Database` conveniences too: with `maximumConnections = 1`, a long-lived manual lease blocks a concurrent `query(on: database)`, `database.transaction { ... }`, Database Appender, model persistence call, or migration until capacity returns. Equivalent `Database` values share the same queue. Queued requests are served in order; cancellation removes a queued request.
 
 The closure owns one exact lease. Finish and await all work using its Connection before returning.
 
@@ -1638,7 +1638,7 @@ Native diagnostic strings are useful diagnostics, but their exact text is not a 
 
 When a native operation leaves connection outcome ambiguous, Duck can fail-close that connection instead of pretending it is safe to keep using.
 
-Later work then receives `.connectionUnusable`; create a fresh connection.
+Later work on that lease receives `.connectionUnusable`. Return or release the unusable lease as required; canonical pooled work retires the failed core and may create a replacement within the configured capacity.
 
 This is deliberate: correctness beats optimistic recovery from a native state the library cannot prove.
 
