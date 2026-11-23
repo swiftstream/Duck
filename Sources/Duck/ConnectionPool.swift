@@ -641,6 +641,16 @@ public actor ConnectionPool {
         connections.count
     }
 
+    /// Number of leases currently delivered to scoped or manual callers.
+    var activeLeaseCount: Int {
+        state.activeLeaseCount
+    }
+
+    /// Number of checkouts currently queued behind Pool capacity.
+    var queuedCheckoutWaiterCount: Int {
+        state.queuedWaiterCount
+    }
+
     /// Runs a scoped operation with one Pool-managed Connection.
     ///
     /// The supplied Connection must not be treated as valid after the closure

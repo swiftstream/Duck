@@ -15,7 +15,7 @@ struct ConnectionAuthority: Hashable, Sendable {
         self.generation = generation
     }
 
-    /// Creates the unique transitional authority for one standalone handle.
+    /// Creates the unique authority for one standalone handle.
     static func standalone(coreId: ConnectionId) -> ConnectionAuthority {
         ConnectionAuthority(
             coreId: coreId,
@@ -61,15 +61,15 @@ struct ConnectionAuthority: Hashable, Sendable {
     }
 }
 
-/// Exact standalone-handle identity used by the transitional private Observation refresh path.
+/// Opaque nonce that distinguishes internal standalone Connection handles.
 struct StandaloneConnectionAuthorityId: Hashable, Sendable {
     /// Opaque nonce preventing standalone authority reuse across handles.
     let rawValue = UUID()
 }
 
-/// Distinguishes transitional Observation refresh authority from exact pooled lease authority.
+/// Distinguishes internal standalone-handle identity from exact pooled lease authority.
 enum ConnectionAuthorityGeneration: Hashable, Sendable {
-    /// Unique identity for one private Observation refresh handle.
+    /// Nonce identifying an internal standalone Connection handle.
     case standalone(StandaloneConnectionAuthorityId)
     /// Full pool, core, and lease-generation token with its checkout ownership.
     case pooled(ConnectionPoolLeaseToken, ConnectionPoolLeaseOwnership)

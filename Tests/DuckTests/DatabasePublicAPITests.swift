@@ -178,6 +178,7 @@ struct DatabasePublicAPITests {
         let connection = try await second.connect()
         try await databaseRecord(id: 2, name: "connection")
             .insertNonReturning(on: connection)
+        try await connection.release()
 
         let afterConnectionMutation = try #require(try await iterator.next())
         #expect(
@@ -186,7 +187,6 @@ struct DatabasePublicAPITests {
                 .map(\.name)
                 == ["database", "connection"]
         )
-        try await connection.release()
     }
 
     @Test("Database routes model UPSERT through the canonical Pool and returns decoded model")

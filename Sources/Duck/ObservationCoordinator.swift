@@ -18,6 +18,83 @@ struct ObservationRegistration: Sendable {
     let invalidations: AsyncStream<Void>
 }
 
+/// Identifies one deterministic point in a repeated observation refresh cycle.
+enum ObservationRefreshCheckpointPhase: Hashable, Sendable {
+    /// The READ ONLY refresh succeeded while its scoped Pool lease is still active.
+    case afterRefreshBeforeLeaseReturn
+    /// The scoped Pool call returned successfully while coordinator coverage is still Database-wide.
+    case afterLeaseReturnBeforeNarrowing
+}
+
+/// Describes one repeated refresh at a deterministic test checkpoint.
+struct ObservationRefreshCheckpoint: Sendable {
+    /// The checkpoint reached by the refresh worker.
+    let phase: ObservationRefreshCheckpointPhase
+    /// The observation registration being refreshed.
+    let subscriptionID: ObservationSubscriptionID
+    /// The authoritative result and dependency produced by the READ ONLY refresh.
+    let refresh: ObservationRefresh
+}
+
+/// Inert, internal synchronization and event reporting for Observation tests.
+actor ObservationRefreshTestControl {
+    private let stream: AsyncStream<ObservationRefreshCheckpoint>
+    private let continuation: AsyncStream<ObservationRefreshCheckpoint>.Continuation
+    private var pausesRemaining: [ObservationRefreshCheckpointPhase: Int] = [:]
+    private var pausedContinuations: [CheckedContinuation<Void, Never>] = []
+
+    /// Creates a bounded event stream for one deterministic Observation test.
+    init() {
+        let (stream, continuation) = AsyncStream<ObservationRefreshCheckpoint>.makeStream(
+            of: ObservationRefreshCheckpoint.self,
+            bufferingPolicy: .bufferingNewest(32)
+        )
+        self.stream = stream
+        self.continuation = continuation
+    }
+
+    /// Returns the test events emitted by this control.
+    func events() -> AsyncStream<ObservationRefreshCheckpoint> {
+        stream
+    }
+
+    /// Pauses the next `count` checkpoints at the selected phase.
+    func pauseNext(
+        _ phase: ObservationRefreshCheckpointPhase,
+        count: Int = 1
+    ) {
+        guard count > 0 else {
+            return
+        }
+        pausesRemaining[phase, default: 0] += count
+    }
+
+    /// Publishes one checkpoint and pauses it when requested by the test.
+    func reach(_ checkpoint: ObservationRefreshCheckpoint) async {
+        continuation.yield(checkpoint)
+        guard let remaining = pausesRemaining[checkpoint.phase], remaining > 0 else {
+            return
+        }
+        if remaining == 1 {
+            pausesRemaining.removeValue(forKey: checkpoint.phase)
+        } else {
+            pausesRemaining[checkpoint.phase] = remaining - 1
+        }
+        await withCheckedContinuation { continuation in
+            pausedContinuations.append(continuation)
+        }
+    }
+
+    /// Resumes every checkpoint currently paused by this test.
+    func resumeAll() {
+        let continuations = pausedContinuations
+        pausedContinuations.removeAll()
+        for continuation in continuations {
+            continuation.resume()
+        }
+    }
+}
+
 /// Represents a safely normalized DuckDB table identity.
 struct ObservationTableName: Hashable, Sendable {
     private let components: [String]
@@ -145,6 +222,10 @@ actor ObservationCoordinator {
     }
 
     private var subscriptions: [ObservationSubscriptionID: Subscription] = [:]
+    private var subscriptionCountWaiters: [(Int, CheckedContinuation<Void, Never>)] = []
+    private var testControl: ObservationRefreshTestControl?
+    private var databasePublicationCaptureArmedForTesting = false
+    private var capturedDatabasePublicationMatchCountForTesting: Int?
 
     /// Registers a subscription with an initial dependency and a one-element latest-only stream.
     func register(initial dependency: ObservationDependency = .database) -> ObservationRegistration {
@@ -154,6 +235,7 @@ actor ObservationCoordinator {
             bufferingPolicy: .bufferingNewest(1)
         )
         subscriptions[id] = Subscription(dependency: dependency, continuation: continuation)
+        resumeReadySubscriptionCountWaiters()
         return ObservationRegistration(id: id, invalidations: stream)
     }
 
@@ -164,12 +246,42 @@ actor ObservationCoordinator {
 
     /// Delivers one coalesced rerun signal to every active matching subscription.
     func invalidate(_ invalidation: ObservationInvalidation) {
-        guard invalidation != .none else {
+        if invalidation == .database, databasePublicationCaptureArmedForTesting {
+            capturedDatabasePublicationMatchCountForTesting = matchAndDeliver(
+                invalidation,
+                shouldDeliver: false
+            )
+            databasePublicationCaptureArmedForTesting = false
             return
         }
-        for subscription in subscriptions.values where subscription.dependency.matches(invalidation) {
-            subscription.continuation.yield(())
+        _ = matchAndDeliver(invalidation, shouldDeliver: true)
+    }
+
+    /// Injects one invalidation through normal matching and returns the number of matched subscriptions.
+    func invalidateForTesting(_ invalidation: ObservationInvalidation) -> Int {
+        matchAndDeliver(invalidation, shouldDeliver: true)
+    }
+
+    /// Counts matching subscriptions without adding demand to their invalidation streams.
+    func matchingSubscriptionCountForTesting(_ invalidation: ObservationInvalidation) -> Int {
+        matchAndDeliver(invalidation, shouldDeliver: false)
+    }
+
+    private func matchAndDeliver(
+        _ invalidation: ObservationInvalidation,
+        shouldDeliver: Bool
+    ) -> Int {
+        guard invalidation != .none else {
+            return 0
         }
+        var matchedCount = 0
+        for subscription in subscriptions.values where subscription.dependency.matches(invalidation) {
+            if shouldDeliver {
+                subscription.continuation.yield(())
+            }
+            matchedCount += 1
+        }
+        return matchedCount
     }
 
     /// Removes a subscription and finishes its invalidation stream.
@@ -178,5 +290,67 @@ actor ObservationCoordinator {
             return
         }
         subscription.continuation.finish()
+        resumeReadySubscriptionCountWaiters()
+    }
+
+    /// Returns a snapshot of currently registered dependencies for deterministic tests.
+    var dependenciesForTesting: [ObservationSubscriptionID: ObservationDependency] {
+        subscriptions.mapValues(\.dependency)
+    }
+
+    /// Returns the number of live Observation subscriptions for deterministic tests.
+    var subscriptionCountForTesting: Int {
+        subscriptions.count
+    }
+
+    /// Waits without polling until the requested number of subscriptions is active.
+    func waitForSubscriptionCountForTesting(_ expectedCount: Int) async {
+        guard subscriptions.count != expectedCount else {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            subscriptionCountWaiters.append((expectedCount, continuation))
+        }
+    }
+
+    private func resumeReadySubscriptionCountWaiters() {
+        let ready = subscriptionCountWaiters.filter { $0.0 == subscriptions.count }
+        subscriptionCountWaiters.removeAll { $0.0 == subscriptions.count }
+        for (_, continuation) in ready {
+            continuation.resume()
+        }
+    }
+
+    /// Installs an inert deterministic refresh controller for `@testable` coverage.
+    func installTestControl(_ control: ObservationRefreshTestControl?) {
+        databasePublicationCaptureArmedForTesting = false
+        capturedDatabasePublicationMatchCountForTesting = nil
+        testControl = control
+    }
+
+    /// Arms one real database-wide publication capture while a test controller is installed.
+    func armDatabasePublicationCaptureForTesting() -> Bool {
+        guard testControl != nil,
+              !databasePublicationCaptureArmedForTesting,
+              capturedDatabasePublicationMatchCountForTesting == nil
+        else {
+            return false
+        }
+        databasePublicationCaptureArmedForTesting = true
+        return true
+    }
+
+    /// Consumes and clears the result of the one-shot database publication capture.
+    func takeDatabasePublicationCaptureForTesting() -> Int? {
+        defer { capturedDatabasePublicationMatchCountForTesting = nil }
+        return capturedDatabasePublicationMatchCountForTesting
+    }
+
+    /// Reaches one test checkpoint when a controller is installed; otherwise this is inert.
+    func checkpointForTesting(_ checkpoint: ObservationRefreshCheckpoint) async {
+        guard let testControl else {
+            return
+        }
+        await testControl.reach(checkpoint)
     }
 }

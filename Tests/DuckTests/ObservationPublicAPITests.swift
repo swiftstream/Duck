@@ -71,7 +71,7 @@ struct ObservationPublicAPITests {
     @Test("Public direct nextval observation reports the semantic error without advancing")
     func publicNextvalRejection() async throws {
         let database = Database.memory()
-        try await database.configure(maximumConnections: 1)
+        try await database.configure(maximumConnections: 2)
         let connection = try await database.connect()
         try await connection.execute(
             SQL
@@ -98,7 +98,7 @@ struct ObservationPublicAPITests {
     @Test("Unresolved parameters never hide later nextval side effects")
     func unresolvedParameterOrderingRejectsBeforeExecution() async throws {
         let database = Database.memory()
-        try await database.configure(maximumConnections: 1)
+        try await database.configure(maximumConnections: 2)
         let connection = try await database.connect()
         let sequenceName = "observation_public_unresolved_sequence"
         try await connection.execute(

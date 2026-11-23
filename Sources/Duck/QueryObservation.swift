@@ -2,11 +2,12 @@
 ///
 /// This is not an event log. Database-backed observations resolve the canonical
 /// registered runtime lazily when an iterator starts, suppress equal `QueryResult`
-/// values, and may coalesce or drop intermediate states. Each iterator owns an
-/// independent private `Connection`. An iterator failure terminates only that
-/// iterator. Query execution uses the prepared and bound SQL snapshot; analysis-only
-/// plain SQL is never executed. Every refresh is protected by a native READ ONLY
-/// transaction.
+/// values, and may coalesce or drop intermediate states. Each refresh borrows a
+/// Connection from the database's canonical Pool and returns it before the
+/// iterator waits for another invalidation. An iterator failure terminates only
+/// that iterator. Query execution uses the prepared and bound SQL snapshot;
+/// analysis-only plain SQL is never executed. Every refresh is protected by a
+/// native READ ONLY transaction.
 public struct QueryObservation: AsyncSequence, Sendable {
     public typealias Element = QueryResult
 
@@ -39,8 +40,8 @@ public struct QueryObservation: AsyncSequence, Sendable {
         self.snapshot = snapshot
     }
 
-    /// The iterator owns one private connection, one coordinator subscription,
-    /// and one bounded latest-state result channel.
+    /// The iterator owns one coordinator subscription, one refresh worker, and one
+    /// bounded latest-state result channel; it holds no Connection while idle.
     public struct AsyncIterator: AsyncIteratorProtocol {
         private var streamIterator: AsyncThrowingStream<QueryResult, Error>.Iterator
         private let worker: Task<Void, Never>
@@ -74,6 +75,11 @@ public struct QueryObservation: AsyncSequence, Sendable {
             }
         }
 
+        /// Cancels the iterator worker for deterministic internal lifecycle tests.
+        func cancelForTesting() {
+            worker.cancel()
+        }
+
         private static func run(
             source: Source,
             snapshot: PreparedQuerySnapshot,
@@ -87,7 +93,6 @@ public struct QueryObservation: AsyncSequence, Sendable {
                 try Task.checkCancellation()
                 let resolvedDatabase = try await source.resolve()
                 database = resolvedDatabase
-                let connection = try resolvedDatabase.connect()
                 let registered = await resolvedDatabase.observationCoordinator.register(
                     initial: .database
                 )
@@ -98,7 +103,12 @@ public struct QueryObservation: AsyncSequence, Sendable {
                     subscriptionID: registered.id,
                     dependency: .database
                 )
-                let initial = try await connection.refreshObservation(snapshot)
+                let initial = try await Self.refresh(
+                    on: resolvedDatabase,
+                    subscriptionID: registered.id,
+                    snapshot: snapshot,
+                    repeated: false
+                )
                 try Task.checkCancellation()
                 await resolvedDatabase.observationCoordinator.update(
                     subscriptionID: registered.id,
@@ -114,7 +124,12 @@ public struct QueryObservation: AsyncSequence, Sendable {
                         subscriptionID: registered.id,
                         dependency: .database
                     )
-                    let refreshed = try await connection.refreshObservation(snapshot)
+                    let refreshed = try await Self.refresh(
+                        on: resolvedDatabase,
+                        subscriptionID: registered.id,
+                        snapshot: snapshot,
+                        repeated: true
+                    )
                     try Task.checkCancellation()
                     await resolvedDatabase.observationCoordinator.update(
                         subscriptionID: registered.id,
@@ -137,9 +152,43 @@ public struct QueryObservation: AsyncSequence, Sendable {
             }
             continuation.finish()
         }
+
+        /// Runs one READ ONLY refresh on a scoped lease from the runtime's canonical Pool.
+        private static func refresh(
+            on database: Database.Runtime,
+            subscriptionID: ObservationSubscriptionID,
+            snapshot: PreparedQuerySnapshot,
+            repeated: Bool
+        ) async throws -> ObservationRefresh {
+            let pool = try await database.canonicalPool()
+            let refreshed = try await pool.connection { connection in
+                let refreshed = try await connection.refreshObservation(snapshot)
+                if repeated {
+                    await database.observationCoordinator.checkpointForTesting(
+                        ObservationRefreshCheckpoint(
+                            phase: .afterRefreshBeforeLeaseReturn,
+                            subscriptionID: subscriptionID,
+                            refresh: refreshed
+                        )
+                    )
+                }
+                return refreshed
+            }
+
+            if repeated {
+                await database.observationCoordinator.checkpointForTesting(
+                    ObservationRefreshCheckpoint(
+                        phase: .afterLeaseReturnBeforeNarrowing,
+                        subscriptionID: subscriptionID,
+                        refresh: refreshed
+                    )
+                )
+            }
+            return refreshed
+        }
     }
 
-    /// Creates an independent iterator and private observation runtime.
+    /// Creates an independent iterator and refresh worker.
     public func makeAsyncIterator() -> AsyncIterator {
         AsyncIterator(source: source, snapshot: snapshot)
     }
