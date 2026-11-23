@@ -91,7 +91,7 @@ let observation = try SQL
     .observe(on: database)
 ```
 
-`database.observe(...)` and SQL `.observe(on: database)` remain the public Observation entrypoints. There is no `pool.observe` or `Connection.observe`. Each observation iterator owns a private refresh Connection on the canonical runtime. Pooled mutations created from an equivalent identifier publish through that same Observation coordinator. COMMIT/ROLLBACK and Appender visibility retain their normal rules. Pool lease return, retirement, and replacement alone do not fabricate invalidations. A stale pooled Connection's internal refresh work fails with `.poolLeaseExpired`. Observation is latest-state and read-only; it does not watch a different identifier or external file/process mutations.
+`database.observe(...)` and SQL `.observe(on: database)` remain the public Observation entrypoints. There is no `pool.observe` or `Connection.observe`. Each iterator owns its registration, worker, and bounded result channel; each READ ONLY refresh borrows and returns a scoped canonical-Pool lease, so idle iterators hold no Connection. Pooled mutations created from an equivalent identifier publish through that same Observation coordinator. COMMIT/ROLLBACK and Appender visibility retain their normal rules. Pool lease return, retirement, and replacement alone do not fabricate invalidations. Observation is latest-state and read-only; it does not watch a different identifier or external file/process mutations.
 
 ## 7. Shut down outside every live lease
 

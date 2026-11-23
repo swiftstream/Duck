@@ -73,10 +73,11 @@ A mutation may trigger a refresh whose materialized result is equal to the previ
 The value itself can create more than one iterator.
 
 Each iterator owns:
-- its own private `Connection`;
-- its own coordinator registration;
-- its own refresh worker;
-- its own bounded latest-state result channel.
+- its coordinator registration;
+- its refresh worker;
+- its bounded latest-state result channel.
+
+Each initial or repeated refresh borrows a scoped `Connection` lease from the canonical Pool, materializes the READ ONLY result, and returns the lease before narrowing dependency coverage. An idle iterator holds no `Connection`.
 
 One iterator failing or being cancelled does not make the reusable `QueryObservation` value unusable.
 
@@ -187,7 +188,7 @@ Cancelling a consumer cancels that iterator's worker and terminates that iterato
 
 A refresh error also terminates only that iterator.
 
-A later iterator created from the same `QueryObservation` owns a fresh private Connection/runtime and can start independently.
+A later iterator created from the same `QueryObservation` gets an independent registration and worker, and borrows scoped leases from the same canonical Pool for its refreshes.
 
 Cancellation remains cooperative around Swift/native boundaries; do not promise instantaneous preemption of every synchronous DuckDB C operation.
 

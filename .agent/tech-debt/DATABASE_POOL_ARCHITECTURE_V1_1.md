@@ -94,7 +94,7 @@ Consequences to address in v1.1:
 - ordinary convenience APIs and explicit pool APIs have different resource semantics;
 - callers cannot reason about one canonical capacity policy for a database;
 - high-concurrency workloads may create connection counts proportional to concurrent operations;
-- Observation currently compounds the issue because each iterator owns a private Connection for its full lifetime.
+- The v1 baseline compounded the issue because each iterator owned a private Connection for its full lifetime. F05 resolves this idle Connection pinning by borrowing a scoped canonical-Pool lease for each refresh; broader v1.1 pool architecture debt remains tracked separately.
 
 This is not merely cosmetic API asymmetry. It affects the resource model that v1.1 Observation scalability is supposed to optimize.
 
@@ -218,9 +218,9 @@ Do not preserve v1 `connect()` semantics merely for compatibility if that would 
 
 ---
 
-# 8. Observation must stop owning one permanent Connection per iterator
+# 8. V1 baseline: one permanent Observation Connection per iterator
 
-Current v1 `QueryObservation.AsyncIterator` owns one private Connection for the full iterator lifetime.
+The v1 baseline `QueryObservation.AsyncIterator` owned one private Connection for the full iterator lifetime. F05 replaces that lifetime pin with a scoped canonical-Pool lease per refresh, returned after READ ONLY result materialization. This resolves the Observation idle-Connection pin; it does not close the broader database-pool architecture debt.
 
 That implies approximately:
 

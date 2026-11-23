@@ -109,7 +109,7 @@ Do not weaken the reviewed fail-close policy merely to preserve Connection reuse
 
 **Status:** OPEN verified architectural debt / HIGH PRIORITY / explicit v1.1.0 release objective. This entry is not implementation authorization.
 
-**Current limitation:** the canonical `DatabaseIdentifier` registry shares one internal live database runtime, but ordinary identifier-backed conveniences currently call `connect()` and open a fresh independent native Connection for each operation. The separately exposed `ConnectionPool` is lazy/bounded/reusable, but it is used only when the caller explicitly creates and uses that pool. `QueryObservation` additionally owns one private Connection for the full lifetime of every iterator.
+**Current state (Wave04 accepted; F05 accepted CLEAN):** ordinary identifier-backed conveniences borrow from the canonical bounded pool. `QueryObservation` uses refresh-scoped pooled checkout and returns the lease before publishing each successful update; idle iterators do not retain a Connection. The remaining v1.1 objective is finer-grained, table-aware invalidation, deterministic high-observation stress coverage, and final independent audit; this entry remains open until its full closure condition is met.
 
 **Maintainer intent:** this does not match the intended Bridges/PostgresBridge-style architecture. Ordinary database work should transparently borrow the first available Connection from one canonical bounded reusable pool associated with the logical database runtime, then return it automatically. Explicit resource APIs should expose ownership/control, not switch ordinary work from reusable pooling to fresh connection creation.
 

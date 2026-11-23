@@ -1155,7 +1155,7 @@ let query = Todo
 let observation = try DatabaseIdentifier.app.observe(query)
 ```
 
-Creating the observation captures the query synchronously without opening DuckDB. Each iterator resolves the canonical runtime lazily and owns its own private refresh connection.
+Creating the observation captures the query synchronously without opening DuckDB. Each iterator resolves the canonical runtime lazily. Before each refresh, it widens dependency tracking to the whole database, then borrows a scoped Connection lease from the canonical Pool. It returns the lease after materializing the read-only result and narrows dependency tracking only after that successful return.
 
 `QueryObservation` is reusable and latest-state, not an event log:
 
@@ -1182,7 +1182,7 @@ Cancellation or refresh failure terminates one iterator, not the reusable observ
 
 ## Connection pools
 
-Duck uses one canonical bounded pool per logical `Database` runtime. Ordinary `Database`-backed query/execute, model persistence, managed transactions, Appender work, migrations, scoped `Database.connection { ... }`, and manual `Database.connect()` leases all use that same reusable bounded resource rather than opening unrelated native Connections. Observation refresh ownership remains private and separate until its v1.1 scalability migration.
+Duck uses one canonical bounded pool per logical `Database` runtime. Ordinary `Database`-backed query/execute, model persistence, managed transactions, Appender work, migrations, scoped `Database.connection { ... }`, and manual `Database.connect()` leases all use that same reusable bounded resource rather than opening unrelated native Connections. Observation refreshes also use that same reusable bounded resource. Each iterator keeps its own worker and registration, while each refresh borrows and returns a scoped lease.
 
 Without explicit configuration, Duck uses a conservative **1/1** policy:
 
@@ -1610,7 +1610,7 @@ Duck's concurrency model is explicit:
 - a transaction reserves its exact Connection lease;
 - an Appender holds scoped authority on its exact Connection lease;
 - the canonical Pool owns bounded reusable Connection runtimes;
-- current v1 Observation iterators still own private refresh Connections until the v1.1 Observation scalability migration lands.
+- each Observation iterator owns its worker, registration, and bounded result channel; it borrows a scoped canonical-Pool lease for each refresh and holds no Connection while idle.
 
 The API does not treat a larger Pool as automatic query parallelism. DuckDB may already parallelize an individual query internally, and the application chooses Pool capacity for its own independent concurrent work.
 

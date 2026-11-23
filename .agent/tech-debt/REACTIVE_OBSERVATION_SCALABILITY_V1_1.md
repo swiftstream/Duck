@@ -37,7 +37,7 @@ Duck v1.0.0 Observation is correct but intentionally conservative.
 The accepted latest-state Observation pipeline already provides:
 
 - reusable `QueryObservation` as an `AsyncSequence<QueryResult>`;
-- one private Connection/worker per iterator;
+- one private Connection per iterator in the v1 baseline; F05 resolves idle Connection pinning with a scoped canonical-Pool lease per refresh, while the independent worker remains per iterator;
 - native READ ONLY refresh transactions;
 - same-identifier canonical-runtime invalidation;
 - bounded/latest-only invalidation delivery;
@@ -46,7 +46,7 @@ The accepted latest-state Observation pipeline already provides:
 - definitive transaction publication;
 - Appender participation.
 
-The performance debt is not only mutation invalidation granularity. v1 Observation also owns one private native Connection for the full lifetime of every iterator. The maintainer has separately promoted `DATABASE-POOL-ARCHITECTURE-V1_1`: v1.1 Observation planning must use the accepted canonical bounded-pool architecture and should prefer refresh-scoped Connection checkout so idle observations do not pin one Connection each.
+The performance debt is not only mutation invalidation granularity. The v1 baseline Observation also owned one private native Connection for the full lifetime of every iterator. Accepted F05 resolves that idle Connection pinning: each refresh borrows and returns a scoped lease from the canonical bounded Pool. The separate `DATABASE-POOL-ARCHITECTURE-V1_1` debt and the active MutationImpact work remain open.
 
 The mutation-side performance debt is the invalidation granularity.
 
@@ -420,10 +420,10 @@ The v1.1 system must avoid turning a high-frequency write burst into an unbounde
 
 Research/validation must cover:
 
-- many registered idle observations without one permanently held native Connection per iterator under the accepted v1.1 pool architecture;
+- many registered idle observations without one permanently held native Connection per iterator; F05 establishes the scoped-lease ownership behavior, while broader stress/resource validation remains part of closure;
 - pool-capacity contention when many observations need refresh simultaneously, with bounded/latest-state catch-up while waiting for a lease;
 - a second invalidation arriving while refresh is running;
-- a transaction COMMIT invalidation arriving while the observer's private Connection is still refreshing the previous committed state, proving the stale refresh cannot consume or lose the final COMMIT signal;
+- a transaction COMMIT invalidation arriving while an observer refresh is still materializing the previous committed state, proving the stale refresh cannot consume or lose the final COMMIT signal;
 - hundreds/thousands of writes during one refresh;
 - transaction commits containing many mutations;
 - multiple hot tables;
@@ -694,7 +694,7 @@ Cancellation must release:
 
 - coordinator registration;
 - dependency indexes;
-- private Connection/worker;
+- scoped refresh lease/worker;
 - predicate/key caches owned by that observation.
 
 Transaction impact accumulation must be bounded by a compact summary where possible rather than retaining every mutation event.

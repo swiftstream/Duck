@@ -1526,7 +1526,7 @@ Both produce the public `QueryObservation` type.
 
 `QueryObservation` is `AsyncSequence` + `Sendable`, with `QueryResult` as its element.
 
-The observation value is reusable. Every iterator creates an independent refresh runtime with its own private `Connection` and coordinator registration.
+The observation value is reusable. Every iterator owns an independent worker, coordinator registration, and bounded result channel. Each refresh borrows a scoped `Connection` lease from the canonical Pool and returns it after the READ ONLY result is materialized; an idle iterator holds no `Connection`.
 
 This means one consumer can stop or fail without consuming another iterator's state or making the reusable observation value terminal.
 
@@ -1652,7 +1652,7 @@ Cancelling a consumer terminates that iterator's worker.
 
 A refresh error also terminates only that iterator.
 
-The original `QueryObservation` remains reusable, and a new iterator creates a fresh private Connection/runtime.
+The original `QueryObservation` remains reusable, and a new iterator gets an independent worker and registration while borrowing scoped canonical-Pool leases for its refreshes.
 
 Cancellation is cooperative around Swift/native boundaries rather than a promise to preempt every synchronous C call instantly.
 
@@ -1706,7 +1706,7 @@ a guarantee that DuckDB rebinds an already-prepared handle after catalog changes
 Preserve these user-facing angles:
 
 1. `QueryObservation` models the latest successful query state, not a mutation event log;
-2. every iterator gets an independent private Connection/runtime while the observation value stays reusable;
+2. every iterator gets an independent worker and registration while the observation value stays reusable, and borrows a scoped canonical-Pool lease for each refresh;
 3. native READ ONLY execution is the safety boundary for reactive queries;
 4. same-identifier canonical-runtime invalidation integrates ordinary execution, transaction finalization, and Appender visibility without UI-framework coupling;
 5. transactions publish at definitive COMMIT/ROLLBACK boundaries rather than leaking uncommitted state;
@@ -1797,7 +1797,7 @@ try await pool.connection { connection in
 }
 ```
 
-Until the v1.1 Observation refresh-routing wave lands, an observation iterator has its own private refresh Connection. Mutations made through a Connection from an equivalent `Database` publish through the same canonical Observation coordinator. Managed transaction finalization and Appender native visibility keep their existing publication boundaries. Returning a lease, retiring an unusable Connection, or opening its replacement is not itself a mutation and produces no synthetic observation signal. `QueryObservation` remains a latest-state read-only query sequence, not a per-write event log or an external-file watcher. There is no `pool.observe` or `Connection.observe` method.
+Each observation iterator owns its worker and registration, while each READ ONLY refresh borrows and returns a scoped lease from the canonical Pool. Mutations made through a Connection from an equivalent `Database` publish through that same canonical Observation coordinator. Managed transaction finalization and Appender native visibility keep their existing publication boundaries. Returning a lease, retiring an unusable Connection, or opening its replacement is not itself a mutation and produces no synthetic observation signal. `QueryObservation` remains a latest-state read-only query sequence, not a per-write event log or an external-file watcher. There is no `pool.observe` or `Connection.observe` method.
 
 ### Close intentionally
 
