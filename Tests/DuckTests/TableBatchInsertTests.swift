@@ -458,30 +458,63 @@ func alternatingSignaturesPreserveInputExecutionOrder() async throws {
 
 // MARK: - B11 observation refresh
 
-@Test("B11 committed Connection batch refreshes an Observation through transaction machinery")
+@Test("B11 committed Connection batch publishes once at transaction finalization")
 func connectionBatchRefreshesObservation() async throws {
     let database = try Database.Runtime()
     let connection = try database.connect()
     try await createBatchNotesTable(on: connection)
 
-    let observation = try database.observe(
-        SQL.select(batchNotesTable.column("id")).from(batchNotesTable)
+    let control = ObservationRefreshTestControl()
+    await database.observationCoordinator.installTestControl(control)
+    let earlyRegistration = await database.observationCoordinator.register(
+        initial: .database
     )
-    var iterator = observation.makeAsyncIterator()
-    #expect(try await iterator.next()?.rows.isEmpty == true)
+    var earlyIterator = earlyRegistration.invalidations.makeAsyncIterator()
+    var finalRegistration: ObservationRegistration?
+    #expect(await database.observationCoordinator.armDatabasePublicationCaptureForTesting())
 
-    let invalidations = try await drainBatchInvalidations(database) {
+    try await connection.transaction { transaction in
         try await [
             BatchNote(id: 1, name: "a"),
             BatchNote(id: 2, name: "b", note: nil)
-        ].batchInsert(on: connection)
-    }
-    #expect(invalidations == 1)
+        ].batchInsert(on: transaction)
 
-    let changed = try #require(try await iterator.next())
-    #expect(changed.rows.count == 2)
-    #expect(changed.rows[0]["id"] == .int64(1))
-    #expect(changed.rows[1]["id"] == .int64(2))
+        let earlyCapture = await database.observationCoordinator
+            .takeDatabasePublicationCaptureForTesting()
+        #expect(earlyCapture == nil)
+        await database.observationCoordinator.unregister(earlyRegistration.id)
+        var earlyCount = 0
+        while await earlyIterator.next() != nil {
+            earlyCount += 1
+        }
+        #expect(earlyCount == 0)
+        finalRegistration = await database.observationCoordinator.register(
+            initial: .tables([
+                try #require(ObservationTableName(components: [batchNotesTable.name]))
+            ])
+        )
+        if earlyCapture != nil {
+            #expect(await database.observationCoordinator.armDatabasePublicationCaptureForTesting())
+        }
+    }
+
+    let matchedSubscriptions = try #require(
+        await database.observationCoordinator.takeDatabasePublicationCaptureForTesting()
+    )
+    #expect(matchedSubscriptions == 1)
+    await database.observationCoordinator.installTestControl(nil)
+    let publicationRegistration = try #require(finalRegistration)
+    var publicationIterator = publicationRegistration.invalidations.makeAsyncIterator()
+    await database.observationCoordinator.unregister(publicationRegistration.id)
+    var laterSignals = 0
+    while await publicationIterator.next() != nil {
+        laterSignals += 1
+    }
+    #expect(laterSignals == 0)
+    #expect(try await fetchBatchNoteRows(on: connection) == [
+        BatchNoteRow(id: 1, name: "a", note: .string("default-note")),
+        BatchNoteRow(id: 2, name: "b", note: .null)
+    ])
 }
 
 // MARK: - B12 cancellation and error truth

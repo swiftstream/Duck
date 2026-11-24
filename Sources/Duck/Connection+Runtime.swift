@@ -1008,26 +1008,11 @@ extension Connection {
             )
         }
 
-        /// Maps an Appender target to the shared Observation identity space without SQL parsing.
-        ///
-        /// Partial targets fall back to Database-wide invalidation. Only a fully qualified
-        /// safe `catalog.schema.table` target publishes a table-scoped qualification closure.
+        /// Uses Database-wide invalidation because Appender effects can include trigger writes.
         private func appenderTargetInvalidation(
-            _ target: AppenderTarget
+            _: AppenderTarget
         ) -> ObservationInvalidation {
-            guard let catalog = target.catalog, let schema = target.schema else {
-                return .database
-            }
-
-            guard
-                let full = ObservationTableName(components: [catalog, schema, target.table]),
-                let schemaQualified = ObservationTableName(components: [schema, target.table]),
-                let bare = ObservationTableName(components: [target.table])
-            else {
-                return .database
-            }
-
-            return .tables([full, schemaQualified, bare])
+            .database
         }
 
         func appendAppenderRow(

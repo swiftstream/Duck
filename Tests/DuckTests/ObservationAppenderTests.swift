@@ -394,8 +394,8 @@ struct ObservationAppenderTests {
         )
     }
 
-    @Test("OA08 fully-qualified target selectivity across two tables")
-    func oa08ExactTargetSelectivityAcrossTwoTables() async throws {
+    @Test("OA08 fully-qualified target invalidates all table dependencies")
+    func oa08FullyQualifiedTargetInvalidatesAllTableDependencies() async throws {
         let database = try Database.Runtime()
         let connection = try database.connect()
         let catalog = try await currentCatalog(on: connection)
@@ -446,8 +446,8 @@ struct ObservationAppenderTests {
             iterator: &iteratorEmpty
         )
         #expect(countA == 1)
-        #expect(countB == 0)
-        #expect(countEmpty == 0)
+        #expect(countB == 1)
+        #expect(countEmpty == 1)
     }
 
     @Test("OA09 real QueryObservation mixed-case bare/schema/catalog qualification closure")
@@ -580,6 +580,87 @@ struct ObservationAppenderTests {
         let row = try #require(result.rows.first)
         let value = try #require(row["count"])
         #expect(try #require(value.get(Int64.self)) == 4)
+    }
+
+    @Test("OA25 Appender trigger writes publish a database-wide invalidation")
+    func oa25AppenderTriggerWritesPublishDatabaseWideInvalidation() async throws {
+        let database = try Database.Runtime()
+        let connection = try database.connect()
+        let independent = try database.connect()
+        let catalog = try await currentCatalog(on: connection)
+        let leftName = uniqueTableName("oa25_left")
+        let rightName = uniqueTableName("oa25_right")
+        let left = DB.Table(leftName)
+        let right = DB.Table(rightName)
+        for table in [left, right] {
+            try await connection.execute(
+                SQL.create.table[any: table].tableDefinitions(NewColumn("id", .integer))
+            )
+        }
+        try await connection.execute(
+            SQL.raw(
+                "CREATE TRIGGER oa25_copy AFTER INSERT ON \(leftName) " +
+                "FOR EACH ROW INSERT INTO \(rightName) VALUES (NEW.id)"
+            )
+        )
+
+        let earlyRegistration = await database.observationCoordinator.register(
+            initial: .database
+        )
+        var earlyIterator = earlyRegistration.invalidations.makeAsyncIterator()
+        let controller = ObservationRefreshTestControl()
+        await database.observationCoordinator.installTestControl(controller)
+        #expect(await database.observationCoordinator.armDatabasePublicationCaptureForTesting())
+        var finalRegistration: ObservationRegistration?
+
+        try await connection.appender(
+            to: fullyQualifiedTarget(catalog: catalog, table: leftName)
+        ) { appender in
+            try await appender.append(Int32(7))
+
+            let earlyCapture = await database.observationCoordinator
+                .takeDatabasePublicationCaptureForTesting()
+            #expect(earlyCapture == nil)
+            let earlySignals = await drainAfterUnregister(
+                database,
+                registrationID: earlyRegistration.id,
+                iterator: &earlyIterator
+            )
+            #expect(earlySignals == 0)
+
+            let publicationRegistration = await database.observationCoordinator.register(
+            initial: .tables([try safeTableName([rightName])])
+            )
+            if earlyCapture != nil {
+                #expect(
+                    await database.observationCoordinator
+                        .armDatabasePublicationCaptureForTesting()
+                )
+            }
+
+            // This registration is retained outside the body so the final captured call
+            // can be shown to match the right-side dependency.
+            finalRegistration = publicationRegistration
+        }
+
+        let matchedSubscriptions = try #require(
+            await database.observationCoordinator.takeDatabasePublicationCaptureForTesting()
+        )
+        #expect(matchedSubscriptions == 1)
+        await database.observationCoordinator.installTestControl(nil)
+        let capturedRegistration = try #require(finalRegistration)
+        var finalIterator = capturedRegistration.invalidations.makeAsyncIterator()
+        let queuedSignals = await drainAfterUnregister(
+            database,
+            registrationID: capturedRegistration.id,
+            iterator: &finalIterator
+        )
+        #expect(queuedSignals == 0)
+        #expect(try await rowCount(from: right, on: independent) == 1)
+        let rightResult = try await independent.query(
+            SQL.select(right.column("id")).from(right)
+        )
+        #expect(rightResult.rows.first?["id"] == .int32(7))
     }
 
     @Test("OA11 ordinary preflight failure publishes nothing and stays recoverable")
@@ -754,7 +835,7 @@ struct ObservationAppenderTests {
         #expect(result.rows.first?["value"] == .int32(7))
     }
 
-    @Test("OA14 table-scoped Appender invalidation refreshes a .database observer")
+    @Test("OA14 database-wide Appender invalidation refreshes a .database observer")
     func oa14ExactTargetRefreshesDatabaseDependencyObserver() async throws {
         let context = try await makeAppenderContext(prefix: "oa14")
         let catalog = try await currentCatalog(on: context.connection)
@@ -823,7 +904,7 @@ struct ObservationAppenderTests {
         #expect(try await rowCount(from: context.table, on: independent) == 0)
     }
 
-    @Test("OA16 205000 flat Transaction Appender COMMIT publishes fully-qualified target")
+    @Test("OA16 205000 flat Transaction Appender COMMIT invalidates database-wide")
     func oa16TransactionAppenderCommitPublishesExactTarget() async throws {
         let context = try await makeAppenderContext(prefix: "oa16")
         let independent = try context.database.connect()
@@ -887,15 +968,15 @@ struct ObservationAppenderTests {
             iterator: &iteratorEmpty
         )
         #expect(count == 1)
-        #expect(countOther == 0)
-        #expect(countEmpty == 0)
+        #expect(countOther == 1)
+        #expect(countEmpty == 1)
         #expect(
             try await rowCount(from: context.table, on: independent)
                 == Int64(transactionVisibilityRowCount)
         )
     }
 
-    @Test("OA17 205000 flat Transaction Appender ROLLBACK publishes fully-qualified target")
+    @Test("OA17 205000 flat Transaction Appender ROLLBACK preserves its invalidation")
     func oa17TransactionAppenderRollbackPublishesExactTarget() async throws {
         let context = try await makeAppenderContext(prefix: "oa17")
         let independent = try context.database.connect()
@@ -997,8 +1078,8 @@ struct ObservationAppenderTests {
         #expect(count == 0)
         #expect(try await rowCount(from: context.table, on: context.connection) == 0)
     }
-    @Test("OA20 transaction fully-qualified target selectivity on COMMIT")
-    func oa20TransactionExactTargetSelectivityOnCommit() async throws {
+    @Test("OA20 transaction Appender invalidates all table dependencies on COMMIT")
+    func oa20TransactionAppenderInvalidatesAllTableDependenciesOnCommit() async throws {
         let database = try Database.Runtime()
         let connection = try database.connect()
         let catalog = try await currentCatalog(on: connection)
@@ -1049,8 +1130,8 @@ struct ObservationAppenderTests {
             iterator: &iteratorEmpty
         )
         #expect(countA == 1)
-        #expect(countB == 0)
-        #expect(countEmpty == 0)
+        #expect(countB == 1)
+        #expect(countEmpty == 1)
     }
 
     @Test("OA21 multiple fully-qualified Transaction Appender targets merge")
@@ -1112,7 +1193,7 @@ struct ObservationAppenderTests {
         )
         #expect(countA == 1)
         #expect(countB == 1)
-        #expect(countEmpty == 0)
+        #expect(countEmpty == 1)
         #expect(try await rowCount(from: tableA, on: connection) == 3)
         #expect(try await rowCount(from: tableB, on: connection) == 3)
     }
