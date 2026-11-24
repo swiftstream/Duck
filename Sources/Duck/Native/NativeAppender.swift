@@ -146,7 +146,7 @@ final class NativeAppender {
             } ?? "DuckDB failed to create an appender for table \(table)."
 
             if appender != nil {
-                _ = duckdb_appender_destroy(&appender)
+                _ = destroyNativeAppender(&appender, connection: connection)
             }
 
             throw NativeAppenderError(stage: .creation, message: message)
@@ -162,7 +162,7 @@ final class NativeAppender {
                     fallback: "DuckDB failed to select appender column \(String(reflecting: column))."
                 )
                 var appenderToDestroy: duckdb_appender? = createdAppender
-                _ = duckdb_appender_destroy(&appenderToDestroy)
+                _ = destroyNativeAppender(&appenderToDestroy, connection: connection)
                 throw NativeAppenderError(stage: .creation, message: message)
             }
         }
@@ -173,7 +173,7 @@ final class NativeAppender {
                 fallback: "DuckDB appender column count does not fit in Swift Int."
             )
             var appenderToDestroy: duckdb_appender? = createdAppender
-            _ = duckdb_appender_destroy(&appenderToDestroy)
+            _ = destroyNativeAppender(&appenderToDestroy, connection: connection)
             throw NativeAppenderError(
                 stage: .creation,
                 message: message
@@ -197,7 +197,7 @@ final class NativeAppender {
         } catch let error as NativeAppenderError {
             let message = Self.copyDiagnostic(from: createdAppender, fallback: error.message)
             var appenderToDestroy: duckdb_appender? = createdAppender
-            _ = duckdb_appender_destroy(&appenderToDestroy)
+            _ = destroyNativeAppender(&appenderToDestroy, connection: connection)
             throw NativeAppenderError(stage: .creation, message: message)
         } catch {
             let message = Self.copyDiagnostic(
@@ -205,7 +205,7 @@ final class NativeAppender {
                 fallback: "DuckDB failed to copy appender target metadata: \(error)."
             )
             var appenderToDestroy: duckdb_appender? = createdAppender
-            _ = duckdb_appender_destroy(&appenderToDestroy)
+            _ = destroyNativeAppender(&appenderToDestroy, connection: connection)
             throw NativeAppenderError(
                 stage: .creation,
                 message: message
@@ -214,7 +214,7 @@ final class NativeAppender {
 
         guard descriptors.count == count else {
             var appenderToDestroy: duckdb_appender? = createdAppender
-            _ = duckdb_appender_destroy(&appenderToDestroy)
+            _ = destroyNativeAppender(&appenderToDestroy, connection: connection)
             throw NativeAppenderError(
                 stage: .creation,
                 message: "Appender target metadata count did not match its column count."
@@ -233,7 +233,7 @@ final class NativeAppender {
 
         _ = duckdb_appender_clear(appender)
         var appenderToDestroy: duckdb_appender? = appender
-        _ = duckdb_appender_destroy(&appenderToDestroy)
+        _ = destroyNativeAppender(&appenderToDestroy, connection: connection)
         handle = nil
     }
 
@@ -317,7 +317,7 @@ final class NativeAppender {
         }
 
         var appenderToDestroy: duckdb_appender? = appender
-        let destroyState = duckdb_appender_destroy(&appenderToDestroy)
+        let destroyState = destroyNativeAppender(&appenderToDestroy, connection: connection)
         handle = nil
 
         guard destroyState == DuckDBSuccess else {
@@ -336,7 +336,7 @@ final class NativeAppender {
         let clearState = duckdb_appender_clear(appender)
         if clearState == DuckDBSuccess {
             var appenderToDestroy: duckdb_appender? = appender
-            let destroyState = duckdb_appender_destroy(&appenderToDestroy)
+            let destroyState = destroyNativeAppender(&appenderToDestroy, connection: connection)
             handle = nil
 
             guard destroyState == DuckDBSuccess else {
@@ -353,7 +353,7 @@ final class NativeAppender {
             fallback: "DuckDB failed to discard buffered appender data."
         )
         var appenderToDestroy: duckdb_appender? = appender
-        let destroyState = duckdb_appender_destroy(&appenderToDestroy)
+        let destroyState = destroyNativeAppender(&appenderToDestroy, connection: connection)
         handle = nil
         let destroyDescription = destroyState == DuckDBSuccess ? "success" : "error"
 
@@ -370,7 +370,7 @@ final class NativeAppender {
         }
 
         var appenderToDestroy: duckdb_appender? = appender
-        _ = duckdb_appender_destroy(&appenderToDestroy)
+        _ = destroyNativeAppender(&appenderToDestroy, connection: connection)
         handle = nil
     }
 
@@ -780,4 +780,16 @@ final class NativeAppender {
 
         return String(cString: message)
     }
+}
+
+private func destroyNativeAppender(
+    _ appender: inout duckdb_appender?,
+    connection: NativeConnection
+) -> duckdb_state {
+    let hadHandle = appender != nil
+    let state = duckdb_appender_destroy(&appender)
+    if hadHandle {
+        connection.recordAppenderDestroyed()
+    }
+    return state
 }

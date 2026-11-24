@@ -289,10 +289,11 @@ struct ConnectionPoolStateMachine: Sendable {
         _ creationId: ConnectionPoolCreationId,
         connectionID: ConnectionId
     ) -> ConnectionPoolLeaseToken? {
-        guard let leaseID = creations.removeValue(forKey: creationId),
+        guard let leaseID = creations[creationId],
               slots[connectionID] == nil else {
             return nil
         }
+        creations.removeValue(forKey: creationId)
 
         let token = ConnectionPoolLeaseToken(
             poolID: poolID,
@@ -340,9 +341,8 @@ struct ConnectionPoolStateMachine: Sendable {
               current == token else {
             return false
         }
-        slots.removeValue(forKey: token.connectionID)
+        slots[token.connectionID] = .retiring
         idleOrder.removeAll { $0 == token.connectionID }
-        closeIfPossible()
         return true
     }
 
@@ -381,9 +381,8 @@ struct ConnectionPoolStateMachine: Sendable {
               current == token else {
             return false
         }
-        slots.removeValue(forKey: token.connectionID)
+        slots[token.connectionID] = .retiring
         idleOrder.removeAll { $0 == token.connectionID }
-        closeIfPossible()
         return true
     }
 
@@ -398,13 +397,25 @@ struct ConnectionPoolStateMachine: Sendable {
             guard current == token else {
                 return false
             }
-            slots.removeValue(forKey: token.connectionID)
+            slots[token.connectionID] = .retiring
             idleOrder.removeAll { $0 == token.connectionID }
-            closeIfPossible()
             return true
         default:
             return false
         }
+    }
+
+    /// Keeps an exact returning lease counted while its native owner is disconnected.
+    mutating func beginRetirement(
+        _ token: ConnectionPoolLeaseToken
+    ) -> Bool {
+        guard case .returning(let current) = slots[token.connectionID],
+              current == token else {
+            return false
+        }
+        slots[token.connectionID] = .retiring
+        idleOrder.removeAll { $0 == token.connectionID }
+        return true
     }
 
     /// Consumes Connection-side return disposition into idle, handoff, removal, or retirement.
@@ -505,6 +516,15 @@ struct ConnectionPoolStateMachine: Sendable {
         return true
     }
 
+    /// Keeps an already-opened but otherwise unregistered native owner accounted for retirement.
+    mutating func registerRetiringConnection(_ connectionID: ConnectionId) -> Bool {
+        guard slots[connectionID] == nil else {
+            return false
+        }
+        slots[connectionID] = .retiring
+        return true
+    }
+
     private mutating func closeIfPossible() {
         guard lifecycle == .shuttingDown,
               waiterOrder.isEmpty,
@@ -549,8 +569,18 @@ public actor ConnectionPool {
     private let database: Database.Runtime
     private let poolID: ConnectionPoolID
     private var state: ConnectionPoolStateMachine
+    /// A failed retirement prevents new checkout and successful shutdown.
+    private var retirementFailure: DatabaseError?
+    /// Prevents concurrent paths from retiring one slot more than once.
+    private var retiringConnectionIDs: Set<ConnectionId> = []
     /// When non-nil, the next pooled Connection open throws this exact error and consumes the value.
     private var forcedOpenFailure: DatabaseError?
+    /// When non-nil, the next materialized activation fails before Connection-side mutation.
+    private var forcedActivationFailure: DatabaseError?
+    /// When non-nil, the next retirement refuses before native disconnection.
+    private var forcedRetirementFailure: DatabaseError?
+    private var activationTestHook: (@Sendable () async -> Void)?
+    private var postActivationTestHook: (@Sendable () async -> Void)?
     private var connections: [ConnectionId: Connection.Runtime] = [:]
     private var checkoutContinuations:
         [ConnectionPoolWaiterId: CheckedContinuation<ConnectionPoolLease, Error>] = [:]
@@ -558,7 +588,7 @@ public actor ConnectionPool {
     private var queuedCheckoutWaiterObservers:
         [(Int, CheckedContinuation<Void, Never>)] = []
     private var shutdownContinuations:
-        [UUID: CheckedContinuation<Void, Never>] = [:]
+        [UUID: CheckedContinuation<Void, Error>] = [:]
 
     /// Creates a bounded Pool owned by one exact Database.Runtime.
     init(
@@ -606,6 +636,9 @@ public actor ConnectionPool {
 
     /// Rejects configuration once this pool starts shutting down.
     func requireOpen() throws {
+        if let retirementFailure {
+            throw retirementFailure
+        }
         guard state.lifecycle == .open else {
             throw DatabaseError.poolClosed
         }
@@ -617,13 +650,20 @@ public actor ConnectionPool {
     /// can observe a partially registered Connection. A failed open leaves any
     /// already-created idle Connections reusable and a later call may retry.
     func warmUpMinimumConnections() async throws {
+        if let retirementFailure {
+            throw retirementFailure
+        }
         guard state.lifecycle == .open else {
             return
         }
 
-        while state.needsMinimumMaterialization(minimumConnections) {
+        while retirementFailure == nil,
+              state.needsMinimumMaterialization(minimumConnections) {
             let runtime = try openPooledRuntime()
             guard state.registerIdleConnection(runtime.id) else {
+                connections[runtime.id] = runtime
+                _ = state.registerRetiringConnection(runtime.id)
+                try await retireConnection(runtime, connectionID: runtime.id)
                 throw DatabaseError.connectionUnusable(
                     "Connection Pool could not register an eager Connection."
                 )
@@ -633,6 +673,13 @@ public actor ConnectionPool {
             // A replenished eager slot must honor older queued checkout requests
             // before a later caller can claim it.
             await serviceQueuedWaitersIfPossible()
+            if let retirementFailure {
+                throw retirementFailure
+            }
+        }
+
+        if let retirementFailure {
+            throw retirementFailure
         }
     }
 
@@ -733,7 +780,7 @@ public actor ConnectionPool {
             throw DatabaseError.poolShutdownFromLease
         }
 
-        await shutdownPool()
+        try await shutdownPool()
     }
 
     /// Returns whether actor-owned Pool state still recognizes the exact full token as live.
@@ -795,6 +842,59 @@ public actor ConnectionPool {
         forcedOpenFailure = error
     }
 
+    /// Forces the next already-materialized Connection activation to fail deterministically.
+    func forceNextActivationFailure(_ error: DatabaseError) {
+        forcedActivationFailure = error
+    }
+
+    /// Refuses one retirement before C disconnect to exercise the terminal Pool fence.
+    func forceNextRetirementFailure(_ error: DatabaseError) {
+        forcedRetirementFailure = error
+    }
+
+    /// Pauses one activation at a deterministic actor-reentrancy boundary for lifecycle tests.
+    func installActivationTestHook(
+        _ hook: @escaping @Sendable () async -> Void
+    ) {
+        activationTestHook = hook
+    }
+
+    /// Pauses after Connection-side activation but before Pool delivery for lifecycle tests.
+    func installPostActivationTestHook(
+        _ hook: @escaping @Sendable () async -> Void
+    ) {
+        postActivationTestHook = hook
+    }
+
+    private func pauseAfterConnectionActivationIfNeeded() async {
+        let hook = postActivationTestHook
+        postActivationTestHook = nil
+        if let hook {
+            await hook()
+        }
+    }
+
+    private func prepareForActivation() async throws {
+        if let retirementFailure {
+            throw retirementFailure
+        }
+
+        let hook = activationTestHook
+        activationTestHook = nil
+        if let hook {
+            await hook()
+        }
+
+        if let retirementFailure {
+            throw retirementFailure
+        }
+
+        if let error = forcedActivationFailure {
+            forcedActivationFailure = nil
+            throw error
+        }
+    }
+
     private func openPooledRuntime() throws -> Connection.Runtime {
         if let error = forcedOpenFailure {
             forcedOpenFailure = nil
@@ -847,6 +947,9 @@ public actor ConnectionPool {
         ownership: ConnectionPoolLeaseOwnership
     ) async throws -> ConnectionPoolLease {
         try Task.checkCancellation()
+        if let retirementFailure {
+            throw retirementFailure
+        }
 
         let leaseID = ConnectionPoolLeaseID()
         let creationId = ConnectionPoolCreationId()
@@ -872,6 +975,9 @@ public actor ConnectionPool {
         case .activate(let connectionID, let token):
             guard let connection = connections[connectionID] else {
                 _ = state.failActivation(token)
+                recordRetirementFailure(.connectionUnusable(
+                    "Connection Pool lost an idle Connection during checkout retirement."
+                ), connectionID: connectionID)
                 throw DatabaseError.connectionUnusable(
                     "Connection Pool lost an idle Connection during checkout."
                 )
@@ -922,7 +1028,12 @@ public actor ConnectionPool {
             creationId,
             connectionID: runtime.id
         ) else {
-            connections.removeValue(forKey: runtime.id)
+            _ = state.registerRetiringConnection(runtime.id)
+            do {
+                try await retireConnection(runtime, connectionID: runtime.id)
+            } catch {
+                // Preserve the opened owner and its counted retiring slot.
+            }
             throw DatabaseError.connectionUnusable(
                 "Connection Pool lost its creation reservation."
             )
@@ -941,15 +1052,37 @@ public actor ConnectionPool {
         ownership: ConnectionPoolLeaseOwnership
     ) async throws -> ConnectionPoolLease {
         do {
+            try await prepareForActivation()
             try await runtime.activatePoolLease(token, ownership: ownership)
+            if postActivationTestHook != nil {
+                await pauseAfterConnectionActivationIfNeeded()
+            }
         } catch {
-            _ = state.failActivation(token)
-            connections.removeValue(forKey: token.connectionID)
-            notifyShutdownIfClosed()
+            if state.failActivation(token) {
+                do {
+                    try await retireConnection(runtime, connectionID: token.connectionID)
+                } catch {
+                    // The Pool retains the retiring slot and its failure state.
+                }
+            } else {
+                recordRetirementFailure(.connectionUnusable(
+                    "Connection Pool could not establish activation ownership for retirement."
+                ), connectionID: token.connectionID)
+            }
             await serviceQueuedWaitersIfPossible()
+            if let retirementFailure {
+                throw retirementFailure
+            }
             throw DatabaseError.connectionUnusable(
                 "Connection Pool could not activate a reserved Connection."
             )
+        }
+
+        if let retirementFailure {
+            await discardActivatedConnection(
+                makeLease(runtime: runtime, token: token, ownership: ownership)
+            )
+            throw retirementFailure
         }
 
         guard let completion = state.completeActivation(token) else {
@@ -990,6 +1123,21 @@ public actor ConnectionPool {
         try await returnLease(runtime: lease.runtime, token: lease.token)
     }
 
+    private func completeLeaseReturn(
+        _ token: ConnectionPoolLeaseToken,
+        disposition: ConnectionPoolConnectionDisposition,
+        nextLeaseID: ConnectionPoolLeaseID
+    ) -> ConnectionPoolReturnCompletion? {
+        if disposition == .retired {
+            return state.beginRetirement(token) ? .retire : nil
+        }
+        return state.completeReturn(
+            token,
+            disposition: disposition,
+            nextLeaseID: nextLeaseID
+        )
+    }
+
     private func returnLease(
         runtime: Connection.Runtime,
         token: ConnectionPoolLeaseToken
@@ -1003,29 +1151,53 @@ public actor ConnectionPool {
         do {
             returnOutcome = try await runtime.returnPoolLease(token)
         } catch let error as DatabaseError {
-            _ = state.abandonReturning(token)
-            connections.removeValue(forKey: token.connectionID)
-            notifyShutdownIfClosed()
+            if state.abandonReturning(token) {
+                do {
+                    try await retireConnection(runtime, connectionID: token.connectionID)
+                } catch {
+                    // Preserve the original return-cleanup error while retaining accounting.
+                }
+            } else {
+                recordRetirementFailure(.connectionUnusable(
+                    "Connection Pool lost return ownership before retirement."
+                ), connectionID: token.connectionID)
+            }
             await serviceQueuedWaitersIfPossible()
             throw error
         } catch {
-            _ = state.abandonReturning(token)
-            connections.removeValue(forKey: token.connectionID)
-            notifyShutdownIfClosed()
+            if state.abandonReturning(token) {
+                do {
+                    try await retireConnection(runtime, connectionID: token.connectionID)
+                } catch {
+                    // Preserve the existing mapped return-cleanup error.
+                }
+            } else {
+                recordRetirementFailure(.connectionUnusable(
+                    "Connection Pool lost return ownership before retirement."
+                ), connectionID: token.connectionID)
+            }
             await serviceQueuedWaitersIfPossible()
             throw DatabaseError.connectionUnusable(
                 "Connection Pool return cleanup failed."
             )
         }
 
-        guard let completion = state.completeReturn(
+        guard let completion = completeLeaseReturn(
             token,
             disposition: returnOutcome.disposition,
             nextLeaseID: ConnectionPoolLeaseID()
         ) else {
-            _ = state.abandonReturning(token)
-            connections.removeValue(forKey: token.connectionID)
-            notifyShutdownIfClosed()
+            if state.abandonReturning(token) {
+                do {
+                    try await retireConnection(runtime, connectionID: token.connectionID)
+                } catch {
+                    // Preserve the terminal failure recorded by the Pool.
+                }
+            } else {
+                recordRetirementFailure(.connectionUnusable(
+                    "Connection Pool could not safely recover a lost return token."
+                ), connectionID: token.connectionID)
+            }
             await serviceQueuedWaitersIfPossible()
             throw DatabaseError.connectionUnusable(
                 "Connection Pool lost return ownership."
@@ -1044,15 +1216,16 @@ public actor ConnectionPool {
             )
             await serviceQueuedWaitersIfPossible()
 
-        case .removed:
-            connections.removeValue(forKey: token.connectionID)
-            notifyShutdownIfClosed()
+        case .retire:
+            try await retireConnection(runtime, connectionID: token.connectionID)
             await serviceQueuedWaitersIfPossible()
 
-        case .retire:
-            await retireConnection(
-                runtime,
-                connectionID: token.connectionID
+        case .removed:
+            recordRetirementFailure(.connectionUnusable(
+                "Connection Pool removed a native owner before physical retirement."
+            ), connectionID: token.connectionID)
+            throw DatabaseError.connectionUnusable(
+                "Connection Pool removed a native owner before physical retirement."
             )
         }
 
@@ -1067,35 +1240,48 @@ public actor ConnectionPool {
         do {
             outcome = try await lease.runtime.returnPoolLease(lease.token)
         } catch {
-            _ = state.abandonReturning(lease.token)
-            connections.removeValue(forKey: lease.token.connectionID)
-            notifyShutdownIfClosed()
+            if state.abandonReturning(lease.token) {
+                do {
+                    try await retireConnection(lease.runtime, connectionID: lease.token.connectionID)
+                } catch {
+                    // The counted slot remains unavailable for future checkout.
+                }
+            } else {
+                recordRetirementFailure(.connectionUnusable(
+                    "Connection Pool lost an undelivered lease before retirement."
+                ), connectionID: lease.token.connectionID)
+            }
             await serviceQueuedWaitersIfPossible()
             return
         }
 
-        guard let completion = state.completeReturn(
+        guard let completion = completeLeaseReturn(
             lease.token,
             disposition: outcome.disposition,
             nextLeaseID: ConnectionPoolLeaseID()
         ) else {
-            _ = state.abandonReturning(lease.token)
-            connections.removeValue(forKey: lease.token.connectionID)
-            notifyShutdownIfClosed()
+            if state.abandonReturning(lease.token) {
+                do {
+                    try await retireConnection(lease.runtime, connectionID: lease.token.connectionID)
+                } catch {
+                    // The Pool keeps the failed owner and slot accounted.
+                }
+            } else {
+                recordRetirementFailure(.connectionUnusable(
+                    "Connection Pool could not safely recover an undelivered lease."
+                ), connectionID: lease.token.connectionID)
+            }
             await serviceQueuedWaitersIfPossible()
             return
         }
 
         switch completion {
         case .retire:
-            await retireConnection(
-                lease.runtime,
-                connectionID: lease.token.connectionID
-            )
-
-        case .removed:
-            connections.removeValue(forKey: lease.token.connectionID)
-            notifyShutdownIfClosed()
+            do {
+                try await retireConnection(lease.runtime, connectionID: lease.token.connectionID)
+            } catch {
+                // The retiring slot remains accounted and the terminal failure is retained.
+            }
 
         case .idle:
             break
@@ -1106,6 +1292,11 @@ public actor ConnectionPool {
                 waiterId: waiterId,
                 token: token
             )
+
+        case .removed:
+            recordRetirementFailure(.connectionUnusable(
+                "Connection Pool removed an undelivered native owner before retirement."
+            ), connectionID: lease.token.connectionID)
         }
 
         await serviceQueuedWaitersIfPossible()
@@ -1121,14 +1312,22 @@ public actor ConnectionPool {
             // drops ownership, even when invariant-recovery cleanup cannot finish.
         }
 
-        _ = state.discardLeaseSlot(lease.token)
-        connections.removeValue(forKey: lease.token.connectionID)
-        notifyShutdownIfClosed()
+        if state.discardLeaseSlot(lease.token) {
+            do {
+                try await retireConnection(lease.runtime, connectionID: lease.token.connectionID)
+            } catch {
+                // Preserve the retiring owner and its capacity accounting.
+            }
+        } else {
+            recordRetirementFailure(.connectionUnusable(
+                "Connection Pool could not establish exact ownership for activation discard."
+            ), connectionID: lease.token.connectionID)
+        }
         await serviceQueuedWaitersIfPossible()
     }
 
     private func serviceQueuedWaitersIfPossible() async {
-        while state.lifecycle == .open {
+        while state.lifecycle == .open, retirementFailure == nil {
             let leaseID = ConnectionPoolLeaseID()
             let creationId = ConnectionPoolCreationId()
 
@@ -1143,6 +1342,9 @@ public actor ConnectionPool {
             case .activate(let waiterId, let connectionID, let token):
                 guard let runtime = connections[connectionID] else {
                     _ = state.failActivation(token)
+                    recordRetirementFailure(.connectionUnusable(
+                        "Connection Pool lost a handoff Connection before retirement."
+                    ), connectionID: connectionID)
                     resumeWaiter(
                         waiterId,
                         throwing: DatabaseError.connectionUnusable(
@@ -1176,7 +1378,12 @@ public actor ConnectionPool {
                     reservedCreationId,
                     connectionID: runtime.id
                 ) else {
-                    connections.removeValue(forKey: runtime.id)
+                    _ = state.registerRetiringConnection(runtime.id)
+                    do {
+                        try await retireConnection(runtime, connectionID: runtime.id)
+                    } catch {
+                        // Preserve the failed owner and its retiring accounting.
+                    }
                     resumeWaiter(
                         waiterId,
                         throwing: DatabaseError.connectionUnusable(
@@ -1191,6 +1398,7 @@ public actor ConnectionPool {
                     waiterId: waiterId,
                     token: token
                 )
+
             }
         }
     }
@@ -1202,17 +1410,37 @@ public actor ConnectionPool {
     ) async {
         let ownership = checkoutOwnershipByWaiter[waiterId] ?? .scoped
         do {
+            try await prepareForActivation()
             try await runtime.activatePoolLease(token, ownership: ownership)
+            if postActivationTestHook != nil {
+                await pauseAfterConnectionActivationIfNeeded()
+            }
         } catch {
-            _ = state.failActivation(token)
-            connections.removeValue(forKey: token.connectionID)
+            if state.failActivation(token) {
+                do {
+                    try await retireConnection(runtime, connectionID: token.connectionID)
+                } catch {
+                    // The Pool retains the failed slot and reports shutdown failure.
+                }
+            } else {
+                recordRetirementFailure(.connectionUnusable(
+                    "Connection Pool lost handoff activation ownership before retirement."
+                ), connectionID: token.connectionID)
+            }
             resumeWaiter(
                 waiterId,
-                throwing: DatabaseError.connectionUnusable(
+                throwing: retirementFailure ?? DatabaseError.connectionUnusable(
                     "Connection Pool could not activate a handed-off Connection."
                 )
             )
-            notifyShutdownIfClosed()
+            return
+        }
+
+        if let retirementFailure {
+            resumeWaiter(waiterId, throwing: retirementFailure)
+            await discardActivatedConnection(
+                makeLease(runtime: runtime, token: token, ownership: ownership)
+            )
             return
         }
 
@@ -1269,14 +1497,22 @@ public actor ConnectionPool {
 
         do {
             let outcome = try await lease.runtime.returnPoolLease(lease.token)
-            guard let completion = state.completeReturn(
+            guard let completion = completeLeaseReturn(
                 lease.token,
                 disposition: outcome.disposition,
                 nextLeaseID: ConnectionPoolLeaseID()
             ) else {
-                _ = state.abandonReturning(lease.token)
-                connections.removeValue(forKey: lease.token.connectionID)
-                notifyShutdownIfClosed()
+                if state.abandonReturning(lease.token) {
+                    do {
+                        try await retireConnection(lease.runtime, connectionID: lease.token.connectionID)
+                    } catch {
+                        // Keep the slot unavailable and report failure through Pool shutdown.
+                    }
+                } else {
+                    recordRetirementFailure(.connectionUnusable(
+                        "Connection Pool could not safely recover an abandoned lease."
+                    ), connectionID: lease.token.connectionID)
+                }
                 await serviceQueuedWaitersIfPossible()
                 return
             }
@@ -1291,17 +1527,29 @@ public actor ConnectionPool {
                     token: token
                 )
                 await serviceQueuedWaitersIfPossible()
-            case .removed:
-                connections.removeValue(forKey: lease.token.connectionID)
             case .retire:
-                await retireConnection(
-                    lease.runtime,
-                    connectionID: lease.token.connectionID
-                )
+                do {
+                    try await retireConnection(lease.runtime, connectionID: lease.token.connectionID)
+                } catch {
+                    // The Pool retains the failed owner and its capacity accounting.
+                }
+            case .removed:
+                recordRetirementFailure(.connectionUnusable(
+                    "Connection Pool removed an abandoned native owner before retirement."
+                ), connectionID: lease.token.connectionID)
             }
         } catch {
-            _ = state.abandonReturning(lease.token)
-            connections.removeValue(forKey: lease.token.connectionID)
+            if state.abandonReturning(lease.token) {
+                do {
+                    try await retireConnection(lease.runtime, connectionID: lease.token.connectionID)
+                } catch {
+                    // Preserve the terminal retirement failure in Pool state.
+                }
+            } else {
+                recordRetirementFailure(.connectionUnusable(
+                    "Connection Pool lost an abandoned lease before retirement."
+                ), connectionID: lease.token.connectionID)
+            }
         }
 
         notifyShutdownIfClosed()
@@ -1322,26 +1570,77 @@ public actor ConnectionPool {
     private func retireConnection(
         _ runtime: Connection.Runtime,
         connectionID: ConnectionId
-    ) async {
+    ) async throws {
+        guard retiringConnectionIDs.insert(connectionID).inserted else {
+            return
+        }
+        defer { retiringConnectionIDs.remove(connectionID) }
+
+        guard let ownedRuntime = connections[connectionID], ownedRuntime === runtime else {
+            let failure = DatabaseError.connectionUnusable(
+                "Connection Pool lost the native owner before physical retirement."
+            )
+            recordRetirementFailure(failure, connectionID: connectionID)
+            throw failure
+        }
+
+        if let failure = forcedRetirementFailure {
+            forcedRetirementFailure = nil
+            recordRetirementFailure(failure, connectionID: connectionID)
+            throw failure
+        }
+
         do {
             try await runtime.retirePooledConnection(poolID: poolID)
         } catch {
-            // Dropping Pool ownership is still safe because idle/retired Connection
-            // admission remains closed without an active lease token.
+            let failure = error as? DatabaseError ?? .connectionUnusable(
+                "Connection Pool could not physically retire a native Connection."
+            )
+            recordRetirementFailure(failure, connectionID: connectionID)
+            throw failure
         }
 
-        _ = state.finishRetiring(connectionID)
+        guard state.finishRetiring(connectionID) else {
+            let failure = DatabaseError.connectionUnusable(
+                "Connection Pool lost its retiring slot after native disconnect."
+            )
+            recordRetirementFailure(failure, connectionID: connectionID)
+            throw failure
+        }
         connections.removeValue(forKey: connectionID)
         notifyShutdownIfClosed()
     }
 
-    private func shutdownPool() async {
+    private func recordRetirementFailure(
+        _ error: DatabaseError,
+        connectionID: ConnectionId? = nil
+    ) {
+        if let connectionID {
+            _ = state.registerRetiringConnection(connectionID)
+        }
+        if retirementFailure == nil {
+            retirementFailure = error
+        }
+
+        let queuedWaiters = state.waiterOrder
+        for waiterId in queuedWaiters {
+            _ = state.cancelQueuedWaiter(waiterId)
+            resumeWaiter(waiterId, throwing: retirementFailure ?? error)
+        }
+        notifyShutdownIfClosed()
+    }
+
+    private func shutdownPool() async throws {
+        if let retirementFailure {
+            throw retirementFailure
+        }
+
         switch state.beginShutdown() {
         case .alreadyClosed:
             return
 
         case .alreadyShuttingDown:
-            await waitForShutdownCompletion()
+            try await waitForShutdownCompletion()
             return
 
         case .started(let queuedWaiters, let idleConnections):
@@ -1351,10 +1650,13 @@ public actor ConnectionPool {
 
             for connectionID in idleConnections {
                 guard let runtime = connections[connectionID] else {
-                    _ = state.finishRetiring(connectionID)
-                    continue
+                    let failure = DatabaseError.connectionUnusable(
+                        "Connection Pool lost an idle native owner during shutdown."
+                    )
+                    recordRetirementFailure(failure, connectionID: connectionID)
+                    throw failure
                 }
-                await retireConnection(
+                try await retireConnection(
                     runtime,
                     connectionID: connectionID
                 )
@@ -1363,20 +1665,27 @@ public actor ConnectionPool {
             notifyShutdownIfClosed()
 
             if !state.isClosed {
-                await waitForShutdownCompletion()
+                try await waitForShutdownCompletion()
             }
         }
     }
 
-    private func waitForShutdownCompletion() async {
+    private func waitForShutdownCompletion() async throws {
+        if let retirementFailure {
+            throw retirementFailure
+        }
         guard !state.isClosed else {
             return
         }
 
         let id = UUID()
-        await withCheckedContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            if let retirementFailure {
+                continuation.resume(throwing: retirementFailure)
+                return
+            }
             guard !state.isClosed else {
-                continuation.resume()
+                continuation.resume(returning: ())
                 return
             }
             shutdownContinuations[id] = continuation
@@ -1384,8 +1693,20 @@ public actor ConnectionPool {
     }
 
     private func notifyShutdownIfClosed() {
-        guard state.isClosed,
-              !shutdownContinuations.isEmpty else {
+        guard !shutdownContinuations.isEmpty else {
+            return
+        }
+
+        if let retirementFailure {
+            let continuations = shutdownContinuations.values
+            shutdownContinuations.removeAll()
+            for continuation in continuations {
+                continuation.resume(throwing: retirementFailure)
+            }
+            return
+        }
+
+        guard state.isClosed else {
             return
         }
 
@@ -1393,7 +1714,7 @@ public actor ConnectionPool {
         shutdownContinuations.removeAll()
 
         for continuation in continuations {
-            continuation.resume()
+            continuation.resume(returning: ())
         }
     }
 }

@@ -23,10 +23,16 @@ extension Database {
         }
 
         /// Opens one runtime for a logical database value.
-        init(identifier: Database) throws {
+        init(
+            identifier: Database,
+            nativeConnectionLifecycleWitness: NativeConnectionLifecycleWitness? = nil
+        ) throws {
             let openedDatabase: NativeDatabase
             do {
-                openedDatabase = try NativeDatabase(path: identifier.nativePath)
+                openedDatabase = try NativeDatabase(
+                    path: identifier.nativePath,
+                    connectionLifecycleWitness: nativeConnectionLifecycleWitness
+                )
             } catch let error as NativeDuckDBError {
                 throw DatabaseError.databaseOpen(error.message)
             }

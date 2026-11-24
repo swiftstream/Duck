@@ -24,7 +24,7 @@ final class NativePreparedStatement {
                 message = "DuckDB failed to prepare the query."
             }
 
-            duckdb_destroy_prepare(&statement)
+            destroyPreparedStatement(&statement, connection: connection)
             throw NativeDuckDBError(operation: .preparation, message: message)
         }
 
@@ -32,8 +32,8 @@ final class NativePreparedStatement {
     }
 
     deinit {
-        var handle: duckdb_prepared_statement? = handle
-        duckdb_destroy_prepare(&handle)
+        var ownedHandle: duckdb_prepared_statement? = handle
+        destroyPreparedStatement(&ownedHandle, connection: connection)
     }
 
     var isTransactionStatement: Bool {
@@ -490,5 +490,16 @@ final class NativePreparedStatement {
 
     func withUnsafeHandle<Result>(_ body: (duckdb_prepared_statement) throws -> Result) rethrows -> Result {
         try body(handle)
+    }
+}
+
+private func destroyPreparedStatement(
+    _ handle: inout duckdb_prepared_statement?,
+    connection: NativeConnection
+) {
+    let hadHandle = handle != nil
+    duckdb_destroy_prepare(&handle)
+    if hadHandle {
+        connection.recordPreparedStatementDestroyed()
     }
 }

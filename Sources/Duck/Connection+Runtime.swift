@@ -256,6 +256,7 @@ extension Connection {
         private var usability: ConnectionUsability = .usable
         private var poolLeaseState: ConnectionPoolLeaseStateMachine
         private var poolLeaseOwnership: ConnectionPoolLeaseOwnership = .scoped
+        private var forcedPoolLeaseCleanupFailure: DatabaseError?
         private var poolLeaseDrainWaiter: CheckedContinuation<Void, Never>?
         private var poolLeaseClosingWaiters: [CheckedContinuation<Void, Never>] = []
         private var outerAdmissionState = ConnectionAdmissionStateMachine()
@@ -297,6 +298,11 @@ extension Connection {
             poolLeaseState.state
         }
 
+        /// Injects one deterministic post-drain cleanup failure for retirement-path tests.
+        func forceNextPoolLeaseCleanupFailure(_ error: DatabaseError) {
+            forcedPoolLeaseCleanupFailure = error
+        }
+
         /// Waits until this Connection's current Pool lease enters closing state.
         func waitForPoolLeaseClosing() async {
             if case .pooledClosing = poolLeaseState.state {
@@ -313,6 +319,17 @@ extension Connection {
             poolID: ConnectionPoolID
         ) throws {
             try poolLeaseState.retireIdle(poolID: poolID)
+
+            guard outerAdmissionState.lease == nil,
+                  transactionState == nil,
+                  appenders.isEmpty,
+                  preparedStatements.isEmpty else {
+                throw DatabaseError.connectionUnusable(
+                    "Pooled Connection still owns child resources at physical retirement."
+                )
+            }
+
+            nativeConnection.disconnect()
         }
 
         /// Closes, drains, cleans, and returns one exact Pool lease to reusable or retired state.
@@ -368,6 +385,13 @@ extension Connection {
                 if cleanupFailure == nil {
                     cleanupFailure = .connectionUnusable(message)
                 }
+            }
+
+            if cleanupFailure == nil,
+               let forcedFailure = forcedPoolLeaseCleanupFailure {
+                forcedPoolLeaseCleanupFailure = nil
+                cleanupFailure = forcedFailure
+                enterFailClosed("Pooled Connection cleanup failure test seam was consumed.")
             }
 
             let reusable: Bool

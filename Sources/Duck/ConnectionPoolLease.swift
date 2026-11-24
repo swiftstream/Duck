@@ -185,10 +185,13 @@ struct ConnectionPoolLeaseStateMachine: Equatable, Sendable {
     mutating func retireIdle(
         poolID: ConnectionPoolID
     ) throws {
-        guard case .pooledIdle(let currentPoolID) = state,
-              currentPoolID == poolID else {
+        switch state {
+        case .pooledIdle(let currentPoolID) where currentPoolID == poolID:
+            state = .pooledRetired(poolID)
+        case .pooledRetired(let currentPoolID) where currentPoolID == poolID:
+            return
+        default:
             throw ConnectionPoolLeaseInternalError.invalidTransition
         }
-        state = .pooledRetired(poolID)
     }
 }
