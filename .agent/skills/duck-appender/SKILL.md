@@ -97,7 +97,7 @@ try await connection.transaction { transaction in
 }
 ```
 
-The same public `Appender` type, row values, and scoped lifetime are used in both modes, including fixed selected columns. The transaction variant participates in the already-active explicit outer transaction; it is not a nested transaction or an implicit ambient transaction. A successful Appender scope does not commit by itself: outer COMMIT persists rows, while outer ROLLBACK removes buffered and already auto-flushed transaction-Appender batches.
+The same public `Appender` type, row values, and scoped lifetime are used in both modes, including fixed selected columns. `database.appender(to: ...)` also borrows and returns a canonical pool lease; it does not create an unrelated native Connection. The transaction variant participates in the already-active explicit outer transaction; it is not a nested transaction or an implicit ambient transaction. A successful Appender scope does not commit by itself: outer COMMIT persists rows, while outer ROLLBACK removes buffered and already auto-flushed transaction-Appender batches.
 
 ## Supported row values
 
@@ -144,7 +144,7 @@ Treat the `Appender` as scoped authority supplied by either `Connection.appender
 
 The public `Appender` is `Sendable`, so structured child tasks may capture it while the scope remains live and the parent awaits them before returning.
 
-When using a pooled Connection, finish the Appender scope within the exact live `pool.connection` lease; `pool.transaction` offers the transaction form. A stale pooled capability fails with `.poolLeaseExpired`, and a fail-closed Connection is retired under the pool's existing policy. Appender mutations routed through the same canonical `DatabaseIdentifier` runtime participate in its existing latest-state `QueryObservation` invalidation: ordinary auto-flushed prefixes may become visible before scope end, while transaction impact publishes at definitive outer finalization. Observation is not a per-row event stream or cross-process watcher.
+When using a pooled Connection, finish the Appender scope within the exact live `pool.connection` lease; `pool.transaction` offers the transaction form. A stale pooled capability fails with `.poolLeaseExpired`, and a fail-closed Connection is retired under the pool's existing policy. Appender mutations routed through the same canonical `Database` runtime participate in its existing latest-state `QueryObservation` invalidation: ordinary auto-flushed prefixes may become visible before scope end, while transaction impact publishes at definitive outer finalization. Publication is conservatively Database-wide for every target because triggers may produce additional effects. Observation is not a per-row event stream or cross-process watcher.
 
 ## Concurrency rules
 

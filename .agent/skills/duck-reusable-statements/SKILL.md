@@ -81,6 +81,8 @@ Native execution failures are reusable where the pinned engine permits. A clear-
 
 A public `Statement` strongly retains the `Connection` that prepared it and stores no public/native handle that can be moved to another owner.
 
+A Statement belongs to the exact originating Connection lease; a subsequent lease reusing the same core does not revive it. Prepare and finish all Statement work within `database.connection { connection in ... }`, or retain a deliberate manual lease and release it after work finishes.
+
 `Statement` is `Sendable`, but native execution remains Connection-owned. Concurrent calls to one Statement serialize through the owning Connection; Statements on separate Connections remain independent.
 
 Do not claim parallel native execution for one Statement merely because multiple Swift tasks call it.

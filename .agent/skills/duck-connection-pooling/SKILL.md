@@ -54,13 +54,13 @@ let result = try await pool.connection { connection in
 
 The closure receives one pooled Connection for one exact active lease. Await all work that uses it before returning. The pool finishes mandatory return cleanup before the call completes. Return Swift-owned results or application values, not a Connection or a resource intended for later pooled work.
 
-An escaped pooled Connection is not authorized after lease return; stale work fails with `.poolLeaseExpired`. Reusing the same Connection actor in a later lease does not revive old Statements, Transactions, or Appenders. A detached task has no inherited lease authority. Structured child work must finish within the active scope. Use the scoped form when lexical lifetime is enough. For an explicitly longer-lived canonical lease, use `Database.connect()` and end it with `Connection.release()`; do not manufacture another checkout/release abstraction or an out-of-pool Connection.
+An escaped pooled Connection is not authorized after lease return; stale work fails with `.poolLeaseExpired`. Reusing the same internal core in a later lease creates a fresh public Connection handle; it does not revive old Statements, Transactions, or Appenders. A detached task has no inherited lease authority. Structured child work must finish within the active scope. Use the scoped form when lexical lifetime is enough. For an explicitly longer-lived canonical lease, use `Database.connect()` and end it with `Connection.release()`; do not manufacture another checkout/release abstraction or an out-of-pool Connection.
 
 When capacity is busy, checkouts wait in FIFO order. Cancellation of a queued request removes its place and preserves capacity. One Connection still serializes its own native operations; concurrency comes from independent leased Connections.
 
 ## 3. Avoid self-dependency inside a live lease
 
-Calling `pool.connection` again from a currently live lease of the same pool throws `.poolReentrantCheckout`. Do not await work that needs another lease of the same pool while retaining the first lease. Arrange independent work outside that scope or use a separate authorized owner when the product design calls for it.
+Calling another scoped or manual checkout from inherited live lease context of the same pool throws `.poolReentrantCheckout`. Do not await work that needs another lease of the same pool while retaining the first lease. Arrange independent work outside that scope or use a separate authorized owner when the product design calls for it.
 
 ## 4. Use the managed transaction convenience
 
@@ -99,9 +99,13 @@ let observation = try SQL
 try await pool.shutdown()
 ```
 
-Shutdown stops new checkout, fails queued requests with `.poolClosed`, and drains active leases before returning. A call from inside this pool's live lease throws `.poolShutdownFromLease`. Further checkout after shutdown starts throws `.poolClosed`. Repeated shutdown is harmless. Arrange the caller's active work to finish so shutdown can drain it.
+Shutdown stops new checkout, fails queued requests with `.poolClosed`, and drains active leases. Successful shutdown physically disconnects every owned native Connection even when stale Swift handles survive. Retirement keeps a slot counted until disconnect completes, so replacement cannot exceed the physical maximum. If safe retirement cannot be established, the pool reports an error and rejects new checkout rather than claiming successful shutdown. A call from inside this pool's live lease throws `.poolShutdownFromLease`. Normal checkout after shutdown starts throws `.poolClosed`. Repeating a successful shutdown is harmless; shutdown is terminal for that runtime and ordinary Database work cannot fall back to an out-of-pool Connection. Arrange the caller's active work to finish so shutdown can drain it.
 
-## 8. Error and API boundaries
+## 8. Migrate from v1.0
+
+`DatabaseIdentifier` is a deprecated typealias of `Database`. Existing source spelling remains compatible, but `connect()` is now a manual lease and must be released. The deprecated `pool(maximumConnections:)` configures and returns the same canonical pool; it does not create a second pool. Configure before first use, then use `pool()` only when its handle is needed. The runtime, pool and invalidation coordinator are process-local, not shared with another app or widget process.
+
+## 9. Error and API boundaries
 
 Pool-specific typed errors include `.invalidPoolConfiguration`, `.poolClosed`, `.poolReentrantCheckout`, `.poolShutdownFromLease`, `.poolLeaseExpired`, and `.poolTransactionNotFinalized`. A native Connection open failure can still surface as `.connectionOpen`; transaction cleanup may surface `TransactionRollbackError`. Do not inspect native error text to infer a guaranteed internal stage.
 

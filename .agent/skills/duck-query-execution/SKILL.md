@@ -1,6 +1,6 @@
 ---
 name: duck-query-execution
-description: Use for Duck DatabaseIdentifier identity, lazy runtime resolution, Connection creation, SQL query/execute calls, QueryResult/Row/Value reading, basic Connection concurrency, cancellation, errors, and the raw-SQL escape hatch.
+description: Use for Duck Database identity, lazy runtime resolution, Connection creation, SQL query/execute calls, QueryResult/Row/Value reading, basic Connection concurrency, cancellation, errors, and the raw-SQL escape hatch.
 license: LICENSE.txt
 ---
 
@@ -10,24 +10,24 @@ Use this skill for the normal database/connection/query workflow. For repeated p
 
 ## 1. Identify the database, then choose the needed execution scope
 
-Use a lightweight `DatabaseIdentifier` for application-facing database identity.
+Use a lightweight `Database` for application-facing database identity.
 
 ```swift
-let database = DatabaseIdentifier.memory()
+let database = Database.memory()
 ```
 
 For a file-backed database:
 
 ```swift
-let database = DatabaseIdentifier(path: "/path/to/app.duckdb")
+let database = Database(path: "/path/to/app.duckdb")
 ```
 
-Constructing the identifier does not open DuckDB. First operational use lazily registers the canonical live runtime; equivalent identifiers resolve that same process-lifetime runtime.
+Constructing a `Database` value does not open DuckDB. First operational use lazily registers the canonical live runtime; equivalent values resolve the same process-local runtime and bounded reusable pool. `DatabaseIdentifier` is a deprecated source-compatible typealias, not a separate resource model.
 
 For application-specific names, prefer a computed identifier:
 
 ```swift
-extension DatabaseIdentifier {
+extension Database {
     static var app: Self {
         Self(path: "/path/to/app.duckdb")
     }
@@ -42,11 +42,15 @@ let result = try await SQL
     .query(on: .app)
 ```
 
-When several operations should intentionally share one Connection, open it explicitly:
+When several operations should intentionally share one Connection, borrow a scoped lease:
 
 ```swift
-let connection = try await DatabaseIdentifier.app.connect()
+let result = try await Database.app.connection { connection in
+    try await connection.query(SQL.select(Int32(42) => "answer"))
+}
 ```
+
+For a longer-lived manual lease use `try await database.connect()` and end it with `try await connection.release()` on all exit paths. Prefer the scoped form when possible.
 
 ## 2. Build normal queries with SQL
 
@@ -71,7 +75,7 @@ let query = SQL
 let result = try await connection.query(query)
 ```
 
-Both forms funnel into the same Connection execution engine. Choose the identifier for ordinary one-shot work and an explicit Connection when its lifetime is part of the task.
+Both forms use the same canonical pool and Connection execution engine. Choose `Database` for ordinary one-shot work and an explicit scoped lease when Connection lifetime is part of the task.
 
 ## 3. Use `query` when rows matter and `execute` when row-count is the result
 
@@ -122,12 +126,13 @@ Use `result.resultColumns` when logical result metadata matters; do not move col
 
 ## 5. Keep Connection ownership explicit when it matters
 
-A `Connection` actor owns one native connection and its execution scheduling. Normal work admitted through one Connection is serialized by that owner.
+A `Connection` actor is a lease-bound handle over a reusable native core. Normal work on one core is serialized by its runtime. Do not retain capabilities after the exact lease ends.
 
-If independent work should proceed concurrently, open separate Connections from the same identifier:
+If independent work should proceed concurrently, configure capacity before first use and obtain separate leases from the same canonical pool:
 
 ```swift
-let database = DatabaseIdentifier.memory()
+let database = Database.memory()
+try await database.configure(minimumConnections: 1, maximumConnections: 2)
 let first = try await database.connect()
 let second = try await database.connect()
 
@@ -136,9 +141,13 @@ async let b = SQL.select(Int32(2) => "value").query(on: second)
 
 let results = try await (a, b)
 _ = results
+try await second.release()
+try await first.release()
 ```
 
-The Connections retain the internal canonical runtime they require. Application code does not retain or pass a public live Database object.
+This illustrates successful-path release; ensure awaited cleanup on every exit path in real code. Without configuration the maximum is one, so requesting a second lease while holding the first can wait indefinitely. Use the supplied Connection or Transaction for work inside a scope.
+
+Connections bind exact lease authority. Ordinary Database conveniences automatically borrow and return a lease; no out-of-pool public Connection creation exists.
 
 Do not promise parallel native execution inside one Connection merely because Swift callers use structured concurrency.
 
@@ -170,11 +179,11 @@ Keep raw SQL exceptional. Normal examples and generated application code should 
 
 Use a reusable `Statement` when one prepared SQL shape repeats with changing values. Reusable Statements remain Connection-bound, so obtain an explicit Connection first.
 
-Use `DatabaseIdentifier.transaction` for a concise managed transaction on a fresh Connection, or `Connection.transaction` and the supplied `DuckTransaction` when an already-owned Connection must define the boundary.
+Use `Database.transaction` for a concise managed transaction on a scoped canonical lease, or `Connection.transaction` and the supplied `DuckTransaction` when an already-owned Connection must define the boundary.
 
-Use `DatabaseIdentifier.appender` for a concise scoped Appender on a fresh Connection, `Connection.appender` when the Connection is already explicit, or `DuckTransaction.appender` when ingestion must participate in an active transaction.
+Use `Database.appender` for a concise scoped Appender on a scoped canonical lease, `Connection.appender` when the Connection is already explicit, or `DuckTransaction.appender` when ingestion must participate in an active transaction.
 
-Use the dedicated `duck-codable-models` skill when work centers on `Row.decode`, `QueryResult.first/all(decoding:)`, `ModelEncoder`, typed `Table` insert/update, or typed `Table` batch insertion through a `DatabaseIdentifier`, `Connection`, or `DuckTransaction`.
+Use the dedicated `duck-codable-models` skill when work centers on `Row.decode`, `QueryResult.first/all(decoding:)`, `ModelEncoder`, typed `Table` insert/update, or typed `Table` batch insertion through a `Database`, `Connection`, or `DuckTransaction`.
 
 Use the dedicated `duck-observation` skill when a read-only query should become a reusable latest-state `QueryObservation` driven by canonical identifier-runtime mutation invalidation.
 

@@ -6,7 +6,7 @@ license: LICENSE.txt
 
 # Duck Observation / Reactive Queries
 
-Use this skill when application code needs the latest successful result of a read-only SQL query to refresh as mutations flow through the same logical Duck `DatabaseIdentifier`.
+Use this skill when application code needs the latest successful result of a read-only SQL query to refresh as mutations flow through the same logical Duck `Database`.
 
 `QueryObservation` is deliberately a latest-state `AsyncSequence<QueryResult>`, not an event stream and not a filesystem watcher.
 
@@ -15,7 +15,7 @@ Use this skill when application code needs the latest successful result of a rea
 Prefer the query-centered form when it reads naturally:
 
 ```swift
-let database = DatabaseIdentifier.memory()
+let database = Database.memory()
 let users = DB.Table("users")
 
 let observation = try SQL
@@ -109,7 +109,7 @@ Preserve normal SQL binding safety. Do not reconstruct observation queries as ha
 
 ## 7. Invalidation belongs to one canonical identifier runtime
 
-An observation listens to mutations routed through the canonical runtime resolved by its `DatabaseIdentifier`. Independently reconstructed equivalent identifiers converge on that same runtime and Observation coordinator.
+An observation listens to mutations routed through the canonical runtime resolved by its `Database`. Independently reconstructed equivalent values converge on that same process-local runtime, canonical pool and Observation coordinator.
 
 This includes accepted mutation paths such as:
 - ordinary `Connection.query` / `execute`;
@@ -118,12 +118,12 @@ This includes accepted mutation paths such as:
 - ordinary and Transaction Appender visibility/finalization.
 
 Do not promise observation of changes made through:
-- a different `DatabaseIdentifier` identity;
+- a different `Database` identity;
 - another process;
 - direct external file mutation;
 - a filesystem watcher or polling loop.
 
-Use an application-level cross-process synchronization design if that requirement exists.
+For an app and a WidgetKit extension in an App Group, do not open the same live primary DuckDB file for simultaneous app read-write and widget read access. Publish committed state as a small Codable projection or a separate finalized DuckDB snapshot; the widget reads that published state. Duck does not provide cross-process Observation or a snapshot publication helper.
 
 ## 8. Ordinary mutation publication follows actual execution truth
 
@@ -162,7 +162,7 @@ Ordinary `Connection.appender(to:)` is not an atomic transaction. DuckDB may mak
 
 Observation follows that real native visibility: a durable auto-flushed prefix may invalidate matching observations before final Appender scope completion.
 
-A `DuckTransaction.appender(to:)` behaves differently. Its target impact is accumulated into the surrounding transaction and publication waits for definitive outer transaction finalization.
+A `DuckTransaction.appender(to:)` behaves differently. Its conservative Database-wide impact is accumulated into the surrounding transaction and publication waits for definitive outer transaction finalization.
 
 Use the `duck-appender` skill when row validation, ordinary non-atomic ingestion, Transaction Appender rollback behavior, or Appender failure semantics are central.
 
@@ -172,11 +172,11 @@ Duck attempts table-scoped dependency tracking for safe query identities.
 
 Successful analysis with no table dependency is a real empty dependency, not automatically a Database-wide fallback. Such queries can still match conservative Database-wide invalidation when necessary.
 
-Important v1.0 performance boundary: ordinary successful non-read-only query/Statement execution currently publishes Database-wide invalidation. Therefore a table-scoped observed query may still rerun after an ordinary write to an unrelated table. Equal-result suppression happens only after that refresh has executed and materialized its new `QueryResult`.
+Important v1.1 correctness/resource boundary: ordinary successful non-read-only query/Statement execution currently publishes Database-wide invalidation. Therefore a table-scoped observed query may still rerun after an ordinary write to an unrelated table. Equal-result suppression happens only after that refresh has executed and materialized its new `QueryResult`.
 
-v1.0 also does not promise column-, predicate-, or changed-row-aware invalidation. A selective `WHERE` does not by itself prove that a same-table write can skip refresh.
+v1.1 also does not promise column-, predicate-, or changed-row-aware invalidation. A selective `WHERE` does not by itself prove that a same-table write can skip refresh.
 
-This behavior is correctness-conservative, not a stale-state defect. The explicit v1.1 priority `OBSERVATION-SCALABILITY-V1_1` tracks finer-grained table-aware mutation publication plus hot-table relevance fast paths justified by source/runtime semantics and deterministic stress/resource evidence rather than wall-clock timing.
+This behavior is correctness-conservative, not a stale-state defect. Appender also publishes Database-wide for every target. Primary mutation target identity cannot prove the complete effect set, for example when a trigger writes another table. Table-, column-, predicate- and row-aware mutation precision remain deferred until a complete-effect-safe contract is independently established. The accepted v1.1 resource improvement is bounded refresh-scoped pooling and latest-state coalescing, not a measured speedup or a promise to avoid unrelated reruns.
 
 If dependency extraction, mutation-impact extraction, or identity normalization is unsafe or cannot be trusted, Duck falls back to Database-wide invalidation rather than risking a missed refresh.
 

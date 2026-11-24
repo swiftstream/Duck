@@ -8,7 +8,7 @@ license: LICENSE.txt
 
 Use this skill when several operations on one Duck `Connection` must share one explicit commit/rollback boundary.
 
-Duck supports two public transaction lifetimes:
+`database.transaction { ... }` is the managed convenience that borrows a canonical pool lease through definitive finalization. When the caller already owns a Connection lease, use that Connection rather than checking out another one. Duck supports two public transaction lifetimes:
 
 ```text
 managed closure  -> connection.transaction { transaction in ... }
@@ -164,7 +164,7 @@ A flat transaction is explicit lifetime authority.
 
 Dropping the last Swift reference does not start an unstructured deinitializer Task that tries to rollback in the background.
 
-The caller must arrange terminal cleanup. Prefer the managed closure when that ownership requirement is inconvenient; use Swift 6.4 `rollbackIfNeeded()` in `defer` when explicit lifetime is required.
+The caller must arrange terminal cleanup. For a manual Connection lease, finalize the transaction before releasing the lease; for a scoped Connection, returning with a live flat transaction triggers mandatory rollback cleanup. Prefer the managed closure when that ownership requirement is inconvenient; use Swift 6.4 `rollbackIfNeeded()` in `defer` when explicit lifetime is required.
 
 ## 10. Structured child work may share a live DuckTransaction
 
@@ -216,7 +216,7 @@ Switch to `duck-appender` when row validation, native Appender failure, or ordin
 
 ## 13. Transaction Observation publication occurs at finalization
 
-When the same canonical `DatabaseIdentifier` runtime has active `QueryObservation` iterators, transaction mutations accumulate Observation impact while the transaction is live.
+When the same canonical `Database` runtime has active `QueryObservation` iterators, transaction mutations accumulate Observation impact while the transaction is live.
 
 Normal transaction operations do not publish ordinary invalidations individually.
 

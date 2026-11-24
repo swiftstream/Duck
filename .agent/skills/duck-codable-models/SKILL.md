@@ -1,6 +1,6 @@
 ---
 name: duck-codable-models
-description: Use for Duck flat Row/QueryResult Decodable projection, ModelEncoder, Table model insert/update and typed batchInsert on Connection or DuckTransaction, omission-vs-NULL semantics, changed-field persistence, and model-layer boundaries.
+description: Use for Duck flat Row/QueryResult Decodable projection, ModelEncoder, Table model insert/update and typed batchInsert on Database, Connection or DuckTransaction, omission-vs-NULL semantics, changed-field persistence, and model-layer boundaries.
 license: LICENSE.txt
 ---
 
@@ -99,7 +99,7 @@ assigned non-nil value      -> bind exact value
 
 Do not collapse untouched optional state and explicit NULL into the same persistence operation.
 
-## 7. Insert a Table model through an explicit Connection
+## 7. Insert a Table model through the Database or an explicit Connection
 
 Given an existing table matching:
 
@@ -120,7 +120,7 @@ struct Note: Table {
 }
 ```
 
-Use the supplied Connection explicitly:
+For ordinary model work, use `try await note.insert(on: database)` after constructing the model. It borrows and returns a canonical lease. When several operations intentionally share a lease, use the supplied Connection explicitly:
 
 ```swift
 var note = Note()
@@ -161,7 +161,7 @@ try await inserted.updateNonReturning(
 
 ## 9. The public persistence surface is intentionally small
 
-The current model-layer persistence API is exactly:
+The current model-layer persistence API supports the same insert/update, key-based delete and UPSERT, and typed batchInsert on `Database`, `Connection`, and `DuckTransaction`. Database-backed calls borrow the canonical pool; the explicit forms reuse the caller's lease or transaction. Insert/update and batch examples include:
 
 ```text
 insert(on: Connection) -> Self
@@ -178,7 +178,7 @@ Collection<Table>.batchInsert(on: Connection)
 Collection<Table>.batchInsert(on: DuckTransaction)
 ```
 
-Do not invent model `save`, `persist`, delete, upsert, repository, identity-map, or arbitrary-WHERE APIs.
+Use `delete(on: \.$id, on: database)` for an instance key-based delete and `upsert(conflictColumn: \.$id, excluding: \.$body, on: database)` for a returning UPSERT with explicit conflict/exclusion keys, where the model and schema support them. Do not invent model `save`, `persist`, repository, identity-map, or arbitrary-WHERE instance-persistence APIs.
 
 Use normal SQL directly when the required query does not match this small convenience surface.
 
@@ -213,13 +213,13 @@ Use `batchInsert(on:)` when a homogeneous collection of one `Table` type should 
 try await notes.batchInsert(on: connection)
 ```
 
-The `Connection` overload performs complete synchronous preflight before native mutation and owns a managed transaction, so the batch is atomic. If work already participates in an explicit transaction, pass that capability instead:
+The `Database` overload borrows a canonical lease and uses the Connection implementation. The `Connection` overload performs complete synchronous preflight before native mutation and owns a managed transaction, so the batch is atomic. If work already participates in an explicit transaction, pass that capability instead:
 
 ```swift
 try await notes.batchInsert(on: transaction)
 ```
 
-The transaction overload does not start a nested transaction. Both overloads use selected-column Appender runs rather than repeated `insertNonReturning` calls.
+The transaction overload does not start a nested transaction. All three overloads use selected-column Appender runs rather than repeated `insertNonReturning` calls.
 
 Per-row wrapper state keeps the normal persistence distinction:
 
@@ -248,7 +248,7 @@ custom SELECT projections
 joins and aggregates
 arbitrary WHERE predicates
 custom SET expressions
-DELETE/UPSERT shapes
+custom DELETE/UPSERT shapes beyond the supported key-based helpers
 heterogeneous or expression-driven bulk operations that do not fit typed Table batchInsert
 queries that do not map naturally to one flat model
 ```
@@ -263,7 +263,7 @@ Do not infer or generate:
 repository identity maps or unit-of-work behavior
 broad ORM semantics
 save/persist magic
-model delete/upsert/arbitrary-WHERE persistence
+arbitrary-WHERE instance persistence
 arbitrary nested Codable object/array graphs
 migrations/schema evolution
 observation/reactive queries
