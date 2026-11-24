@@ -11,7 +11,7 @@ Every public capability requires detailed publication source material under the 
 Current coverage/backfill state:
 
 ```text
-DatabaseIdentifier / Connection / public query execution
+Database / Connection / public query execution (deprecated DatabaseIdentifier compatibility retained)
 - README: PRESENT
 - detailed social/article source: PRESENT below as 004
 - public Agent Skill coverage: PRESENT as source-owned `duck-query-execution`; central federation onboarding/publication remains separate
@@ -51,13 +51,82 @@ Observation / Reactive Queries
 - public Agent Skill coverage: PRESENT as source-owned `duck-observation`; central federation onboarding/publication remains separate
 
 Connection Pooling
-- implementation: accepted bounded scoped pool and Observation interaction
+- implementation: accepted canonical bounded pool, ordinary/scoped/manual routing, and refresh-scoped Observation; deterministic stress/compatibility accepted
 - README: PRESENT
 - detailed source: PRESENT below as 008
 - Agent Skill: source-owned `duck-connection-pooling`, with central federation separately gated
 ```
 
 All future public capabilities automatically enter this register/closure model. Completing implementation without README + detailed publication source + skill coverage is not considered full public-capability closure.
+
+## Current Duck 1.1 publication source — canonical ownership and reactive queries
+
+Status: **engineering scope independently accepted and locally closed; article draft preserved; publication separately gated.**
+
+The dedicated [Duck 1.1 Habr draft](publications/HABR_DUCK_1_1_DRAFT.md) preserves the three original reader questions, Swift examples, architecture/transaction/physical-retirement diagrams in textual form, evidence, compatibility caveats, and v1.2 direction. It is not publication-ready or an exhaustive compilation replay. See [release notes](../RELEASE_NOTES.md) for migration guidance and Project Memory for the final validation scope. The maintainer accepted 1.1.0 despite the explicit connect/pool behavioral changes and deferred precision and large-workload benchmarks to v1.2; neither decision authorizes publication or new implementation.
+
+The following material supersedes the v1.0 Connection-allocation and identity examples in older entries below. Those entries are historical capability writing; reuse their current scalar/query semantics only after checking the current README and source. In particular, do not republish instructions to open a new native Connection for each ordinary query or keep a dedicated Connection per idle Observation.
+
+### One database, one reusable Connection pool
+
+In application code, a database is just an identity; the application defines its own name:
+
+```swift
+import Duck
+
+extension Database {
+    static let app = Database(memory: "app")
+}
+
+let answer = try await SQL
+    .select(Int32(42) => "answer")
+    .query(on: .app)
+```
+
+For a persistent application, use `Database(path: ...)` and create the containing directory before first use. No manual pool is needed for ordinary queries, model work, migrations, Appender scopes, or managed transactions.
+
+Under the hood, equivalent values share one process-local canonical runtime and pool. By default one reusable Connection is opened on first use. Applications that need independent concurrent work may configure a different capacity before first use (in the example above, do this before the first query, not afterward):
+
+```swift
+try await Database.app.configure(
+    minimumConnections: 1,
+    maximumConnections: 4
+)
+```
+
+The minimum is eager; additional connections grow lazily up to the maximum. The 1/1 default is conservative, not a measured universal optimum.
+
+### Own a lease only when you need one
+
+```swift
+let result = try await Database.app.connection { connection in
+    try await connection.query(SQL.select(Int32(42) => "answer"))
+}
+```
+
+Use the scoped form for multiple related operations, or `Database.transaction { ... }` for a managed atomic unit. Statements and Appenders belong to their exact live lease. A longer manual lease obtained by `connect()` must end with awaited `release()`, including error paths; do not treat release as physical disconnection. Capacity is shared by ordinary, scoped, manual and transactional work. Do not wait for a second lease from within the first when it would form a dependency cycle.
+
+### Keep reactive queries long-lived, not their Connections
+
+```swift
+let observation = try SQL
+    .select(Int32(42) => "answer")
+    .observe(on: .app)
+
+for try await result in observation {
+    print(result.rows)
+}
+```
+
+For real application queries, use the same SELECT that supplies UI state. Each iterator retains its own registration, worker and bounded result channel; each native READ ONLY refresh borrows and returns a scoped canonical lease. Latest-state coalescing and equal-result suppression are not a per-mutation event log. Ordinary non-read-only execution and Appender publication remain conservatively Database-wide; structural primary target identity cannot prove complete trigger-transitive effects. Unrelated writes can still cause reruns. No table/predicate precision or measured speedup is claimed.
+
+The runtime/pool/coordinator are process-local. A WidgetKit extension is another process even with the same App Group path. Publish a small committed Codable projection or separate finalized database snapshot; do not concurrently open the live primary file for app read-write and widget read access. No cross-process observation or snapshot helper is introduced.
+
+### Compatibility and evidence
+
+`DatabaseIdentifier` remains a deprecated alias. Old `connect()` compiles, but is a manual lease; deprecated `pool(maximumConnections:)` configures and returns the same pool. Use `configure(minimumConnections:maximumConnections:)` before first use, then `pool()` if the handle is needed. Shutdown is terminal; do not claim full behavioral compatibility. The accepted deterministic gate covers 36 requirements, including four live observations, maximum two pooled Connections, 191 separate commits, one-element pending demand, exact final state and cancellation rollback. F01 physical native retirement was subsequently corrected and independently re-audited CLEAN. Final exact-candidate Swift 6.3.3 859/31 and Swift 6.4 870/31 tests passed, including 14 native retirement regressions on each. A normal-import consumer built and ran on both toolchains, documentation consumer built and ran, and both actual SwiftUI/UIKit examples compiled and linked for arm64 and x86_64 iOS Simulator (no simulator execution). These are correctness/resource results, not throughput or latency measurements or comprehensive million-row scalability proof. Full mutation precision and large-workload benchmarks belong to v1.2 by maintainer decision.
+
+The historical v1.0 publication entries follow.
 
 ## 001 — Public Reusable Prepared Statements API: what it is and why it matters
 
