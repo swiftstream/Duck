@@ -55,13 +55,15 @@ SQLite, Core Data, SwiftData, Realm, and similar tools all have valid use cases.
 
 ## Installation
 
+Use Duck 1.1.0 or later within the 1.x release series. Upgrading from 1.0? See the [release notes](RELEASE_NOTES.md#migration-from-10-important-behavior-changes) for changes to explicit Connection and Pool ownership.
+
 ### Xcode
 
 For an iOS or macOS app, add Duck directly from Xcode:
 
 1. Choose `File -> Add Package Dependencies`.
 2. Enter `https://github.com/SwiftStream/Duck`.
-3. Use `Up to Next Major Version` starting from `1.0.0`.
+3. Use `Up to Next Major Version` starting from `1.1.0`.
 4. Add the `Duck` product to your app target.
 
 Then:
@@ -81,7 +83,7 @@ If your project is itself a Swift package, add Duck in the usual Swift Package M
 ```swift
 .package(
     url: "https://github.com/SwiftStream/Duck",
-    from: "1.0.0"
+    from: "1.1.0"
 )
 ```
 
@@ -147,7 +149,7 @@ private var appDatabaseDirectory: URL {
         .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
 }
 
-extension DatabaseIdentifier {
+extension Database {
     static var app: Self {
         Self(
             path: appDatabaseDirectory
@@ -190,7 +192,7 @@ func prepareDatabase() async throws {
         withIntermediateDirectories: true
     )
 
-    _ = try await DatabaseIdentifier.app
+    _ = try await Database.app
         .migrator([Todo.Create()])
         .migrate()
 }
@@ -312,19 +314,19 @@ Start with a Todo model. Reach for the deeper database machinery only when the a
 
 ## Database setup
 
-`DatabaseIdentifier` is the lightweight application-facing identity of a Duck database.
+`Database` is the lightweight application-facing identity of a Duck database.
 
 The Todo example above already created `.app` as a file-backed database in Application Support. That is the normal shape for an iOS or macOS application.
 
 You can create another file-backed identity anywhere you control:
 
 ```swift
-let archiveDatabase = DatabaseIdentifier(
+let archiveDatabase = Database(
     path: "/path/to/archive.duckdb"
 )
 ```
 
-Constructing an identifier does not open DuckDB. The first operation resolves it lazily, and equivalent identifiers resolve the same canonical runtime inside the process.
+Constructing a `Database` value does not open DuckDB. The first operation resolves its runtime lazily, and equivalent values share the same process-local runtime and bounded reusable Connection pool. `Database(memory: "name")` identifies a shared named in-memory database; `Database.memory()` creates a unique identity.
 
 Most app code can execute and decode directly on `.app`:
 
@@ -345,7 +347,7 @@ A public `Connection` is a thin actor handle bound to one exact lease authority 
 For tests, previews, and genuinely temporary data, an in-memory database is one line:
 
 ```swift
-let database = DatabaseIdentifier.memory()
+let database = Database.memory()
 ```
 
 ## First query
@@ -672,7 +674,7 @@ let saved = try await Todo(
 The same model APIs work inside a transaction:
 
 ```swift
-try await DatabaseIdentifier.app.transaction { transaction in
+try await Database.app.transaction { transaction in
     var todo = try await Todo(name: "Transactional Todo")
         .insert(on: transaction)
 
@@ -734,7 +736,7 @@ This model layer is deliberately focused rather than a broad ORM. It does not ad
 The Todo example already used a schema migration:
 
 ```swift
-_ = try await DatabaseIdentifier.app
+_ = try await Database.app
     .migrator([Todo.Create()])
     .migrate()
 ```
@@ -783,7 +785,7 @@ struct SeedWelcomeTodo: Migration {
 Then include it in the ordered migration list:
 
 ```swift
-_ = try await DatabaseIdentifier.app
+_ = try await Database.app
     .migrator([
         Todo.Create(),
         SeedWelcomeTodo()
@@ -1152,7 +1154,7 @@ let query = Todo
     .select
     .where(\Todo.$deletedAt == nil)
 
-let observation = try DatabaseIdentifier.app.observe(query)
+let observation = try Database.app.observe(query)
 ```
 
 Creating the observation captures the query synchronously without opening DuckDB. Each iterator resolves the canonical runtime lazily. Before each refresh, it widens dependency tracking to the whole database, then borrows a scoped Connection lease from the canonical Pool. It returns the lease after materializing the read-only result and narrows dependency tracking only after that successful return.
@@ -1168,13 +1170,15 @@ Refreshes use the normal prepared/bound execution path and run in a native READ 
 
 Invalidation is local to the canonical runtime behind the identifier.
 
-Mutations through equivalent identifiers, their connections, reusable statements, transactions, and Appenders participate in the same observation invalidation system.
+Mutations through equivalent `Database` values, their Connections, reusable Statements, transactions, and Appenders participate in the same observation invalidation system. Successful ordinary non-read-only execution and Appender writes conservatively invalidate the whole database. An unrelated table write can therefore cause a refresh; equal-result suppression happens after the query runs. Duck does not promise table-, column-, predicate-, or row-level mutation filtering. A declared target alone cannot describe all effects of a write, including writes performed by triggers.
 
 Transaction mutations publish only after definitive COMMIT or ROLLBACK finalization.
 
 Ordinary Appender rows follow native visibility, so rows DuckDB already made durable may become observable before the Appender body returns. Transaction Appender rows remain transaction-local until outer finalization.
 
-Changes through another identifier, another process, or direct external file mutation are outside the contract.
+Changes through a different logical database, another process, or direct external file mutation are outside the contract. The canonical runtime, Connection pool and Observation coordinator are process-local, even when two processes use the same file path.
+
+For an app and a WidgetKit extension sharing an App Group, do not open the same live primary DuckDB file for simultaneous app read-write and widget read access. Publish committed widget state from the app into the shared container instead: a small Codable projection is often sufficient; a separate finalized DuckDB snapshot is an option when the widget genuinely needs SQL. Let the widget read the published state and request a timeline reload after publication. Duck does not currently provide a cross-process observation or snapshot-publication helper.
 
 Duck does not expose polling, filesystem watching, Combine/SwiftUI publishers, typed observation, event history, public observation options, `Connection.observe`, or `DuckTransaction.observe`.
 
@@ -1239,9 +1243,24 @@ Do not retain the leased Connection, a Statement prepared on it, a transaction, 
 
 A stale pooled Connection fails with `.poolLeaseExpired`.
 
-Starting another `pool.connection` from within a live lease of the same pool fails with `.poolReentrantCheckout`.
+Starting another scoped or manual checkout from inherited live lease context of the same pool fails with `.poolReentrantCheckout`. Do not await ordinary `Database` operations that require another lease while retaining the first one; use the supplied Connection or Transaction instead. Deliberately externalized work can wait for capacity and form a caller-created dependency cycle.
 
-For a longer-lived explicit lease, `Database.connect()` checks out from the same canonical pool. End that lease explicitly with `try await connection.release()`; release returns a healthy reusable core to the pool rather than physically disconnecting it.
+For a longer-lived explicit lease, `Database.connect()` checks out from the same canonical pool. End that lease explicitly with `try await connection.release()`; release returns a healthy reusable core to the pool rather than physically disconnecting it. Arrange awaited release on error paths too; prefer the scoped form when possible.
+
+### Migrating from Duck 1.0
+
+`DatabaseIdentifier` remains a deprecated typealias of `Database`. Existing application-owned extensions and contextual `.app` calls still compile; new code should use `Database`.
+
+```swift
+let database = Database.memory()
+try await database.configure(minimumConnections: 1, maximumConnections: 2)
+
+let result = try await database.connection { connection in
+    try await connection.query(SQL.select(Int32(42) => "answer"))
+}
+```
+
+The old `connect()` spelling still compiles, but it now holds a manual canonical pool lease. Release it before requesting capacity that depends on it. The old `pool(maximumConnections:)` accessor is deprecated and configures/returns the same canonical pool, not a separate pool. Configure the bound before first use, then call `pool()` only when you need its handle.
 
 ### Managed transaction inside a pool
 
@@ -1268,7 +1287,7 @@ When the owner is finished:
 try await pool.shutdown()
 ```
 
-Shutdown stops new checkouts, fails queued checkouts with `.poolClosed`, and waits for active leases to return.
+Shutdown stops new checkouts, fails queued checkouts with `.poolClosed`, and waits for active leases to return. Successful shutdown physically disconnects the pool's native Connections even if old Swift handles are still retained. Retirement keeps capacity accounted for until native disconnect completes, so a replacement cannot exceed the physical maximum. If safe retirement cannot be established, the pool reports an error and blocks new checkout rather than reporting successful shutdown. Shutdown is terminal for that process-local runtime; ordinary calls cannot silently open a standalone Connection afterward.
 
 Calling shutdown from inside a live lease of the same pool fails with `.poolShutdownFromLease`.
 
@@ -1600,6 +1619,8 @@ try await second.release()
 try await first.release()
 ```
 
+This illustrates the successful path; arrange awaited release for acquired manual leases on error paths too. Prefer scoped leases where possible.
+
 Without explicit configuration, the conservative canonical default is 1/1, so a second simultaneous checkout waits until the first lease returns.
 
 Operations submitted through one `Connection` handle are serialized by its bound reusable Connection runtime, including across actor reentrancy. Separate live Connection leases may use separate pooled runtimes when configured capacity allows it.
@@ -1852,8 +1873,8 @@ The checked-in demos and run instructions are here:
 ## Release notes
 
 - [Changelog](CHANGELOG.md)
-- [Duck 1.1.0 release notes draft](RELEASE_NOTES_1_1.md)
-- [Duck 1.0.0 release notes](RELEASE_NOTES.md)
+- [Duck 1.1.0 release notes](RELEASE_NOTES.md)
+- [Duck 1.0.0 release notes](RELEASE_NOTES_1_0.md)
 
 ## Community
 

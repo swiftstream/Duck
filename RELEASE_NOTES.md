@@ -1,231 +1,176 @@
-# Duck 1.0.0 Release Notes
+# Duck 1.1.0 Release Notes
 
-Duck 1.0.0 is the first stable release of the SwiftStream Duck package. It exposes DuckDB 2.0.0 through a focused Swift API and uses SQL as its declarative query-construction layer.
+Duck 1.1 makes one bounded, reusable Connection pool the foundation of ordinary queries, Codable model persistence, migrations, transactions, Appender work and reactive queries. Most application code stays the same. Explicit Connection and Pool users should read the migration notes below.
 
-## Installation
+[Duck 1.0.0 release notes](RELEASE_NOTES_1_0.md) are available for historical reference.
 
-Add Duck with Swift Package Manager:
+## Highlights
 
-```swift
-.package(
-    url: "https://github.com/SwiftStream/Duck",
-    from: "1.0.0"
-)
-```
+- A single process-local canonical pool per logical Database identity. Ordinary operations no longer create independent out-of-pool native Connections.
+- A simpler public identity: Database replaces DatabaseIdentifier, which remains available as a deprecated typealias.
+- Configurable eager minimum and lazy maximum; conservative 1/1 default.
+- Scoped and manual access to the same reusable Connection cores, with exact lease ownership, cancellation, retirement, physical resource accounting and terminal shutdown.
+- QueryObservation borrows a Connection only during a READ ONLY refresh. Idle iterators occupy no pool lease.
+- Deterministic coverage of commit/refresh races, rollback, cancellation, sustained mutation demand and physical Connection lifetime.
 
-Then depend on the `Duck` product:
-
-```swift
-.product(name: "Duck", package: "Duck")
-```
-
-Import the library with:
+## Ordinary application code
 
 ```swift
 import Duck
+
+extension Database {
+    static let app = Database(memory: "app")
+}
 ```
 
-Duck re-exports SQL's public query-construction surface, so normal usage does not require a separate `import SQL`.
+For persistent storage, use Database(path:) with a normalized file path and create its containing directory before first use. Database is a lightweight identity, not a native Connection. Equivalent identities resolve the same process-local runtime and pool.
 
-## DuckDB baseline and storage compatibility
+Given a migrated Todo table and a Codable Todo: Table model, the usual API is unchanged:
 
-Duck 1.0.0 embeds DuckDB 2.0.0.
+```swift
+try await Todo(name: "Learn Duck").insertNonReturning(on: .app)
+let todos = try await Todo.all(on: .app)
+```
 
-Duck's semantic version is independent of the DuckDB engine version. New databases use DuckDB 2.x storage semantics by default. Existing older-format DuckDB files remain supported and retain their older compatibility version unless explicitly changed by DuckDB itself.
+A scoped Connection automatically returns its lease on completion:
 
-A database written in the DuckDB 2.x storage format is not readable by pre-2.0 DuckDB runtimes.
+```swift
+let result = try await Database.app.connection { connection in
+    try await connection.query(SQL.select(Int32(42) => "answer"))
+}
+```
 
-## Database identity and connections
+Managed transactions keep one exact lease through finalization:
 
-`DatabaseIdentifier` is the lightweight application-facing database identity.
+```swift
+try await Database.app.transaction { transaction in
+    try await Todo(name: "First").insertNonReturning(on: transaction)
+    try await Todo(name: "Second").insertNonReturning(on: transaction)
+}
+```
 
-Constructing an identifier does not immediately open DuckDB. Duck lazily resolves an identifier to its canonical process-lifetime runtime when work begins.
+Prefer the ordinary/scoped API unless you need to retain an explicit Connection for longer than one operation. Appender and prepared Statement resources remain bound to the exact live lease. Use the supplied Connection or DuckTransaction inside a lease rather than making another same-pool checkout.
 
-Each `Connection` is an actor that owns one native DuckDB connection. Operations submitted to one connection are serialized through that connection's execution ownership. Separate connections remain independent.
+## Configure before first use
 
-Use direct identifier execution for one-shot work and an explicit `Connection` when several operations should share one native connection or when statement, transaction, or Appender lifetime matters.
+The default is minimumConnections = 1 and maximumConnections = 1. Configure the pool before the first query, migration, transaction, observation iteration or other pool use if you need different capacity:
 
-## SQL query execution
+```swift
+let database = Database.memory()
 
-Duck uses SQL as its normal executable query surface.
+try await database.configure(
+    minimumConnections: 1,
+    maximumConnections: 4
+)
+```
 
-Queries can execute against:
+The minimum is opened eagerly before configuration completes; additional Connections grow lazily with demand up to the maximum. A fully lazy range, such as 0/4, is also supported. Bounds require maximumConnections > 0, minimumConnections >= 0 and minimumConnections <= maximumConnections.
 
-- `DatabaseIdentifier`;
-- `Connection`;
-- `DuckTransaction`;
-- a leased connection from `ConnectionPool`.
+Equivalent Database values share the first frozen configuration, pool and checkout queue. Conflicting later configuration requests fail rather than create another pool.
 
-Duck copies native query results into Swift-owned `QueryResult`, `ResultRow`, and `Value` values before native result resources are released.
+The conservative default follows DuckDB's [Connection reuse guidance](https://duckdb.org/docs/stable/guides/performance/how_to_tune_workloads.html#best-practices-for-using-connections). Reuse Connections rather than repeatedly opening/closing them; closing the last Connection drops DuckDB's in-memory caches. DuckDB can parallelize individual queries internally. Choose the range for the application workload, not as a generic thread-count setting. The default is not a measured universal optimum.
 
-Raw SQL remains available explicitly through `SQL.raw(...)` as an escape hatch. It is not the normal documented construction path.
+## Migration from 1.0: important behavior changes
 
-## Transactions
+This release preserves the established source spellings where possible, but the explicit Connection and Pool lifetime/configuration contracts have changed. Existing code may compile and still require a migration.
 
-Duck supports two transaction styles:
+### DatabaseIdentifier remains available
 
-- managed closure transactions;
-- flat transactions with explicit finalization.
+Old declarations and application-owned extensions using DatabaseIdentifier compile. Prefer Database in new code:
 
-Managed transactions commit only after native COMMIT succeeds. Thrown errors, observed cancellation, rollback-only state, or required cleanup failures take the rollback path.
+```swift
+extension Database {
+    static let app = Database(memory: "app")
+}
+```
 
-Flat transactions remain reserved until explicit `commit()` or `rollback()`. On Swift 6.4 or newer, `rollbackIfNeeded()` can provide best-effort asynchronous cleanup from `defer`; earlier compilers should finalize explicitly.
+Do not declare the same .app extension on both names in the same scope; they identify the same type.
 
-Transaction work that should participate in the transaction uses the supplied `DuckTransaction` capability. Ordinary same-`Connection` work does not silently join an active transaction.
+### connect() now acquires a manual pooled lease
 
-Duck 1.0.0 does not advertise savepoints, nested transactions, custom isolation levels, or a public READ ONLY transaction mode.
+The existing connect() method still compiles, but it no longer opens an independent Connection outside the pool.
 
-## Reusable prepared statements
+```swift
+let connection = try await database.connect()
+// Use connection, then explicitly release its lease.
+try await connection.release()
+```
 
-A `Statement` can be prepared once and reused with dynamic values.
+Healthy release returns the native core for reuse; it is not a physical disconnect. The old handle and its lease-bound Statement/Appender resources cannot be reused after release. If work may throw, guarantee awaited release on every exit path, or prefer Database.connection { ... }. Do not use a fire-and-forget Task as a replacement for structured release.
 
-Statements preserve the ownership and usability rules of the connection that prepared them. Transaction-bound statements remain bound to that transaction lifetime.
+In particular, do not hold a manual lease and then wait for another ordinary query on the same database when the pool is exhausted. At the default maximum of one, the second checkout can wait for the first lease to be returned. Use the existing Connection, or return the lease before the next ordinary operation. Same-pool reentrant checkout within a recognized live scoped lease is rejected.
 
-Binding failures, terminal native failures, transaction end, or connection fail-closed state are surfaced as typed library errors rather than hidden behind diagnostic-string parsing.
+### pool(maximumConnections:) no longer creates an independent pool
 
-## Appender
+The deprecated compatibility method remains source-compatible. It configures and returns the canonical pool, using the default minimum of one. Existing configure(maximumConnections:) likewise retains the default minimum. Prefer explicit configuration followed by pool() only when an explicit Pool handle is needed:
 
-Duck provides scoped Appender ingestion for high-volume complete rows.
+```swift
+let database = Database.memory()
 
-Appender targets may use the complete table or fixed selected columns. The public Appender value boundary includes the supported scalar families plus the closed native one-dimensional LIST and immediate keyed STRUCT P0 families documented below.
+try await database.configure(
+    minimumConnections: 1,
+    maximumConnections: 4
+)
 
-A normal Appender scope is not an atomic transaction. DuckDB may auto-flush earlier batches before the Swift closure completes.
+let pool = try await database.pool()
+```
 
-When all appended rows must participate in one commit/rollback boundary, use `transaction.appender(to:)` inside an explicit Duck transaction.
+Do not perform ordinary work first and expect a later pool(maximumConnections: 4) to replace a previously initialized 1/1 pool. A conflicting configuration is an error.
 
-The release does not advertise free-standing/manual-close Appenders, public data-chunk/vector APIs, QueryAppender, per-row `DEFAULT`, or Appender pooling/cache.
+### shutdown() is terminal
 
-## Codable and model persistence
+```swift
+try await pool.shutdown()
+```
 
-Duck 1.0.0 includes a deliberately focused model layer:
+Shutdown rejects new checkout, drains active leases and physically disconnects the owned native Connections before successful completion. It is terminal for this canonical runtime, not a way to dispose of one independent pool and continue querying the same Database. Do not call it from its own live lease.
 
-- keyed Codable row/result decoding with native one-dimensional LIST properties and one immediate keyed STRUCT property level;
-- exact `ModelEncoder` values across the accepted scalar/LIST/STRUCT boundaries;
-- typed whole-model `Table` and `TableQuery` terminals such as `all(on:)` and `first(on:)`, plus arbitrary matching `Decodable` projections from selected SQL;
-- typed `Table` insert, changed-field update, key-based delete, and UPSERT conveniences;
-- WHERE-only typed `TableQuery.delete(on:)`;
-- atomic typed collection batch insert.
+Retirement and replacement keep physical capacity accounted for until native disconnect completes. Stale Swift handles can outlive a retired native connection without keeping it open. If safe retirement cannot be established, the pool reports failure and prevents new checkout rather than claiming successful shutdown.
 
-This is not a broad ORM/repository abstraction. Repository identity maps, automatic object-graph persistence, arbitrary recursive Codable graphs, model-owned transaction/pool lifecycle, and implicit JSON fallback are outside the current public scope.
+## Reactive queries and transaction visibility
 
-## Migrations
+The AsyncSequence API is unchanged. For the migrated Todo example, a SwiftUI view can continue to use its existing observation:
 
-Ordered migrations run through `DatabaseIdentifier.migrator(_:)`.
+```swift
+for try await result in try Todo
+    .select
+    .where(Todo.$deletedAt == nil)
+    .orderBy(.asc(Todo.$createdAt))
+    .observe(on: .app)
+{
+    todos = try result.all(decoding: Todo.self)
+}
+```
 
-Migration ordering and applied-state tracking are explicit. Release documentation treats migrations as a concrete schema-evolution facility rather than a general application deployment framework.
+Here todos is application-owned UI state. Use a view-owned task and handle cancellation/errors as before.
 
-## Query observation
+Each iterator owns its registration, refresh worker and bounded newest-result channel. It borrows a canonical lease for each native READ ONLY refresh, returns the lease, then narrows dependency coverage. Idle iterators retain no Connection lease.
 
-`QueryObservation` is an `AsyncSequence` that delivers reusable latest-state `QueryResult` values.
+Explicit transaction mutations accumulate invalidation impact until finalization. Successful COMMIT publishes the accumulated impact; a committed update racing with a stale refresh remains eligible for another refresh. ROLLBACK and cancellation do not expose intermediate uncommitted row state. Rollback may still conservatively invalidate because nontransactional effects such as sequence advances can survive it. Cancellation after an actual commit does not undo that commit.
 
-Observation is scoped to mutations routed through equivalent `DatabaseIdentifier` values that resolve the same canonical runtime.
+For atomic bulk loading, use Appender inside a transaction. Outside one, automatic flush can make a durable prefix visible before the Appender body returns, including when the body later fails.
 
-It is intentionally not:
+Observation is a latest-state API, not a per-mutation event stream. Pending invalidations and intermediate committed states can coalesce; equal QueryResult values are suppressed. An active, successful observer converges to the latest committed result when changes settle and a refresh can obtain capacity. There is no per-commit delivery or latency guarantee.
 
-- an event-history stream;
-- typed/decoded observation;
-- polling;
-- filesystem or cross-process watching;
-- a UI-framework publisher;
-- `Connection.observe` or `DuckTransaction.observe`.
+## Current invalidation precision and v1.2 direction
 
-## Connection pooling
+Mutation publication remains conservative and database-wide for ordinary non-read-only execution, Statements and Appender, including potentially transitive effects of triggers. Read dependency analysis is available internally, but a primary target table alone does not establish the complete affected relation set.
 
-`ConnectionPool` provides bounded scoped checkout.
+A write to an unrelated table can therefore still cause a SELECT, result materialization and comparison. Equal-result suppression avoids delivering unchanged results to the application; it does not eliminate database query work.
 
-The pool lazily opens connections up to its configured maximum, queues checkout requests when all slots are leased, and performs required return cleanup before a lease completes.
+Complete-effect-safe table-aware routing, finer column/predicate/row relevance, and comprehensive large-data/high-write validation including million-row benchmarks are deferred to v1.2. No measured throughput or latency improvement is claimed by this release.
 
-`pool.transaction` combines one pool lease with the same managed transaction engine used by a direct `Connection`.
+The runtime, pool and invalidation coordinator are process-local. A WidgetKit extension cannot share the app's pool or receive cross-process invalidations merely because it accesses the same App Group. Publish a small committed Codable projection or separate finalized snapshot rather than concurrently opening the live primary database for app writes and widget reads. This release introduces no cross-process observation or snapshot helper.
 
-The current pool intentionally does not expose manual checkout/release, checkout timeouts, idle lifetime policy, session reset, statement cache, pool metrics, or a global pool registry.
+## Compatibility and validation
 
-## Supported Value families
+- Swift tools 6.3; iOS 15+ and macOS 12+; Swift Stream SQL 3.1.0 minimum within the 3.x dependency range. DuckDB 2.0.0 engine baseline retained.
+- Normal import Duck still re-exports SQL. Existing model, Codable, query, migration, transaction and observation forms remain available within the tested scope.
+- Swift 6.3.3: 859 tests in 31 suites passed.
+- Swift 6.4: 870 tests in 31 suites passed (829 Duck tests / 30 suites + 41 C bridge tests / 1 suite).
+- Native retirement regression suite: 14/14 passed on each toolchain. Actual native open/disconnect witness verifies physical capacity and resource ordering.
+- Deterministic observation coverage includes four independent observations sharing max=2, 191 separately committed INSERT/UPDATE/DELETE operations and exact final-state convergence.
+- Normal-import compatibility consumer built and ran on both toolchains, including legacy/current identity extensions in separate modules. Documentation consumer built and ran on Swift 6.3.3.
+- SwiftUI and UIKit examples compiled and linked against this version for both arm64 and x86_64 iOS Simulator. Simulator runtime was not exercised in this validation.
 
-The public `Value` surface supports:
-
-- SQL `NULL`;
-- `Bool`;
-- `Int8`, `Int16`, `Int32`, `Int64`;
-- `UInt8`, `UInt16`, `UInt32`, `UInt64`;
-- `Float` and `Double`;
-- `String`;
-- `Data` BLOB values;
-- `UUID`;
-- `PureDate`;
-- `PureTime`;
-- `DateTime`;
-- `Foundation.Date` for `TIMESTAMPTZ`;
-- `Interval`;
-- exact `Foundation.Decimal`;
-- `Int128` and `UInt128`;
-- native one-dimensional LIST values with exact supported scalar/ENUM children;
-- immediate keyed native STRUCT values with exact supported scalar/ENUM members.
-
-`Value.Kind.list == 23` and `Value.Kind.structure == 24`. `Int128` / `UInt128` direct Swift bridges require macOS 15 / iOS 18 availability on Apple platforms.
-
-LIST and STRUCT are intentionally bounded P0 capabilities. Nested LIST, nested STRUCT, LIST-in-STRUCT, STRUCT-in-LIST, fixed ARRAY, MAP, UNION, and other recursive composite families remain deferred.
-
-Result extraction is exact-family: Duck does not silently coerce one numeric family into another.
-
-Temporal and Decimal conversion is likewise exact. Duck rejects values that cannot be represented at the requested native precision or decimal width/scale instead of silently rounding or truncating them.
-
-## Native distribution and validated platform scope
-
-Duck 1.0.0 uses two native `Cduckdb` delivery paths.
-
-### Apple consumer path
-
-When SwiftPM evaluates the package manifest on macOS, `Cduckdb` is resolved from a precompiled XCFramework.
-
-This is the path used by the validated macOS and iOS consumer builds and avoids recompiling the bundled DuckDB C++ engine in normal Apple package builds.
-
-The package contains native slices for:
-
-- macOS ARM64 and x86_64;
-- iOS ARM64;
-- iOS Simulator ARM64 and x86_64.
-
-macOS runtime behavior and the iOS simulator/device link paths are validated. This release does not claim iOS device runtime validation.
-
-### Ubuntu source path
-
-On native Ubuntu 24.04.5 ARM64 with Swift 6.3.3 and glibc 2.39, the manifest selects the source `Cduckdb` target and builds DuckDB from source.
-
-That validation does not imply generic Linux support.
-
-### Important non-claims
-
-Duck 1.0.0 does not claim:
-
-- generic all-Linux support;
-- Linux x86_64 or musl support;
-- Windows DuckDB 2 runtime support;
-- Android runtime support;
-- macOS-hosted non-Apple cross-compilation support;
-- iOS device runtime validation.
-
-The package manifest declares iOS 15+ and macOS 12+ deployment targets. Those manifest declarations are distinct from the narrower runtime/build validation statements above.
-
-## Concurrency and cancellation
-
-Duck uses actor isolation and explicit ownership boundaries rather than promising parallel execution on one native connection.
-
-One `Connection` serializes its native work. Independent connections may make progress independently.
-
-Cancellation is cooperative at Swift/native boundaries. Duck does not promise immediate interruption in the middle of every synchronous DuckDB native call.
-
-## Errors and fail-closed behavior
-
-Public database, query, statement, transaction, Appender, and pool failures use typed Duck error surfaces.
-
-When a native failure makes the connection outcome unsafe or ambiguous, the connection can become fail-closed. Later work then requires a fresh connection rather than attempting to infer recovery from diagnostic strings.
-
-## More documentation
-
-The root [README](README.md) contains detailed examples and ownership/lifetime rules.
-
-See [CHANGELOG.md](CHANGELOG.md) for the concise release history.
-
-## License
-
-Duck is available under the [MIT License](LICENSE).
+These results establish the tested correctness, lifecycle, resource and source-compatibility contracts. They are not an exhaustive replay of every historical example, a full behavioral compatibility guarantee, a comprehensive large-data benchmark, or new platform-support evidence.

@@ -1,12 +1,19 @@
 # Changelog
 
-## Unreleased — 1.1.0
+## 1.1.0
 
+- Promotes the lightweight identity spelling to `Database`; keeps `DatabaseIdentifier` as a deprecated source-compatible typealias.
+- Makes `connect()` a manual canonical lease with explicit `Connection.release()`; scoped access remains the preferred default.
+- Requires pool configuration before first use; deprecated explicit pool access returns the same canonical pool, and shutdown is terminal for its runtime. See [migration notes](RELEASE_NOTES.md#migration-from-10-important-behavior-changes).
+- Moves Observation refreshes onto scoped canonical leases, so idle iterators do not pin Connections. Retains latest-state coalescing and conservative Database-wide mutation invalidation, including Appender writes, rather than unsafe target-only filtering.
+- Preserves committed-state refresh across COMMIT races, rollback and cancellation; bounds pending invalidation demand. Observation is not a per-mutation event log.
+- Keeps retiring native Connections counted until physical disconnect, destroys lease-bound native children before disconnect, and rejects new checkout on unsafe retirement instead of reporting false shutdown success.
 - Moves ordinary `Database` query/execute, model persistence, managed transactions, Appender work, migrations, and explicit scoped/manual Connection access onto one canonical bounded reusable pool per logical `Database` runtime.
 - Adds developer-controlled `minimumConnections` / `maximumConnections` configuration: the minimum is initialized eagerly, additional Connections grow lazily on demand, and the maximum remains the hard bound.
 - Uses a conservative reusable 1/1 default when no explicit configuration is supplied; this follows DuckDB Connection-reuse guidance and is not presented as a universal optimum.
 - Keeps `configure(maximumConnections:)` and the deprecated `pool(maximumConnections:)` source-compatible through the default minimum while documenting explicit min/max configuration for applications that need more concurrency.
 - Uses deterministic correctness, lifecycle, stress, and resource-accounting evidence for pool/Observation acceptance rather than timing-derived capacity selection.
+- Defers complete-effect-safe table-aware and finer mutation precision and comprehensive high-write/million-row benchmarks to 1.2.
 
 ## 1.0.0
 

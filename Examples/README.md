@@ -5,13 +5,13 @@ The repository includes two small iOS applications that demonstrate the same Duc
 - [`SwiftUI/DuckDemo.xcodeproj`](SwiftUI/DuckDemo.xcodeproj) - SwiftUI
 - [`UIKit/DuckDemo.xcodeproj`](UIKit/DuckDemo.xcodeproj) - UIKit
 
-Both projects use the local Duck package from this repository, target iOS 15 or later, and build in Swift 6 mode with MainActor default isolation and strict memory safety.
+Both projects target iOS 15 or later and build in Swift 6 mode with MainActor default isolation and strict memory safety. The checked-in Xcode projects reference the published Duck package from version 1.0.0 with an up-to-next-major requirement.
 
 ## Run an example
 
 Open either `.xcodeproj` directly in Xcode, select an installed iPhone Simulator, and press Run.
 
-No separate package checkout is required. Each project references the repository root as a local Swift package, so changes to Duck are picked up directly by the example build.
+No separate package checkout is required. Resolve Duck 1.1.0 or later within the 1.x range to use the canonical pooling behavior described below. To test local development changes, use a disposable copy of the project with a local Swift package reference to this repository root.
 
 ## Shared database model
 
@@ -29,7 +29,7 @@ DuckDemo/
 └── UI entry points
 ```
 
-`DatabaseIdentifier.demo` is a lightweight computed identifier for a file-backed database in Application Support. Constructing `.demo` does not open DuckDB or create a central live database object. `prepareDemoDatabase()` creates the containing directory and runs migrations before ordinary application traffic; the first database operation lazily registers Duck's canonical runtime for that identifier.
+The checked-in demos retain the source-compatible `DatabaseIdentifier.demo` spelling so they also compile against the published 1.0.0 API. In Duck 1.1, `DatabaseIdentifier` is a deprecated typealias of `Database`; new application code should use `Database`. `.demo` is a lightweight computed identifier for a file-backed database in Application Support. Constructing `.demo` does not open DuckDB or create a central live database object. `prepareDemoDatabase()` creates the containing directory and runs migrations before ordinary application traffic; the first database operation lazily registers Duck's canonical runtime for that identifier.
 
 `Todo` is a typed Duck `Table` with:
 
@@ -47,7 +47,7 @@ DuckDemo/
 
 The examples stay deliberately small and show the same Duck APIs in real UI code:
 
-- lightweight file-backed `DatabaseIdentifier` identity;
+- lightweight file-backed identity (legacy `DatabaseIdentifier` spelling in the checked-in demos);
 - lazy canonical runtime resolution through `.demo`;
 - declarative migrations;
 - typed `Table` and `@Column` declarations;
@@ -58,7 +58,7 @@ The examples stay deliberately small and show the same Duck APIs in real UI code
 - soft deletion through `deletedAt`;
 - migration-time typed batch insertion.
 
-The UI does not retain a live database owner or keep a second persistence model in sync with Duck. Equivalent uses of `.demo` resolve the same process-lifetime runtime and observation coordinator.
+The UI does not retain a live database owner or keep a second persistence model in sync with Duck. When built against Duck 1.1, equivalent uses of `.demo` resolve the same process-local runtime, bounded reusable Connection pool and Observation coordinator. Ordinary operations borrow and return a scoped lease; idle Observation iterators keep no Connection.
 
 ## SwiftUI
 
