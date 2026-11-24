@@ -27,7 +27,7 @@ A debt entry is not implementation authorization. Promote it into executable wor
 
 **Status:** OPEN limitation. Reviewed research completed on 2026-09-28 with `RECOVERY_CONTRACT_FOUND: NO`. The reviewed fail-close policy is retained. This entry is not closed as implemented recovery.
 
-**Priority:** no active pre-v1 implementation priority. Keep the reviewed fail-close limitation through the v1.0.0 release path unless new public DuckDB evidence makes it a proven release blocker; otherwise any reopened implementation work must be prioritized by a later roadmap.
+**Priority:** no active implementation priority. Keep the reviewed fail-close limitation in 1.1.0 unless new public DuckDB evidence makes it a proven release blocker; otherwise reopen only through separately prioritized research.
 
 **Current limitation:** after COMMIT crosses the reviewed native scheduling boundary at `NativePreparedStatement.pending()` / `duckdb_pending_prepared`, any surfaced COMMIT error forces the public `Connection` into terminal fail-closed state even when DuckDB may internally have completed the commit or rolled the failed commit back and the native connection might technically be reusable.
 
@@ -127,7 +127,7 @@ They remain subject to fresh research, planning, implementation, and audit befor
 
 ### Remaining Recursive / Complex Value and Result Families
 
-**Priority:** deferred until after local v1.0.0 unless a proven release blocker requires the smallest bounded correction. Native one-dimensional LIST and immediate keyed native STRUCT P0 are already closed current state; this debt tracks only the remaining recursive/composite expansion. No relative post-v1 ordering against Advanced Appender is established here; the separate v1.1.0 roadmap must prioritize both families from then-current evidence.
+**Priority:** deferred beyond 1.1.0. Native one-dimensional LIST and immediate keyed native STRUCT P0 are closed; this debt tracks only the remaining recursive/composite expansion. No relative ordering against Advanced Appender is approved. Prioritize either separately from current evidence.
 
 **Deferred capability:** first-class binding, result materialization, Row/Value convenience, logical metadata, Statement, Appender, NULL/Optional, and exact round-trip semantics for:
 
@@ -141,7 +141,7 @@ UNION
 other recursive composite combinations
 ```
 
-**Why it matters:** these are significant DuckDB-native type families and will eventually improve model expressiveness and analytical workloads. They are not required for the current v1.0.0 release-readiness path and are intentionally deferred so release closure is not expanded by a new major feature family.
+**Why it matters:** these are significant DuckDB-native type families and will eventually improve model expressiveness and analytical workloads. They are not required for 1.1.0 and remain deferred so release closure is not expanded by a new major feature family.
 
 **Current boundary:** scalar/exact Value/result work is complete for Bool, signed/unsigned integer widths, Float/Double, String/Data, UUID, Int128/UInt128 availability bridges, PureDate/PureTime/DateTime, Foundation.Date/TIMESTAMPTZ, Interval, and Foundation.Decimal. Native one-dimensional LIST and immediate keyed native STRUCT are also closed P0 current state across prepared binding, Appender, result materialization, Codable model persistence, NULL semantics, and rollback. Recursive LIST/STRUCT nesting, fixed ARRAY, MAP, UNION, and other recursive composite families remain separately gated.
 
@@ -149,9 +149,9 @@ other recursive composite combinations
 
 ### Client migration long-history DX / forward rollup compaction
 
-**Status:** DEFERRED capability debt. Not a v1.0.0 release blocker and not implementation authorization.
+**Status:** DEFERRED capability debt. Not a 1.1.0 release blocker and not implementation authorization.
 
-**Priority:** intentionally deferred until after the v1.0.0 release unless real product evidence proves a release-critical client migration failure.
+**Priority:** deferred beyond 1.1.0 unless real product evidence proves a release-critical client migration failure.
 
 **Deferred capability:** determine whether long-lived client applications need a higher-level forward-only migration compaction/rollup workflow for fresh databases and long-dormant populated databases with hundreds or thousands of historical migrations.
 
@@ -161,6 +161,6 @@ other recursive composite combinations
 
 **Cold research dossier:** `.agent/tech-debt/CLIENT_MIGRATION_LONG_HISTORY_DX.md`.
 
-**Context-budget rule:** do **not** load the dossier during ordinary project startup, v1.0.0 release/readme work, unrelated implementation, or routine audits. Load it only after this exact debt is explicitly promoted into active research/planning work. The dossier is intentionally excluded from default project context.
+**Context-budget rule:** do **not** load the dossier during ordinary project startup, release/README work, unrelated implementation, or routine audits. Load it only after this exact debt is explicitly promoted into active research/planning work. The dossier is intentionally excluded from default project context.
 
 **Closure condition:** either (a) product plus deterministic scale/resource evidence rejects the need, (b) an independently audited forward client migration strategy is implemented, validated against supported historical states, and documented, or (c) a materially better replacement architecture supersedes this research and is independently accepted. Before closing this debt under any of these modes, move accepted durable rules into their proper source/public/governance owners, close or remove this debt entry as appropriate, then **delete `.agent/tech-debt/CLIENT_MIGRATION_LONG_HISTORY_DX.md`** and verify no active/stable documentation still depends on it.

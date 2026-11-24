@@ -476,7 +476,7 @@ A long-form launch article or media-facing source package should normally includ
 
 - what problem Duck solves for Swift developers;
 - the smallest compelling application example;
-- the strongest shipped v1.0.0 capabilities;
+- the strongest capabilities shipped in the release being discussed;
 - the relationship between Duck model/database APIs and SQL query authoring where that helps readers understand the stack;
 - concurrency, ownership, transaction, and observation semantics that materially affect correct use;
 - important non-goals and current boundaries, including composite-value limits where relevant;
