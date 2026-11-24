@@ -4,47 +4,16 @@ Ideas and maintainer-prioritized capabilities that are not yet active approved i
 
 `Codable / Model Layer`, `Migrations`, Observation / Reactive Queries, and Connection Pooling are COMPLETE and no longer future work. Each completed capability has technical validation/audit + public README/publication/Agent Skill closure. Every later capability remains future work until separately researched/planned/authorized.
 
-## Maintainer-Prioritized Release Order
+## Maintainer-prioritized next work
 
-Duck v1.0.0 is a closed release baseline. The current maintainer priority is the main v1.1 program, not unrelated feature expansion:
+The 1.1 canonical-pool/runtime engineering scope is complete and independently accepted. No v1.2 implementation is authorized until promoted through normal reviewed planning.
 
-```text
-Foundation C6 complete -> C7 CLOSED at `c0eb4de4fa2023baea60cb48aaa918ee95eb04bf` -> C8 CLOSED at `0b8baa756b523f00f309b2a007ead7d0570e6b28` -> C9 CLOSED at `6e99a95add3ba57e27f95c88e019666e9af8ec54`
--> SQL minimum correction CLOSED at `bc90ee75541519ba900d6139b706824aee66a577`; `V1-TRP-001` CLOSED; historical former SQL-2 floor `2.1.0`
--> v1.0.0 technical release validation COMPLETE
--> independent release audit COMPLETE
--> release-readiness state checkpoint COMPLETE
--> real local macOS SwiftUI consumer CLOSED / independently accepted
--> real local macOS UIKitPlus consumer CLOSED / independently accepted
--> final public-doc polish/audit CLOSED / independently accepted
--> SQL3/batch candidate synchronization CLOSED / accepted
--> Bridges-like DatabaseIdentifier correction CLOSED / final audit CLEAN
--> DuckDB2 implementation + SQL compatibility disposition + accepted Wave 06 validation — completed candidate state
--> DuckDB2 adoption closure — CLOSED / CLEAN at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845`
--> final independent v1 release snapshot — CLOSED / CLEAN at local commit `1925c7164cade025babb6d4b53453f697e9cdbfc`
--> Bridges pre-v1 parity amendment CLOSED / CLEAN; instance delete / UPSERT / LIST / STRUCT all CLOSED; blockers = 0
--> v1.0.0 tagged at `f4dd6b06cab76624f10faa374f0da10601d73743` and treated as CLOSED historical release baseline
--> v1.1.0 active program — canonical pool/runtime architecture + reactive Observation scalability
-```
+- v1.2: complete-effect-safe table-aware and finer Observation invalidation (column/predicate/changed-row relevance) with conservative fallback, plus comprehensive high-write/million-row correctness and workload benchmarks. See [TECH_DEBT.md](TECH_DEBT.md) and its cold dossier. Preserve 1.1 correctness, bounded ownership and committed-state convergence. Do not use structural primary target alone or revive timing-derived pool defaults.
+- After v1.1 publication: separate artifact/build-cache inventory and safe cleanup planning. Preserve immutable acceptance evidence, distinguish disposable caches from durable evidence, review shared/active paths before deleting anything, and update SECONDARY/POWER/ULTRA workflow cache reuse, disk preflight and cleanup policy. No automatic deletion now.
+- Advanced Appender and remaining recursive/composite Value families beyond native LIST/STRUCT P0 stay deferred and separately prioritized.
+- Public READ_ONLY database opening, committed snapshot/Parquet publication ergonomics and cross-process helpers remain future research, not a solution promised by 1.1.
 
-The two previously verified transaction-adjacent research items are already resolved to their current boundary: deterministic active-pending cancellation integration coverage is DONE, and post-COMMIT recovery research found no safe public recovery contract so fail-close remains the reviewed limitation.
-
-**Advanced Appender APIs** and further **recursive/composite Value/result expansion beyond the closed native LIST and immediate keyed native STRUCT P0 boundaries** remain explicitly deferred behind the active v1.1 canonical-pool + Observation program. Preserve the ideas, but do not promote them merely because they appeared next in an older roadmap.
-
-For v1.1.0, the first maintainer-prioritized program now has two coupled objectives:
-
-- `DATABASE-POOL-ARCHITECTURE-V1_1`: replace fresh-Connection-per-ordinary-operation behavior with a canonical bounded reusable pool for normal database work; make ordinary operations, explicit scoped/manual Connection access, and transactions all use that same pool; redesign Observation refresh ownership around that pool; resolve the old explicit-pool and `connect()` APIs; rename the public identity type from `DatabaseIdentifier` to `Database` while preserving path-backed identity; support application-owned declarations such as `extension Database { static let app: Database = .init(path: /* app .duckdb path */) }`; prefer internal live ownership under `Database.Runtime` rather than a new top-level runtime name; and softly deprecate the old `DatabaseIdentifier` spelling;
-- `OBSERVATION-SCALABILITY-V1_1`: make reactive observation scale under million-row/high-write client workloads with precise invalidation and the accepted canonical-pool resource model.
-
-The short authoritative entries are in `.agent/TECH_DEBT.md`; detailed dossiers are `.agent/tech-debt/DATABASE_POOL_ARCHITECTURE_V1_1.md` and `.agent/tech-debt/REACTIVE_OBSERVATION_SCALABILITY_V1_1.md`.
-
-Plan the pool/runtime architecture before or together with Observation implementation. Do not optimize invalidation while leaving every ordinary convenience operation on a fresh native Connection and every idle Observation iterator permanently holding its own Connection.
-
-Do not start v1.1 by automatically selecting Advanced Appender or recursive/composite Value work. Those remain preserved candidates after this coupled pool/observation program unless the maintainer explicitly reprioritizes.
-
-For `OBSERVATION-SCALABILITY-V1_1`, deterministic scalability/stress validation is mandatory for closure, but wall-clock performance timing is not. Required evidence includes generated large datasets, multiple simultaneous observations, sustained INSERT/UPDATE/DELETE traffic, unrelated-table writes, same-table predicate-irrelevant and relevant writes, transactions/Appender, bounded resource ownership, cancellation cleanup, and no missed relevant committed states.
-
-Platform validation remains an assurance track and participates only where required by the active v1.1 plan or release evidence; it does not justify broad platform work by itself. New push/tag/remote publication remains separately unauthorized without explicit maintainer approval. The v1.1 canonical-pool/Observation closure uses deterministic correctness, stress, and resource-accounting evidence rather than timing-derived thresholds or locally selected magic capacities.
+Release mechanics and outstanding prerequisites are in [TASKS.md](TASKS.md) and [RELEASE_PUBLICATION.md](RELEASE_PUBLICATION.md). Remote mutation needs separate authorization.
 
 ## Other Future Work
 

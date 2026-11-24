@@ -1,24 +1,24 @@
 # Reactive Observation Scalability v1.1 Research Dossier
 
 **Debt ID:** OBSERVATION-SCALABILITY-V1_1
-**Status:** ACTIVE HIGH-PRIORITY VERIFIED TECH DEBT / v1.1 RELEASE OBJECTIVE / NOT IMPLEMENTATION AUTHORIZATION
+**Status:** OPEN VERIFIED TECH DEBT / v1.2 PRECISION AND COMPREHENSIVE SCALE TARGET / NOT IMPLEMENTATION AUTHORIZATION
 **Created:** 2026-11-13
 
 ## Context-budget rule
 
-This file is the detailed stable technical dossier for the v1.1 reactive-observation scalability objective.
+This is the cold historical research dossier for the remaining v1.2 reactive-observation precision and scalability objective. The historical ID is retained for continuity.
 
 Normal project startup should load only the short pointer in `.agent/TECH_DEBT.md` and the accepted current behavior in `.agent/skills/duck-observation/SKILL.md`.
 
-Load this dossier when planning, auditing, implementing, stress-validating, or documenting the v1.1 observation-scalability work.
+Load this dossier only when the remaining debt has been promoted into active v1.2 research or planning.
 
 The dossier is intentionally self-contained so future work does not depend on transient `.artifacts/**` research.
 
 ## Mandatory lifecycle
 
-This file records an active high-priority debt, but it is still not production-source implementation authorization.
+This file records deferred verified debt, prioritized for v1.2 by the maintainer. It is not production-source implementation authorization.
 
-When the v1.1 objective is fully implemented and independently accepted:
+When the remaining v1.2 objective is fully implemented and independently accepted:
 
 1. move accepted permanent architecture rules into the correct source docs, tests, README/public docs, `.agent/PROJECT_MEMORY.md`, `.agent/SOURCE_MAP.md`, and `.agent/skills/duck-observation/SKILL.md`;
 2. preserve deterministic stress/correctness methodology and results in the durable evidence owner selected by the reviewed plan;
@@ -26,7 +26,7 @@ When the v1.1 objective is fully implemented and independently accepted:
 4. update `.agent/MASTER_PLAN.md` and `.agent/TODO.md`;
 5. delete this dossier only after no active/stable documentation depends on it.
 
-The full technical debt is not a v1.1 release blocker after the 2026-11-24 effect-safety route correction. v1.1 may close with conservative Database-wide mutation invalidation after deterministic stress/compatibility validation. Future debt closure still requires a separately reviewed complete-effect-safe precision strategy plus the deterministic scalability/correctness gate below.
+The scoped 1.1 engineering program is CLOSED / independently accepted, with conservative Database-wide mutation invalidation, bounded canonical resource ownership, physical retirement and deterministic stress/compatibility. Final evidence is summarized in PROJECT_MEMORY.md. The remaining full precision and million-row/high-write correctness and performance validation are explicitly deferred to v1.2. Future debt closure requires a separately reviewed complete-effect-safe strategy and the full deterministic scalability/correctness gate below, with reproducible workload benchmarks; no timing-derived capacity selection. References to v1.1 precision or broader stress targets in the historical research sections describe superseded scope, not current requirements.
 
 ---
 
@@ -722,4 +722,4 @@ Validate bounded retained state during sustained write storms, not only after id
 13. a fresh independent implementation/evidence audit is CLEAN;
 14. README/observation skill/public technical material is synchronized with the final truthful semantics.
 
-This full debt closure is no longer a v1.1.0 release blocker. The active v1.1 path closes deterministic stress/compatibility and truthful public semantics while retaining conservative Database-wide mutation invalidation. Reopen complete-effect-safe table/predicate/row precision only through a fresh separately reviewed plan; do not weaken correctness to force historical precision milestones.
+This full debt closure is not a v1.1.0 release blocker. The completed v1.1 scope closed deterministic stress/compatibility and truthful public semantics while retaining conservative Database-wide mutation invalidation. The remaining debt targets v1.2. Reopen complete-effect-safe table/predicate/row precision only through a fresh separately reviewed plan; do not weaken correctness to force historical precision milestones.

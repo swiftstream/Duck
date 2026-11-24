@@ -51,3 +51,11 @@ Completed historical guidance coverage for query execution, Transactions, reusab
 ### Observation / Reactive Queries
 
 Completed the UI-neutral latest-state `QueryObservation` capability with native READ ONLY refreshes, same-`Database` invalidation, bounded/coalescing `QueryResult` delivery, ordinary Connection/Statement mutation publication, managed + flat Transaction finalization/publication, and ordinary/Transaction Appender visibility integration. Final closure includes README coverage, durable publication source, source-owned `swiftduckdb-observation` guidance, Swift 6.3.3 full-package 557/557 validation, focused Swift 6.4 public/manual-finalization validation, a CLEAN independent technical-root audit, and PRIMARY public-closure acceptance. Cross-process/file watching, event-log semantics, typed observation, reusable VIEW-rebind guarantees, and connection pooling remain outside the accepted v1 boundary.
+
+### Stable 1.0 release
+
+Closed the Swift 6.3 / SQL 3.1 / DuckDB 2.0 baseline, Codable persistence, migrations, exact scalar and temporal values, native LIST and STRUCT P0, reactive queries, public pool and Appender integration. Published v1.0.0 remains the historical baseline.
+
+### Canonical bounded database resource architecture (1.1)
+
+Completed public Database identity and compatibility alias, thin exact-generation Connection handles, canonical pooling, ordinary and advanced execution routing, refresh-scoped Observation, conservative mutation publication, deterministic transaction/observation convergence, physical native retirement and terminal failure fencing. Final implementation and evidence independently accepted, full package/compatibility and example validation passed. Maintainer accepted the intentional explicit pool/connect behavioral changes for the minor version. See Project Memory and the current public docs. Full precision and comprehensive large-workload validation remain deferred to v1.2. Actual remote publication remains a separate event, not implied by engineering closure.

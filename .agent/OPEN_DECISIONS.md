@@ -2,28 +2,13 @@
 
 Unresolved choices that must not be treated as implemented architecture.
 
-## Maintainer Priority Boundary
+## Current priority
 
-Duck v1.0.0 is a closed historical release baseline, tagged at `f4dd6b06cab76624f10faa374f0da10601d73743`. The current durable product priority is the main v1.1 program: canonical database pooling/runtime architecture together with reactive Observation scalability.
-
-    Foundation C6 complete -> C7/C8/C9 CLOSED
-    -> SQL 3.1.0 candidate floor and SQL3 surface synchronization COMPLETE
-    -> DuckDB v2.0.0 first-v1 engine selection and adoption COMPLETE
-    -> SQL compatibility matrix 13/13 PASS; no SQL change required
-    -> Wave 06 exact platform and consumer validation ACCEPTED
-    -> DuckDB2 adoption closure CLOSED / CLEAN at `3464caa32f6483ecb4f1f68f0997733b94aaf845`
-    -> final independent v1 release snapshot CLOSED / CLEAN at `1925c7164cade025babb6d4b53453f697e9cdbfc`
-    -> Bridges pre-v1 parity amendment CLOSED / CLEAN; instance delete / UPSERT / LIST / STRUCT all CLOSED; blockers = 0
-    -> v1.0.0 release baseline CLOSED / TAGGED at `f4dd6b06cab76624f10faa374f0da10601d73743`
-    -> v1.1.0 active program: DATABASE-POOL-ARCHITECTURE-V1_1 + OBSERVATION-SCALABILITY-V1_1
-
-The first maintainer-prioritized v1.1.0 program has two coupled objectives: `DATABASE-POOL-ARCHITECTURE-V1_1` and `OBSERVATION-SCALABILITY-V1_1`. The pool/runtime model must be researched and planned before or together with Observation implementation because ordinary work and Observation refresh ownership share the same Connection-resource architecture. Advanced Appender expansion and further recursive/composite Value/result families remain deferred and do not outrank this coupled program without explicit maintainer reprioritization. Platform validation remains an assurance track only when required by the active plan. New push, tag, remote release, and publication remain separately unauthorized.
-
-This priority boundary is durable product direction, not permission to skip normal research/planning/validation/audit gates. Executable work is owned by `.agent/TASKS.md`.
+The v1.1 architecture and versioning decisions are resolved; see [Master Plan](MASTER_PLAN.md) and [Project Memory](PROJECT_MEMORY.md). Only the separately reviewed future decisions below remain open. The v1.2 priority is complete-effect-safe Observation invalidation precision and comprehensive high-write validation, not an implementation authorization.
 
 ## DuckDB Integration
 
-The first-v1 adoption decisions are closed: DuckDB v2.0.0 at upstream revision d54cbbe3df17e8e5ce68312f483b4155836112aa, the official Swift package generation flow, the platform-specific Cduckdb packaging split, the stable C API boundary, private Observation bridge adaptation, and the accepted storage compatibility policy. The generated non-macOS C++17 source configuration includes core_functions, parquet, icu, and json with static registration support, while the exact current macOS XCFramework runtime reports those extensions as NOT_INSTALLED and does not link loadable extensions; cross-platform extension parity is not a first-v1 requirement. SQL 3.1.0 at revision b0c81191c3494d91b84b5382092e99c64d5c4647 passed the compatibility return matrix 13/13 with no required SQL change. See Project Memory and Master Plan for current implementation facts. DuckDB2 adoption is CLOSED / CLEAN at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845`; the final independent v1 release snapshot is CLOSED / CLEAN at local commit `1925c7164cade025babb6d4b53453f697e9cdbfc`; the later pre-v1 Bridges parity amendment is CLOSED / CLEAN with `PRE_V1_PARITY_BLOCKERS_REMAINING=0`. The v1.0.0 release sequence is historical and closed. Current work is v1.1 research/planning and subsequent independently reviewed implementation of the canonical pool/runtime + Observation-scalability program. New push/tag/remote release/publication remain separately unauthorized.
+The first-v1 adoption decisions are closed: DuckDB v2.0.0 at upstream revision d54cbbe3df17e8e5ce68312f483b4155836112aa, the official Swift package generation flow, the platform-specific Cduckdb packaging split, the stable C API boundary, private Observation bridge adaptation, and the accepted storage compatibility policy. The generated non-macOS C++17 source configuration includes core_functions, parquet, icu, and json with static registration support, while the exact current macOS XCFramework runtime reports those extensions as NOT_INSTALLED and does not link loadable extensions; cross-platform extension parity is not a first-v1 requirement. SQL 3.1.0 at revision b0c81191c3494d91b84b5382092e99c64d5c4647 passed the compatibility return matrix 13/13 with no required SQL change. See Project Memory and Master Plan for current implementation facts. DuckDB2 adoption is CLOSED / CLEAN at local commit `3464caa32f6483ecb4f1f68f0997733b94aaf845`; the final independent v1 release snapshot is CLOSED / CLEAN at local commit `1925c7164cade025babb6d4b53453f697e9cdbfc`; the later pre-v1 Bridges parity amendment is CLOSED / CLEAN with `PRE_V1_PARITY_BLOCKERS_REMAINING=0`. The v1.0.0 release sequence is historical and closed. The canonical resource architecture is complete; the deferred precision and large-workload objectives are tracked in TECH_DEBT.md. New push/tag/remote release/publication remain separately unauthorized.
 
 Still open for future work:
 
@@ -34,11 +19,10 @@ Still open for future work:
 
 ## Future Public Resource APIs
 
-The current `DatabaseIdentifier` / `Connection` / `DuckTransaction` / `Statement` / `Appender` / `QueryResult` / `ResultRow` / `Value` slice is implemented and is no longer an open design question. The live `Database` runtime is internal and is not a consumer ownership model. `DatabaseIdentifier` is a lightweight value identity: equivalent identifiers lazily resolve one strongly retained process-lifetime canonical runtime through the internal registry. v1 intentionally exposes no unregister/close operation that could create a second runtime while old Connections remain alive. Scoped transaction ownership, ordinary and transaction Appender complete-row/lifetime/concurrency/error semantics, same-Connection restrictions, ordinary non-atomic Appender auto-flush, transaction-Appender rollback-only/finalization behavior, and independent-Connection semantics are reviewed current state.
+The current `Database` / `Connection` / `DuckTransaction` / `Statement` / `Appender` / `QueryResult` / `ResultRow` / `Value` slice is implemented and is no longer an open design question. The live `Database.Runtime` is internal and is not a consumer ownership model. `Database` is a lightweight value identity (`DatabaseIdentifier` is the deprecated alias): equivalent identifiers lazily resolve one strongly retained process-lifetime canonical runtime through the internal registry. v1 intentionally exposes no unregister/close operation that could create a second runtime while old Connections remain alive. Scoped transaction ownership, ordinary and transaction Appender complete-row/lifetime/concurrency/error semantics, same-Connection restrictions, ordinary non-atomic Appender auto-flush, transaction-Appender rollback-only/finalization behavior, and independent-Connection semantics are reviewed current state.
 
 Still unresolved for future separately reviewed capabilities:
 
-- **v1.1 canonical pool/runtime redesign — active implementation, core resource decisions resolved.** One logical `Database` runtime owns one canonical bounded reusable pool. Scoped `Database.connection {}` and manual `Database.connect()` both lease from that same pool; manual lifetime ends with `Connection.release()`. The library uses a conservative default of `minimumConnections = 1` / `maximumConnections = 1`, following DuckDB's official guidance to reuse Connections and its note that a single Connection frequently works best. Applications may explicitly configure their own `minimumConnections` and `maximumConnections` before first canonical use; the minimum is opened eagerly and further Connections are created lazily on demand up to the maximum. Equivalent identities share one frozen configuration. No timing-derived capacity selection is part of the design. Wave04 ordinary convenience routing and F05 pooled Observation refresh ownership are accepted complete (F05 CLEAN). Remaining active work is Wave06 direct Duck-known Level-1 MutationImpact, deterministic validation, documentation, and final audit. Detailed authority: `.agent/tech-debt/DATABASE_POOL_ARCHITECTURE_V1_1.md`.
 - **Advanced Connection Pooling extensions — after canonical v1.1 architecture is frozen.** Checkout timeout, idle lifetime policy, session reset, statement cache, public pool metrics, and unrelated advanced controls remain separately gated. Do not let these optional extensions expand the mandatory canonical-pool redesign without evidence.
 - **Advanced Appender APIs — deferred major post-v1 capability family.** Fixed selected-column Appender scopes are accepted current state. Remaining separately reviewed choices are per-cell `DEFAULT`, QueryAppender, public DataChunk/vector append, manual lifecycle controls, and other justified batching/high-throughput surfaces. No implementation order relative to remaining recursive/composite Value work beyond the closed LIST/STRUCT P0 boundaries is established here; a separate post-v1 roadmap must prioritize these choices from then-current evidence.
 
@@ -49,7 +33,7 @@ Resolved query-construction rules are not open decisions:
 - all Duck-owned SQL is constructed through SQL;
 - Duck execution uses `prepare(.duck)`;
 - explicit raw SQL is represented through `SQL.raw(...)`, not a parallel ordinary String construction path;
-- the public execution/result slice uses lightweight `DatabaseIdentifier` identity and actor-isolated explicit `Connection` ownership;
+- the public execution/result slice uses lightweight `Database` identity and exact lease-bound `Connection` ownership;
 - query-centered conveniences delegate to the same Connection engine;
 - typed-table selected-column convenience remains ordinary SQL construction sugar.
 
@@ -61,7 +45,7 @@ Observation / Reactive Queries core architecture is no longer an open decision. 
 
 - Native one-dimensional `LIST` and immediate keyed native `STRUCT` P0 are CLOSED current state. `Value.Kind.list == 23` and `Value.Kind.structure == 24`; their accepted prepared/Appender/result/Codable/persistence boundaries remain governed by the closed parity authorities.
 - Only further recursive/composite expansion remains unresolved and separately gated: nested LIST, LIST-in-STRUCT, STRUCT-in-LIST, fixed ARRAY, MAP, UNION, and other recursive composite combinations.
-- This remaining capability stays deferred behind the active v1.1 canonical-pool + Observation program. Its later implementation order relative to Advanced Appender work remains unresolved; neither may displace the current coupled v1.1 objectives without explicit maintainer reprioritization.
+- This remaining capability is deferred; its priority relative to Advanced Appender remains unresolved. Do not let either displace the maintainer's v1.2 Observation direction without explicit reprioritization.
 - Foundation.Decimal is no longer an open design/integration question: the accepted DCT128-v1 exact codec and its production/query/Statement/Appender/result integration are current state.
 
 ## Platform Packaging / Validation
