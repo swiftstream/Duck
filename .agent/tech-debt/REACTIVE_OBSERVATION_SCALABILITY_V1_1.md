@@ -26,7 +26,7 @@ When the v1.1 objective is fully implemented and independently accepted:
 4. update `.agent/MASTER_PLAN.md` and `.agent/TODO.md`;
 5. delete this dossier only after no active/stable documentation depends on it.
 
-The debt is not closed merely because table-aware invalidation exists. Closure requires the deterministic scalability/correctness gate below.
+The full technical debt is not a v1.1 release blocker after the 2026-11-24 effect-safety route correction. v1.1 may close with conservative Database-wide mutation invalidation after deterministic stress/compatibility validation. Future debt closure still requires a separately reviewed complete-effect-safe precision strategy plus the deterministic scalability/correctness gate below.
 
 ---
 
@@ -46,7 +46,7 @@ The accepted latest-state Observation pipeline already provides:
 - definitive transaction publication;
 - Appender participation.
 
-The performance debt is not only mutation invalidation granularity. The v1 baseline Observation also owned one private native Connection for the full lifetime of every iterator. Accepted F05 resolves that idle Connection pinning: each refresh borrows and returns a scoped lease from the canonical bounded Pool. The separate `DATABASE-POOL-ARCHITECTURE-V1_1` debt and the active MutationImpact work remain open.
+The performance debt is not only mutation invalidation granularity. The v1 baseline Observation also owned one private native Connection for the full lifetime of every iterator. Accepted F05 resolves that idle Connection pinning: each refresh borrows and returns a scoped lease from the canonical bounded Pool. The separate `DATABASE-POOL-ARCHITECTURE-V1_1` release work proceeds to deterministic stress/compatibility closure, while MutationImpact precision is deferred until Duck can prove a race-free complete execution-effect set rather than only a structural primary target.
 
 The mutation-side performance debt is the invalidation granularity.
 
@@ -132,11 +132,11 @@ If Duck cannot prove that a mutation is irrelevant to an observation, the observ
 
 ---
 
-# 4. Mandatory v1.1 minimum: table-aware ordinary mutations
+# 4. Deferred precision objective: complete-effect-safe table-aware ordinary mutations
 
-The first mandatory closure layer is complete table-aware mutation invalidation for normal Duck mutation paths.
+The historical v1.1 plan treated complete table-aware mutation invalidation as the first mandatory closure layer. The 2026-11-24 U011/effect-safety correction supersedes that release requirement: reachable trigger-transitive writes prove that the declared/structural primary target is not necessarily the complete execution-effect set.
 
-A write to `users` should not wake an observation proven to depend only on `todo`.
+A future precision implementation should still avoid waking an observation proven unrelated to the complete execution effects of a mutation, but only when that irrelevance can be established without under-invalidation.
 
 This must cover, where the mutation target/dependency can be safely determined:
 
@@ -150,11 +150,11 @@ This must cover, where the mutation target/dependency can be safely determined:
 - UPSERT and other accepted mutation surfaces;
 - future accepted mutation surfaces added before v1.1 closure.
 
-The current Appender target-aware machinery is evidence that table-scoped publication is already a supported internal concept. It is not proof that the general solution is complete.
+Appender is now deliberately conservative: commit `2de9efb56e130f20a4366b9b219c085892b148b0` publishes `.database` for every Appender target because primary target identity is not a proven complete execution-effect set. Historical Appender target-aware machinery must not be used as evidence that table-scoped publication is currently correctness-authorized.
 
 Safe ambiguity must fail closed to Database-wide invalidation.
 
-Table-aware invalidation alone is necessary but is not sufficient to close this debt.
+Table-aware invalidation is a future optimization layer, not a current v1.1 release prerequisite. Any future implementation must be complete-effect-safe and remains insufficient by itself to close the broader scalability debt.
 
 ---
 
@@ -258,7 +258,7 @@ Use when analysis fails, statement semantics are unknown, a dangerous edge is de
 
 Skip observations whose table dependency set is disjoint from the mutation's affected-table set.
 
-This is the mandatory v1.1 minimum.
+This is a deferred future precision level, not a v1.1 release minimum. It requires a separately reviewed complete-effect-safe mutation relation set; primary target identity alone is insufficient.
 
 ## Level 2: Column-aware
 
@@ -722,6 +722,4 @@ Validate bounded retained state during sustained write storms, not only after id
 13. a fresh independent implementation/evidence audit is CLEAN;
 14. README/observation skill/public technical material is synchronized with the final truthful semantics.
 
-The maintainer explicitly targets this work for v1.1.0.
-
-Do not demote it behind unrelated post-v1 feature expansion without explicit maintainer authorization.
+This full debt closure is no longer a v1.1.0 release blocker. The active v1.1 path closes deterministic stress/compatibility and truthful public semantics while retaining conservative Database-wide mutation invalidation. Reopen complete-effect-safe table/predicate/row precision only through a fresh separately reviewed plan; do not weaken correctness to force historical precision milestones.
