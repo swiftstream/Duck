@@ -14,7 +14,7 @@ Push, tag creation, release publication, and any remote mutation remain separate
 
 ## Maintainer Autopilot Authorization
 
-PRIMARY GPT-5.6 Sol using CodexMCP2 is permanently authorized to stage and create local commits for an unambiguous, bounded, already-reviewed logical change without asking for per-commit confirmation.
+PRIMARY using the maintainer-authorized Sol model and CodexMCP2 is permanently authorized to stage and create local commits for an unambiguous, bounded, already-reviewed logical change without asking for per-commit confirmation.
 
 This standing authorization does **not** authorize:
 

@@ -9,13 +9,13 @@ Load this file only when work pushes a release candidate, creates or pushes a se
 Before publication:
 
 - require a clean, independently accepted release candidate on `master`;
-- record its exact commit as `RELEASE_SHA`;
+- record the maintainer-approved stable `RELEASE_VERSION`, its exact semantic `RELEASE_TAG` (`v` followed by `RELEASE_VERSION`), and the candidate commit as `RELEASE_SHA`;
 - require the exact candidate tree to pass the release-snapshot documentation gate below;
 - require the semantic release tag to be absent locally and remotely;
 - preserve unrelated user work;
 - never force-push, reset, move an existing release tag, or rewrite published history.
 
-For Duck 1.0.0, also require the already-published native artifact prerequisite to remain exact and immutable:
+When the package uses a precompiled native artifact, verify the manifest URL, artifact identity and checksum against the independently accepted immutable artifact before semantic publication. For the Duck 1.0.0 / 1.1.0 DuckDB 2.0.0 binary baseline, the required artifact is:
 
 - native tag: `cduckdb-v2.0.0-r1`;
 - asset: `Cduckdb-apple-v2.0.0-r1.xcframework.zip`;
@@ -65,7 +65,7 @@ Before publishing `master` for a stable release, require a fresh first-time-user
 
 The executor must act as a competent Swift developer who has never used the package before.
 
-For Duck v1.0.0, the PRIMARY installation surface is a fresh Xcode iOS/macOS application, because that is the README's first and primary installation path.
+The PRIMARY installation surface is a fresh Xcode iOS/macOS application, because that is the README's first and primary installation path.
 
 The pre-release black-box run must therefore include a real Xcode consumer on a macOS/Xcode-capable executor:
 
@@ -115,7 +115,7 @@ That substitution must not change:
 - expected results;
 - platform/runtime behavior under test.
 
-For the pre-release Duck v1 gate require:
+For the pre-release integration gate require:
 
 ```text
 PRIMARY_INSTALL_SURFACE=XCODE_APP
@@ -203,7 +203,7 @@ If branch CI or artifact identity fails, stop before creating the semantic relea
 
 Creating or pushing the semantic tag requires separate explicit maintainer authorization.
 
-Create one annotated `v1.0.0` tag on exact `RELEASE_SHA`, then push only that exact tag normally.
+Create one annotated `RELEASE_TAG` on exact `RELEASE_SHA`, then push only that exact tag normally. Never infer the intended tag from a historical release example.
 
 Verify:
 
@@ -216,13 +216,13 @@ A pushed stable tag is immutable. Never move, delete, recreate, or force-update 
 
 ## Tag CI
 
-Require tag CI to identify exact `v1.0.0` and `RELEASE_SHA`, with required workflow/jobs successful.
+Require tag CI to identify exact `RELEASE_TAG` and `RELEASE_SHA`, with required workflow/jobs successful.
 
 If tag CI fails, preserve the immutable tag and stop further publication.
 
 ## Remote exact consumers
 
-Before creating the semantic GitHub Release, validate the real published `1.0.0` through fresh disposable consumers.
+Before creating the semantic GitHub Release, validate the real published `RELEASE_VERSION` through fresh disposable consumers.
 
 ### Primary Xcode consumer
 
@@ -230,7 +230,7 @@ Create a brand-new iOS or macOS Xcode application and follow the README's public
 
 - `File -> Add Package Dependencies`;
 - package URL = `https://github.com/SwiftStream/Duck`;
-- requested version rule resolves exact `1.0.0`;
+- requested version rule resolves exact `RELEASE_VERSION`;
 - resolved revision/check-out = `RELEASE_SHA`;
 - product/module = `Duck`;
 - normal `import Duck`;
@@ -246,7 +246,7 @@ On this Apple consumer path, verify the published package resolves the productio
 Also validate from a fresh command-line Swift package consumer:
 
 - dependency URL = `https://github.com/SwiftStream/Duck`;
-- requested version = exact `1.0.0`;
+- requested version = exact `RELEASE_VERSION`;
 - resolved revision/check-out = `RELEASE_SHA`;
 - product/module = `Duck`;
 - normal `import Duck`;
@@ -264,9 +264,9 @@ Creating the semantic GitHub Release requires separate explicit maintainer autho
 
 Create it only after branch CI, semantic tag identity, tag CI, and both remote exact consumer rows PASS.
 
-For v1.0.0:
+For each stable release:
 
-- use the verified semantic tag;
+- use the verified semantic `RELEASE_TAG`;
 - publish as a stable release, not draft or prerelease;
 - use an independently reviewed user-facing release body derived from `RELEASE_NOTES.md`;
 - follow `PUBLIC_WRITING_STYLE.md`, including the GitHub Release body-opening rule: the title owns the release name/version identity, so the body must begin with new information instead of repeating the title as an H1 or mechanically restating the same name/version in its first sentence;
@@ -320,7 +320,7 @@ This may include:
 
 These materials must:
 
-- start from shipped, verified v1.0.0 behavior;
+- start from shipped, verified behavior of `RELEASE_VERSION`;
 - use the canonical GitHub Release as the release-status source of truth;
 - follow `PUBLIC_WRITING_STYLE.md`;
 - preserve sharp edges and non-goals when omission would mislead readers;
