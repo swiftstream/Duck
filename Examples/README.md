@@ -5,7 +5,7 @@ The repository includes two small iOS applications that demonstrate the same Duc
 - [`SwiftUI/DuckDemo.xcodeproj`](SwiftUI/DuckDemo.xcodeproj) - SwiftUI
 - [`UIKit/DuckDemo.xcodeproj`](UIKit/DuckDemo.xcodeproj) - UIKit
 
-Both projects target iOS 15 or later and build in Swift 6 mode with MainActor default isolation and strict memory safety. The checked-in Xcode projects reference the published Duck package from version 1.0.0 with an up-to-next-major requirement.
+Both projects target iOS 15 or later and build in Swift 6 mode with MainActor default isolation and strict memory safety. The checked-in Xcode projects reference the published Duck package from version 1.1.0 with an up-to-next-major requirement.
 
 ## Run an example
 
@@ -29,7 +29,7 @@ DuckDemo/
 └── UI entry points
 ```
 
-The checked-in demos retain the source-compatible `DatabaseIdentifier.demo` spelling so they also compile against the published 1.0.0 API. In Duck 1.1, `DatabaseIdentifier` is a deprecated typealias of `Database`; new application code should use `Database`. `.demo` is a lightweight computed identifier for a file-backed database in Application Support. Constructing `.demo` does not open DuckDB or create a central live database object. `prepareDemoDatabase()` creates the containing directory and runs migrations before ordinary application traffic; the first database operation lazily registers Duck's canonical runtime for that identifier.
+The checked-in demos retain the source-compatible `DatabaseIdentifier.demo` spelling to illustrate migration compatibility. In Duck 1.1, `DatabaseIdentifier` is a deprecated typealias of `Database`; new application code should use `Database`. `.demo` is a lightweight computed identifier for a file-backed database in Application Support. Constructing `.demo` does not open DuckDB or create a central live database object. `prepareDemoDatabase()` creates the containing directory and runs migrations before ordinary application traffic; the first database operation lazily registers Duck's canonical runtime for that identifier.
 
 `Todo` is a typed Duck `Table` with:
 
