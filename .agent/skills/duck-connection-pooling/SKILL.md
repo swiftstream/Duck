@@ -101,7 +101,7 @@ try await pool.shutdown()
 
 Shutdown stops new checkout, fails queued requests with `.poolClosed`, and drains active leases. Successful shutdown physically disconnects every owned native Connection even when stale Swift handles survive. Retirement keeps a slot counted until disconnect completes, so replacement cannot exceed the physical maximum. If safe retirement cannot be established, the pool reports an error and rejects new checkout rather than claiming successful shutdown. A call from inside this pool's live lease throws `.poolShutdownFromLease`. Normal checkout after shutdown starts throws `.poolClosed`. Repeating a successful shutdown is harmless; shutdown is terminal for that runtime and ordinary Database work cannot fall back to an out-of-pool Connection. Arrange the caller's active work to finish so shutdown can drain it.
 
-## 8. Migrate from v1.0
+## 8. Migrate from 1.0
 
 `DatabaseIdentifier` is a deprecated typealias of `Database`. Existing source spelling remains compatible, but `connect()` is now a manual lease and must be released. The deprecated `pool(maximumConnections:)` configures and returns the same canonical pool; it does not create a second pool. Configure before first use, then use `pool()` only when its handle is needed. The runtime, pool and invalidation coordinator are process-local, not shared with another app or widget process.
 

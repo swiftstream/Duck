@@ -188,7 +188,7 @@ Grounding: the maintainer supplied the complete final Markdown of this article, 
 
 ### Claims, limits, and future work
 
-- Keep non-goals and limitations where they inform decisions, but proportionate to the article. The final `Эффективность работы observation` subsection states the conservative database-wide invalidation, equal-result suppression, why unnecessary SQL reruns matter, and the intended v1.1 direction in only a few paragraphs; do not expand a modest caveat into speculative implementation design, benchmark matrices, or sweeping promises.
+- Keep non-goals and limitations where they inform decisions, but proportionate to the article. The final `Эффективность работы observation` subsection states the conservative database-wide invalidation, equal-result suppression, why unnecessary SQL reruns matter, and the intended 1.1 direction in only a few paragraphs; do not expand a modest caveat into speculative implementation design, benchmark matrices, or sweeping promises.
 - Compare Duck to SQLite/GRDB respectfully and specifically. The final article explicitly says Duck is not meant to replace SQLite in every app and distinguishes DuckDB's analytical strengths from unknown behavior under many tiny writes. Do not imply one system is universally faster or more capable without comparable evidence.
 - Measurements must retain their **actual values and scope**. The author's final published draft uses approximately **2 MB** for the minimal SwiftUI build and **42 MB** for the build with Duck, explicitly local build sizes rather than App Store downloads; earlier assistant drafts used an incorrect 1 MB baseline. It also reports author-observed cold build timing with prebuilt XCFramework; never upgrade such observations into platform-wide guarantees without reproducible methodology.
 - Platform claims must separate validated targets from the author's expectations. The article names iOS 15+ and macOS 12+ and expresses optimism about other environments rather than reporting them all as tested. Public technical docs must remain stricter than informal speculation when explicit support is claimed.
@@ -346,7 +346,7 @@ Examples:
 🦆 Duck 2.0.0
 ```
 
-The emoji belongs in the GitHub Release title, not in the semantic Git tag. Tags remain ordinary semantic versions such as `v1.0.0`.
+The emoji belongs in the GitHub Release title, not in the semantic Git tag. Duck release tags are plain semantic versions such as `1.0.0` or `1.1.0`, without a `v` prefix. Do not alter historical or upstream tag identities when describing them.
 
 ## GitHub Release Body Opening
 

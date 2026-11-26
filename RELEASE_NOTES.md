@@ -152,13 +152,13 @@ For atomic bulk loading, use Appender inside a transaction. Outside one, automat
 
 Observation is a latest-state API, not a per-mutation event stream. Pending invalidations and intermediate committed states can coalesce; equal QueryResult values are suppressed. An active, successful observer converges to the latest committed result when changes settle and a refresh can obtain capacity. There is no per-commit delivery or latency guarantee.
 
-## Current invalidation precision and v1.2 direction
+## Current invalidation precision and 1.2 direction
 
 Mutation publication remains conservative and database-wide for ordinary non-read-only execution, Statements and Appender, including potentially transitive effects of triggers. Read dependency analysis is available internally, but a primary target table alone does not establish the complete affected relation set.
 
 A write to an unrelated table can therefore still cause a SELECT, result materialization and comparison. Equal-result suppression avoids delivering unchanged results to the application; it does not eliminate database query work.
 
-Complete-effect-safe table-aware routing, finer column/predicate/row relevance, and comprehensive large-data/high-write validation including million-row benchmarks are deferred to v1.2. No measured throughput or latency improvement is claimed by this release.
+Complete-effect-safe table-aware routing, finer column/predicate/row relevance, and comprehensive large-data/high-write validation including million-row benchmarks are deferred to 1.2. No measured throughput or latency improvement is claimed by this release.
 
 The runtime, pool and invalidation coordinator are process-local. A WidgetKit extension cannot share the app's pool or receive cross-process invalidations merely because it accesses the same App Group. Publish a small committed Codable projection or separate finalized snapshot rather than concurrently opening the live primary database for app writes and widget reads. This release introduces no cross-process observation or snapshot helper.
 

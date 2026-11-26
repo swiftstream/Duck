@@ -57,6 +57,8 @@ SQLite, Core Data, SwiftData, Realm, and similar tools all have valid use cases.
 
 Use Duck 1.1.0 or later within the 1.x release series. Upgrading from 1.0? See the [release notes](RELEASE_NOTES.md#migration-from-10-important-behavior-changes) for changes to explicit Connection and Pool ownership.
 
+Duck uses release tags without a version prefix, such as `1.1.0`.
+
 ### Xcode
 
 For an iOS or macOS app, add Duck directly from Xcode:

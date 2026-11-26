@@ -10,7 +10,7 @@
 
 После первой публикации о Duck я получил несколько очень хороших вопросов про реактивные запросы и Connection Pooling. В частности, как observation ведет себя на границе транзакции, не теряется ли COMMIT, если наблюдение уже успело прочитать старые данные, зачем обычному запросу и пулу разные способы получения connection и насколько точно вообще можно понять, что наблюдаемый SQL нужно выполнить еще раз.
 
-Мне хотелось не просто ответить на эти вопросы в комментариях, а разобраться с ними в самой библиотеке. В результате получилась новая архитектура работы с DuckDB, которая при этом почти не меняет повседневный Swift API. Сразу оговорюсь: наиболее сложную часть оптимизации invalidation я решил оставить на v1.2. Ниже расскажу почему.
+Мне хотелось не просто ответить на эти вопросы в комментариях, а разобраться с ними в самой библиотеке. В результате получилась новая архитектура работы с DuckDB, которая при этом почти не меняет повседневный Swift API. Сразу оговорюсь: наиболее сложную часть оптимизации invalidation я решил оставить на 1.2. Ниже расскажу почему.
 
 ## Один Database, один Connection Pool
 
@@ -276,7 +276,7 @@ INSERT INTO notifications VALUES (NEW.id);
 
 Нужен способ установить полный execution-effect set, а не просто структурный primary target. До этого момента и обычные writes, и Appender используют database-wide fallback. Для будущих column-, predicate- и row-aware оптимизаций также нужно доказать безопасность для joins, aggregates, views, сложных выражений и fallback.
 
-В первой статье я наметил эту работу для 1.1. По итогам разработки решил выпустить архитектурный фундамент сейчас, а точность invalidation и полноценные million-row/high-write benchmarks перенести на v1.2. Не обещаю ускорения в процентах или что любой большой workload уже эффективен. Сначала корректность, затем измерение и более точная маршрутизация.
+В первой статье я наметил эту работу для 1.1. По итогам разработки решил выпустить архитектурный фундамент сейчас, а точность invalidation и полноценные million-row/high-write benchmarks перенести на 1.2. Не обещаю ускорения в процентах или что любой большой workload уже эффективен. Сначала корректность, затем измерение и более точная маршрутизация.
 
 ## Переход с 1.0
 
@@ -369,7 +369,7 @@ shutdown теперь terminal для канонического runtime в да
 
 ### Дополнительные примеры для сравнения API
 
-Исторический v1.0 explicit Connection transaction (не рекомендуемый новый код, без release в 1.1):
+Исторический 1.0 explicit Connection transaction (не рекомендуемый новый код, без release в 1.1):
 
 ```swift
 let connection = try await DatabaseIdentifier.app.connect()
@@ -395,7 +395,7 @@ let pool = try await DatabaseIdentifier.app
 ### Техническая проверка и редактура
 
 - Исходные три комментария: транзакционные границы/две связи/COMMIT после stale refresh/ROLLBACK/Task cancellation; одинаковое обычное и pooled использование; database/table/finer rerun и стоимость busy table. Первые два закрыты по существу, третий только по bounded ownership и demand, не по precision. Не цитировать комментарии дословно без сверки оригинала.
-- Диаграммы для статьи: v1.0 independent ordinary connections + separate pool + dedicated observation connection -> v1.1 shared canonical pool; sequence diagram COMMIT during stale refresh; messages/profiles/settings database-wide fanout, equal-result suppression; max=1 physical retirement before/after. Числовой пример 20 observations / max4 является моделью, не benchmark.
+- Диаграммы для статьи: 1.0 independent ordinary connections + separate pool + dedicated observation connection -> 1.1 shared canonical pool; sequence diagram COMMIT during stale refresh; messages/profiles/settings database-wide fanout, equal-result suppression; max=1 physical retirement before/after. Числовой пример 20 observations / max4 является моделью, не benchmark.
 - O06: Tests/DuckTests/ObservationPoolRefreshTests.swift:268-320, реальный writer commit и iterator result.
 - OT02, OT03, OT06, OT08, OP03: ObservationTransactionTests.swift, ConnectionPoolObservationTests.swift; transaction publication after finalization and rollback effects.
 - OA15-17: ObservationAppenderTests.swift:881-1018; 205000 rows and independent reader. OA25: lines 585-665, trigger-transitive effects, database-wide invalidation. OA04-07 ordinary durable prefix.
@@ -404,4 +404,4 @@ let pool = try await DatabaseIdentifier.app
 - Final evidence: .artifacts/handoff/v1-1-r4-f01-native-retirement-correction02-secondary-2026-11-24/EXECUTION_REPORT.md SHA 27cc5697a017d9c4b2cf0b1b01eb281aa1bd8d777a22e1daae29f072f8b668dc.
 - Final independent report: .artifacts/reviews/duck-v1-1-r4-f01-final-correction-reaudit-2026-11-24/FINAL_CORRECTION_REAUDIT_REPORT.md SHA a826b006b5e35f8f84a0cbb86367d864b0bbd551f7768f27457e304a90698625.
 - Preserve existing public API examples, check all assembled snippets against exact released version before publication. No article replay has been run. The explicit configuration in prepareDatabase must happen before the first pool use; if called from SwiftUI repeatedly, prefer one startup task and separate prepare-once coordination rather than implying reconfiguration after pool initialization.
-- Maintainer decisions 2026-11-24: ship the accepted architectural scope as 1.1.0; accept explicit connect/pool behavioral changes in minor release given the very small existing user base; defer safe mutation precision and large workload benchmarks to v1.2. These decisions do not authorize implementation of v1.2, push/tag/release, or article publication.
+- Maintainer decisions 2026-11-24: ship the accepted architectural scope as 1.1.0; accept explicit connect/pool behavioral changes in minor release given the very small existing user base; defer safe mutation precision and large workload benchmarks to 1.2. These decisions do not authorize implementation of 1.2, push/tag/release, or article publication.

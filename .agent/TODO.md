@@ -6,10 +6,10 @@ Ideas and maintainer-prioritized capabilities that are not yet active approved i
 
 ## Maintainer-prioritized next work
 
-The 1.1 canonical-pool/runtime engineering scope is complete and independently accepted. No v1.2 implementation is authorized until promoted through normal reviewed planning.
+The 1.1 canonical-pool/runtime engineering scope is complete and independently accepted. No 1.2 implementation is authorized until promoted through normal reviewed planning.
 
-- v1.2: complete-effect-safe table-aware and finer Observation invalidation (column/predicate/changed-row relevance) with conservative fallback, plus comprehensive high-write/million-row correctness and workload benchmarks. See [TECH_DEBT.md](TECH_DEBT.md) and its cold dossier. Preserve 1.1 correctness, bounded ownership and committed-state convergence. Do not use structural primary target alone or revive timing-derived pool defaults.
-- After v1.1 publication: separate artifact/build-cache inventory and safe cleanup planning. Preserve immutable acceptance evidence, distinguish disposable caches from durable evidence, review shared/active paths before deleting anything, and update SECONDARY/POWER/ULTRA workflow cache reuse, disk preflight and cleanup policy. No automatic deletion now.
+- 1.2: complete-effect-safe table-aware and finer Observation invalidation (column/predicate/changed-row relevance) with conservative fallback, plus comprehensive high-write/million-row correctness and workload benchmarks. See [TECH_DEBT.md](TECH_DEBT.md) and its cold dossier. Preserve 1.1 correctness, bounded ownership and committed-state convergence. Do not use structural primary target alone or revive timing-derived pool defaults.
+- After 1.1 publication: separate artifact/build-cache inventory and safe cleanup planning. Preserve immutable acceptance evidence, distinguish disposable caches from durable evidence, review shared/active paths before deleting anything, and update SECONDARY/POWER/ULTRA workflow cache reuse, disk preflight and cleanup policy. No automatic deletion now.
 - Advanced Appender and remaining recursive/composite Value families beyond native LIST/STRUCT P0 stay deferred and separately prioritized.
 - Public READ_ONLY database opening, committed snapshot/Parquet publication ergonomics and cross-process helpers remain future research, not a solution promised by 1.1.
 

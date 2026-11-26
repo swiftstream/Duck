@@ -172,11 +172,11 @@ Duck attempts table-scoped dependency tracking for safe query identities.
 
 Successful analysis with no table dependency is a real empty dependency, not automatically a Database-wide fallback. Such queries can still match conservative Database-wide invalidation when necessary.
 
-Important v1.1 correctness/resource boundary: ordinary successful non-read-only query/Statement execution currently publishes Database-wide invalidation. Therefore a table-scoped observed query may still rerun after an ordinary write to an unrelated table. Equal-result suppression happens only after that refresh has executed and materialized its new `QueryResult`.
+Important 1.1 correctness/resource boundary: ordinary successful non-read-only query/Statement execution currently publishes Database-wide invalidation. Therefore a table-scoped observed query may still rerun after an ordinary write to an unrelated table. Equal-result suppression happens only after that refresh has executed and materialized its new `QueryResult`.
 
-v1.1 also does not promise column-, predicate-, or changed-row-aware invalidation. A selective `WHERE` does not by itself prove that a same-table write can skip refresh.
+1.1 also does not promise column-, predicate-, or changed-row-aware invalidation. A selective `WHERE` does not by itself prove that a same-table write can skip refresh.
 
-This behavior is correctness-conservative, not a stale-state defect. Appender also publishes Database-wide for every target. Primary mutation target identity cannot prove the complete effect set, for example when a trigger writes another table. Table-, column-, predicate- and row-aware mutation precision remain deferred until a complete-effect-safe contract is independently established. The accepted v1.1 resource improvement is bounded refresh-scoped pooling and latest-state coalescing, not a measured speedup or a promise to avoid unrelated reruns.
+This behavior is correctness-conservative, not a stale-state defect. Appender also publishes Database-wide for every target. Primary mutation target identity cannot prove the complete effect set, for example when a trigger writes another table. Table-, column-, predicate- and row-aware mutation precision remain deferred until a complete-effect-safe contract is independently established. The accepted 1.1 resource improvement is bounded refresh-scoped pooling and latest-state coalescing, not a measured speedup or a promise to avoid unrelated reruns.
 
 If dependency extraction, mutation-impact extraction, or identity normalization is unsafe or cannot be trusted, Duck falls back to Database-wide invalidation rather than risking a missed refresh.
 

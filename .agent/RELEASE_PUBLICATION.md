@@ -9,7 +9,7 @@ Load this file only when work pushes a release candidate, creates or pushes a se
 Before publication:
 
 - require a clean, independently accepted release candidate on `master`;
-- record the maintainer-approved stable `RELEASE_VERSION`, its exact semantic `RELEASE_TAG` (`v` followed by `RELEASE_VERSION`), and the candidate commit as `RELEASE_SHA`;
+- record the maintainer-approved stable `RELEASE_VERSION`, its exact semantic `RELEASE_TAG` (identical to `RELEASE_VERSION`, plain `X.Y.Z` without a `v` prefix), and the candidate commit as `RELEASE_SHA`;
 - require the exact candidate tree to pass the release-snapshot documentation gate below;
 - require the semantic release tag to be absent locally and remotely;
 - preserve unrelated user work;
@@ -205,6 +205,8 @@ Creating or pushing the semantic tag requires separate explicit maintainer autho
 
 Create one annotated `RELEASE_TAG` on exact `RELEASE_SHA`, then push only that exact tag normally. Never infer the intended tag from a historical release example.
 
+Duck release tags must be unprefixed semantic versions (for example, `1.1.0`). Preserve the historical `v1.0.0` ref; the canonical name for that version is `1.0.0`. Do not create new prefixed aliases. Existing third-party version tags and the immutable Cduckdb artifact tag are separate identities and must not be renamed.
+
 Verify:
 
 - local tag object SHA;
@@ -217,6 +219,8 @@ A pushed stable tag is immutable. Never move, delete, recreate, or force-update 
 ## Tag CI
 
 Require tag CI to identify exact `RELEASE_TAG` and `RELEASE_SHA`, with required workflow/jobs successful.
+
+The test workflow must trigger on unprefixed numeric release tags. If an already-published tag did not trigger CI because its immutable tree predates the corrected trigger, run the corrected workflow via `workflow_dispatch` on master with the exact existing release tag and expected full release SHA as inputs. Require the job to check out that tag, verify its peeled commit before tests, and run the same required test command successfully. Record both the workflow-definition revision and the tested tag/commit identity; do not misrepresent a manual run as a tag-push event or substitute a master checkout for the release. This narrow recovery does not authorize moving the tag or skipping CI.
 
 If tag CI fails, preserve the immutable tag and stop further publication.
 

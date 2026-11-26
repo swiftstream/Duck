@@ -105,9 +105,9 @@ Do not weaken the reviewed fail-close policy merely to preserve Connection reuse
 
 **Reassessment:** re-check on every relevant SQL 3.x update that expands transaction-mode support.
 
-### OBSERVATION-SCALABILITY-V1_1 — Deferred precise invalidation and workload validation (v1.2)
+### OBSERVATION-SCALABILITY-V1_1 — Deferred precise invalidation and workload validation (1.2)
 
-**Status:** OPEN verified scalability debt; maintainer-approved v1.2 direction, not an active implementation authorization. The coupled canonical Pool architecture objective is CLOSED. The accepted 1.1 refresh-scoped ownership model, transaction correctness, physical native Connection bound and deterministic stress/compatibility are current behavior; see PROJECT_MEMORY.md.
+**Status:** OPEN verified scalability debt; maintainer-approved 1.2 direction, not an active implementation authorization. The coupled canonical Pool architecture objective is CLOSED. The accepted 1.1 refresh-scoped ownership model, transaction correctness, physical native Connection bound and deterministic stress/compatibility are current behavior; see PROJECT_MEMORY.md.
 
 **Current limitation:** read dependencies can be analyzed and matched internally, but ordinary non-read-only query/Statement execution and Appender conservatively invalidate the Database, including trigger-transitive effects. Unrelated writes can cause redundant SQL execution/materialization and equality comparison. Equal-result suppression and newest-only pending demand reduce delivery/backlog, not all database work. This is scalability debt, not a known stale-row defect.
 
@@ -117,7 +117,7 @@ Do not weaken the reviewed fail-close policy merely to preserve Connection reuse
 
 **Closure condition:** independently reviewed complete-effect-safe mutation routing and conservative fallback; table-aware and finer column/predicate/changed-row relevance where proven, including joins, aggregates, views, complex/unsupported shapes and transactions/Appender. Reproducible large-data (mandatory million-row lane) and sustained high-write validation must prove no missed relevant committed updates, quantify invalidation/match/rerun/coalescing counts and resource bounds, validate cancellation/rollback and exact final state, and support separately designed workload benchmarks without arbitrary universal latency/throughput thresholds. Full validation and independent audit required. No unsafe optimization or new feature is authorized by this entry.
 
-**Cold research dossier:** `.agent/tech-debt/REACTIVE_OBSERVATION_SCALABILITY_V1_1.md` (historical ID retained, current target v1.2). Load only when this debt is promoted into active research/planning.
+**Cold research dossier:** `.agent/tech-debt/REACTIVE_OBSERVATION_SCALABILITY_V1_1.md` (historical ID retained, current target 1.2). Load only when this debt is promoted into active research/planning.
 
 ## Category B — Maintainer-Directed Deferred Capability Debt
 

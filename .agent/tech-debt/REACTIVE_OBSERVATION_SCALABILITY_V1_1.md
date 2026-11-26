@@ -1,24 +1,24 @@
-# Reactive Observation Scalability v1.1 Research Dossier
+# Reactive Observation Scalability 1.1 Research Dossier
 
 **Debt ID:** OBSERVATION-SCALABILITY-V1_1
-**Status:** OPEN VERIFIED TECH DEBT / v1.2 PRECISION AND COMPREHENSIVE SCALE TARGET / NOT IMPLEMENTATION AUTHORIZATION
+**Status:** OPEN VERIFIED TECH DEBT / 1.2 PRECISION AND COMPREHENSIVE SCALE TARGET / NOT IMPLEMENTATION AUTHORIZATION
 **Created:** 2026-11-13
 
 ## Context-budget rule
 
-This is the cold historical research dossier for the remaining v1.2 reactive-observation precision and scalability objective. The historical ID is retained for continuity.
+This is the cold historical research dossier for the remaining 1.2 reactive-observation precision and scalability objective. The historical ID is retained for continuity.
 
 Normal project startup should load only the short pointer in `.agent/TECH_DEBT.md` and the accepted current behavior in `.agent/skills/duck-observation/SKILL.md`.
 
-Load this dossier only when the remaining debt has been promoted into active v1.2 research or planning.
+Load this dossier only when the remaining debt has been promoted into active 1.2 research or planning.
 
 The dossier is intentionally self-contained so future work does not depend on transient `.artifacts/**` research.
 
 ## Mandatory lifecycle
 
-This file records deferred verified debt, prioritized for v1.2 by the maintainer. It is not production-source implementation authorization.
+This file records deferred verified debt, prioritized for 1.2 by the maintainer. It is not production-source implementation authorization.
 
-When the remaining v1.2 objective is fully implemented and independently accepted:
+When the remaining 1.2 objective is fully implemented and independently accepted:
 
 1. move accepted permanent architecture rules into the correct source docs, tests, README/public docs, `.agent/PROJECT_MEMORY.md`, `.agent/SOURCE_MAP.md`, and `.agent/skills/duck-observation/SKILL.md`;
 2. preserve deterministic stress/correctness methodology and results in the durable evidence owner selected by the reviewed plan;
@@ -26,13 +26,13 @@ When the remaining v1.2 objective is fully implemented and independently accepte
 4. update `.agent/MASTER_PLAN.md` and `.agent/TODO.md`;
 5. delete this dossier only after no active/stable documentation depends on it.
 
-The scoped 1.1 engineering program is CLOSED / independently accepted, with conservative Database-wide mutation invalidation, bounded canonical resource ownership, physical retirement and deterministic stress/compatibility. Final evidence is summarized in PROJECT_MEMORY.md. The remaining full precision and million-row/high-write correctness and performance validation are explicitly deferred to v1.2. Future debt closure requires a separately reviewed complete-effect-safe strategy and the full deterministic scalability/correctness gate below, with reproducible workload benchmarks; no timing-derived capacity selection. References to v1.1 precision or broader stress targets in the historical research sections describe superseded scope, not current requirements.
+The scoped 1.1 engineering program is CLOSED / independently accepted, with conservative Database-wide mutation invalidation, bounded canonical resource ownership, physical retirement and deterministic stress/compatibility. Final evidence is summarized in PROJECT_MEMORY.md. The remaining full precision and million-row/high-write correctness and performance validation are explicitly deferred to 1.2. Future debt closure requires a separately reviewed complete-effect-safe strategy and the full deterministic scalability/correctness gate below, with reproducible workload benchmarks; no timing-derived capacity selection. References to 1.1 precision or broader stress targets in the historical research sections describe superseded scope, not current requirements.
 
 ---
 
 # 1. Why this debt exists
 
-Duck v1.0.0 Observation is correct but intentionally conservative.
+Duck 1.0.0 Observation is correct but intentionally conservative.
 
 The accepted latest-state Observation pipeline already provides:
 
@@ -84,11 +84,11 @@ Correctness is preserved, but unnecessary query execution/materialization can be
 
 ---
 
-# 2. Product workload that v1.1 must support
+# 2. Product workload that 1.1 must support
 
 The maintainer intends to use Duck in a heavily loaded client application with characteristics closer to a local collaboration/AI harness than a small CRUD demo.
 
-The v1.1 design must therefore be evaluated against workloads containing:
+The 1.1 design must therefore be evaluated against workloads containing:
 
 - tables with millions of rows;
 - many simultaneously active observed queries;
@@ -106,9 +106,9 @@ Do not treat a fast analytical scan in DuckDB as sufficient evidence that an obs
 
 ---
 
-# 3. v1.1 product objective
+# 3. 1.1 product objective
 
-The v1.1 objective is:
+The 1.1 objective is:
 
 > Make Duck reactive observation extremely efficient under high-frequency local mutation workloads while preserving the v1 correctness rule that no relevant committed change may be missed.
 
@@ -134,7 +134,7 @@ If Duck cannot prove that a mutation is irrelevant to an observation, the observ
 
 # 4. Deferred precision objective: complete-effect-safe table-aware ordinary mutations
 
-The historical v1.1 plan treated complete table-aware mutation invalidation as the first mandatory closure layer. The 2026-11-24 U011/effect-safety correction supersedes that release requirement: reachable trigger-transitive writes prove that the declared/structural primary target is not necessarily the complete execution-effect set.
+The historical 1.1 plan treated complete table-aware mutation invalidation as the first mandatory closure layer. The 2026-11-24 U011/effect-safety correction supersedes that release requirement: reachable trigger-transitive writes prove that the declared/structural primary target is not necessarily the complete execution-effect set.
 
 A future precision implementation should still avoid waking an observation proven unrelated to the complete execution effects of a mutation, but only when that irrelevance can be established without under-invalidation.
 
@@ -148,13 +148,13 @@ This must cover, where the mutation target/dependency can be safely determined:
 - model persistence helpers;
 - Appender;
 - UPSERT and other accepted mutation surfaces;
-- future accepted mutation surfaces added before v1.1 closure.
+- future accepted mutation surfaces added before 1.1 closure.
 
 Appender is now deliberately conservative: commit `2de9efb56e130f20a4366b9b219c085892b148b0` publishes `.database` for every Appender target because primary target identity is not a proven complete execution-effect set. Historical Appender target-aware machinery must not be used as evidence that table-scoped publication is currently correctness-authorized.
 
 Safe ambiguity must fail closed to Database-wide invalidation.
 
-Table-aware invalidation is a future optimization layer, not a current v1.1 release prerequisite. Any future implementation must be complete-effect-safe and remains insufficient by itself to close the broader scalability debt.
+Table-aware invalidation is a future optimization layer, not a current 1.1 release prerequisite. Any future implementation must be complete-effect-safe and remains insufficient by itself to close the broader scalability debt.
 
 ---
 
@@ -171,7 +171,7 @@ WHERE color = 'green'
   AND deleted_at IS NOT NULL;
 ```
 
-A high-quality v1.1 design should avoid rerunning this query for mutations that can be proven unable to change its result.
+A high-quality 1.1 design should avoid rerunning this query for mutations that can be proven unable to change its result.
 
 However, general SQL predicate relevance is not a trivial string-comparison problem.
 
@@ -258,7 +258,7 @@ Use when analysis fails, statement semantics are unknown, a dangerous edge is de
 
 Skip observations whose table dependency set is disjoint from the mutation's affected-table set.
 
-This is a deferred future precision level, not a v1.1 release minimum. It requires a separately reviewed complete-effect-safe mutation relation set; primary target identity alone is insufficient.
+This is a deferred future precision level, not a 1.1 release minimum. It requires a separately reviewed complete-effect-safe mutation relation set; primary target identity alone is insufficient.
 
 ## Level 2: Column-aware
 
@@ -309,11 +309,11 @@ Do not add a per-row bookkeeping system whose mutation overhead is worse than th
 
 ## Level 5: Incremental result maintenance
 
-Incrementally patching the current QueryResult instead of rerunning SQL is explicitly research-only and is not required for v1.1.
+Incrementally patching the current QueryResult instead of rerunning SQL is explicitly research-only and is not required for 1.1.
 
 It may become attractive for narrow simple-query classes, but it expands the correctness surface dramatically.
 
-Do not turn the v1.1 objective into a general incremental-view-maintenance project unless source/runtime evidence and deterministic stress coverage prove the preceding levels insufficient.
+Do not turn the 1.1 objective into a general incremental-view-maintenance project unless source/runtime evidence and deterministic stress coverage prove the preceding levels insufficient.
 
 ---
 
@@ -362,7 +362,7 @@ No trigger-based architecture may be adopted without semantic/resource evidence 
 
 ## C API v2
 
-Do not make the v1.1 release depend on unstable C API v2 merely for theoretical performance.
+Do not make the 1.1 release depend on unstable C API v2 merely for theoretical performance.
 
 It may be researched if it exposes a uniquely valuable capability, but the stability cost must be explicit and independently reviewed.
 
@@ -372,7 +372,7 @@ It may be researched if it exposes a uniquely valuable capability, but the stabi
 
 Transaction-aware observation must preserve the accepted v1 rule: publish only at definitive transaction finalization.
 
-The v1.1 implementation should accumulate precise mutation impact inside a transaction rather than degrading every transaction to Database-wide impact.
+The 1.1 implementation should accumulate precise mutation impact inside a transaction rather than degrading every transaction to Database-wide impact.
 
 Research a mergeable transaction impact representation such as:
 
@@ -416,7 +416,7 @@ Ambiguous post-scheduling COMMIT failure retains the existing conservative safet
 
 The existing one-element latest-only invalidation channel is valuable and should remain unless evidence proves a better design.
 
-The v1.1 system must avoid turning a high-frequency write burst into an unbounded queue of refresh work.
+The 1.1 system must avoid turning a high-frequency write burst into an unbounded queue of refresh work.
 
 Research/validation must cover:
 
@@ -441,7 +441,7 @@ Observation remains a latest-state abstraction, not an event log.
 
 This debt cannot close from small unit tests alone, but wall-clock timing is not a release gate.
 
-v1.1 must include deterministic generated-data stress coverage specifically for reactive Observation. The goal is to prove correctness, bounded resource behavior, routing precision, and lifecycle cleanup at realistic scale without using throughput or latency thresholds.
+1.1 must include deterministic generated-data stress coverage specifically for reactive Observation. The goal is to prove correctness, bounded resource behavior, routing precision, and lifecycle cleanup at realistic scale without using throughput or latency thresholds.
 
 ## Required database scales
 
@@ -620,7 +620,7 @@ The complexity belongs under the API.
 
 ---
 
-# 16. Current architectural non-goals for v1.1
+# 16. Current architectural non-goals for 1.1
 
 The scalability objective does not automatically authorize:
 
@@ -642,7 +642,7 @@ Any of these require their own evidence and review if they become necessary.
 
 # 17. Required research questions before implementation plan freeze
 
-The v1.1 plan must answer, with source/runtime evidence:
+The 1.1 plan must answer, with source/runtime evidence:
 
 1. Can `duckdb_get_table_names` safely provide a conservative affected-table superset for every supported ordinary DML family?
 2. Can SwiftStream/SQL expose mutation target, changed-column, and predicate structure without adding fragile rendered-SQL parsing?
@@ -653,7 +653,7 @@ The v1.1 plan must answer, with source/runtime evidence:
 7. How should ORDER BY/LIMIT, JOIN, aggregates, subqueries, views, volatile functions, and schema changes be classified?
 8. What transaction impact representation preserves precision without growing unbounded during large transactions?
 9. What is the overhead of dependency matching itself at 100 active observations? At larger counts if practical?
-10. Does a centralized coordinator remain the correct data structure, or does v1.1 need table-indexed subscription buckets or another indexing strategy?
+10. Does a centralized coordinator remain the correct data structure, or does 1.1 need table-indexed subscription buckets or another indexing strategy?
 11. What data structures avoid O(number of all observations) work for every mutation?
 12. At what point does result materialization dominate invalidation overhead for million-row tables?
 13. Which source/runtime and deterministic stress evidence justifies predicate/row-aware complexity beyond table/column-aware routing?
@@ -666,7 +666,7 @@ No implementation plan is complete until these questions are explicitly disposit
 
 The v1 coordinator currently iterates active subscriptions and checks whether each dependency matches an invalidation.
 
-For heavy workloads, v1.1 must stress this independently from query execution using deterministic operation counts and resource/state assertions.
+For heavy workloads, 1.1 must stress this independently from query execution using deterministic operation counts and resource/state assertions.
 
 A likely research direction is indexed subscription routing:
 
@@ -722,4 +722,4 @@ Validate bounded retained state during sustained write storms, not only after id
 13. a fresh independent implementation/evidence audit is CLEAN;
 14. README/observation skill/public technical material is synchronized with the final truthful semantics.
 
-This full debt closure is not a v1.1.0 release blocker. The completed v1.1 scope closed deterministic stress/compatibility and truthful public semantics while retaining conservative Database-wide mutation invalidation. The remaining debt targets v1.2. Reopen complete-effect-safe table/predicate/row precision only through a fresh separately reviewed plan; do not weaken correctness to force historical precision milestones.
+This full debt closure is not a 1.1.0 release blocker. The completed 1.1 scope closed deterministic stress/compatibility and truthful public semantics while retaining conservative Database-wide mutation invalidation. The remaining debt targets 1.2. Reopen complete-effect-safe table/predicate/row precision only through a fresh separately reviewed plan; do not weaken correctness to force historical precision milestones.
