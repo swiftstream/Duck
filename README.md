@@ -1200,7 +1200,7 @@ pool.maximumConnections // 1
 
 The 1/1 default is deliberately conservative; it is **not** a claim that one Connection is optimal for every application. DuckDB's [connection best practices](https://duckdb.org/docs/stable/guides/performance/how_to_tune_workloads.html#best-practices-for-using-connections) recommend reusing Connections, note that frequently a single Connection works best, and explain that multiple Connections are useful only when the workload actually benefits from independent concurrent work. Individual DuckDB queries can already parallelize internally, so a larger pool should not be treated as a generic speed setting.
 
-When your application needs a different bound, configure it before the first canonical pool use:
+When your application needs a different bound, configure it before the first canonical pool use. For a separate in-memory database, apply the `Todo.Create` migration to that same database before using the model:
 
 ```swift
 let database = Database.memory()
@@ -1209,6 +1209,10 @@ try await database.configure(
     minimumConnections: 1,
     maximumConnections: 4
 )
+
+_ = try await database
+    .migrator([Todo.Create()])
+    .migrate()
 
 let pool = try await database.pool()
 ```
@@ -1224,7 +1228,7 @@ The configuration rules are:
 
 Choose the maximum for the application's real concurrency requirements. Start small, prefer reuse, and increase it only when the application genuinely needs multiple independent Connection leases. Duck does not derive a universal pool size from local timing measurements.
 
-Checkout is scoped:
+Use this prepared pool for scoped checkout:
 
 ```swift
 let todos = try await pool.connection { connection in
@@ -1263,6 +1267,8 @@ let result = try await database.connection { connection in
 The old `connect()` spelling still compiles, but it now holds a manual canonical pool lease. Release it before requesting capacity that depends on it. The old `pool(maximumConnections:)` accessor is deprecated and configures/returns the same canonical pool, not a separate pool. Configure the bound before first use, then call `pool()` only when you need its handle.
 
 ### Managed transaction inside a pool
+
+Reuse the prepared `pool` from the configured in-memory database example above:
 
 ```swift
 try await pool.transaction { transaction in
